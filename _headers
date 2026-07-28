@@ -1,0 +1,18 @@
+# Header keamanan untuk hosting Netlify (file ini dibaca otomatis oleh Netlify,
+# tidak berpengaruh apa-apa kalau kamu hosting di tempat lain kecuali platform
+# itu juga mendukung format "_headers" yang sama seperti Netlify).
+#
+# CATATAN: Content-Security-Policy di bawah ini sudah disesuaikan persis dengan
+# domain yang benar-benar dipakai index.html (Tailwind CDN, jsdelivr, cdnjs,
+# Google Fonts, Wikimedia untuk logo bank/e-wallet, dan Supabase). Kalau nanti
+# kamu menambah CDN/domain baru di index.html, tambahkan juga domainnya di sini,
+# atau header ini akan memblokirnya secara diam-diam. Kalau ragu / curiga ada
+# yang aneh setelah deploy, coba hapus dulu file ini untuk isolasi masalah.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https://upload.wikimedia.org; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'

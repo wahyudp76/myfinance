@@ -1,0 +1,5 @@
+# MyFinance Dashboard adalah aplikasi PRIBADI (data keuangan + login) --
+# sengaja diblokir total dari semua crawler/mesin pencari, lapisan tambahan
+# di luar tag <meta name="robots"> yang sudah ada di index.html.
+User-agent: *
+Disallow: /
