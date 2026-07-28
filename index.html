@@ -611,10 +611,17 @@
                 <div id="dashboard-accounts-container" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4"></div>
             </div>
 
-            <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8 h-72 md:h-80 flex flex-col">
-                <h4 class="text-sm font-bold text-slate-700 mb-1">Komposisi Kas & Rekening</h4>
+            <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8">
+                <div class="flex items-center justify-between mb-1">
+                    <h4 class="text-sm font-bold text-slate-700">Komposisi Kas & Rekening</h4>
+                    <span id="assetChart-total" class="text-sm md:text-base font-extrabold text-slate-800"></span>
+                </div>
                 <p class="text-xs text-slate-400 mb-4">Distribusi uang tunai dari berbagai akun</p>
-                <div class="flex-1 relative w-full min-h-0 pb-2 md:pb-4"><canvas id="assetChart"></canvas></div>
+                <div class="flex items-center gap-4 md:gap-6">
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetChart"></canvas></div>
+                    <div id="assetChart-legend" class="flex-1 min-w-0"></div>
+                </div>
+                <div id="assetChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
             </div>
 
             <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8 h-72 md:h-80 flex flex-col">
@@ -792,20 +799,28 @@
                 <!-- Category Doughnuts -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm chart-card">
-                        <div class="flex justify-between items-start mb-1">
+                        <div class="flex justify-between items-center mb-1">
                             <h4 class="text-xs md:text-sm font-bold text-slate-700" id="title-dist-out">Distribusi Pengeluaran</h4>
-                            <span class="text-[9px] md:text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-full"><i class="fas fa-hand-pointer mr-1"></i>Klik Area</span>
+                            <span id="expenseCategoryChart-total" class="text-sm font-extrabold text-slate-800"></span>
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Pengeluaran berdasarkan kategori</p>
-                        <div class="h-48 md:h-64 relative"><canvas id="expenseCategoryChart"></canvas></div>
+                        <div class="flex items-center gap-3 md:gap-4">
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="expenseCategoryChart"></canvas></div>
+                            <div id="expenseCategoryChart-legend" class="flex-1 min-w-0"></div>
+                        </div>
+                        <div id="expenseCategoryChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50 max-h-64 overflow-y-auto"></div>
                     </div>
                     <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm chart-card">
-                        <div class="flex justify-between items-start mb-1">
+                        <div class="flex justify-between items-center mb-1">
                             <h4 class="text-xs md:text-sm font-bold text-slate-700" id="title-dist-in">Distribusi Pemasukan</h4>
-                            <span class="text-[9px] md:text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-full"><i class="fas fa-hand-pointer mr-1"></i>Klik Area</span>
+                            <span id="incomeCategoryChart-total" class="text-sm font-extrabold text-slate-800"></span>
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Sumber pemasukan terbesar</p>
-                        <div class="h-48 md:h-64 relative"><canvas id="incomeCategoryChart"></canvas></div>
+                        <div class="flex items-center gap-3 md:gap-4">
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="incomeCategoryChart"></canvas></div>
+                            <div id="incomeCategoryChart-legend" class="flex-1 min-w-0"></div>
+                        </div>
+                        <div id="incomeCategoryChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50 max-h-64 overflow-y-auto"></div>
                     </div>
                 </div>
 
@@ -875,16 +890,22 @@
             </div>
 
             <!-- Asset Chart & List -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <!-- Doughnut Chart -->
-                <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm lg:col-span-1 h-80 flex flex-col">
-                    <h4 class="text-sm font-bold text-slate-700 mb-1">Alokasi per Kategori</h4>
-                    <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi Anda</p>
-                    <div class="flex-1 relative min-h-0 pb-2"><canvas id="assetAllocationChart"></canvas></div>
+            <div class="bg-white rounded-2xl p-4 md:p-5 border border-slate-100 shadow-sm mb-6">
+                <div class="flex items-center justify-between mb-1">
+                    <h4 class="text-sm font-bold text-slate-700">Alokasi per Kategori</h4>
+                    <span id="assetAllocationChart-total" class="text-sm md:text-base font-extrabold text-slate-800"></span>
                 </div>
+                <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi Anda</p>
+                <div class="flex items-center gap-4 md:gap-6">
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas></div>
+                    <div id="assetAllocationChart-legend" class="flex-1 min-w-0"></div>
+                </div>
+                <div id="assetAllocationChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
+            </div>
 
+            <div class="mb-8">
                 <!-- Asset List -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm lg:col-span-2 overflow-hidden flex flex-col">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                         <h4 class="text-sm font-bold text-slate-800">Daftar Aset Aktif</h4>
                         <span class="text-xs text-slate-400"><i class="fas fa-list"></i> <span id="asset-count">0</span> item</span>
@@ -1182,11 +1203,20 @@
 
             <!-- Chart: Distribusi Kategori -->
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6 md:mb-8">
-                <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50">
-                    <h4 class="text-sm font-bold text-slate-800">Distribusi Pengeluaran per Kategori</h4>
-                    <p class="text-xs text-slate-400 mt-0.5">Ke mana saja uang dari akun ini dibelanjakan (sesuai rentang grafik)</p>
+                <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800">Distribusi Pengeluaran per Kategori</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Ke mana saja uang dari akun ini dibelanjakan (sesuai rentang grafik)</p>
+                    </div>
+                    <span id="accountCatChart-total" class="text-sm md:text-base font-extrabold text-slate-800 flex-shrink-0 pl-3"></span>
                 </div>
-                <div class="p-4 md:p-6 h-72 md:h-80"><canvas id="accountCatChart"></canvas></div>
+                <div class="p-4 md:p-6">
+                    <div class="flex items-center gap-4 md:gap-6">
+                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="accountCatChart"></canvas></div>
+                        <div id="accountCatChart-legend" class="flex-1 min-w-0"></div>
+                    </div>
+                    <div id="accountCatChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
+                </div>
             </div>
 
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -2989,6 +3019,63 @@ const api = (() => {
         function chartEmptyColor() { return document.documentElement.classList.contains('dark') ? '#334155' : '#f1f5f9'; } // ring donut chart saat data kosong
         function chartBorderColor() { return document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff'; } // garis pemisah antar-segmen donut, menyatu dgn warna kartu
 
+        // Ikon per kategori aset -- tidak seperti kategori pengeluaran/pemasukan, kategori aset (Saham,
+        // Reksadana, dst) bebas diketik user jadi tidak ada tabel ikon tetapnya. Ini cuma tebakan
+        // heuristik berdasarkan nama, dengan fallback ikon permata generik (senada dengan ikon
+        // "Belum ada aset" di kondisi kosong).
+        function detectAssetCategoryIcon(kategori) {
+            const k = String(kategori || '').toLowerCase();
+            if (k.includes('saham')) return 'fa-chart-line';
+            if (k.includes('reksa')) return 'fa-layer-group';
+            if (k.includes('emas') || k.includes('logam')) return 'fa-coins';
+            if (k.includes('kripto') || k.includes('crypto') || k.includes('bitcoin')) return 'fa-bitcoin-sign';
+            if (k.includes('properti') || k.includes('tanah') || k.includes('rumah')) return 'fa-house';
+            if (k.includes('deposito') || k.includes('tabungan')) return 'fa-piggy-bank';
+            if (k.includes('obligasi') || k.includes('bond')) return 'fa-file-contract';
+            return 'fa-gem';
+        }
+
+        // Helper bersama untuk pola "donut ringkas + legend 2 teratas + daftar rincian" yang dipakai di
+        // 5 tempat (Komposisi Kas & Rekening, Alokasi Aset per Kategori, Distribusi Pengeluaran/Pemasukan
+        // di tab Laporan, dan Distribusi Pengeluaran per Kategori di detail akun) -- supaya kelimanya
+        // konsisten & tidak menduplikasi markup yang sama 5 kali.
+        // opts: { legendEl, listEl, totalEl, entries:[{label,val,iconHtml}], palette:[warna hex...],
+        //         onClickItem: (label)=>string-onclick (opsional), emptyMessage }
+        function renderDonutBreakdown(opts) {
+            const { legendEl, listEl, totalEl, entries, palette, onClickItem, emptyMessage } = opts;
+            const total = entries.reduce((s, e) => s + e.val, 0);
+            if (totalEl) totalEl.innerText = 'Rp ' + formatRp(total);
+
+            if (!entries.length || total <= 0) {
+                if (legendEl) legendEl.innerHTML = '';
+                if (listEl) listEl.innerHTML = `<div class="text-center text-xs text-slate-400 py-6">${emptyMessage || 'Belum ada data.'}</div>`;
+                return;
+            }
+
+            if (legendEl) {
+                legendEl.innerHTML = entries.slice(0, 2).map((e, i) => `
+                    <div class="flex items-center justify-between gap-3 py-1.5">
+                        <div class="flex items-center gap-2 min-w-0"><span class="w-3 h-3 rounded-full flex-shrink-0" style="background:${palette[i % palette.length]}"></span><span class="text-xs md:text-sm font-bold text-slate-600 truncate">${escapeHtml(e.label)}</span></div>
+                        <span class="text-xs md:text-sm font-bold text-slate-800 flex-shrink-0">${Math.round(e.val / total * 100)}%</span>
+                    </div>`).join('');
+            }
+
+            if (listEl) {
+                listEl.innerHTML = entries.map((e, i) => {
+                    const pct = Math.round(e.val / total * 100);
+                    const chartColor = palette[i % palette.length];
+                    const clickable = typeof onClickItem === 'function';
+                    return `<div ${clickable ? `onclick="${onClickItem(e.label)}"` : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hover:bg-slate-50 transition' : ''}">
+                        <span class="text-[10px] md:text-xs font-bold text-white rounded-lg px-2 py-1 flex-shrink-0 w-10 md:w-11 text-center" style="background:${chartColor}">${pct}%</span>
+                        ${e.iconHtml}
+                        <span class="text-xs md:text-sm font-bold text-slate-700 flex-1 min-w-0 truncate">${escapeHtml(e.label)}</span>
+                        <span class="text-xs md:text-sm font-bold text-slate-600 flex-shrink-0 whitespace-nowrap">Rp ${formatShortVal(e.val)}</span>
+                        ${clickable ? `<i class="fas fa-chevron-right text-slate-300 text-[10px] flex-shrink-0"></i>` : ''}
+                    </div>`;
+                }).join('');
+            }
+        }
+
         function updateThemeButtonsUI(pref) {
             ['light', 'dark', 'system'].forEach(p => {
                 const btn = document.getElementById('theme-btn-' + p);
@@ -4362,16 +4449,23 @@ const api = (() => {
             let assetLabels = assetEntries.length ? assetEntries.map(e => e.label) : ['Kosong']; 
             let assetData = assetEntries.length ? assetEntries.map(e => e.val) : [1];
 
-            const doughnutDataLabels = { color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (value, ctx) => { let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (sum === 0 || value === 0) return ''; let pct = value * 100 / sum; return pct < 5 ? '' : pct.toFixed(1) + "%"; } };
-            
             if(charts.asset) charts.asset.destroy();
             if(document.getElementById('assetChart')) {
                 charts.asset = new Chart(document.getElementById('assetChart').getContext('2d'), { 
                     type: 'doughnut', 
                     data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: assetData[0]===1&&assetLabels[0]==='Kosong' ? [chartEmptyColor()] : modernPalette, borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
-                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: window.innerWidth < 768 ? 'bottom':'right', labels: { boxWidth: 12, padding: 15, font: {size: 11, weight: 'bold'} } }, datalabels: assetData[0]===1&&assetLabels[0]==='Kosong' ? {display:false} : doughnutDataLabels } } 
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, datalabels: { display: false } } } 
                 });
             }
+            renderDonutBreakdown({
+                legendEl: document.getElementById('assetChart-legend'),
+                listEl: document.getElementById('assetChart-list'),
+                totalEl: document.getElementById('assetChart-total'),
+                entries: assetEntries.map(e => ({ label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0 text-xs md:text-sm border border-slate-100">${getAccountLogo(e.label)}</div>` })),
+                palette: modernPalette,
+                onClickItem: (label) => `openAccountDetail('${jsStr(label)}')`,
+                emptyMessage: 'Belum ada saldo di akun manapun.'
+            });
 
             let monthKeys = Object.keys(monthlyMap);
             monthKeys.sort((a,b) => { let dateA = new Date("1 " + a); let dateB = new Date("1 " + b); return dateA - dateB; });
@@ -4933,11 +5027,16 @@ const api = (() => {
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false, cutout: '70%',
-                    plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: {size: 10, weight: 'bold'} } },
-                        datalabels: { display: false }
-                    }
+                    plugins: { legend: { display: false }, datalabels: { display: false } }
                 }
+            });
+            renderDonutBreakdown({
+                legendEl: document.getElementById('assetAllocationChart-legend'),
+                listEl: document.getElementById('assetAllocationChart-list'),
+                totalEl: document.getElementById('assetAllocationChart-total'),
+                entries: catLabels.map((label, i) => ({ label, val: catData[i], iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center flex-shrink-0 text-xs md:text-sm border border-slate-100"><i class="fas ${detectAssetCategoryIcon(label)}"></i></div>` })),
+                palette: modernPalette,
+                emptyMessage: 'Belum ada aset yang dicatat.'
             });
         }
 
@@ -5069,8 +5168,6 @@ const api = (() => {
                 }
             });
 
-            const doughnutDataLabels = { color: '#ffffff', font: { weight: 'bold', size: 11 }, formatter: (value, ctx) => { let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (sum === 0 || value === 0) return ''; let pct = value * 100 / sum; return pct < 5 ? '' : pct.toFixed(0) + "%"; } };
-            
             let outEntries = Object.keys(catOutMap).map(k => ({label: k, val: catOutMap[k]})).sort((a,b) => b.val - a.val);
             let inEntries = Object.keys(catInMap).map(k => ({label: k, val: catInMap[k]})).sort((a,b) => b.val - a.val);
 
@@ -5080,7 +5177,7 @@ const api = (() => {
                 data: { labels: hasOutCat ? outEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasOutCat ? outEntries.map(e=>e.val) : [1], backgroundColor: hasOutCat ? cutePaletteOut : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '65%',
-                    plugins: { legend: { position: window.innerWidth < 768 ? 'bottom' : 'right', labels: { boxWidth: 10, padding: 12, font: {size: 10, weight: 'bold'} } }, datalabels: hasOutCat ? doughnutDataLabels : {display:false} },
+                    plugins: { legend: { display: false }, datalabels: { display: false } },
                     onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
                     onClick: (e, elements, chart) => {
                         if (elements.length > 0) {
@@ -5091,6 +5188,15 @@ const api = (() => {
                     }
                 } 
             });
+            renderDonutBreakdown({
+                legendEl: document.getElementById('expenseCategoryChart-legend'),
+                listEl: document.getElementById('expenseCategoryChart-list'),
+                totalEl: document.getElementById('expenseCategoryChart-total'),
+                entries: outEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 text-xs md:text-sm"><i class="fas ${s.icon}"></i></div>` }; }),
+                palette: cutePaletteOut,
+                onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
+                emptyMessage: 'Belum ada pengeluaran bulan ini.'
+            });
 
             if(charts.catIn) charts.catIn.destroy(); let hasInCat = inEntries.length > 0;
             charts.catIn = new Chart(document.getElementById('incomeCategoryChart').getContext('2d'), { 
@@ -5098,7 +5204,7 @@ const api = (() => {
                 data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: hasInCat ? cutePaletteIn : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '65%',
-                    plugins: { legend: { position: window.innerWidth < 768 ? 'bottom' : 'right', labels: { boxWidth: 10, padding: 12, font: {size: 10, weight: 'bold'} } }, datalabels: hasInCat ? doughnutDataLabels : {display:false} },
+                    plugins: { legend: { display: false }, datalabels: { display: false } },
                     onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
                     onClick: (e, elements, chart) => {
                         if (elements.length > 0) {
@@ -5108,6 +5214,15 @@ const api = (() => {
                         }
                     }
                 } 
+            });
+            renderDonutBreakdown({
+                legendEl: document.getElementById('incomeCategoryChart-legend'),
+                listEl: document.getElementById('incomeCategoryChart-list'),
+                totalEl: document.getElementById('incomeCategoryChart-total'),
+                entries: inEntries.map(e => { const s = getCategoryStyle(e.label, 'Pemasukan'); return { label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 text-xs md:text-sm"><i class="fas ${s.icon}"></i></div>` }; }),
+                palette: cutePaletteIn,
+                onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pemasukan')`,
+                emptyMessage: 'Belum ada pemasukan bulan ini.'
             });
 
             let dailyLabels = Object.keys(dailyMap);
@@ -5409,7 +5524,6 @@ const api = (() => {
             });
             let catEntries = Object.keys(catMap).map(k => ({ label: k, val: catMap[k] })).sort((a, b) => b.val - a.val);
             let hasCatData = catEntries.length > 0;
-            const catDataLabels = { color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (value, ctx) => { let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); if (sum === 0 || value === 0) return ''; let pct = value * 100 / sum; return pct < 5 ? '' : pct.toFixed(0) + "%"; } };
 
             if (charts.accCat) charts.accCat.destroy();
             if (document.getElementById('accountCatChart')) {
@@ -5421,14 +5535,19 @@ const api = (() => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false, cutout: '65%',
-                        plugins: {
-                            legend: { position: window.innerWidth < 768 ? 'bottom' : 'right', labels: { boxWidth: 10, padding: 12, font: { size: 10, weight: 'bold' } } },
-                            datalabels: hasCatData ? catDataLabels : { display: false },
-                            tooltip: { callbacks: { label: (ctx) => ctx.label + ': Rp ' + formatRp(ctx.raw) } }
-                        }
+                        plugins: { legend: { display: false }, datalabels: { display: false } }
                     }
                 });
             }
+            renderDonutBreakdown({
+                legendEl: document.getElementById('accountCatChart-legend'),
+                listEl: document.getElementById('accountCatChart-list'),
+                totalEl: document.getElementById('accountCatChart-total'),
+                entries: catEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 text-xs md:text-sm"><i class="fas ${s.icon}"></i></div>` }; }),
+                palette: cutePaletteOut,
+                onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
+                emptyMessage: 'Belum ada pengeluaran untuk akun ini pada rentang yang dipilih.'
+            });
         }
 
         // ========================== CATEGORY DETAIL ==========================
