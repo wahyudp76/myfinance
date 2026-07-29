@@ -1521,6 +1521,60 @@
         </div>
     </div>
 
+    <!-- MODAL KUSTOMISASI KATEGORI (ikon, warna, atau gambar kustom) -->
+    <div id="modalCategoryStyle" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
+        <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[85vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalCategoryStyleContent">
+
+            <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+            </div>
+
+            <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl md:rounded-t-3xl">
+                <div>
+                    <h3 class="text-base md:text-lg font-bold text-slate-800">Kustomisasi Kategori</h3>
+                    <p class="text-[11px] text-slate-400" id="catstyle-modal-subtitle">Nama kategori</p>
+                </div>
+                <button type="button" onclick="closeCategoryStyleModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-5 space-y-5">
+
+                <!-- Preview -->
+                <div class="flex flex-col items-center">
+                    <div id="catstyle-preview" class="w-16 h-16 rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm flex items-center justify-center overflow-hidden"></div>
+                </div>
+
+                <!-- Icon/Color/Image Picker -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide">Ikon & Warna</label>
+                        <button type="button" onclick="resetCategoryStyleToDefault()" class="text-[10px] font-bold text-blue-500 hover:text-blue-700"><i class="fas fa-rotate-left mr-1"></i>Reset ke Bawaan</button>
+                    </div>
+                    <div class="bg-slate-100 p-1 rounded-xl flex mb-3 text-[11px] font-bold">
+                        <button type="button" onclick="setCatStyleTab('palette')" id="catstyle-tab-palette" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-blue-600">Pilih Ikon</button>
+                        <button type="button" onclick="setCatStyleTab('upload')" id="catstyle-tab-upload" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Upload Gambar</button>
+                    </div>
+
+                    <div id="catstyle-panel-palette" class="grid grid-cols-6 gap-2"></div>
+
+                    <div id="catstyle-panel-upload" class="hidden">
+                        <label for="catstyle-upload-input" class="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-2xl py-6 cursor-pointer transition bg-white">
+                            <i class="fas fa-cloud-arrow-up text-xl text-slate-300"></i>
+                            <span class="text-[11px] font-bold text-slate-500">Klik untuk upload gambar</span>
+                            <span class="text-[9px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
+                        </label>
+                        <input type="file" id="catstyle-upload-input" accept="image/*" class="hidden" onchange="handleCategoryStyleUpload(event)">
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
+                <button type="button" onclick="submitCategoryStyleModal()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL EDIT PROFIL (foto, nama, data diri) -->
     <div id="modalProfile" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[92vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalProfileContent">
@@ -2295,6 +2349,11 @@ const api = (() => {
                 pengeluaran: { parents: [], subs: {} },
                 pemasukan: { parents: [], subs: {} }
             },
+            // Override ikon/warna/gambar kustom per kategori (Pengeluaran & Pemasukan terpisah supaya
+            // nama kategori yang kebetulan sama di keduanya tidak saling tertukar gayanya). Nilainya
+            // TIDAK diisi di sini -- dihidrasi dari tabel custom_icons saat load (lihat
+            // CATEGORY_STYLE_KEY_PREFIX di bawah), bukan dari tabel settings.
+            categoryStyles: { pengeluaran: {}, pemasukan: {} },
             budgets: {},
             // Data diri pengguna (nama, no. HP, bio singkat). Foto profil TIDAK disimpan di sini
             // supaya payload pengaturan utama tetap ringan -- foto disimpan lewat mekanisme yang
@@ -2302,10 +2361,17 @@ const api = (() => {
             profile: { full_name: '', phone: '', bio: '' }
         };
 
-        // Key "akun" khusus (bukan nama akun asli manapun) yang dipakai untuk menyimpan foto
+        // Key khusus (bukan nama akun asli manapun) yang dipakai untuk menyimpan foto
         // profil pengguna lewat mekanisme custom_icons yang sudah ada (saveCustomIcon/deleteCustomIcon).
         // Aman dari tabrakan karena daftar akun asli (appSettings.accounts) tidak pernah memuat key ini.
         const PROFILE_AVATAR_KEY = '__myfinance_profile_avatar__';
+
+        // Override ikon/warna/gambar kustom per KATEGORI juga dititipkan di tabel custom_icons yang
+        // sama (bukan tabel baru) -- lewat key dengan awalan khusus ini, supaya tidak perlu migrasi
+        // SQL tambahan di Supabase. "account_name" pada tabel itu berfungsi sebagai key generik untuk
+        // "objek ikon custom apapun", bukan cuma nama akun -- persis seperti PROFILE_AVATAR_KEY di atas.
+        const CATEGORY_STYLE_KEY_PREFIX = '__myfinance_category_style__';
+        function categoryStyleKey(jenisKey, catName) { return CATEGORY_STYLE_KEY_PREFIX + jenisKey + '::' + catName; }
 
         // Catatan: appSettings TIDAK lagi diinisialisasi dari localStorage.
         // Nilai default di bawah cuma placeholder sebelum loadData() selesai
@@ -2370,6 +2436,8 @@ const api = (() => {
             });
             if (!appSettings.accounts) appSettings.accounts = deepCloneDict(defaultSettings.accounts);
             if (!appSettings.accountIcons) appSettings.accountIcons = {};
+            if (!appSettings.categoryStyles) appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
+            ['pengeluaran', 'pemasukan'].forEach(type => { if (!appSettings.categoryStyles[type]) appSettings.categoryStyles[type] = {}; });
             if (!appSettings.budgets) appSettings.budgets = {};
             if (!appSettings.profile || typeof appSettings.profile !== 'object') appSettings.profile = { full_name: '', phone: '', bio: '' };
             if (typeof appSettings.profile.full_name !== 'string') appSettings.profile.full_name = '';
@@ -2401,6 +2469,28 @@ const api = (() => {
             { icon: 'fa-chart-line', bg: 'bg-orange-100', color: 'text-orange-500' },
             { icon: 'fa-hand-holding-dollar', bg: 'bg-teal-100', color: 'text-teal-600' },
             { icon: 'fa-cash-register', bg: 'bg-rose-100', color: 'text-rose-500' }
+        ];
+
+        // Palet ikon+warna untuk kustomisasi kategori Pengeluaran/Pemasukan (Pengaturan > Kategori)
+        const categoryIconPalette = [
+            { icon: 'fa-utensils', bg: 'bg-orange-100', color: 'text-orange-500' },
+            { icon: 'fa-cart-shopping', bg: 'bg-pink-100', color: 'text-pink-500' },
+            { icon: 'fa-car', bg: 'bg-blue-100', color: 'text-blue-500' },
+            { icon: 'fa-house', bg: 'bg-amber-100', color: 'text-amber-600' },
+            { icon: 'fa-bolt', bg: 'bg-yellow-100', color: 'text-yellow-600' },
+            { icon: 'fa-heart-pulse', bg: 'bg-rose-100', color: 'text-rose-500' },
+            { icon: 'fa-film', bg: 'bg-purple-100', color: 'text-purple-500' },
+            { icon: 'fa-plane', bg: 'bg-sky-100', color: 'text-sky-500' },
+            { icon: 'fa-gift', bg: 'bg-fuchsia-100', color: 'text-fuchsia-500' },
+            { icon: 'fa-graduation-cap', bg: 'bg-indigo-100', color: 'text-indigo-500' },
+            { icon: 'fa-dumbbell', bg: 'bg-teal-100', color: 'text-teal-600' },
+            { icon: 'fa-paw', bg: 'bg-lime-100', color: 'text-lime-600' },
+            { icon: 'fa-mobile-screen', bg: 'bg-cyan-100', color: 'text-cyan-600' },
+            { icon: 'fa-briefcase', bg: 'bg-slate-200', color: 'text-slate-600' },
+            { icon: 'fa-coins', bg: 'bg-emerald-100', color: 'text-emerald-600' },
+            { icon: 'fa-chart-line', bg: 'bg-green-100', color: 'text-green-600' },
+            { icon: 'fa-mug-hot', bg: 'bg-orange-100', color: 'text-orange-600' },
+            { icon: 'fa-star', bg: 'bg-violet-100', color: 'text-violet-500' }
         ];
 
         function rebuildCategoryDict() {
@@ -2449,11 +2539,15 @@ const api = (() => {
             { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" }
         ];
 
-        function getCategoryStyle(catName, jenis) {
-            if (jenis === 'Transfer') return { icon: "fa-exchange-alt", bg: "bg-blue-100", color: "text-blue-500", parent: "Transfer", parentName: "Transfer" };
+        // Menghitung gaya BAWAAN kategori (tanpa override kustom user) -- dipakai oleh getCategoryStyle()
+        // dan juga oleh modal kustomisasi kategori saat user klik "Reset ke Bawaan" (perlu tahu tampilan
+        // aslinya tanpa override, sebelum override itu dihapus).
+        function resolveBaseCategoryStyle(catName, jenis) {
+            if (jenis === 'Transfer') {
+                return { icon: "fa-exchange-alt", bg: "bg-blue-100", color: "text-blue-500", parent: "Transfer", parentName: "Transfer" };
+            }
             let found = subCategoryLookup[catName];
             if (found) return found;
-            
             if (jenis === 'Pengeluaran' && categoryDict.pengeluaran[catName]) {
                 let p = categoryDict.pengeluaran[catName];
                 return { icon: p.icon, bg: p.bg, color: p.color, parent: catName, parentName: catName };
@@ -2462,9 +2556,23 @@ const api = (() => {
                 let p = categoryDict.pemasukan[catName];
                 return { icon: p.icon, bg: p.bg, color: p.color, parent: catName, parentName: catName };
             }
-
-            if(jenis === 'Pemasukan') return { icon: "fa-arrow-down", bg: "bg-emerald-100", color: "text-emerald-500", parent: "Lain-lain", parentName: "Lain-lain" };
+            if (jenis === 'Pemasukan') return { icon: "fa-arrow-down", bg: "bg-emerald-100", color: "text-emerald-500", parent: "Lain-lain", parentName: "Lain-lain" };
             return { icon: "fa-arrow-up", bg: "bg-rose-100", color: "text-rose-500", parent: "Lain-lain", parentName: "Lain-lain" };
+        }
+
+        function getCategoryStyle(catName, jenis) {
+            let base = resolveBaseCategoryStyle(catName, jenis);
+
+            // Override ikon/warna/gambar kustom yang dipilih user lewat Pengaturan (lihat
+            // categoryStyleKey()) -- kalau ada gambar kustom, icon/bg/color bawaan tetap disertakan
+            // sebagai fallback untuk tempat yang belum mendukung render gambar (lihat categoryIconHtml()).
+            const jenisKey = jenis === 'Pemasukan' ? 'pemasukan' : 'pengeluaran';
+            const override = jenis !== 'Transfer' && appSettings.categoryStyles && appSettings.categoryStyles[jenisKey] && appSettings.categoryStyles[jenisKey][catName];
+            if (override) {
+                if (override.type === 'image') return Object.assign({}, base, { image: override.value });
+                return Object.assign({}, base, { icon: override.value, bg: override.bg, color: override.color, image: null });
+            }
+            return base;
         }
 
         // ========================== UTILITIES ==========================
@@ -2695,6 +2803,19 @@ const api = (() => {
             return renderAccountIconObj(detectAutoAccountIcon(name), 'text-xl');
         }
 
+        // Merender lingkaran ikon kategori: gambar kustom (kalau style.image ada, dari override user)
+        // atau ikon Font Awesome biasa (style.icon) di atas warna latar (style.bg/style.color).
+        // wrapClass = ukuran+rounded+margin dsb (TANPA bg/color, karena itu diatur di sini sendiri
+        // supaya gambar kustom bisa tampil di atas latar putih netral, bukan warna kategori).
+        // iconSizeClass = kelas ukuran teks khusus untuk ikonnya (opsional).
+        function categoryIconHtml(style, wrapClass, iconSizeClass) {
+            iconSizeClass = iconSizeClass || '';
+            if (style.image) {
+                return `<div class="${wrapClass} overflow-hidden bg-white ring-1 ring-slate-100"><img src="${style.image}" class="w-full h-full object-cover" alt="" onerror="this.parentElement.className='${jsStr(wrapClass)} ${style.bg} ${style.color}'; this.outerHTML='<i class=\\'fas ${style.icon} ${iconSizeClass}\\'></i>';"></div>`;
+            }
+            return `<div class="${wrapClass} ${style.bg} ${style.color}"><i class="fas ${style.icon} ${iconSizeClass}"></i></div>`;
+        }
+
         // ========================== SETTINGS AND SYNC ACTIONS ==========================
         function escapeHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
         function jsStr(str) { return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
@@ -2729,11 +2850,12 @@ const api = (() => {
         }
 
         function persistSettings() {
-            // accountIcons SENGAJA tidak ikut dikirim di sini — data ikon custom (base64/upload)
+            // accountIcons & categoryStyles SENGAJA tidak ikut dikirim di sini — keduanya
             // disinkronkan terpisah lewat saveCustomIcon()/deleteCustomIcon() ke tabel custom_icons,
-            // supaya payload pengaturan utama tetap ringan meski ada banyak logo upload.
+            // supaya payload pengaturan utama tetap ringan meski ada banyak logo/gambar upload.
             const settingsForCloud = Object.assign({}, appSettings);
             delete settingsForCloud.accountIcons;
+            delete settingsForCloud.categoryStyles;
             api.run.withSuccessHandler(function(){}).withFailureHandler(function() {
                 showErrorToast('Gagal menyimpan pengaturan ke Supabase. Periksa koneksi internet Anda.');
             }).saveSettingsCloud(settingsForCloud);
@@ -2869,6 +2991,111 @@ const api = (() => {
                 resetBtn.classList.add('hidden');
             }
             renderAccountIconPalette();
+        }
+
+        // ===== Modal Kustomisasi Kategori (ikon/warna/gambar kustom) =====
+        let categoryStyleOverride = null; // null = pakai gaya bawaan; { type:'icon', value, bg, color } atau { type:'image', value }
+        let categoryStyleContext = { jenisKey: null, catName: null, jenisProper: null };
+
+        function openCategoryStyleModal(jenisKey, catName) {
+            categoryStyleContext = { jenisKey: jenisKey, catName: catName, jenisProper: jenisKey === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran' };
+            const existing = appSettings.categoryStyles && appSettings.categoryStyles[jenisKey] && appSettings.categoryStyles[jenisKey][catName];
+            categoryStyleOverride = existing ? Object.assign({}, existing) : null;
+            document.getElementById('catstyle-modal-subtitle').innerText = catName;
+            document.getElementById('catstyle-upload-input').value = '';
+            setCatStyleTab('palette');
+            refreshCategoryStylePreview();
+            const modal = document.getElementById('modalCategoryStyle');
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => document.getElementById('modalCategoryStyleContent').classList.remove('translate-y-full', 'md:scale-95', 'opacity-0'));
+        }
+
+        function closeCategoryStyleModal() {
+            const content = document.getElementById('modalCategoryStyleContent');
+            content.classList.add('translate-y-full', 'md:scale-95', 'opacity-0');
+            setTimeout(() => { document.getElementById('modalCategoryStyle').classList.add('hidden'); }, 300);
+        }
+
+        function setCatStyleTab(tab) {
+            document.getElementById('catstyle-panel-palette').classList.toggle('hidden', tab !== 'palette');
+            document.getElementById('catstyle-panel-upload').classList.toggle('hidden', tab !== 'upload');
+            document.getElementById('catstyle-tab-palette').className = `flex-1 py-1.5 rounded-lg transition-all ${tab==='palette' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`;
+            document.getElementById('catstyle-tab-upload').className = `flex-1 py-1.5 rounded-lg transition-all ${tab==='upload' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`;
+        }
+
+        function renderCategoryStylePalette() {
+            const wrap = document.getElementById('catstyle-panel-palette'); if (!wrap) return;
+            wrap.innerHTML = categoryIconPalette.map(p => {
+                const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon && categoryStyleOverride.bg === p.bg;
+                return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStylePalette('${p.icon}','${p.bg}','${p.color}')" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+            }).join('');
+        }
+
+        function pickCategoryStylePalette(icon, bg, color) {
+            categoryStyleOverride = { type: 'icon', value: icon, bg: bg, color: color };
+            refreshCategoryStylePreview();
+        }
+
+        function resetCategoryStyleToDefault() {
+            categoryStyleOverride = null;
+            document.getElementById('catstyle-upload-input').value = '';
+            refreshCategoryStylePreview();
+        }
+
+        function handleCategoryStyleUpload(e) {
+            const file = e.target.files && e.target.files[0]; if (!file) return;
+            if (!file.type.startsWith('image/')) { alert('File harus berupa gambar (PNG/JPG).'); e.target.value = ''; return; }
+            if (file.size > 8 * 1024 * 1024) { alert('Ukuran gambar maksimal 8MB ya (akan otomatis dikecilkan setelah dipilih).'); e.target.value = ''; return; }
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+                compressImageDataUrl(ev.target.result, 480, 0.82).then(function (compressed) {
+                    categoryStyleOverride = { type: 'image', value: compressed };
+                    refreshCategoryStylePreview();
+                }).catch(function () {
+                    if (file.size > 1024 * 1024) { alert('Gagal memproses gambar ini. Coba gambar lain.'); e.target.value = ''; return; }
+                    categoryStyleOverride = { type: 'image', value: ev.target.result };
+                    refreshCategoryStylePreview();
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function refreshCategoryStylePreview() {
+            const previewEl = document.getElementById('catstyle-preview');
+            const baseStyle = resolveBaseCategoryStyle(categoryStyleContext.catName, categoryStyleContext.jenisProper);
+            const previewStyle = categoryStyleOverride
+                ? (categoryStyleOverride.type === 'image' ? Object.assign({}, baseStyle, { image: categoryStyleOverride.value }) : Object.assign({}, baseStyle, { icon: categoryStyleOverride.value, bg: categoryStyleOverride.bg, color: categoryStyleOverride.color, image: null }))
+                : baseStyle;
+            previewEl.innerHTML = categoryIconHtml(previewStyle, 'w-full h-full flex items-center justify-center', 'text-2xl');
+            renderCategoryStylePalette();
+        }
+
+        function submitCategoryStyleModal() {
+            const { jenisKey, catName } = categoryStyleContext;
+            if (!appSettings.categoryStyles) appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
+            if (!appSettings.categoryStyles[jenisKey]) appSettings.categoryStyles[jenisKey] = {};
+            const key = categoryStyleKey(jenisKey, catName);
+
+            if (categoryStyleOverride) {
+                appSettings.categoryStyles[jenisKey][catName] = categoryStyleOverride;
+                api.run.withSuccessHandler(() => {}).withFailureHandler(() => {
+                    showErrorToast('Gagal menyimpan kustomisasi kategori ke cloud. Coba lagi.');
+                }).saveCustomIcon(key, categoryStyleOverride);
+            } else {
+                delete appSettings.categoryStyles[jenisKey][catName];
+                api.run.withSuccessHandler(() => {}).withFailureHandler(() => {
+                    showErrorToast('Gagal menghapus kustomisasi kategori di cloud. Coba lagi.');
+                }).deleteCustomIcon(key);
+            }
+
+            closeCategoryStyleModal();
+            showSuccessToast('Gaya kategori berhasil diperbarui.');
+            // Refresh tampilan yang paling langsung kelihatan efeknya -- data di memori (globalData/
+            // categoryDict) tidak berubah sama sekali, jadi cukup render ulang, tanpa perlu apapun dari
+            // server.
+            renderCategoryTree(jenisKey);
+            if (typeof filterTransactions === 'function' && document.getElementById('view-transaksi') && document.getElementById('view-transaksi').classList.contains('block')) filterTransactions();
+            if (typeof processDataForUI === 'function') processDataForUI(globalData);
         }
 
         function searchAccountModalSuggestions(query) {
@@ -3302,12 +3529,14 @@ const api = (() => {
         function renderCategoryTree(type) {
             const container = document.getElementById('list-tree-' + type); if(!container) return;
             const dict = categoryDict[type];
+            const jenisProper = type === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
             const customParentNames = new Set((appSettings.custom_categories[type].parents || []).map(p => p.name));
             const customSubsMap = appSettings.custom_categories[type].subs || {};
 
             // Dikumpulkan ke array dulu, digabung sekali di akhir -- lihat catatan di renderAccountList().
             const parentHtmlList = Object.keys(dict).map((parentName, idx) => {
                 const parent = dict[parentName];
+                const parentStyle = getCategoryStyle(parentName, jenisProper);
                 const isCustomParent = customParentNames.has(parentName);
                 const customSubsForParent = customSubsMap[parentName] || [];
                 const slug = slugify(parentName);
@@ -3315,14 +3544,23 @@ const api = (() => {
                 let subsHtml = parent.subs.map(sub => {
                     const subIdx = customSubsForParent.indexOf(sub.name);
                     const isCustomSub = subIdx !== -1;
+                    const subStyle = getCategoryStyle(sub.name, jenisProper);
+                    const subIconHtml = categoryIconHtml(subStyle, 'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0', 'text-[8px]');
+                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[8px]"></i></button>`;
                     if (isCustomSub) {
-                        return `<span class="inline-flex items-center gap-1 bg-white ring-1 ring-slate-200 rounded-full pl-2.5 pr-1 py-1 text-[10px] font-semibold text-slate-600 m-0.5" id="sub-${type}-${slug}-${subIdx}">
+                        return `<span class="inline-flex items-center gap-1 bg-white ring-1 ring-slate-200 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-600 m-0.5" id="sub-${type}-${slug}-${subIdx}">
+                            ${subIconHtml}
                             ${escapeHtml(sub.name)}
+                            ${styleBtnHtml}
                             <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[8px]"></i></button>
                             <button onclick="removeSub('${type}','${jsStr(parentName)}',${subIdx})" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
                         </span>`;
                     }
-                    return `<span class="inline-block bg-slate-50 ring-1 ring-slate-100 rounded-full px-2.5 py-1 text-[10px] font-semibold text-slate-500 m-0.5">${escapeHtml(sub.name)}</span>`;
+                    return `<span class="inline-flex items-center gap-1 bg-slate-50 ring-1 ring-slate-100 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-500 m-0.5">
+                        ${subIconHtml}
+                        ${escapeHtml(sub.name)}
+                        ${styleBtnHtml}
+                    </span>`;
                 }).join('');
                 if (!subsHtml) subsHtml = `<span class="text-[10px] text-slate-300 italic px-1">Belum ada sub-kategori</span>`;
 
@@ -3330,11 +3568,12 @@ const api = (() => {
                     <div class="bg-slate-50/70 rounded-2xl overflow-hidden ring-1 ring-slate-100">
                         <div class="flex items-center justify-between p-2.5 cursor-pointer select-none" onclick="toggleSettingsAccordion('tree-${type}-${idx}')">
                             <div class="flex items-center min-w-0">
-                                <div class="w-7 h-7 rounded-lg ${parent.bg} ${parent.color} flex items-center justify-center mr-2 flex-shrink-0 text-[11px]"><i class="fas ${parent.icon}"></i></div>
+                                ${categoryIconHtml(parentStyle, 'w-7 h-7 rounded-lg flex items-center justify-center mr-2 flex-shrink-0', 'text-[11px]')}
                                 <span class="text-xs font-bold text-slate-700 truncate">${escapeHtml(parentName)}</span>
                                 ${isCustomParent ? `<span class="ml-1.5 text-[8px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">custom</span>` : ''}
                             </div>
                             <div class="flex items-center gap-1 flex-shrink-0">
+                                <button onclick="event.stopPropagation(); openCategoryStyleModal('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
                                 ${isCustomParent ? `<button onclick="event.stopPropagation(); removeParentCategory('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
                                 <i id="icon-tree-${type}-${idx}" class="fas fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
                             </div>
@@ -3585,7 +3824,7 @@ const api = (() => {
                 displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(val)}</div><span class="font-bold text-slate-800">${escapeHtml(val)}</span>`;
             } else {
                 let style = getCategoryStyle(val, jenis);
-                displayUi.innerHTML = `<div class="w-6 h-6 rounded-full ${style.bg} ${style.color} flex items-center justify-center mr-2"><i class="fas ${style.icon} text-[10px]"></i></div><span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(style.parentName || style.parent)})</span>`;
+                displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(style.parentName || style.parent)})</span>`;
             }
         }
 
@@ -3783,10 +4022,28 @@ const api = (() => {
                 if (response.settings) { appSettings = response.settings; }
                 ensureSettingsShape(); // jaga-jaga: settings lama dari cloud mungkin belum punya field terbaru
 
-                // Ikon custom akun (upload gambar / pilih ikon) sumber datanya adalah tab
-                // "CustomIcons" di Spreadsheet, dikirim terpisah lewat response.customIcons —
-                // ini yang jadi acuan utama supaya tetap sinkron di semua perangkat.
-                if (response.customIcons) { appSettings.accountIcons = response.customIcons; }
+                // Ikon custom akun (upload gambar / pilih ikon) sumber datanya adalah tabel
+                // custom_icons di Supabase, dikirim lewat response.customIcons -- ini yang jadi
+                // acuan utama supaya tetap sinkron di semua perangkat. Tabel yang sama juga dipakai
+                // buat foto profil (key PROFILE_AVATAR_KEY) dan override gaya kategori (key berawalan
+                // CATEGORY_STYLE_KEY_PREFIX), jadi perlu dipilah dulu sebelum ditaruh ke accountIcons.
+                if (response.customIcons) {
+                    const rawIcons = response.customIcons;
+                    appSettings.accountIcons = {};
+                    appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
+                    Object.keys(rawIcons).forEach(key => {
+                        if (key.indexOf(CATEGORY_STYLE_KEY_PREFIX) === 0) {
+                            const rest = key.slice(CATEGORY_STYLE_KEY_PREFIX.length);
+                            const sepIdx = rest.indexOf('::');
+                            if (sepIdx === -1) return;
+                            const jenisKey = rest.slice(0, sepIdx), catName = rest.slice(sepIdx + 2);
+                            if (jenisKey !== 'pengeluaran' && jenisKey !== 'pemasukan') return;
+                            appSettings.categoryStyles[jenisKey][catName] = rawIcons[key];
+                        } else {
+                            appSettings.accountIcons[key] = rawIcons[key];
+                        }
+                    });
+                }
                 if (!appSettings.accountIcons) appSettings.accountIcons = {};
 
                 let needsSettingUpdate = false;
@@ -3965,7 +4222,7 @@ const api = (() => {
                 const sign = item.jenis === 'Pengeluaran' ? '-' : (item.jenis === 'Pemasukan' ? '+' : '');
                 return `
                 <div class="flex items-center bg-white border border-slate-100 rounded-2xl p-3 mb-2 ${item.active ? '' : 'opacity-50'}">
-                    <div class="w-10 h-10 rounded-xl ${style.bg} ${style.color} flex items-center justify-center mr-3 flex-shrink-0"><i class="fas ${style.icon}"></i></div>
+                    ${categoryIconHtml(style, 'w-10 h-10 rounded-xl flex items-center justify-center mr-3 flex-shrink-0')}
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-bold text-slate-800 truncate">${escapeHtml(item.keterangan || item.kategori)}</p>
                         <p class="text-[10px] text-slate-400">${RECURRING_FREQ_LABEL[item.frequency] || item.frequency} &middot; Berikutnya: ${dueLabel}</p>
@@ -4239,7 +4496,7 @@ const api = (() => {
                         return `
                             <div class="stagger-row flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition" style="animation-delay: ${Math.min(idx, 14) * 30}ms">
                                 <div class="flex items-center min-w-0">
-                                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${style.bg} ${style.color} flex items-center justify-center mr-3 flex-shrink-0 text-xs md:text-sm border border-slate-50 shadow-sm"><i class="fas ${style.icon}"></i></div>
+                                    ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
                                         <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.jenis === 'Transfer' ? 'Transfer' : row.kategori}</p>
                                         <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5">${akuntxt}</p>
@@ -4361,7 +4618,7 @@ const api = (() => {
             if (chipTopWrap) {
                 if (topCatEntry) {
                     let style = getCategoryStyle(topCatEntry[0], 'Pengeluaran');
-                    chipTopWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center ${style.bg} ${style.color} flex-shrink-0"><i class="fas ${style.icon} text-xs md:text-sm"></i></div>
+                    chipTopWrap.innerHTML = `${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm')}
                         <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry[0]}</p></div>`;
                 } else {
                     chipTopWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400 flex-shrink-0"><i class="fas fa-inbox text-xs md:text-sm"></i></div>
@@ -4405,7 +4662,7 @@ const api = (() => {
                         let pct = Math.max(6, Math.round((val / maxVal) * 100));
                         let barColorClass = style.bg.replace(/-\d+$/, '-400');
                         return `<div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg flex items-center justify-center ${style.bg} ${style.color} flex-shrink-0 text-xs"><i class="fas ${style.icon}"></i></div>
+                            ${categoryIconHtml(style, 'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', 'text-xs')}
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-baseline mb-1 gap-2">
                                     <p class="text-xs font-bold text-slate-700 truncate">${cat}</p>
@@ -4559,7 +4816,7 @@ const api = (() => {
 
                 return `
                     <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms" onclick="switchView('transaksi')">
-                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 ${style.bg} ${style.color} border border-slate-50 shadow-sm"><i class="fas ${style.icon} text-sm md:text-base"></i></div>
+                        ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
                             <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${row.jenis === 'Transfer' ? 'Transfer ke ' + row.kategori : row.kategori}</p>
                             <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 flex items-center">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan? '• ' + row.keterangan : ''}</p>
@@ -5180,7 +5437,7 @@ const api = (() => {
                 legendEl: document.getElementById('expenseCategoryChart-legend'),
                 listEl: document.getElementById('expenseCategoryChart-list'),
                 totalEl: document.getElementById('expenseCategoryChart-total'),
-                entries: outEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 text-xs md:text-sm"><i class="fas ${s.icon}"></i></div>` }; }),
+                entries: outEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
                 palette: cutePaletteOut,
                 onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
                 emptyMessage: 'Belum ada pengeluaran bulan ini.'
@@ -5207,7 +5464,7 @@ const api = (() => {
                 legendEl: document.getElementById('incomeCategoryChart-legend'),
                 listEl: document.getElementById('incomeCategoryChart-list'),
                 totalEl: document.getElementById('incomeCategoryChart-total'),
-                entries: inEntries.map(e => { const s = getCategoryStyle(e.label, 'Pemasukan'); return { label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 text-xs md:text-sm"><i class="fas ${s.icon}"></i></div>` }; }),
+                entries: inEntries.map(e => { const s = getCategoryStyle(e.label, 'Pemasukan'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
                 palette: cutePaletteIn,
                 onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pemasukan')`,
                 emptyMessage: 'Belum ada pemasukan bulan ini.'
@@ -5269,7 +5526,7 @@ const api = (() => {
             const topCatWrap = document.getElementById('detail-account-top-cat-wrap');
             if (topCatEntry) {
                 let style = getCategoryStyle(topCatEntry[0], 'Pengeluaran');
-                topCatWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center ${style.bg} ${style.color} flex-shrink-0"><i class="fas ${style.icon} text-xs md:text-sm"></i></div>
+                topCatWrap.innerHTML = `${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm')}
                     <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry[0]}</p></div>`;
             } else {
                 topCatWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400 flex-shrink-0"><i class="fas fa-inbox text-xs md:text-sm"></i></div>
@@ -5321,14 +5578,17 @@ const api = (() => {
                         let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : (isTransferIn ? 'text-emerald-500' : 'text-blue-500'));
                         let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : (isTransferIn ? '+' : '-'));
                         let style = getCategoryStyle(row.kategori, row.jenis);
-                        let iconClass = style.icon, labelStr = row.kategori;
-                        if (isTransferOut) { iconClass = 'fa-arrow-right'; labelStr = 'Transfer ke ' + row.kategori; }
-                        else if (isTransferIn) { iconClass = 'fa-arrow-left'; labelStr = 'Transfer dari ' + row.akun; }
+                        let labelStr = row.kategori;
+                        // Untuk transfer, ikon panah arah selalu dipakai (bukan ikon/gambar kategori) --
+                        // buat objek gaya baru TANPA .image supaya tidak kebawa gambar kustom yang salah.
+                        let iconStyle = style;
+                        if (isTransferOut) { iconStyle = { bg: style.bg, color: style.color, icon: 'fa-arrow-right' }; labelStr = 'Transfer ke ' + row.kategori; }
+                        else if (isTransferIn) { iconStyle = { bg: style.bg, color: style.color, icon: 'fa-arrow-left' }; labelStr = 'Transfer dari ' + row.akun; }
 
                         return `
                             <div class="flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
                                 <div class="flex items-center min-w-0">
-                                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${style.bg} ${style.color} flex items-center justify-center mr-3 flex-shrink-0 text-xs md:text-sm border border-slate-50 shadow-sm"><i class="fas ${iconClass}"></i></div>
+                                    ${categoryIconHtml(iconStyle, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
                                         <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${labelStr}</p>
                                         <p class="text-[10px] md:text-xs text-slate-400 truncate">${row.keterangan || '-'}</p>
@@ -5531,7 +5791,7 @@ const api = (() => {
                 legendEl: document.getElementById('accountCatChart-legend'),
                 listEl: document.getElementById('accountCatChart-list'),
                 totalEl: document.getElementById('accountCatChart-total'),
-                entries: catEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 text-xs md:text-sm"><i class="fas ${s.icon}"></i></div>` }; }),
+                entries: catEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
                 palette: cutePaletteOut,
                 onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
                 emptyMessage: 'Belum ada pengeluaran untuk akun ini pada rentang yang dipilih.'
@@ -5547,7 +5807,7 @@ const api = (() => {
             document.getElementById('detail-category-type').innerText = "Kategori " + jenis;
             
             let style = getCategoryStyle(categoryName, jenis);
-            document.getElementById('detail-category-logo').innerHTML = `<div class="w-12 h-12 md:w-16 md:h-16 rounded-xl p-2 mr-4 flex items-center justify-center shadow-sm text-2xl ${style.bg} ${style.color}"><i class="fas ${style.icon}"></i></div>`;
+            document.getElementById('detail-category-logo').innerHTML = categoryIconHtml(style, 'w-12 h-12 md:w-16 md:h-16 rounded-xl p-2 mr-4 flex items-center justify-center shadow-sm', 'text-2xl');
 
             // Ambil semua subkategori jika ini parent
             let subCategories = [categoryName];
@@ -5594,7 +5854,7 @@ const api = (() => {
                         return `
                             <div class="flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
                                 <div class="flex items-center min-w-0">
-                                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${style.bg} ${style.color} flex items-center justify-center mr-3 flex-shrink-0 text-xs md:text-sm border border-slate-50 shadow-sm"><i class="fas ${style.icon}"></i></div>
+                                    ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
                                         <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.kategori}</p>
                                         <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan ? '• ' + row.keterangan : ''}</p>
@@ -5724,7 +5984,7 @@ const api = (() => {
                     return `
                         <div class="flex justify-between items-center py-3 px-2">
                             <div class="flex items-center">
-                                <div class="w-8 h-8 rounded-full ${style.bg} ${style.color} flex items-center justify-center mr-3 shadow-sm border border-slate-50"><i class="fas ${style.icon} text-sm"></i></div>
+                                ${categoryIconHtml(style, 'w-8 h-8 rounded-full flex items-center justify-center mr-3 shadow-sm border border-slate-50', 'text-sm')}
                                 <div>
                                     <p class="text-sm font-bold text-slate-800">${row.jenis==='Transfer'? 'Transfer ke '+row.kategori : row.kategori}</p>
                                     <p class="text-[10px] md:text-xs text-slate-400 flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-block">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan ? '• '+row.keterangan : ''}</p>
