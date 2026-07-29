@@ -1254,19 +1254,7 @@
 
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50"><h4 class="text-sm font-bold text-slate-800">Semua Riwayat Transaksi</h4></div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[650px]">
-                        <thead>
-                            <tr class="border-b border-slate-100 text-slate-500 text-[10px] md:text-xs uppercase tracking-wider">
-                                <th class="p-3 md:p-4 font-semibold">Tanggal</th>
-                                <th class="p-3 md:p-4 font-semibold">Akun</th>
-                                <th class="p-3 md:p-4 font-semibold">Keterangan / Kategori Spesifik</th>
-                                <th class="p-3 md:p-4 font-semibold text-right">Jumlah</th>
-                            </tr>
-                        </thead>
-                        <tbody id="category-table-body" class="text-xs md:text-sm divide-y divide-slate-100"></tbody>
-                    </table>
-                </div>
+                <div id="category-table-body" class="divide-y divide-slate-100 text-xs md:text-sm"></div>
             </div>
         </div>
 
@@ -5579,31 +5567,57 @@ const api = (() => {
             
             const tbody = document.getElementById('category-table-body');
             let sortedData = [...specificData].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
-            
+
             if(sortedData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada transaksi di kategori ini.</td></tr>`;
+                tbody.innerHTML = `<div class="p-6 text-center text-slate-400">Belum ada transaksi di kategori ini.</div>`;
             } else {
-                // Riwayat all-time untuk kategori ini -- array+join sekali (bukan innerHTML += per baris),
-                // lihat catatan performa di renderAccountList().
-                tbody.innerHTML = sortedData.map(row => {
-                    let dateStr = parseTgl(row.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-                    let amt = Number(row.jumlah);
-                    let prefix = jenis === 'Pemasukan' ? '+' : '-';
-                    let color = jenis === 'Pemasukan' ? 'text-emerald-500' : 'text-rose-500';
-                    let isTransfer = row.jenis === 'Transfer';
-                    let displayAkun = isTransfer ? `<span class="flex items-center"><div class="w-4 h-4 mr-2">${getAccountLogo(row.akun)}</div> ${row.akun}</span>` : `<span class="flex items-center"><div class="w-4 h-4 mr-2">${getAccountLogo(row.akun)}</div> ${row.akun}</span>`;
+                const dayAbbrevID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+                const prefix = jenis === 'Pemasukan' ? '+' : '-';
+                const color = jenis === 'Pemasukan' ? 'text-emerald-500' : 'text-rose-500';
+                // Dikelompokkan per tanggal (konsisten dengan Riwayat Transaksi & Riwayat Akun) -- pakai
+                // Map supaya urutan insersi = urutan tanggal terbaru->terlama dari sortedData.
+                const groups = new Map();
+                sortedData.forEach(row => {
+                    const key = row.tanggal;
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(row);
+                });
+
+                tbody.innerHTML = Array.from(groups.entries()).map(([dateKey, rows]) => {
+                    const d = parseTgl(dateKey);
+                    const dow = d.getDay(); // 0=Minggu ... 6=Sabtu
+                    const badgeClass = dow === 0 ? 'bg-rose-500 text-white' : (dow === 6 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500');
+                    const dayTotal = rows.reduce((sum, row) => sum + Number(row.jumlah), 0);
+
+                    const rowsHtml = rows.map(row => {
+                        let style = getCategoryStyle(row.kategori, jenis);
+                        return `
+                            <div class="flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
+                                <div class="flex items-center min-w-0">
+                                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-full ${style.bg} ${style.color} flex items-center justify-center mr-3 flex-shrink-0 text-xs md:text-sm border border-slate-50 shadow-sm"><i class="fas ${style.icon}"></i></div>
+                                    <div class="min-w-0">
+                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.kategori}</p>
+                                        <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan ? '• ' + row.keterangan : ''}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
+                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">${prefix}Rp ${formatRp(row.jumlah)}</span>
+                                </div>
+                            </div>`;
+                    }).join('');
 
                     return `
-                        <tr class="hover:bg-slate-50 transition border-b border-slate-50">
-                            <td class="p-3 md:p-4 whitespace-nowrap font-bold text-slate-500">${dateStr}</td>
-                            <td class="p-3 md:p-4 text-slate-500 whitespace-nowrap">${displayAkun}</td>
-                            <td class="p-3 md:p-4 text-slate-500 min-w-[120px]">
-                                ${row.keterangan ? row.keterangan + '<br>' : ''}
-                                <span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-bold">${row.kategori}</span>
-                            </td>
-                            <td class="p-3 md:p-4 text-right font-bold ${color} whitespace-nowrap">${prefix}Rp ${formatRp(amt)}</td>
-                        </tr>
-                    `;
+                        <div>
+                            <div class="flex items-center justify-between px-3 md:px-4 py-2 bg-slate-50/70">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm md:text-base font-extrabold text-slate-800">${d.getDate()}</span>
+                                    <span class="text-[9px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
+                                    <span class="text-[10px] md:text-xs text-slate-400 font-semibold">${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}</span>
+                                </div>
+                                <span class="text-xs md:text-sm font-bold ${color}">${prefix}Rp ${formatRp(dayTotal)}</span>
+                            </div>
+                            <div class="divide-y divide-slate-50">${rowsHtml}</div>
+                        </div>`;
                 }).join('');
             }
 
