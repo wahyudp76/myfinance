@@ -2349,6 +2349,16 @@ const api = (() => {
                 pengeluaran: { parents: [], subs: {} },
                 pemasukan: { parents: [], subs: {} }
             },
+            // Kategori/sub-kategori BAWAAN (dari defaultCategoryDict) yang dihapus/disembunyikan user --
+            // disimpan terpisah dari custom_categories karena defaultCategoryDict sendiri hardcoded di
+            // kode (bukan data per-user), jadi "menghapus" kategori bawaan sebenarnya cuma menyembunyikan
+            // namanya di sini, lalu rebuildCategoryDict() menyaringnya keluar. Transaksi lama yang masih
+            // memakai kategori itu tidak hilang -- cuma tidak bisa dipilih lagi untuk transaksi baru
+            // (persis seperti kategori custom yang dihapus).
+            hidden_categories: {
+                pengeluaran: { parents: [], subs: {} },
+                pemasukan: { parents: [], subs: {} }
+            },
             // Override ikon/warna/gambar kustom per kategori (Pengeluaran & Pemasukan terpisah supaya
             // nama kategori yang kebetulan sama di keduanya tidak saling tertukar gayanya). Nilainya
             // TIDAK diisi di sini -- dihidrasi dari tabel custom_icons saat load (lihat
@@ -2438,6 +2448,12 @@ const api = (() => {
             if (!appSettings.accountIcons) appSettings.accountIcons = {};
             if (!appSettings.categoryStyles) appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
             ['pengeluaran', 'pemasukan'].forEach(type => { if (!appSettings.categoryStyles[type]) appSettings.categoryStyles[type] = {}; });
+            if (!appSettings.hidden_categories) appSettings.hidden_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
+            ['pengeluaran', 'pemasukan'].forEach(type => {
+                if (!appSettings.hidden_categories[type]) appSettings.hidden_categories[type] = { parents: [], subs: {} };
+                if (!appSettings.hidden_categories[type].parents) appSettings.hidden_categories[type].parents = [];
+                if (!appSettings.hidden_categories[type].subs) appSettings.hidden_categories[type].subs = {};
+            });
             if (!appSettings.budgets) appSettings.budgets = {};
             if (!appSettings.profile || typeof appSettings.profile !== 'object') appSettings.profile = { full_name: '', phone: '', bio: '' };
             if (typeof appSettings.profile.full_name !== 'string') appSettings.profile.full_name = '';
@@ -2496,6 +2512,21 @@ const api = (() => {
         function rebuildCategoryDict() {
             categoryDict = deepCloneDict(defaultCategoryDict);
             ['pengeluaran', 'pemasukan'].forEach(type => {
+                // Buang kategori/sub-kategori BAWAAN yang sudah dihapus/disembunyikan user (lihat
+                // appSettings.hidden_categories) -- dilakukan SEBELUM merge custom, supaya custom
+                // categories tidak pernah kena efek penyaringan ini (mereka dihapus lewat mekanisme
+                // sendiri di removeParentCategory/removeSub).
+                const hidden = appSettings.hidden_categories && appSettings.hidden_categories[type];
+                if (hidden) {
+                    (hidden.parents || []).forEach(pName => { delete categoryDict[type][pName]; });
+                    Object.keys(hidden.subs || {}).forEach(pName => {
+                        if (categoryDict[type][pName]) {
+                            const hiddenSubNames = new Set(hidden.subs[pName]);
+                            categoryDict[type][pName].subs = categoryDict[type][pName].subs.filter(s => !hiddenSubNames.has(s.name));
+                        }
+                    });
+                }
+
                 const cc = appSettings.custom_categories[type];
                 (cc.parents || []).forEach((p, idx) => {
                     if (!categoryDict[type][p.name]) {
@@ -3553,13 +3584,14 @@ const api = (() => {
                             ${escapeHtml(sub.name)}
                             ${styleBtnHtml}
                             <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[8px]"></i></button>
-                            <button onclick="removeSub('${type}','${jsStr(parentName)}',${subIdx})" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
+                            <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
                         </span>`;
                     }
                     return `<span class="inline-flex items-center gap-1 bg-slate-50 ring-1 ring-slate-100 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-500 m-0.5">
                         ${subIconHtml}
                         ${escapeHtml(sub.name)}
                         ${styleBtnHtml}
+                        <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
                     </span>`;
                 }).join('');
                 if (!subsHtml) subsHtml = `<span class="text-[10px] text-slate-300 italic px-1">Belum ada sub-kategori</span>`;
@@ -3574,7 +3606,7 @@ const api = (() => {
                             </div>
                             <div class="flex items-center gap-1 flex-shrink-0">
                                 <button onclick="event.stopPropagation(); openCategoryStyleModal('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
-                                ${isCustomParent ? `<button onclick="event.stopPropagation(); removeParentCategory('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
+                                ${parentName !== 'Lain-lain' ? `<button onclick="event.stopPropagation(); removeParentCategory('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center" title="Hapus kategori"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
                                 <i id="icon-tree-${type}-${idx}" class="fas fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
                             </div>
                         </div>
@@ -3625,18 +3657,39 @@ const api = (() => {
             persistSettings(); renderSettings();
         }
 
-        function removeSub(type, parentName, idx) {
-            showConfirm('Hapus sub-kategori ini?', () => {
-                appSettings.custom_categories[type].subs[parentName].splice(idx, 1);
+        function removeSub(type, parentName, subName) {
+            showConfirm(`Hapus sub-kategori "${subName}"?`, () => {
+                const customArr = appSettings.custom_categories[type].subs[parentName];
+                const customIdx = customArr ? customArr.indexOf(subName) : -1;
+                if (customIdx !== -1) {
+                    // Sub-kategori custom buatan sendiri -> hapus langsung dari daftarnya.
+                    customArr.splice(customIdx, 1);
+                } else {
+                    // Sub-kategori BAWAAN -> "hapus" berarti disembunyikan (lihat rebuildCategoryDict()),
+                    // transaksi lama yang masih memakainya tetap aman, cuma tidak bisa dipilih lagi.
+                    if (!appSettings.hidden_categories[type].subs[parentName]) appSettings.hidden_categories[type].subs[parentName] = [];
+                    if (!appSettings.hidden_categories[type].subs[parentName].includes(subName)) appSettings.hidden_categories[type].subs[parentName].push(subName);
+                }
                 persistSettings(); renderSettings();
                 if (globalData.length > 0) processDataForUI(globalData);
             });
         }
 
         function removeParentCategory(type, parentName) {
+            if (parentName === 'Lain-lain') {
+                alert('Kategori "Lain-lain" tidak bisa dihapus karena dipakai sebagai kategori cadangan di seluruh aplikasi.');
+                return;
+            }
+            const isCustomParent = (appSettings.custom_categories[type].parents || []).some(p => p.name === parentName);
             showConfirm(`Hapus kategori "${parentName}" beserta semua sub-kategorinya?`, () => {
-                appSettings.custom_categories[type].parents = appSettings.custom_categories[type].parents.filter(p => p.name !== parentName);
-                delete appSettings.custom_categories[type].subs[parentName];
+                if (isCustomParent) {
+                    // Kategori custom buatan sendiri -> hapus langsung.
+                    appSettings.custom_categories[type].parents = appSettings.custom_categories[type].parents.filter(p => p.name !== parentName);
+                    delete appSettings.custom_categories[type].subs[parentName];
+                } else {
+                    // Kategori BAWAAN -> disembunyikan (lihat rebuildCategoryDict()), bukan dihapus dari kode.
+                    if (!appSettings.hidden_categories[type].parents.includes(parentName)) appSettings.hidden_categories[type].parents.push(parentName);
+                }
                 persistSettings(); renderSettings();
                 if (globalData.length > 0) processDataForUI(globalData);
             });
