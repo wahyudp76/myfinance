@@ -208,6 +208,16 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
 - **Quick Add lewat URL** (`?quickadd=1`) -- dasar buat integrasi Back Tap
   di iPhone (lihat bagian 4a), membuka aplikasi langsung ke modal Catat
   Transaksi yang sama persis dengan tombol "+" biasa.
+- **Wawasan Keuangan** (Dashboard, di bawah kartu ringkasan): kartu wawasan
+  otomatis dari data yang sudah ada (peringatan anggaran vs laju bulan
+  berjalan, kategori pengeluaran yang naik signifikan vs rata-rata 3 bulan,
+  tingkat menabung vs bulan lalu, proyeksi pengeluaran akhir bulan) --
+  instan & gratis, dihitung langsung di browser tanpa panggilan API apa pun.
+- **Rekomendasi AI** (Dashboard, tepat di bawah Wawasan Keuangan): analisis
+  lebih dalam dari Claude berdasarkan ringkasan keuangan bulan berjalan,
+  otomatis diperbarui setiap ada transaksi baru (dengan jeda minimal 3
+  menit antar panggilan otomatis, plus tombol refresh manual kapan saja).
+  **Opsional** -- butuh setup tambahan sekali saja, lihat bagian 11 di bawah.
 
 ## 6. Peningkatan profesional & keamanan
 
@@ -387,3 +397,56 @@ miliknya sendiri, walau key-nya identik.
   penyebabnya, lalu deploy ulang.
 - Buka **Console** browser (klik kanan → Inspect → tab Console) untuk lihat
   detail error teknis kalau ada masalah yang tidak jelas pesannya.
+
+## 11. Setup "Rekomendasi AI" (opsional)
+
+Fitur **Rekomendasi AI** di Dashboard memanggil Claude (Anthropic) lewat
+internet untuk menganalisis keuangan bulan berjalan kamu. Ini **opsional**
+-- kalau belum di-setup, section-nya cuma menampilkan pesan "belum aktif"
+dan sisa aplikasi tetap berjalan normal (termasuk "Wawasan Keuangan" yang
+rule-based di atasnya, yang selalu jalan tanpa setup apa pun).
+
+**Kenapa butuh Edge Function, tidak langsung dari `index.html` saja?**
+API key Anthropic harus dirahasiakan di server. Kalau ditaruh di kode
+`index.html`, siapa pun yang buka DevTools browser bisa mencurinya dan
+memakainya atas nama akun Anthropic-mu. Edge Function berjalan di server
+Supabase, menyimpan key itu lewat "secret" yang tidak pernah dikirim ke
+browser.
+
+**Langkah setup (sekali saja):**
+
+1. Punya API key Anthropic (https://console.anthropic.com → **API Keys**),
+   biasanya diawali `sk-ant-...`.
+2. Install Supabase CLI kalau belum ada:
+   `npm install -g supabase` (butuh Node.js) atau lihat cara lain di
+   https://supabase.com/docs/guides/cli
+3. Login & hubungkan ke project-mu (jalankan di folder project ini, yang
+   sudah ada folder `supabase/functions/analyze-finance/`):
+   ```
+   supabase login
+   supabase link --project-ref <project-ref-kamu>
+   ```
+   `<project-ref-kamu>` bisa dilihat di URL dashboard Supabase-mu
+   (`https://app.supabase.com/project/<project-ref>`).
+4. Simpan API key sebagai secret (JANGAN ditaruh di `index.html` atau kode
+   apa pun yang ke browser):
+   ```
+   supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
+   ```
+5. Deploy Edge Function-nya:
+   ```
+   supabase functions deploy analyze-finance
+   ```
+6. Selesai! Buka Dashboard, section "Rekomendasi AI" akan otomatis mencoba
+   memanggilnya. Kalau masih menampilkan "belum aktif", cek log lewat
+   `supabase functions logs analyze-finance` untuk lihat error detailnya.
+
+**Soal biaya:** setiap panggilan ke Claude dikenakan biaya sesuai tarif
+Anthropic (model default yang dipakai: **Claude Haiku**, model tercepat
+& termurah, cukup untuk menganalisis ringkasan angka bulanan). Frekuensi
+panggilan otomatis dibatasi jeda minimal 3 menit per sesi, jadi biayanya
+tetap terkendali meski kamu aktif mencatat banyak transaksi. Mau pakai
+model lain (mis. Sonnet untuk analisis lebih dalam)? Tinggal ganti nilai
+`model` di `supabase/functions/analyze-finance/index.ts`, lalu deploy
+ulang (langkah 5).
+

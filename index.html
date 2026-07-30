@@ -614,6 +614,22 @@
                 <div id="insights-container" class="space-y-2.5"></div>
             </div>
 
+            <div id="ai-insights-section" class="mb-6 md:mb-8">
+                <div class="flex items-center justify-between mb-3 md:mb-4">
+                    <div class="flex items-center gap-2">
+                        <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest">Rekomendasi AI</h4>
+                        <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold">Claude AI</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="ai-insight-timestamp" class="text-[9px] text-slate-400"></span>
+                        <button onclick="requestAiInsight(true)" id="ai-insight-refresh-btn" class="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-500 hover:border-indigo-200 flex items-center justify-center transition flex-shrink-0" title="Analisis ulang sekarang">
+                            <i class="fas fa-rotate text-[11px]"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="ai-insights-container" class="space-y-2.5"></div>
+            </div>
+
             <div class="mb-6 md:mb-8">
                 <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 md:mb-4">Saldo Per Akun (Klik untuk detail)</h4>
                 <div id="dashboard-accounts-container" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4"></div>
@@ -4978,6 +4994,133 @@ const api = (() => {
                         <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">${ins.message}</p>
                     </div>
                 </div>`).join('');
+
+            // Wawasan rule-based di atas selalu instan & gratis; di sisi ini kita juga minta analisis
+            // Claude yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- otomatis, tapi
+            // dijaga jeda minimal supaya tidak memanggil API di setiap render/resize.
+            requestAiInsight(false);
+        }
+
+        // ========================== REKOMENDASI AI (Claude, via Supabase Edge Function) ==========================
+        // BEDA dari "Wawasan Keuangan" di atas: itu rule-based (instan, gratis, jalan tanpa panggilan
+        // ke Anthropic). Ini benar-benar memanggil Claude lewat internet, dengan ringkasan keuangan
+        // bulan berjalan sebagai konteks -- jadi selalu ikut berubah begitu ada transaksi baru (dipicu
+        // ulang dari renderInsights() di atas). API key Claude TIDAK PERNAH ada di kode ini -- request
+        // lewat Supabase Edge Function 'analyze-finance' yang menyimpannya dengan aman di server
+        // (lihat supabase/functions/analyze-finance/index.ts & panduan setup di README.md).
+        let lastAiInsightAt = 0;
+        let aiInsightInFlight = false;
+        const AI_INSIGHT_COOLDOWN_MS = 3 * 60 * 1000; // jeda minimal antar panggilan OTOMATIS (bukan manual)
+
+        function buildFinanceSummaryForAI(ctx) {
+            const topCats = Object.entries(ctx.monthCatOutMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ({ kategori: k, jumlah: v }));
+            const budgetStatus = Object.keys(currentMonthBudgetsCache).map(cat => ({
+                kategori: cat, anggaran: currentMonthBudgetsCache[cat], terpakai: ctx.monthCatOutMap[cat] || 0
+            }));
+            const daysInMonth = new Date(ctx.now.getFullYear(), ctx.now.getMonth() + 1, 0).getDate();
+            let saldoGabungan = 0;
+            globalData.forEach(t => {
+                if (t.jenis === 'Pemasukan') saldoGabungan += Number(t.jumlah);
+                else if (t.jenis === 'Pengeluaran') saldoGabungan -= Number(t.jumlah);
+            });
+            return {
+                tanggal_hari_ini_ke: ctx.now.getDate(),
+                total_hari_dalam_bulan: daysInMonth,
+                pemasukan_bulan_ini: ctx.monthIn,
+                pengeluaran_bulan_ini: ctx.monthOut,
+                pemasukan_bulan_lalu: ctx.prevMonthIn,
+                pengeluaran_bulan_lalu: ctx.prevMonthOut,
+                jumlah_transaksi_bulan_ini: ctx.monthTxCount,
+                top_kategori_pengeluaran_bulan_ini: topCats,
+                status_anggaran_bulan_ini: budgetStatus,
+                estimasi_saldo_gabungan_semua_akun: saldoGabungan
+            };
+        }
+
+        function renderAiInsightLoading() {
+            const container = document.getElementById('ai-insights-container'); if (!container) return;
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-400 flex items-center justify-center flex-shrink-0 animate-pulse"><i class="fas fa-brain text-sm"></i></div>
+                    <p class="text-xs md:text-sm text-slate-400">Claude sedang menganalisis keuangan kamu...</p>
+                </div>`;
+        }
+
+        function renderAiInsightSetupNeeded() {
+            const container = document.getElementById('ai-insights-container'); if (!container) return;
+            container.innerHTML = `
+                <div class="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200 flex items-start gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-plug-circle-xmark text-sm"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-xs md:text-sm font-bold text-slate-600">Rekomendasi AI belum aktif</p>
+                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">Fitur ini butuh Edge Function <code class="bg-slate-200 px-1 rounded">analyze-finance</code> di-deploy dan API key Claude diset di Supabase. Lihat panduan di README.md bagian "Rekomendasi AI".</p>
+                    </div>
+                </div>`;
+        }
+
+        function renderAiInsightError() {
+            const container = document.getElementById('ai-insights-container'); if (!container) return;
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-triangle-exclamation text-sm"></i></div>
+                    <p class="text-xs md:text-sm text-slate-500">Gagal memuat rekomendasi AI. Coba klik tombol refresh di atas.</p>
+                </div>`;
+        }
+
+        function renderAiInsights(insights) {
+            const container = document.getElementById('ai-insights-container'); if (!container) return;
+            if (!insights || insights.length === 0) {
+                container.innerHTML = `<div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0"><i class="fas fa-comment-dots text-sm"></i></div>
+                    <p class="text-xs md:text-sm text-slate-500">Claude belum menemukan rekomendasi khusus untuk saat ini.</p>
+                </div>`;
+                return;
+            }
+            const severityStyle = { warning: { bg: 'bg-amber-100', color: 'text-amber-600', icon: 'fa-triangle-exclamation' }, success: { bg: 'bg-emerald-100', color: 'text-emerald-600', icon: 'fa-thumbs-up' }, info: { bg: 'bg-indigo-100', color: 'text-indigo-600', icon: 'fa-lightbulb' } };
+            container.innerHTML = insights.map(ins => {
+                const s = severityStyle[ins.severity] || severityStyle.info;
+                return `<div class="bg-white rounded-2xl p-3.5 md:p-4 border border-slate-100 shadow-sm flex items-start gap-3">
+                    <div class="w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${s.icon} text-sm"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-xs md:text-sm font-bold text-slate-800">${escapeHtml(ins.title || 'Rekomendasi')}</p>
+                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">${escapeHtml(ins.message || '')}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function requestAiInsight(force) {
+            if (aiInsightInFlight) return;
+            const nowMs = Date.now();
+            if (!force && (nowMs - lastAiInsightAt) < AI_INSIGHT_COOLDOWN_MS) return; // masih dalam jeda, biarin hasil lama
+            if (!lastInsightsCtx) return;
+            if (!document.getElementById('ai-insights-container')) return;
+
+            aiInsightInFlight = true;
+            renderAiInsightLoading();
+            const btn = document.getElementById('ai-insight-refresh-btn');
+            if (btn) btn.querySelector('i').classList.add('fa-spin');
+
+            try {
+                const summary = buildFinanceSummaryForAI(lastInsightsCtx);
+                const { data, error } = await supabaseClient.functions.invoke('analyze-finance', { body: summary });
+                if (error) throw error;
+                if (data && data.error) {
+                    renderAiInsightSetupNeeded();
+                } else {
+                    lastAiInsightAt = Date.now();
+                    const tsEl = document.getElementById('ai-insight-timestamp');
+                    if (tsEl) tsEl.innerText = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                    renderAiInsights((data && data.insights) || []);
+                }
+            } catch (e) {
+                // Edge Function yang belum di-deploy biasanya balas 404 -- diperlakukan sebagai
+                // "belum di-setup" (bukan error biasa) supaya pesannya membantu, bukan bikin panik.
+                renderAiInsightSetupNeeded();
+            } finally {
+                aiInsightInFlight = false;
+                if (btn) btn.querySelector('i').classList.remove('fa-spin');
+            }
         }
 
         // Menghitung saldo gabungan SEMUA akun di AKHIR tiap bulan, N bulan terakhir (termasuk bulan
