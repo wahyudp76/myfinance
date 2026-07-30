@@ -606,6 +606,14 @@
                 <div id="insight-top-cat-wrap" class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5"></div>
             </div>
 
+            <div id="insights-section" class="mb-6 md:mb-8">
+                <div class="flex items-center gap-2 mb-3 md:mb-4">
+                    <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest">Wawasan Keuangan</h4>
+                    <i class="fas fa-wand-magic-sparkles text-indigo-300 text-[10px]"></i>
+                </div>
+                <div id="insights-container" class="space-y-2.5"></div>
+            </div>
+
             <div class="mb-6 md:mb-8">
                 <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 md:mb-4">Saldo Per Akun (Klik untuk detail)</h4>
                 <div id="dashboard-accounts-container" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4"></div>
@@ -4177,6 +4185,10 @@ const api = (() => {
                 renderRecentList(globalData); 
                 processDataForUI(globalData); 
                 renderReportTab();
+
+                // currentMonthBudgetsCache dipakai wawasan "Peringatan Anggaran" -- di-refresh async di
+                // sini (tidak menahan render lain di atas), lalu render ulang wawasan saja begitu datang.
+                refreshCurrentMonthBudgetsCache(() => { if (lastInsightsCtx) renderInsights(lastInsightsCtx); });
                 
                 if(document.getElementById('view-akun-detail').classList.contains('block')) { openAccountDetail(document.getElementById('detail-account-name').innerText); }
                 if(document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }
@@ -4650,6 +4662,12 @@ const api = (() => {
             let prevMonthIn = 0, prevMonthOut = 0;
             let monthTxCount = 0;
             let monthCatOutMap = {};
+            // Total pengeluaran per kategori (PARENT), diakumulasi utk 3 bulan SEBELUM bulan ini --
+            // dipakai computeFinancialInsights() utk bandingkan pengeluaran bulan ini vs rata-rata
+            // 3 bulan terakhir per kategori (deteksi "kategori X naik signifikan").
+            let catOut3MoMap = {};
+            const monthKeyOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            const prior3MonthKeys = [1, 2, 3].map(i => monthKeyOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
             const padZero = n => String(n).padStart(2, '0');
             const localKey = d => `${d.getFullYear()}-${padZero(d.getMonth()+1)}-${padZero(d.getDate())}`;
             let last7Map = {}; let last7Order = [];
@@ -4682,6 +4700,11 @@ const api = (() => {
                 if(date.getMonth() === prevMonthDate.getMonth() && date.getFullYear() === prevMonthDate.getFullYear()) {
                     if(d.jenis === 'Pemasukan') prevMonthIn += amt;
                     if(d.jenis === 'Pengeluaran') prevMonthOut += amt;
+                }
+                if (d.jenis === 'Pengeluaran' && prior3MonthKeys.includes(monthKeyOf(date))) {
+                    let parentStyle = getCategoryStyle(d.kategori, 'Pengeluaran');
+                    let parentName = parentStyle.parentName || 'Lain-lain';
+                    catOut3MoMap[parentName] = (catOut3MoMap[parentName] || 0) + amt;
                 }
                 let dKey = localKey(date);
                 if(last7Map[dKey]) { if(d.jenis === 'Pemasukan') last7Map[dKey].in += amt; if(d.jenis === 'Pengeluaran') last7Map[dKey].out += amt; }
@@ -4830,6 +4853,131 @@ const api = (() => {
             }
 
             renderBalanceTrendChart();
+
+            renderInsights({ now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount });
+        }
+
+        // ========================== WAWASAN KEUANGAN (Financial Insights) ==========================
+        // Cache anggaran BULAN INI saja (bukan cloudBudgets, yang scope-nya ikut bulan yang lagi dibuka
+        // di tab Anggaran -- bisa beda dari bulan kalender sekarang). Diisi ulang di loadData() (load
+        // penuh) dan setiap kali user menyimpan anggaran utk bulan ini, supaya wawasan anggaran selalu
+        // mengacu ke bulan berjalan tanpa perlu fetch ulang di setiap render dashboard.
+        let currentMonthBudgetsCache = {};
+        function currentMonthStr() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
+        function refreshCurrentMonthBudgetsCache(onDone) {
+            api.run.withSuccessHandler((budgets) => {
+                currentMonthBudgetsCache = budgets || {};
+                if (typeof onDone === 'function') onDone();
+            }).withFailureHandler(() => { /* biarin cache lama kalau gagal fetch -- bukan hal fatal */ }).getBudgets(currentMonthStr());
+        }
+
+        // Menghasilkan array wawasan {icon,bg,color,title,message}, urutan sesuai prioritas
+        // (paling penting/actionable duluan). Semua dihitung dari data yang SUDAH ada di memori
+        // (globalData via aggregate yang dilempar processDataForUI + currentMonthBudgetsCache) --
+        // tidak ada fetch tambahan di sini supaya ringan dipanggil tiap render dashboard.
+        function computeFinancialInsights(ctx) {
+            const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount } = ctx;
+            const insights = [];
+            const dayOfMonth = now.getDate();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            const pctMonthElapsed = dayOfMonth / daysInMonth;
+
+            // 1. Peringatan anggaran -- kategori dengan progres pemakaian anggaran paling jauh
+            //    melewati progres bulan berjalan (prioritas tertinggi, paling actionable).
+            let worstBudget = null;
+            Object.keys(currentMonthBudgetsCache).forEach(cat => {
+                const budget = Number(currentMonthBudgetsCache[cat]); if (!budget) return;
+                const spent = monthCatOutMap[cat] || 0;
+                const pctUsed = spent / budget;
+                if (pctUsed >= 0.5 && pctUsed > pctMonthElapsed + 0.15) {
+                    if (!worstBudget || pctUsed > worstBudget.pctUsed) worstBudget = { cat, budget, spent, pctUsed };
+                }
+            });
+            if (worstBudget) {
+                const over = worstBudget.pctUsed >= 1;
+                insights.push({
+                    icon: over ? 'fa-circle-exclamation' : 'fa-triangle-exclamation',
+                    bg: over ? 'bg-rose-100' : 'bg-amber-100', color: over ? 'text-rose-600' : 'text-amber-600',
+                    title: over ? 'Anggaran Terlampaui' : 'Anggaran Mulai Menipis',
+                    message: `Anggaran "${worstBudget.cat}" sudah terpakai ${(worstBudget.pctUsed*100).toFixed(0)}% (Rp ${formatRp(worstBudget.spent)} dari Rp ${formatRp(worstBudget.budget)}), padahal baru ${(pctMonthElapsed*100).toFixed(0)}% bulan berjalan.`
+                });
+            }
+
+            // 2. Kategori pengeluaran naik signifikan vs rata-rata 3 bulan terakhir.
+            let bestSpike = null;
+            Object.keys(monthCatOutMap).forEach(cat => {
+                const avg3mo = (catOut3MoMap[cat] || 0) / 3;
+                const cur = monthCatOutMap[cat];
+                if (avg3mo > 0 && cur > avg3mo * 1.3 && (cur - avg3mo) > 20000) {
+                    const pctUp = (cur / avg3mo - 1) * 100;
+                    if (!bestSpike || pctUp > bestSpike.pctUp) bestSpike = { cat, avg3mo, cur, pctUp };
+                }
+            });
+            if (bestSpike) {
+                insights.push({
+                    icon: 'fa-chart-line', bg: 'bg-orange-100', color: 'text-orange-600',
+                    title: 'Pengeluaran Kategori Naik',
+                    message: `Pengeluaran "${bestSpike.cat}" bulan ini Rp ${formatRp(bestSpike.cur)}, naik ${bestSpike.pctUp.toFixed(0)}% dari rata-rata 3 bulan terakhir (Rp ${formatRp(Math.round(bestSpike.avg3mo))}).`
+                });
+            }
+
+            // 3. Tingkat menabung bulan ini vs bulan lalu.
+            if (monthIn > 0) {
+                const rateThis = (monthIn - monthOut) / monthIn * 100;
+                if (prevMonthIn > 0) {
+                    const rateLast = (prevMonthIn - prevMonthOut) / prevMonthIn * 100;
+                    const diff = rateThis - rateLast;
+                    if (Math.abs(diff) >= 5) {
+                        insights.push({
+                            icon: diff >= 0 ? 'fa-piggy-bank' : 'fa-arrow-trend-down',
+                            bg: diff >= 0 ? 'bg-emerald-100' : 'bg-rose-100', color: diff >= 0 ? 'text-emerald-600' : 'text-rose-600',
+                            title: 'Tingkat Menabung',
+                            message: `Kamu menabung ${rateThis.toFixed(0)}% dari pemasukan bulan ini, ${diff >= 0 ? 'naik' : 'turun'} ${Math.abs(diff).toFixed(0)} poin dibanding bulan lalu (${rateLast.toFixed(0)}%).`
+                        });
+                    }
+                }
+            }
+
+            // 4. Proyeksi pengeluaran akhir bulan berdasar rata-rata harian sejauh ini (perlu minimal
+            //    3 hari data & masih ada sisa hari berjalan, biar tidak proyeksi hal yang sudah pasti).
+            if (dayOfMonth >= 3 && dayOfMonth < daysInMonth && monthOut > 0) {
+                const avgDaily = monthOut / dayOfMonth;
+                const projected = avgDaily * daysInMonth;
+                if (projected > monthOut * 1.05) {
+                    insights.push({
+                        icon: 'fa-magnifying-glass-chart', bg: 'bg-violet-100', color: 'text-violet-600',
+                        title: 'Proyeksi Akhir Bulan',
+                        message: `Dengan laju pengeluaran saat ini (~Rp ${formatShortVal(avgDaily)}/hari), total pengeluaran bulan ini diperkirakan mencapai Rp ${formatShortVal(projected)} kalau berlanjut sampai akhir bulan.`
+                    });
+                }
+            }
+
+            return insights.slice(0, 4);
+        }
+
+        let lastInsightsCtx = null;
+        function renderInsights(ctx) {
+            lastInsightsCtx = ctx;
+            const container = document.getElementById('insights-container'); if (!container) return;
+            const insights = computeFinancialInsights(ctx);
+
+            if (insights.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-circle-check text-sm"></i></div>
+                        <p class="text-xs md:text-sm text-slate-500">${ctx.monthTxCount > 0 ? 'Belum ada hal mencolok bulan ini -- keuangan kamu terlihat stabil 👍' : 'Belum ada transaksi bulan ini. Wawasan akan muncul begitu ada transaksi tercatat.'}</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = insights.map(ins => `
+                <div class="bg-white rounded-2xl p-3.5 md:p-4 border border-slate-100 shadow-sm flex items-start gap-3">
+                    <div class="w-9 h-9 rounded-xl ${ins.bg} ${ins.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${ins.icon} text-sm"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-xs md:text-sm font-bold text-slate-800">${ins.title}</p>
+                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">${ins.message}</p>
+                    </div>
+                </div>`).join('');
         }
 
         // Menghitung saldo gabungan SEMUA akun di AKHIR tiap bulan, N bulan terakhir (termasuk bulan
@@ -5051,6 +5199,12 @@ const api = (() => {
                 renderBudgetView();
                 showLoading(false);
                 showSuccessToast('Budget berhasil disimpan.');
+                // Kalau yang disimpan adalah anggaran BULAN KALENDER SEKARANG, sinkronkan juga ke cache
+                // wawasan keuangan supaya "Peringatan Anggaran" langsung mencerminkan angka terbaru.
+                if (targetBulan === currentMonthStr()) {
+                    currentMonthBudgetsCache = Object.assign({}, cloudBudgets);
+                    if (lastInsightsCtx) renderInsights(lastInsightsCtx);
+                }
             }).withFailureHandler((err) => {
                 showErrorToast('Gagal menyimpan budget ke cloud. Perubahan belum tersimpan, coba lagi.');
                 showLoading(false);
