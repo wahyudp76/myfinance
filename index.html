@@ -1547,9 +1547,10 @@
                 <!-- Icon/Color/Image Picker -->
                 <div>
                     <div class="flex items-center justify-between mb-2">
-                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide">Ikon & Warna</label>
+                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide" id="catstyle-section-label">Ikon & Warna</label>
                         <button type="button" onclick="resetCategoryStyleToDefault()" class="text-[10px] font-bold text-blue-500 hover:text-blue-700"><i class="fas fa-rotate-left mr-1"></i>Reset ke Bawaan</button>
                     </div>
+                    <p id="catstyle-color-lock-note" class="hidden text-[10px] text-slate-400 -mt-1 mb-2"><i class="fas fa-lock mr-1"></i>Warna mengikuti kategori utama — sub-kategori cuma bisa ganti bentuk ikonnya</p>
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-3 text-[11px] font-bold">
                         <button type="button" onclick="setCatStyleTab('palette')" id="catstyle-tab-palette" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-blue-600">Pilih Ikon</button>
                         <button type="button" onclick="setCatStyleTab('upload')" id="catstyle-tab-upload" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Upload Gambar</button>
@@ -2601,7 +2602,17 @@ const api = (() => {
             const override = jenis !== 'Transfer' && appSettings.categoryStyles && appSettings.categoryStyles[jenisKey] && appSettings.categoryStyles[jenisKey][catName];
             if (override) {
                 if (override.type === 'image') return Object.assign({}, base, { image: override.value });
-                return Object.assign({}, base, { icon: override.value, bg: override.bg, color: override.color, image: null });
+                // catName ADALAH nama parent-nya sendiri -> ini kustomisasi level KATEGORI UTAMA, bebas
+                // pilih warna sendiri (dari override.bg/color yang tersimpan).
+                const parentName = base.parentName || base.parent;
+                if (parentName === catName) {
+                    return Object.assign({}, base, { icon: override.value, bg: override.bg, color: override.color, image: null });
+                }
+                // catName adalah SUB-kategori -> warnanya WAJIB ikut warna kategori utama SAAT INI
+                // (rekursif ke parent, bukan bg/color yang mungkin tersimpan lama di override sub ini
+                // sendiri), supaya kalau warna parent diganti, semua sub-nya otomatis ikut berubah.
+                const parentStyle = getCategoryStyle(parentName, jenis);
+                return Object.assign({}, base, { icon: override.value, bg: parentStyle.bg, color: parentStyle.color, image: null });
             }
             return base;
         }
@@ -3025,15 +3036,29 @@ const api = (() => {
         }
 
         // ===== Modal Kustomisasi Kategori (ikon/warna/gambar kustom) =====
-        let categoryStyleOverride = null; // null = pakai gaya bawaan; { type:'icon', value, bg, color } atau { type:'image', value }
-        let categoryStyleContext = { jenisKey: null, catName: null, jenisProper: null };
+        // Aturan: KATEGORI UTAMA bebas pilih ikon+warna. SUB-KATEGORI cuma bisa pilih bentuk ikon --
+        // warnanya terkunci ikut warna kategori utamanya (lihat getCategoryStyle() untuk resolusinya).
+        let categoryStyleOverride = null; // null = pakai gaya bawaan; { type:'icon', value, bg, color } (parent) / { type:'icon', value } (sub) / { type:'image', value }
+        let categoryStyleContext = { jenisKey: null, catName: null, jenisProper: null, parentName: null, isSub: false, lockedBg: null, lockedColor: null };
 
-        function openCategoryStyleModal(jenisKey, catName) {
-            categoryStyleContext = { jenisKey: jenisKey, catName: catName, jenisProper: jenisKey === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran' };
+        function openCategoryStyleModal(jenisKey, catName, parentName) {
+            const jenisProper = jenisKey === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
+            const isSub = !!parentName && parentName !== catName;
+            const lockedStyle = isSub ? getCategoryStyle(parentName, jenisProper) : null;
+            categoryStyleContext = { jenisKey: jenisKey, catName: catName, jenisProper: jenisProper, parentName: parentName || null, isSub: isSub, lockedBg: lockedStyle ? lockedStyle.bg : null, lockedColor: lockedStyle ? lockedStyle.color : null };
             const existing = appSettings.categoryStyles && appSettings.categoryStyles[jenisKey] && appSettings.categoryStyles[jenisKey][catName];
             categoryStyleOverride = existing ? Object.assign({}, existing) : null;
-            document.getElementById('catstyle-modal-subtitle').innerText = catName;
+            document.getElementById('catstyle-modal-subtitle').innerText = isSub ? `${catName} (bagian dari ${parentName})` : catName;
             document.getElementById('catstyle-upload-input').value = '';
+            const colorNote = document.getElementById('catstyle-color-lock-note');
+            const sectionLabel = document.getElementById('catstyle-section-label');
+            if (isSub) {
+                sectionLabel.innerText = 'Bentuk Ikon';
+                colorNote.classList.remove('hidden');
+            } else {
+                sectionLabel.innerText = 'Ikon & Warna';
+                colorNote.classList.add('hidden');
+            }
             setCatStyleTab('palette');
             refreshCategoryStylePreview();
             const modal = document.getElementById('modalCategoryStyle');
@@ -3056,14 +3081,31 @@ const api = (() => {
 
         function renderCategoryStylePalette() {
             const wrap = document.getElementById('catstyle-panel-palette'); if (!wrap) return;
-            wrap.innerHTML = categoryIconPalette.map(p => {
-                const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon && categoryStyleOverride.bg === p.bg;
-                return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStylePalette('${p.icon}','${p.bg}','${p.color}')" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
-            }).join('');
+            if (categoryStyleContext.isSub) {
+                // Terkunci: semua pilihan dirender pakai warna kategori utama, cuma bentuk ikonnya yang beda.
+                const bg = categoryStyleContext.lockedBg, color = categoryStyleContext.lockedColor;
+                wrap.innerHTML = categoryIconPalette.map(p => {
+                    const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon;
+                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStyleIconOnly('${p.icon}')" class="aspect-square rounded-xl ${bg} ${color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                }).join('');
+            } else {
+                wrap.innerHTML = categoryIconPalette.map(p => {
+                    const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon && categoryStyleOverride.bg === p.bg;
+                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStylePalette('${p.icon}','${p.bg}','${p.color}')" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                }).join('');
+            }
         }
 
         function pickCategoryStylePalette(icon, bg, color) {
             categoryStyleOverride = { type: 'icon', value: icon, bg: bg, color: color };
+            refreshCategoryStylePreview();
+        }
+
+        // Khusus sub-kategori -- TIDAK menyimpan bg/color sama sekali (warnanya selalu diambil ulang
+        // dari kategori utama saat ditampilkan, lihat getCategoryStyle()), jadi kalau warna kategori
+        // utama diganti nanti, semua sub-nya otomatis ikut berubah tanpa perlu disimpan ulang.
+        function pickCategoryStyleIconOnly(icon) {
+            categoryStyleOverride = { type: 'icon', value: icon };
             refreshCategoryStylePreview();
         }
 
@@ -3094,9 +3136,18 @@ const api = (() => {
         function refreshCategoryStylePreview() {
             const previewEl = document.getElementById('catstyle-preview');
             const baseStyle = resolveBaseCategoryStyle(categoryStyleContext.catName, categoryStyleContext.jenisProper);
-            const previewStyle = categoryStyleOverride
-                ? (categoryStyleOverride.type === 'image' ? Object.assign({}, baseStyle, { image: categoryStyleOverride.value }) : Object.assign({}, baseStyle, { icon: categoryStyleOverride.value, bg: categoryStyleOverride.bg, color: categoryStyleOverride.color, image: null }))
-                : baseStyle;
+            let previewStyle;
+            if (!categoryStyleOverride) {
+                previewStyle = baseStyle;
+            } else if (categoryStyleOverride.type === 'image') {
+                previewStyle = Object.assign({}, baseStyle, { image: categoryStyleOverride.value });
+            } else if (categoryStyleContext.isSub) {
+                // Warna preview sub SELALU ikut warna kategori utama saat ini, bukan bg/color di
+                // override (yang untuk sub memang sengaja tidak disimpan).
+                previewStyle = Object.assign({}, baseStyle, { icon: categoryStyleOverride.value, bg: categoryStyleContext.lockedBg, color: categoryStyleContext.lockedColor, image: null });
+            } else {
+                previewStyle = Object.assign({}, baseStyle, { icon: categoryStyleOverride.value, bg: categoryStyleOverride.bg, color: categoryStyleOverride.color, image: null });
+            }
             previewEl.innerHTML = categoryIconHtml(previewStyle, 'w-full h-full flex items-center justify-center', 'text-2xl');
             renderCategoryStylePalette();
         }
@@ -3577,7 +3628,7 @@ const api = (() => {
                     const isCustomSub = subIdx !== -1;
                     const subStyle = getCategoryStyle(sub.name, jenisProper);
                     const subIconHtml = categoryIconHtml(subStyle, 'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0', 'text-[8px]');
-                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[8px]"></i></button>`;
+                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}','${jsStr(parentName)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[8px]"></i></button>`;
                     if (isCustomSub) {
                         return `<span class="inline-flex items-center gap-1 bg-white ring-1 ring-slate-200 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-600 m-0.5" id="sub-${type}-${slug}-${subIdx}">
                             ${subIconHtml}
