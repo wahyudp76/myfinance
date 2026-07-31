@@ -1,23 +1,25 @@
 // supabase/functions/analyze-finance/index.ts
 //
-// Edge Function untuk fitur "Rekomendasi AI" di dashboard MyFinance.
+// Edge Function untuk DUA fitur di MyFinance yang sama-sama butuh Claude:
+//   1. "Rekomendasi AI" (dashboard) -- body TANPA field "question" -> balas array insight JSON.
+//   2. "Tanya AI" (tab Analisis, chat bebas)      -- body DENGAN field "question" -> balas teks jawaban.
 //
 // KENAPA INI HARUS LEWAT EDGE FUNCTION (bukan dipanggil langsung dari browser)?
 // API key Anthropic HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode
 // client (index.html), siapa pun yang membuka DevTools bisa mencuri key itu dan
 // memakainya atas nama akun Anthropic-mu. Edge Function ini berjalan di server
 // Supabase, menyimpan key lewat "secret" (env var) yang tidak pernah dikirim ke
-// browser -- browser cuma mengirim RINGKASAN keuangan (angka agregat, bukan API key),
-// dan menerima balasan JSON dari Claude.
+// browser -- browser cuma mengirim RINGKASAN keuangan (angka agregat, bukan API key)
+// + pertanyaan bebas kalau ada, dan menerima balasan JSON dari Claude.
 //
-// CARA DEPLOY (lihat juga README.md bagian "Rekomendasi AI"):
+// CARA DEPLOY (lihat juga README.md bagian "Setup Rekomendasi AI"):
 //   1. Install Supabase CLI: https://supabase.com/docs/guides/cli
 //   2. supabase login
 //   3. supabase link --project-ref <project-ref-kamu>
 //   4. supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
 //   5. supabase functions deploy analyze-finance --no-verify-jwt=false
 //
-// Setelah itu tombol refresh di section "Rekomendasi AI" pada dashboard akan berfungsi.
+// Setelah itu section "Rekomendasi AI" (dashboard) dan "Tanya AI" (tab Analisis) berfungsi.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -73,16 +75,57 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const summary = await req.json();
+    const body = await req.json();
+    const { question, ...summary } = body || {};
 
     // Ringkasan (dari buildFinanceSummaryForAI() di index.html) SUDAH berupa angka agregat
     // per bulan/kategori -- bukan daftar transaksi mentah -- supaya payload kecil & tidak
     // membocorkan detail transaksi individual (keterangan, dll) ke prompt lebih dari perlu.
-    const prompt =
+    const commonContext =
       `Kamu asisten analisis keuangan pribadi untuk aplikasi pencatatan keuangan Indonesia (mata uang Rupiah/IDR). ` +
       `Berikut ringkasan keuangan user BULAN BERJALAN ini:\n\n${
         JSON.stringify(summary, null, 2)
-      }\n\n` +
+      }\n\n`;
+
+    // Mode "Tanya AI" (chat bebas dari tab Analisis) -- ada field "question" di body.
+    // Beda dari mode wawasan otomatis di bawah: di sini balasannya teks bebas (bukan JSON array),
+    // karena ini percakapan, bukan daftar kartu insight.
+    if (question && String(question).trim()) {
+      const qaPrompt = commonContext +
+        `User bertanya: "${String(question).trim()}"\n\n` +
+        `Jawab pertanyaan itu dalam Bahasa Indonesia, singkat (maksimal 3-4 kalimat), HANYA berdasarkan ` +
+        `angka pada ringkasan di atas. Kalau ringkasan datanya tidak cukup untuk menjawab pertanyaan itu ` +
+        `secara spesifik (misal user tanya soal kategori/periode yang tidak ada di ringkasan), katakan ` +
+        `dengan jujur bahwa datanya tidak tersedia di ringkasan ini, jangan mengarang angka. ` +
+        `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
+
+      const anthropicResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 512,
+          messages: [{ role: "user", content: qaPrompt }],
+        }),
+      });
+
+      if (!anthropicResp.ok) {
+        const errText = await anthropicResp.text();
+        return jsonResponse({ error: "Gagal memanggil Anthropic API", detail: errText }, 502);
+      }
+
+      const anthropicData = await anthropicResp.json();
+      const textBlock = (anthropicData.content || []).find((b: any) => b.type === "text");
+      return jsonResponse({ answer: (textBlock?.text || "").trim() || "Maaf, tidak ada jawaban." });
+    }
+
+    // Mode wawasan otomatis (dipanggil dari renderInsights() di dashboard) -- balasannya array
+    // JSON berisi maksimal 3 kartu insight.
+    const prompt = commonContext +
       `Berikan MAKSIMAL 3 rekomendasi/insight yang KONKRET, SPESIFIK, dan actionable dalam Bahasa Indonesia, ` +
       `HANYA berdasarkan angka pada data di atas (jangan mengarang angka atau kategori yang tidak ada di data). ` +
       `Kalau datanya terlalu sedikit/kosong untuk disimpulkan, cukup kasih 1 insight umum yang menyemangati/mengingatkan. ` +

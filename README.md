@@ -218,6 +218,16 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
   otomatis diperbarui setiap ada transaksi baru (dengan jeda minimal 3
   menit antar panggilan otomatis, plus tombol refresh manual kapan saja).
   **Opsional** -- butuh setup tambahan sekali saja, lihat bagian 11 di bawah.
+- **Tren Kategori Pengeluaran** (tab Analisis, di bawah grafik Tren
+  Transaksi): grafik garis 5 kategori pengeluaran terbesar, 6 bulan
+  terakhir -- selalu menunjukkan 6 bulan terakhir dari hari ini, tidak
+  ikut filter bulan yang lagi dipilih di atasnya.
+- **Tanya AI** (tab Analisis, paling bawah): chat bebas dengan Claude soal
+  keuanganmu -- tanya apa saja ("berapa pengeluaran transport 3 bulan
+  terakhir?", "kategori apa yang paling boros bulan ini?") dan dijawab
+  berdasarkan ringkasan data yang sama seperti Rekomendasi AI. Memakai
+  Edge Function yang sama, jadi **opsional** dengan setup yang sama
+  (bagian 11).
 
 ## 6. Peningkatan profesional & keamanan
 
@@ -398,13 +408,16 @@ miliknya sendiri, walau key-nya identik.
 - Buka **Console** browser (klik kanan → Inspect → tab Console) untuk lihat
   detail error teknis kalau ada masalah yang tidak jelas pesannya.
 
-## 11. Setup "Rekomendasi AI" (opsional)
+## 11. Setup "Rekomendasi AI" & "Tanya AI" (opsional)
 
-Fitur **Rekomendasi AI** di Dashboard memanggil Claude (Anthropic) lewat
-internet untuk menganalisis keuangan bulan berjalan kamu. Ini **opsional**
--- kalau belum di-setup, section-nya cuma menampilkan pesan "belum aktif"
-dan sisa aplikasi tetap berjalan normal (termasuk "Wawasan Keuangan" yang
-rule-based di atasnya, yang selalu jalan tanpa setup apa pun).
+Dua fitur di aplikasi ini memanggil Claude (Anthropic) lewat internet untuk
+menganalisis keuangan kamu: **Rekomendasi AI** (kartu insight otomatis di
+Dashboard) dan **Tanya AI** (chat bebas di tab Analisis) -- keduanya memakai
+Edge Function yang sama, jadi **satu kali setup untuk keduanya**. Ini
+**opsional** -- kalau belum di-setup, kedua section itu cuma menampilkan
+pesan "belum aktif" dan sisa aplikasi tetap berjalan normal (termasuk
+"Wawasan Keuangan" yang rule-based di Dashboard, yang selalu jalan tanpa
+setup apa pun).
 
 **Kenapa butuh Edge Function, tidak langsung dari `index.html` saja?**
 API key Anthropic harus dirahasiakan di server. Kalau ditaruh di kode

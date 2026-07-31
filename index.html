@@ -854,6 +854,32 @@
                     <p class="text-xs text-slate-400 mb-4 md:mb-6">Arus kas pemasukan & pengeluaran tanggal 1-31 di bulan terpilih</p>
                     <div class="h-48 md:h-64"><canvas id="dailyChart"></canvas></div>
                 </div>
+
+                <!-- Category Trend Line Chart (6 bulan terakhir, lintas kategori) -->
+                <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
+                    <h4 class="text-xs md:text-sm font-bold text-slate-700 mb-1">Tren Kategori Pengeluaran</h4>
+                    <p class="text-xs text-slate-400 mb-4 md:mb-6">5 kategori pengeluaran terbesar, 6 bulan terakhir (bukan cuma bulan yang lagi difilter di atas)</p>
+                    <div class="h-48 md:h-64 relative">
+                        <canvas id="categoryTrendChart"></canvas>
+                        <p id="categoryTrendChart-empty" class="hidden absolute inset-0 flex items-center justify-center text-xs text-slate-400 text-center px-6">Belum cukup data pengeluaran untuk menampilkan tren.</p>
+                    </div>
+                </div>
+
+                <!-- Tanya AI -->
+                <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style="height: 440px;">
+                    <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2 flex-shrink-0">
+                        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-wand-magic-sparkles text-xs"></i></div>
+                        <div class="min-w-0">
+                            <h4 class="text-sm font-bold text-slate-800">Tanya AI <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Claude</span></h4>
+                            <p class="text-[10px] text-slate-400">Tanya apa saja soal keuanganmu, dijawab berdasarkan data yang tercatat</p>
+                        </div>
+                    </div>
+                    <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
+                    <div class="p-3 border-t border-slate-100 flex items-center gap-2 flex-shrink-0">
+                        <input type="text" id="ai-chat-input" placeholder="mis. berapa pengeluaran transport 3 bulan terakhir?" onkeydown="if(event.key==='Enter'){sendAiChatQuestion();}" class="flex-1 bg-slate-100 rounded-xl px-3.5 py-2.5 text-xs md:text-sm outline-none focus:ring-2 focus:ring-indigo-300 min-w-0">
+                        <button onclick="sendAiChatQuestion()" id="ai-chat-send-btn" class="w-10 h-10 rounded-xl bg-[#151928] hover:bg-black active:scale-95 text-white flex items-center justify-center flex-shrink-0 transition"><i class="fas fa-paper-plane text-xs"></i></button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -5878,6 +5904,139 @@ const api = (() => {
                 data: { labels: dailyLabels, datasets: [{ label: 'Pemasukan', data: dailyLabels.map(d=>dailyMap[d].in), borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 3, fill: true, tension: 0.4, pointRadius: 2 }, { label: 'Pengeluaran', data: dailyLabels.map(d=>dailyMap[d].out), borderColor: '#F43F5E', backgroundColor: 'rgba(244, 63, 94, 0.1)', borderWidth: 3, fill: true, tension: 0.4, pointRadius: 2 }] }, 
                 options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: {position: 'top', labels:{boxWidth:12, font:{size:11, weight: 'bold'}}}, datalabels: { display: false } }, scales: { x:{grid:{display:false}, ticks:{font:{size:10, weight: 'bold'}}}, y:{grid:{color: chartGridColor(), drawBorder: false}, ticks:{font:{size:10}, callback: function(v){ return formatShortVal(v); }}} } } 
             });
+
+            // Tren kategori TIDAK ikut filter bulan di atas (selalu 6 bulan terakhir dari HARI INI),
+            // jadi dihitung & dirender terpisah dari sisa fungsi ini.
+            renderCategoryTrendChart();
+            renderAiChatHistory();
+        }
+
+        // ========================== TREN KATEGORI (6 bulan terakhir, lintas kategori) ==========================
+        function computeCategoryTrend(monthsCount) {
+            monthsCount = monthsCount || 6;
+            const now = new Date();
+            const monthKeys = [];
+            for (let i = monthsCount - 1; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                monthKeys.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }) });
+            }
+            const catMonthMap = {}; // { namaKategori: { 'YYYY-MM': total } }
+            globalData.forEach(t => {
+                if (t.jenis !== 'Pengeluaran' || !t.tanggal) return;
+                const mk = t.tanggal.slice(0, 7);
+                if (!monthKeys.some(m => m.key === mk)) return;
+                const style = getCategoryStyle(t.kategori, 'Pengeluaran');
+                const pName = style.parentName || t.kategori;
+                if (!catMonthMap[pName]) catMonthMap[pName] = {};
+                catMonthMap[pName][mk] = (catMonthMap[pName][mk] || 0) + Number(t.jumlah);
+            });
+            const totals = Object.keys(catMonthMap).map(cat => ({ cat, total: Object.values(catMonthMap[cat]).reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total);
+            const top5 = totals.slice(0, 5).map(t => t.cat);
+            return {
+                labels: monthKeys.map(m => m.label),
+                series: top5.map(cat => ({ label: cat, data: monthKeys.map(m => (catMonthMap[cat] && catMonthMap[cat][m.key]) || 0) }))
+            };
+        }
+
+        function renderCategoryTrendChart() {
+            const canvas = document.getElementById('categoryTrendChart'); if (!canvas) return;
+            const emptyEl = document.getElementById('categoryTrendChart-empty');
+            const { labels, series } = computeCategoryTrend(6);
+
+            if (charts.catTrend) { charts.catTrend.destroy(); charts.catTrend = null; }
+            if (series.length === 0) {
+                canvas.classList.add('hidden');
+                if (emptyEl) emptyEl.classList.remove('hidden');
+                return;
+            }
+            canvas.classList.remove('hidden');
+            if (emptyEl) emptyEl.classList.add('hidden');
+
+            charts.catTrend = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: series.map((s, i) => ({
+                        label: s.label, data: s.data,
+                        borderColor: cutePaletteOut[i % cutePaletteOut.length],
+                        backgroundColor: cutePaletteOut[i % cutePaletteOut.length] + '20',
+                        borderWidth: 2.5, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, fill: false
+                    }))
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10, weight: 'bold' } } },
+                        datalabels: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: Rp ${formatRp(ctx.raw)}` } }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } },
+                        y: { grid: { color: chartGridColor(), drawBorder: false }, ticks: { font: { size: 10 }, callback: (v) => formatShortVal(v) } }
+                    }
+                }
+            });
+        }
+
+        // ========================== TANYA AI (chat bebas soal keuangan, via Edge Function yang sama) ==========================
+        // Beda dari "Rekomendasi AI" di dashboard (yang otomatis, 3 insight tetap): ini user yang
+        // bertanya bebas ("berapa pengeluaran transport 3 bulan terakhir?" dsb), dijawab Claude
+        // berdasarkan ringkasan data yang sama (buildFinanceSummaryForAI()) + pertanyaannya sendiri.
+        // Edge Function 'analyze-finance' membedakan mode ini lewat ada/tidaknya field "question"
+        // di body request (lihat supabase/functions/analyze-finance/index.ts).
+        let aiChatHistory = []; // { role: 'user'|'assistant', text }
+        let aiChatInFlight = false;
+
+        function renderAiChatHistory() {
+            const wrap = document.getElementById('ai-chat-messages'); if (!wrap) return;
+            if (aiChatHistory.length === 0) {
+                wrap.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-6 px-4">Tanya apa saja soal keuanganmu, mis. "berapa pengeluaran transport 3 bulan terakhir?" atau "kategori apa yang paling boros bulan ini?"</p>`;
+                return;
+            }
+            wrap.innerHTML = aiChatHistory.map(m => `
+                <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
+                    <div class="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs md:text-sm leading-relaxed ${m.role === 'user' ? 'bg-[#151928] text-white rounded-br-md' : 'bg-slate-100 text-slate-700 rounded-bl-md'}">${escapeHtml(m.text)}</div>
+                </div>`).join('');
+            wrap.scrollTop = wrap.scrollHeight;
+        }
+
+        function appendAiChatLoadingBubble() {
+            const wrap = document.getElementById('ai-chat-messages'); if (!wrap) return;
+            wrap.innerHTML += `<div class="flex justify-start" id="ai-chat-loading-bubble"><div class="bg-slate-100 rounded-2xl rounded-bl-md px-4 py-3"><i class="fas fa-ellipsis fa-fade text-slate-400"></i></div></div>`;
+            wrap.scrollTop = wrap.scrollHeight;
+        }
+
+        async function sendAiChatQuestion() {
+            if (aiChatInFlight) return;
+            const input = document.getElementById('ai-chat-input'); if (!input) return;
+            const question = input.value.trim(); if (!question) return;
+            if (!lastInsightsCtx) { showErrorToast('Data belum siap dimuat, coba lagi sesaat lagi.'); return; }
+
+            aiChatInFlight = true;
+            input.value = '';
+            const sendBtn = document.getElementById('ai-chat-send-btn');
+            if (sendBtn) sendBtn.disabled = true;
+
+            aiChatHistory.push({ role: 'user', text: question });
+            renderAiChatHistory();
+            appendAiChatLoadingBubble();
+
+            try {
+                const summary = buildFinanceSummaryForAI(lastInsightsCtx);
+                const { data, error } = await supabaseClient.functions.invoke('analyze-finance', { body: Object.assign({}, summary, { question: question }) });
+                if (error) throw error;
+                if (data && data.error) {
+                    aiChatHistory.push({ role: 'assistant', text: 'Fitur Tanya AI belum aktif -- Edge Function-nya belum di-deploy/API key belum diset. Lihat README.md bagian "Setup Rekomendasi AI".' });
+                } else {
+                    aiChatHistory.push({ role: 'assistant', text: (data && data.answer) || 'Maaf, Claude tidak memberi jawaban untuk pertanyaan ini.' });
+                }
+            } catch (e) {
+                aiChatHistory.push({ role: 'assistant', text: 'Gagal menghubungi Claude. Periksa koneksi internet dan coba lagi.' });
+            } finally {
+                aiChatInFlight = false;
+                if (sendBtn) sendBtn.disabled = false;
+                renderAiChatHistory();
+            }
         }
         
         // ========================== ACCOUNT DETAIL ==========================
