@@ -27,7 +27,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const GEMINI_API_KEY = Deno.env.get("AQ.Ab8RN6JDb8_j8X3idb7CMDcI7jEgQMse4p1ROQESwtDJ3oDSww");
 // Model default: gemini-3.6-flash -- tier "Flash" (cepat & hemat biaya), cukup untuk
 // menganalisis ringkasan angka yang sudah dirapikan (bukan model reasoning berat).
 // Fitur ini bisa terpanggil cukup sering (tiap dashboard dibuka / tiap ada transaksi
