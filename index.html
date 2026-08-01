@@ -618,7 +618,7 @@
                 <div class="flex items-center justify-between mb-3 md:mb-4">
                     <div class="flex items-center gap-2">
                         <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest">Rekomendasi AI</h4>
-                        <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold">Claude AI</span>
+                        <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold">Gemini AI</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <span id="ai-insight-timestamp" class="text-[9px] text-slate-400"></span>
@@ -870,7 +870,7 @@
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2 flex-shrink-0">
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-wand-magic-sparkles text-xs"></i></div>
                         <div class="min-w-0">
-                            <h4 class="text-sm font-bold text-slate-800">Tanya AI <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Claude</span></h4>
+                            <h4 class="text-sm font-bold text-slate-800">Tanya AI <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Gemini</span></h4>
                             <p class="text-[10px] text-slate-400">Tanya apa saja soal keuanganmu, dijawab berdasarkan data yang tercatat</p>
                         </div>
                     </div>
@@ -5022,16 +5022,16 @@ const api = (() => {
                 </div>`).join('');
 
             // Wawasan rule-based di atas selalu instan & gratis; di sisi ini kita juga minta analisis
-            // Claude yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- otomatis, tapi
+            // Gemini yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- otomatis, tapi
             // dijaga jeda minimal supaya tidak memanggil API di setiap render/resize.
             requestAiInsight(false);
         }
 
-        // ========================== REKOMENDASI AI (Claude, via Supabase Edge Function) ==========================
+        // ========================== REKOMENDASI AI (Gemini, via Supabase Edge Function) ==========================
         // BEDA dari "Wawasan Keuangan" di atas: itu rule-based (instan, gratis, jalan tanpa panggilan
-        // ke Anthropic). Ini benar-benar memanggil Claude lewat internet, dengan ringkasan keuangan
+        // ke Google Gemini). Ini benar-benar memanggil Gemini lewat internet, dengan ringkasan keuangan
         // bulan berjalan sebagai konteks -- jadi selalu ikut berubah begitu ada transaksi baru (dipicu
-        // ulang dari renderInsights() di atas). API key Claude TIDAK PERNAH ada di kode ini -- request
+        // ulang dari renderInsights() di atas). API key Gemini TIDAK PERNAH ada di kode ini -- request
         // lewat Supabase Edge Function 'analyze-finance' yang menyimpannya dengan aman di server
         // (lihat supabase/functions/analyze-finance/index.ts & panduan setup di README.md).
         let lastAiInsightAt = 0;
@@ -5068,7 +5068,7 @@ const api = (() => {
             container.innerHTML = `
                 <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-400 flex items-center justify-center flex-shrink-0 animate-pulse"><i class="fas fa-brain text-sm"></i></div>
-                    <p class="text-xs md:text-sm text-slate-400">Claude sedang menganalisis keuangan kamu...</p>
+                    <p class="text-xs md:text-sm text-slate-400">Gemini sedang menganalisis keuangan kamu...</p>
                 </div>`;
         }
 
@@ -5079,7 +5079,7 @@ const api = (() => {
                     <div class="w-9 h-9 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-plug-circle-xmark text-sm"></i></div>
                     <div class="min-w-0">
                         <p class="text-xs md:text-sm font-bold text-slate-600">Rekomendasi AI belum aktif</p>
-                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">Fitur ini butuh Edge Function <code class="bg-slate-200 px-1 rounded">analyze-finance</code> di-deploy dan API key Claude diset di Supabase. Lihat panduan di README.md bagian "Rekomendasi AI".</p>
+                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">Fitur ini butuh Edge Function <code class="bg-slate-200 px-1 rounded">analyze-finance</code> di-deploy dan API key Gemini diset di Supabase. Lihat panduan di README.md bagian "Rekomendasi AI".</p>
                     </div>
                 </div>`;
         }
@@ -5098,7 +5098,7 @@ const api = (() => {
             if (!insights || insights.length === 0) {
                 container.innerHTML = `<div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0"><i class="fas fa-comment-dots text-sm"></i></div>
-                    <p class="text-xs md:text-sm text-slate-500">Claude belum menemukan rekomendasi khusus untuk saat ini.</p>
+                    <p class="text-xs md:text-sm text-slate-500">Gemini belum menemukan rekomendasi khusus untuk saat ini.</p>
                 </div>`;
                 return;
             }
@@ -5980,7 +5980,7 @@ const api = (() => {
 
         // ========================== TANYA AI (chat bebas soal keuangan, via Edge Function yang sama) ==========================
         // Beda dari "Rekomendasi AI" di dashboard (yang otomatis, 3 insight tetap): ini user yang
-        // bertanya bebas ("berapa pengeluaran transport 3 bulan terakhir?" dsb), dijawab Claude
+        // bertanya bebas ("berapa pengeluaran transport 3 bulan terakhir?" dsb), dijawab Gemini
         // berdasarkan ringkasan data yang sama (buildFinanceSummaryForAI()) + pertanyaannya sendiri.
         // Edge Function 'analyze-finance' membedakan mode ini lewat ada/tidaknya field "question"
         // di body request (lihat supabase/functions/analyze-finance/index.ts).
@@ -6028,10 +6028,10 @@ const api = (() => {
                 if (data && data.error) {
                     aiChatHistory.push({ role: 'assistant', text: 'Fitur Tanya AI belum aktif -- Edge Function-nya belum di-deploy/API key belum diset. Lihat README.md bagian "Setup Rekomendasi AI".' });
                 } else {
-                    aiChatHistory.push({ role: 'assistant', text: (data && data.answer) || 'Maaf, Claude tidak memberi jawaban untuk pertanyaan ini.' });
+                    aiChatHistory.push({ role: 'assistant', text: (data && data.answer) || 'Maaf, Gemini tidak memberi jawaban untuk pertanyaan ini.' });
                 }
             } catch (e) {
-                aiChatHistory.push({ role: 'assistant', text: 'Gagal menghubungi Claude. Periksa koneksi internet dan coba lagi.' });
+                aiChatHistory.push({ role: 'assistant', text: 'Gagal menghubungi Gemini. Periksa koneksi internet dan coba lagi.' });
             } finally {
                 aiChatInFlight = false;
                 if (sendBtn) sendBtn.disabled = false;

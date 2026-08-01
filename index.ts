@@ -1,22 +1,25 @@
 // supabase/functions/analyze-finance/index.ts
 //
-// Edge Function untuk DUA fitur di MyFinance yang sama-sama butuh Claude:
+// Edge Function untuk DUA fitur di MyFinance yang sama-sama butuh Gemini AI:
 //   1. "Rekomendasi AI" (dashboard) -- body TANPA field "question" -> balas array insight JSON.
 //   2. "Tanya AI" (tab Analisis, chat bebas)      -- body DENGAN field "question" -> balas teks jawaban.
 //
 // KENAPA INI HARUS LEWAT EDGE FUNCTION (bukan dipanggil langsung dari browser)?
-// API key Anthropic HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode
+// API key Gemini HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode
 // client (index.html), siapa pun yang membuka DevTools bisa mencuri key itu dan
-// memakainya atas nama akun Anthropic-mu. Edge Function ini berjalan di server
-// Supabase, menyimpan key lewat "secret" (env var) yang tidak pernah dikirim ke
-// browser -- browser cuma mengirim RINGKASAN keuangan (angka agregat, bukan API key)
-// + pertanyaan bebas kalau ada, dan menerima balasan JSON dari Claude.
+// memakainya atas nama akun Google AI-mu (kena tagihan/kuota kamu). Edge Function
+// ini berjalan di server Supabase, menyimpan key lewat "secret" (env var) yang
+// tidak pernah dikirim ke browser -- browser cuma mengirim RINGKASAN keuangan
+// (angka agregat, bukan API key) + pertanyaan bebas kalau ada, dan menerima
+// balasan JSON dari Gemini.
 //
 // CARA DEPLOY (lihat juga README.md bagian "Setup Rekomendasi AI"):
 //   1. Install Supabase CLI: https://supabase.com/docs/guides/cli
 //   2. supabase login
 //   3. supabase link --project-ref <project-ref-kamu>
-//   4. supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+//   4. Ambil API key Gemini di https://aistudio.google.com/apikey (biasanya
+//      diawali "AIzaSy..."), lalu simpan sebagai secret:
+//      supabase secrets set GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 //   5. supabase functions deploy analyze-finance --no-verify-jwt=false
 //
 // Setelah itu section "Rekomendasi AI" (dashboard) dan "Tanya AI" (tab Analisis) berfungsi.
@@ -24,7 +27,17 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+// Model default: gemini-3.6-flash -- tier "Flash" (cepat & hemat biaya), cukup untuk
+// menganalisis ringkasan angka yang sudah dirapikan (bukan model reasoning berat).
+// Fitur ini bisa terpanggil cukup sering (tiap dashboard dibuka / tiap ada transaksi
+// baru, dengan jeda minimal 3 menit), jadi model tier murah/cepat sengaja dipilih.
+// Mau lebih hemat lagi? Ganti ke "gemini-3.5-flash-lite". Mau analisis lebih dalam?
+// Ganti ke model "pro" terbaru -- cek daftar model aktif di https://ai.google.dev/gemini-api/docs/models
+const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_ENDPOINT =
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
@@ -42,6 +55,37 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// Panggilan ke Gemini generateContent -- satu prompt teks tunggal (bukan percakapan
+// multi-giliran, karena tiap request di sini sudah membawa seluruh konteks yang perlu
+// lewat ringkasan keuangan + pertanyaan, jadi cukup 1 "user turn").
+async function callGemini(promptText: string) {
+  const resp = await fetch(GEMINI_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": GEMINI_API_KEY!,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptText }] }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Response(
+      JSON.stringify({ error: "Gagal memanggil Gemini API", detail: errText }),
+      {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const data = await resp.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return String(text);
+}
+
 Deno.serve(async (req: Request) => {
   // Preflight CORS
   if (req.method === "OPTIONS") {
@@ -52,10 +96,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  if (!ANTHROPIC_API_KEY) {
+  if (!GEMINI_API_KEY) {
     return jsonResponse({
       error:
-        "ANTHROPIC_API_KEY belum diset di Supabase secrets. Jalankan: supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxx",
+        "GEMINI_API_KEY belum diset di Supabase secrets. Jalankan: supabase secrets set GEMINI_API_KEY=AIzaSy-xxxx",
     }, 500);
   }
 
@@ -99,28 +143,14 @@ Deno.serve(async (req: Request) => {
         `dengan jujur bahwa datanya tidak tersedia di ringkasan ini, jangan mengarang angka. ` +
         `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
 
-      const anthropicResp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 512,
-          messages: [{ role: "user", content: qaPrompt }],
-        }),
-      });
-
-      if (!anthropicResp.ok) {
-        const errText = await anthropicResp.text();
-        return jsonResponse({ error: "Gagal memanggil Anthropic API", detail: errText }, 502);
+      let answerText: string;
+      try {
+        answerText = await callGemini(qaPrompt);
+      } catch (errResp) {
+        if (errResp instanceof Response) return errResp;
+        throw errResp;
       }
-
-      const anthropicData = await anthropicResp.json();
-      const textBlock = (anthropicData.content || []).find((b: any) => b.type === "text");
-      return jsonResponse({ answer: (textBlock?.text || "").trim() || "Maaf, tidak ada jawaban." });
+      return jsonResponse({ answer: answerText.trim() || "Maaf, tidak ada jawaban." });
     }
 
     // Mode wawasan otomatis (dipanggil dari renderInsights() di dashboard) -- balasannya array
@@ -132,50 +162,25 @@ Deno.serve(async (req: Request) => {
       `Balas HANYA dalam bentuk JSON array valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar array), formatnya:\n` +
       `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat", "severity": "info" | "warning" | "success"}]`;
 
-    const anthropicResp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        // Haiku dipilih karena fitur ini bisa terpanggil cukup sering (tiap dashboard dibuka /
-        // tiap ada transaksi baru, dengan jeda minimal 3 menit) -- cepat & murah, cukup untuk
-        // menganalisis ringkasan angka yang sudah dirapikan. Ganti ke model lain kalau mau
-        // analisis yang lebih dalam (lihat daftar model di dashboard Anthropic Console kamu).
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    if (!anthropicResp.ok) {
-      const errText = await anthropicResp.text();
-      return jsonResponse({
-        error: "Gagal memanggil Anthropic API",
-        detail: errText,
-      }, 502);
+    let rawText: string;
+    try {
+      rawText = await callGemini(prompt);
+    } catch (errResp) {
+      if (errResp instanceof Response) return errResp;
+      throw errResp;
     }
-
-    const anthropicData = await anthropicResp.json();
-    const textBlock = (anthropicData.content || []).find(
-      (b: any) => b.type === "text",
-    );
 
     let insights: any[] = [];
     try {
-      const cleaned = (textBlock?.text || "[]")
-        .replace(/```json|```/g, "")
-        .trim();
+      const cleaned = (rawText || "[]").replace(/```json|```/g, "").trim();
       insights = JSON.parse(cleaned);
       if (!Array.isArray(insights)) insights = [insights];
     } catch (_e) {
-      // Kalau Claude tidak balas JSON murni (jarang terjadi, tapi jaga-jaga), tetap tampilkan
+      // Kalau Gemini tidak balas JSON murni (jarang terjadi, tapi jaga-jaga), tetap tampilkan
       // teksnya apa adanya sebagai satu insight, daripada gagal total.
       insights = [{
-        title: "Analisis Claude",
-        message: textBlock?.text || "Tidak ada respons dari Claude.",
+        title: "Analisis Gemini",
+        message: rawText || "Tidak ada respons dari Gemini.",
         severity: "info",
       }];
     }

@@ -214,15 +214,16 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
   tingkat menabung vs bulan lalu, proyeksi pengeluaran akhir bulan) --
   instan & gratis, dihitung langsung di browser tanpa panggilan API apa pun.
 - **Rekomendasi AI** (Dashboard, tepat di bawah Wawasan Keuangan): analisis
-  lebih dalam dari Claude berdasarkan ringkasan keuangan bulan berjalan,
-  otomatis diperbarui setiap ada transaksi baru (dengan jeda minimal 3
-  menit antar panggilan otomatis, plus tombol refresh manual kapan saja).
-  **Opsional** -- butuh setup tambahan sekali saja, lihat bagian 11 di bawah.
+  lebih dalam dari Gemini (Google AI) berdasarkan ringkasan keuangan bulan
+  berjalan, otomatis diperbarui setiap ada transaksi baru (dengan jeda
+  minimal 3 menit antar panggilan otomatis, plus tombol refresh manual
+  kapan saja). **Opsional** -- butuh setup tambahan sekali saja, lihat
+  bagian 11 di bawah.
 - **Tren Kategori Pengeluaran** (tab Analisis, di bawah grafik Tren
   Transaksi): grafik garis 5 kategori pengeluaran terbesar, 6 bulan
   terakhir -- selalu menunjukkan 6 bulan terakhir dari hari ini, tidak
   ikut filter bulan yang lagi dipilih di atasnya.
-- **Tanya AI** (tab Analisis, paling bawah): chat bebas dengan Claude soal
+- **Tanya AI** (tab Analisis, paling bawah): chat bebas dengan Gemini soal
   keuanganmu -- tanya apa saja ("berapa pengeluaran transport 3 bulan
   terakhir?", "kategori apa yang paling boros bulan ini?") dan dijawab
   berdasarkan ringkasan data yang sama seperti Rekomendasi AI. Memakai
@@ -410,7 +411,7 @@ miliknya sendiri, walau key-nya identik.
 
 ## 11. Setup "Rekomendasi AI" & "Tanya AI" (opsional)
 
-Dua fitur di aplikasi ini memanggil Claude (Anthropic) lewat internet untuk
+Dua fitur di aplikasi ini memanggil **Gemini (Google AI)** lewat internet untuk
 menganalisis keuangan kamu: **Rekomendasi AI** (kartu insight otomatis di
 Dashboard) dan **Tanya AI** (chat bebas di tab Analisis) -- keduanya memakai
 Edge Function yang sama, jadi **satu kali setup untuk keduanya**. Ini
@@ -420,16 +421,20 @@ pesan "belum aktif" dan sisa aplikasi tetap berjalan normal (termasuk
 setup apa pun).
 
 **Kenapa butuh Edge Function, tidak langsung dari `index.html` saja?**
-API key Anthropic harus dirahasiakan di server. Kalau ditaruh di kode
+API key Gemini harus dirahasiakan di server. Kalau ditaruh di kode
 `index.html`, siapa pun yang buka DevTools browser bisa mencurinya dan
-memakainya atas nama akun Anthropic-mu. Edge Function berjalan di server
-Supabase, menyimpan key itu lewat "secret" yang tidak pernah dikirim ke
-browser.
+memakainya atas nama akun Google AI-mu (kena tagihan/kuota kamu). Edge
+Function berjalan di server Supabase, menyimpan key itu lewat "secret"
+yang tidak pernah dikirim ke browser.
 
 **Langkah setup (sekali saja):**
 
-1. Punya API key Anthropic (https://console.anthropic.com → **API Keys**),
-   biasanya diawali `sk-ant-...`.
+1. Punya API key Gemini dari **Google AI Studio**
+   (https://aistudio.google.com/apikey), biasanya diawali `AIzaSy...`.
+   > ⚠️ Kalau kamu menyalin key dari tempat lain dan formatnya tidak
+   > diawali `AIzaSy`, cek lagi apakah itu benar API key (bukan token/
+   > kredensial jenis lain) -- kalau salah, `supabase secrets set` di
+   > langkah 4 tinggal dijalankan ulang dengan key yang benar.
 2. Install Supabase CLI kalau belum ada:
    `npm install -g supabase` (butuh Node.js) atau lihat cara lain di
    https://supabase.com/docs/guides/cli
@@ -444,7 +449,7 @@ browser.
 4. Simpan API key sebagai secret (JANGAN ditaruh di `index.html` atau kode
    apa pun yang ke browser):
    ```
-   supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
+   supabase secrets set GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
 5. Deploy Edge Function-nya:
    ```
@@ -454,12 +459,14 @@ browser.
    memanggilnya. Kalau masih menampilkan "belum aktif", cek log lewat
    `supabase functions logs analyze-finance` untuk lihat error detailnya.
 
-**Soal biaya:** setiap panggilan ke Claude dikenakan biaya sesuai tarif
-Anthropic (model default yang dipakai: **Claude Haiku**, model tercepat
-& termurah, cukup untuk menganalisis ringkasan angka bulanan). Frekuensi
-panggilan otomatis dibatasi jeda minimal 3 menit per sesi, jadi biayanya
-tetap terkendali meski kamu aktif mencatat banyak transaksi. Mau pakai
-model lain (mis. Sonnet untuk analisis lebih dalam)? Tinggal ganti nilai
-`model` di `supabase/functions/analyze-finance/index.ts`, lalu deploy
-ulang (langkah 5).
+**Soal biaya:** setiap panggilan ke Gemini dikenakan biaya sesuai tarif
+Google AI (model default yang dipakai: **Gemini 3.6 Flash**, tier
+tercepat & termurah yang tersedia, cukup untuk menganalisis ringkasan
+angka bulanan). Frekuensi panggilan otomatis dibatasi jeda minimal 3
+menit per sesi, jadi biayanya tetap terkendali meski kamu aktif mencatat
+banyak transaksi. Mau lebih hemat lagi? Ganti ke `gemini-3.5-flash-lite`.
+Mau analisis lebih dalam? Ganti ke model "Pro" terbaru -- cek daftar
+model aktif di https://ai.google.dev/gemini-api/docs/models. Ganti
+nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
+`GEMINI_MODEL`), lalu deploy ulang (langkah 5).
 
