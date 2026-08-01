@@ -1422,14 +1422,14 @@
                         </div>
 
                         <div id="aset-auto-update-section" class="hidden space-y-3 bg-indigo-50/50 rounded-xl p-3 ring-1 ring-indigo-100">
-                            <p class="text-[10px] md:text-[11px] text-indigo-500 font-semibold leading-relaxed"><i class="fas fa-bolt mr-1"></i>Opsional -- isi dua kolom ini supaya nilai aset ini bisa di-refresh otomatis dari harga pasar terkini (sumber: CoinGecko).</p>
+                            <p id="aset-auto-update-desc" class="text-[10px] md:text-[11px] text-indigo-500 font-semibold leading-relaxed"><i class="fas fa-bolt mr-1"></i>Opsional -- isi dua kolom ini supaya nilai aset ini bisa di-refresh otomatis dari harga pasar terkini (sumber: CoinGecko).</p>
                             <div>
-                                <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">ID CoinGecko</label>
+                                <label id="aset-simbol-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">ID CoinGecko</label>
                                 <input type="text" id="aset_simbol" placeholder="Contoh: bitcoin, ethereum, solana" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
-                                <p class="text-[10px] text-slate-400 mt-1">Lihat ID-nya di URL halaman koin tsb di coingecko.com (bagian paling akhir)</p>
+                                <p id="aset-simbol-hint" class="text-[10px] text-slate-400 mt-1">Lihat ID-nya di URL halaman koin tsb di coingecko.com (bagian paling akhir)</p>
                             </div>
                             <div>
-                                <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Koin Dimiliki</label>
+                                <label id="aset-jumlah-unit-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Koin Dimiliki</label>
                                 <input type="text" id="aset_jumlah_unit" placeholder="Contoh: 0.05" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                             </div>
                         </div>
@@ -4066,12 +4066,39 @@ const api = (() => {
         function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true); api.run.withSuccessHandler(() => { refreshTransactionsOnly(); showSuccessToast('Transaksi berhasil dihapus.'); }).withFailureHandler(() => { showErrorToast('Gagal menghapus transaksi. Coba lagi.'); showLoading(false); }).deleteTransaction(id); }); }
 
         // ========================== FORM ASET ACTIONS ==========================
-        // Section "ID CoinGecko" / "Jumlah Koin Dimiliki" cuma relevan buat kategori Kripto --
-        // disembunyikan buat kategori lain supaya form tidak membingungkan (lihat fitur Growth
-        // "Auto-update harga aset", baru mendukung sumber CoinGecko).
+        // Section "Simbol/ID" + "Jumlah Unit" cuma relevan buat kategori yang punya sumber harga
+        // otomatis (lihat fitur Growth "Auto-update harga aset"). Kripto -> CoinGecko (solid).
+        // Saham -> Yahoo Finance (TIDAK RESMI, eksperimental, bisa berhenti berfungsi sewaktu2).
+        // Reksadana & Emas belum didukung -- belum ada sumber data gratis yang cukup diyakini akurat.
+        const ASSET_AUTO_UPDATE_CONFIG = {
+            'Kripto': {
+                sumber_harga: 'coingecko',
+                simbolLabel: 'ID CoinGecko',
+                simbolPlaceholder: 'Contoh: bitcoin, ethereum, solana',
+                simbolHint: 'Lihat ID-nya di URL halaman koin tsb di coingecko.com (bagian paling akhir)',
+                unitLabel: 'Jumlah Koin Dimiliki',
+                desc: '<i class="fas fa-bolt mr-1"></i>Opsional -- isi dua kolom ini supaya nilai aset ini bisa di-refresh otomatis dari harga pasar terkini (sumber: CoinGecko).'
+            },
+            'Saham': {
+                sumber_harga: 'yahoo_id_stock',
+                simbolLabel: 'Kode Saham IDX',
+                simbolPlaceholder: 'Contoh: BBCA, TLKM, BBRI',
+                simbolHint: 'Kode 4 huruf di Bursa Efek Indonesia, tanpa akhiran .JK',
+                unitLabel: 'Jumlah Lembar Saham',
+                desc: '<i class="fas fa-triangle-exclamation mr-1"></i>Opsional & EKSPERIMENTAL -- sumber data Yahoo Finance (tidak resmi, bisa berhenti berfungsi sewaktu-waktu tanpa pemberitahuan).'
+            }
+        };
+
         function toggleAssetAutoUpdateSection() {
-            const isKripto = document.getElementById('aset_kategori').value === 'Kripto';
-            document.getElementById('aset-auto-update-section').classList.toggle('hidden', !isKripto);
+            const kategori = document.getElementById('aset_kategori').value;
+            const cfg = ASSET_AUTO_UPDATE_CONFIG[kategori];
+            document.getElementById('aset-auto-update-section').classList.toggle('hidden', !cfg);
+            if (!cfg) return;
+            document.getElementById('aset-auto-update-desc').innerHTML = cfg.desc;
+            document.getElementById('aset-simbol-label').textContent = cfg.simbolLabel;
+            document.getElementById('aset_simbol').placeholder = cfg.simbolPlaceholder;
+            document.getElementById('aset-simbol-hint').textContent = cfg.simbolHint;
+            document.getElementById('aset-jumlah-unit-label').textContent = cfg.unitLabel;
         }
 
         function openAssetModal(isEdit = false, id = null) {
@@ -4117,17 +4144,20 @@ const api = (() => {
             const kategoriVal = document.getElementById('aset_kategori').value;
             const simbolVal = document.getElementById('aset_simbol').value.trim();
             const jumlahUnitVal = document.getElementById('aset_jumlah_unit').value;
+            const autoCfg = ASSET_AUTO_UPDATE_CONFIG[kategoriVal];
+            const autoUpdateFilled = !!(autoCfg && simbolVal && jumlahUnitVal);
             const data = {
                 nama: document.getElementById('aset_nama').value,
                 kategori: kategoriVal,
                 platform: document.getElementById('aset_platform').value,
                 modal: document.getElementById('aset_modal').value,
                 nilai: newNilai,
-                // "Refresh Harga Otomatis" baru aktif kalau kategorinya Kripto DAN kedua kolom terisi --
-                // di luar itu, sumber_harga sengaja null (aset tetap 100% manual seperti biasa).
-                simbol: (kategoriVal === 'Kripto' && simbolVal) ? simbolVal : null,
-                jumlah_unit: (kategoriVal === 'Kripto' && jumlahUnitVal) ? Number(jumlahUnitVal) : null,
-                sumber_harga: (kategoriVal === 'Kripto' && simbolVal && jumlahUnitVal) ? 'coingecko' : null
+                // "Refresh Harga Otomatis" baru aktif kalau kategorinya didukung (lihat
+                // ASSET_AUTO_UPDATE_CONFIG) DAN kedua kolom terisi -- di luar itu, sumber_harga
+                // sengaja null (aset tetap 100% manual seperti biasa).
+                simbol: autoUpdateFilled ? simbolVal : null,
+                jumlah_unit: autoUpdateFilled ? Number(jumlahUnitVal) : null,
+                sumber_harga: autoUpdateFilled ? autoCfg.sumber_harga : null
             };
 
             const wasEdit = !!currentAssetEditId; // simpan sebelum async
@@ -5795,10 +5825,10 @@ const api = (() => {
 
             renderAssetDetailChart(history);
 
-            // Tombol "Refresh Harga Otomatis" cuma muncul kalau aset ini punya ID CoinGecko +
-            // Jumlah Koin Dimiliki terisi (lihat toggleAssetAutoUpdateSection() & submitAsset()).
+            // Tombol "Refresh Harga Otomatis" cuma muncul kalau aset ini punya simbol + jumlah unit
+            // terisi DAN kategorinya termasuk yang didukung (lihat ASSET_AUTO_UPDATE_CONFIG).
             const refreshBtn = document.getElementById('asset-detail-refresh-btn');
-            const supportsAutoUpdate = !!(asset.simbol && asset.jumlah_unit && asset.sumber_harga === 'coingecko');
+            const supportsAutoUpdate = !!(asset.simbol && asset.jumlah_unit && asset.sumber_harga);
             refreshBtn.classList.toggle('hidden', !supportsAutoUpdate);
             refreshBtn.disabled = false; refreshBtn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
 
