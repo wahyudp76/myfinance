@@ -1403,7 +1403,7 @@
                         
                         <div>
                             <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Kategori Instrumen</label>
-                            <select id="aset_kategori" required class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
+                            <select id="aset_kategori" required onchange="toggleAssetAutoUpdateSection()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
                                 <option value="Saham">Saham</option>
                                 <option value="Reksadana">Reksadana</option>
                                 <option value="Kripto">Kripto</option>
@@ -1419,6 +1419,19 @@
                             <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Platform / Sekuritas</label>
                             <input type="text" id="aset_platform" required placeholder="Contoh: Bibit, Ajaib, Indodax, dll" autocomplete="off" oninput="searchAssetBankSuggestions(this.value)" onfocus="searchAssetBankSuggestions(this.value)" onblur="setTimeout(()=>document.getElementById('asset-platform-suggestions').classList.add('hidden'), 200)" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                             <div id="asset-platform-suggestions" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl ring-1 ring-slate-100 max-h-48 overflow-y-auto p-1.5"></div>
+                        </div>
+
+                        <div id="aset-auto-update-section" class="hidden space-y-3 bg-indigo-50/50 rounded-xl p-3 ring-1 ring-indigo-100">
+                            <p class="text-[10px] md:text-[11px] text-indigo-500 font-semibold leading-relaxed"><i class="fas fa-bolt mr-1"></i>Opsional -- isi dua kolom ini supaya nilai aset ini bisa di-refresh otomatis dari harga pasar terkini (sumber: CoinGecko).</p>
+                            <div>
+                                <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">ID CoinGecko</label>
+                                <input type="text" id="aset_simbol" placeholder="Contoh: bitcoin, ethereum, solana" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
+                                <p class="text-[10px] text-slate-400 mt-1">Lihat ID-nya di URL halaman koin tsb di coingecko.com (bagian paling akhir)</p>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Koin Dimiliki</label>
+                                <input type="text" id="aset_jumlah_unit" placeholder="Contoh: 0.05" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
+                            </div>
                         </div>
 
                         <div class="relative">
@@ -1490,7 +1503,8 @@
                     <i class="fas fa-circle-info mr-1"></i>Baru ada 1 titik data. Perbarui nilai aset ini di kemudian hari untuk mulai melihat grafik performanya dari waktu ke waktu.
                 </div>
             </div>
-            <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
+            <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl space-y-2">
+                <button type="button" id="asset-detail-refresh-btn" onclick="handleRefreshAssetPrice()" class="hidden w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-indigo-600/30"><i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis</button>
                 <button type="button" onclick="closeAssetDetailModal(); openAssetModal(true, currentAssetDetailId)" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-pencil mr-2"></i>Perbarui Nilai / Edit</button>
             </div>
         </div>
@@ -2151,7 +2165,7 @@ const api = (() => {
     async function fetchAssetsRemote() {
         const data = await fetchAllRows((from, to) => supabaseClient
             .from('assets')
-            .select('id, nama, kategori, platform, modal, nilai, terakhir, value_history')
+            .select('id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga')
             .order('terakhir', { ascending: false })
             .order('id', { ascending: true })
             .range(from, to));
@@ -2167,7 +2181,10 @@ const api = (() => {
             platform: data.platform || null,
             modal: Number(data.modal),
             nilai: Number(data.nilai),
-            value_history: data.value_history || []
+            value_history: data.value_history || [],
+            simbol: data.simbol || null,
+            jumlah_unit: data.jumlah_unit || null,
+            sumber_harga: data.sumber_harga || null
         });
         if (error) throw error;
     }
@@ -2180,7 +2197,10 @@ const api = (() => {
             modal: Number(data.modal),
             nilai: Number(data.nilai),
             terakhir: new Date().toISOString(),
-            value_history: data.value_history
+            value_history: data.value_history,
+            simbol: data.simbol || null,
+            jumlah_unit: data.jumlah_unit || null,
+            sumber_harga: data.sumber_harga || null
         }).eq('id', id);
         if (error) throw error;
     }
@@ -2188,6 +2208,16 @@ const api = (() => {
     async function deleteAssetRemote(id) {
         const { error } = await supabaseClient.from('assets').delete().eq('id', id);
         if (error) throw error;
+    }
+
+    // Manggil Edge Function 'refresh-asset-price' -- lihat supabase/functions/refresh-asset-price/index.ts.
+    // Beda dari CRUD lain di atas: fungsi ini TIDAK langsung query tabel `assets` dari sini, karena
+    // logic ambil-harga-dari-CoinGecko + hitung nilai baru + update value_history dilakukan di server.
+    async function refreshAssetPriceRemote(id) {
+        const { data, error } = await supabaseClient.functions.invoke('refresh-asset-price', { body: { asset_id: id } });
+        if (error) throw error;
+        if (data && data.error) throw new Error(data.error);
+        return data;
     }
 
     // ---------------- TRANSAKSI BERULANG (tabel: recurring_transactions) ----------------
@@ -2279,6 +2309,7 @@ const api = (() => {
         addAsset: (data) => addAssetRemote(data),
         editAsset: (id, data) => editAssetRemote(id, data),
         deleteAsset: (id) => deleteAssetRemote(id),
+        refreshAssetPrice: (id) => refreshAssetPriceRemote(id),
         getRecurring: () => fetchRecurringRemote(),
         addRecurring: (data) => addRecurringRemote(data),
         editRecurring: (id, data) => editRecurringRemote(id, data),
@@ -4035,6 +4066,14 @@ const api = (() => {
         function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true); api.run.withSuccessHandler(() => { refreshTransactionsOnly(); showSuccessToast('Transaksi berhasil dihapus.'); }).withFailureHandler(() => { showErrorToast('Gagal menghapus transaksi. Coba lagi.'); showLoading(false); }).deleteTransaction(id); }); }
 
         // ========================== FORM ASET ACTIONS ==========================
+        // Section "ID CoinGecko" / "Jumlah Koin Dimiliki" cuma relevan buat kategori Kripto --
+        // disembunyikan buat kategori lain supaya form tidak membingungkan (lihat fitur Growth
+        // "Auto-update harga aset", baru mendukung sumber CoinGecko).
+        function toggleAssetAutoUpdateSection() {
+            const isKripto = document.getElementById('aset_kategori').value === 'Kripto';
+            document.getElementById('aset-auto-update-section').classList.toggle('hidden', !isKripto);
+        }
+
         function openAssetModal(isEdit = false, id = null) {
             const modal = document.getElementById('modalAsset'); const content = document.getElementById('modalAssetContent');
             modal.classList.remove('hidden'); setTimeout(() => { content.classList.remove('translate-x-full'); }, 10);
@@ -4044,6 +4083,7 @@ const api = (() => {
                 document.getElementById('btnSubmitAssetForm').innerText = "Simpan Aset"; document.getElementById('formAsset').reset();
                 document.getElementById('aset_modal').value = ''; document.getElementById('aset_modal_display').value = '';
                 document.getElementById('aset_nilai').value = ''; document.getElementById('aset_nilai_display').value = '';
+                document.getElementById('aset_simbol').value = ''; document.getElementById('aset_jumlah_unit').value = '';
             } else {
                 let item = globalAssets.find(a => a.id === id); if(!item) return;
                 currentAssetEditId = id;
@@ -4056,7 +4096,10 @@ const api = (() => {
                 document.getElementById('aset_modal_display').value = new Intl.NumberFormat('id-ID').format(item.modal);
                 document.getElementById('aset_nilai').value = item.nilai;
                 document.getElementById('aset_nilai_display').value = new Intl.NumberFormat('id-ID').format(item.nilai);
+                document.getElementById('aset_simbol').value = item.simbol || '';
+                document.getElementById('aset_jumlah_unit').value = item.jumlah_unit || '';
             }
+            toggleAssetAutoUpdateSection();
         }
         
         function closeAssetModal() {
@@ -4071,12 +4114,20 @@ const api = (() => {
             
             showLoading(true);
             const newNilai = Number(document.getElementById('aset_nilai').value);
+            const kategoriVal = document.getElementById('aset_kategori').value;
+            const simbolVal = document.getElementById('aset_simbol').value.trim();
+            const jumlahUnitVal = document.getElementById('aset_jumlah_unit').value;
             const data = {
                 nama: document.getElementById('aset_nama').value,
-                kategori: document.getElementById('aset_kategori').value,
+                kategori: kategoriVal,
                 platform: document.getElementById('aset_platform').value,
                 modal: document.getElementById('aset_modal').value,
-                nilai: newNilai
+                nilai: newNilai,
+                // "Refresh Harga Otomatis" baru aktif kalau kategorinya Kripto DAN kedua kolom terisi --
+                // di luar itu, sumber_harga sengaja null (aset tetap 100% manual seperti biasa).
+                simbol: (kategoriVal === 'Kripto' && simbolVal) ? simbolVal : null,
+                jumlah_unit: (kategoriVal === 'Kripto' && jumlahUnitVal) ? Number(jumlahUnitVal) : null,
+                sumber_harga: (kategoriVal === 'Kripto' && simbolVal && jumlahUnitVal) ? 'coingecko' : null
             };
 
             const wasEdit = !!currentAssetEditId; // simpan sebelum async
@@ -5744,6 +5795,13 @@ const api = (() => {
 
             renderAssetDetailChart(history);
 
+            // Tombol "Refresh Harga Otomatis" cuma muncul kalau aset ini punya ID CoinGecko +
+            // Jumlah Koin Dimiliki terisi (lihat toggleAssetAutoUpdateSection() & submitAsset()).
+            const refreshBtn = document.getElementById('asset-detail-refresh-btn');
+            const supportsAutoUpdate = !!(asset.simbol && asset.jumlah_unit && asset.sumber_harga === 'coingecko');
+            refreshBtn.classList.toggle('hidden', !supportsAutoUpdate);
+            refreshBtn.disabled = false; refreshBtn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
+
             const modal = document.getElementById('modalAssetDetail'); const content = document.getElementById('modalAssetDetailContent');
             modal.classList.remove('hidden');
             setTimeout(() => { content.classList.remove('translate-y-full', 'md:scale-95', 'opacity-0'); }, 10);
@@ -5753,6 +5811,28 @@ const api = (() => {
             const content = document.getElementById('modalAssetDetailContent');
             content.classList.add('translate-y-full', 'md:scale-95', 'opacity-0');
             setTimeout(() => { document.getElementById('modalAssetDetail').classList.add('hidden'); }, 300);
+        }
+
+        // Dipanggil dari tombol "Refresh Harga Otomatis" di Detail Aset. Manggil Edge Function
+        // 'refresh-asset-price' (lihat js api.run.refreshAssetPrice / supabase/functions/refresh-asset-price),
+        // yang mengambil harga terkini dari CoinGecko lalu langsung menyimpan nilai baru ke Supabase.
+        function handleRefreshAssetPrice() {
+            if (!currentAssetDetailId) return;
+            const btn = document.getElementById('asset-detail-refresh-btn');
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Mengambil harga terkini...';
+
+            api.run.withSuccessHandler((result) => {
+                showSuccessToast('Harga diperbarui: Rp ' + formatRp(result.nilai_baru));
+                api.run.withSuccessHandler((assets) => {
+                    globalAssets = assets || [];
+                    processDataForUI(globalData);
+                    if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
+                    openAssetDetailModal(currentAssetDetailId); // re-render detail dgn nilai & grafik terbaru
+                }).withFailureHandler(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis'; }).getAssetsOnly();
+            }).withFailureHandler((err) => {
+                showErrorToast(err && err.message ? err.message : 'Gagal mengambil harga terkini. Coba lagi.');
+                btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
+            }).refreshAssetPrice(currentAssetDetailId);
         }
 
         function renderAssetDetailChart(history) {

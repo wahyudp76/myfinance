@@ -85,6 +85,16 @@ create index if not exists assets_user_id_idx on public.assets (user_id);
 -- Migrasi aman untuk yang sudah pernah menjalankan schema ini sebelumnya (kolom baru di tabel lama).
 alter table public.assets add column if not exists value_history jsonb not null default '[]'::jsonb;
 
+-- Kolom buat fitur "Refresh Harga Otomatis" (auto-update nilai aset dari harga pasar terkini).
+-- Ketiganya OPSIONAL -- aset lama/manual (Properti, Deposito, dll) boleh dibiarkan kosong, tetap
+-- diedit manual seperti biasa. Auto-update baru jalan kalau simbol & jumlah_unit keduanya terisi.
+--   simbol        -> ID instrumen di sumber harga (utk Kripto: ID CoinGecko, misal "bitcoin")
+--   jumlah_unit   -> jumlah koin/lembar/unit yang dimiliki (dipakai: nilai = harga_terkini * jumlah_unit)
+--   sumber_harga  -> sumber API yang dipakai, misal 'coingecko' (baru 1 sumber didukung saat ini)
+alter table public.assets add column if not exists simbol text;
+alter table public.assets add column if not exists jumlah_unit numeric;
+alter table public.assets add column if not exists sumber_harga text;
+
 alter table public.assets enable row level security;
 drop policy if exists "Users manage own assets" on public.assets;
 create policy "Users manage own assets" on public.assets
@@ -109,19 +119,12 @@ create policy "Users manage own settings" on public.settings
 
 
 -- ----------------------------------------------------------------------------
--- 5. CUSTOM_ICONS — penyimpanan generik untuk objek "ikon custom" (jsonb bebas
---    bentuknya: {type:'icon',value,bg,color} atau {type:'image',value}), dengan
---    "account_name" berfungsi sebagai KEY string generik, bukan cuma nama akun:
---      * nama akun asli         -> ikon/logo kustom akun (upload gambar/pilih ikon)
---      * '__myfinance_profile_avatar__'                    -> foto profil pengguna
---      * '__myfinance_category_style__<jenis>::<kategori>' -> override ikon/warna/
---        gambar kustom per kategori Pengeluaran/Pemasukan (lihat categoryStyleKey()
---        di index.html) -- dipakai lagi supaya tidak perlu tabel/migrasi baru.
+-- 5. CUSTOM_ICONS — ikon/logo kustom per akun (upload gambar atau pilih ikon)
 -- ----------------------------------------------------------------------------
 create table if not exists public.custom_icons (
     id            uuid primary key default gen_random_uuid(),
     user_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
-    account_name  text not null, -- key generik (nama akun ASLI, atau key khusus berawalan __myfinance_...)
+    account_name  text not null,
     icon_data     jsonb not null,
     unique (user_id, account_name)
 );

@@ -1,42 +1,25 @@
-// supabase/functions/analyze-finance/index.ts
+// supabase/functions/refresh-asset-price/index.ts
 //
-// Edge Function untuk DUA fitur di MyFinance yang sama-sama butuh Gemini AI:
-//   1. "Rekomendasi AI" (dashboard) -- body TANPA field "question" -> balas array insight JSON.
-//   2. "Tanya AI" (tab Analisis, chat bebas)      -- body DENGAN field "question" -> balas teks jawaban.
+// Edge Function untuk fitur "Refresh Harga Otomatis" di menu Aset -> Detail Aset.
+// Beda dari analyze-finance (yang manggil Gemini): function ini manggil API HARGA PASAR
+// (saat ini baru CoinGecko, buat Kripto) lalu MENULIS LANGSUNG ke tabel `assets` --
+// bukan cuma mengembalikan teks/insight.
 //
-// KENAPA INI HARUS LEWAT EDGE FUNCTION (bukan dipanggil langsung dari browser)?
-// API key Gemini HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode
-// client (index.html), siapa pun yang membuka DevTools bisa mencuri key itu dan
-// memakainya atas nama akun Google AI-mu (kena tagihan/kuota kamu). Edge Function
-// ini berjalan di server Supabase, menyimpan key lewat "secret" (env var) yang
-// tidak pernah dikirim ke browser -- browser cuma mengirim RINGKASAN keuangan
-// (angka agregat, bukan API key) + pertanyaan bebas kalau ada, dan menerima
-// balasan JSON dari Gemini.
+// KENAPA LEWAT EDGE FUNCTION (bukan fetch CoinGecko langsung dari browser)?
+// Sebenarnya CoinGecko API publik boleh dipanggil langsung dari browser (tidak perlu API key
+// rahasia seperti Gemini). Tapi logic "hitung nilai baru + update value_history dengan aturan
+// dedupe-per-hari yang SAMA seperti submitAsset() di index.html" lebih aman ditaruh di satu
+// tempat (server) supaya konsisten, dan supaya ke depannya kalau nambah sumber harga baru yang
+// BUTUH API key rahasia (misal API saham berbayar), pola yang dipakai sudah siap tanpa refactor.
 //
-// CARA DEPLOY (lihat juga README.md bagian "Setup Rekomendasi AI"):
-//   1. Install Supabase CLI: https://supabase.com/docs/guides/cli
-//   2. supabase login
-//   3. supabase link --project-ref <project-ref-kamu>
-//   4. Ambil API key Gemini di https://aistudio.google.com/apikey (biasanya
-//      diawali "AIzaSy..."), lalu simpan sebagai secret:
-//      supabase secrets set GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//   5. supabase functions deploy analyze-finance --no-verify-jwt=false
+// CARA DEPLOY (sama seperti analyze-finance, tidak butuh secret baru):
+//   supabase functions deploy refresh-asset-price
 //
-// Setelah itu section "Rekomendasi AI" (dashboard) dan "Tanya AI" (tab Analisis) berfungsi.
+// Setelah itu tombol "Refresh Harga" di Detail Aset (untuk aset berkategori Kripto yang sudah
+// diisi "ID CoinGecko" & "Jumlah Koin Dimiliki" di form Tambah/Edit Aset) akan berfungsi.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const GEMINI_API_KEY = Deno.env.get("AQ.Ab8RN6JDb8_j8X3idb7CMDcI7jEgQMse4p1ROQESwtDJ3oDSww");
-// Model default: gemini-3.6-flash -- tier "Flash" (cepat & hemat biaya), cukup untuk
-// menganalisis ringkasan angka yang sudah dirapikan (bukan model reasoning berat).
-// Fitur ini bisa terpanggil cukup sering (tiap dashboard dibuka / tiap ada transaksi
-// baru, dengan jeda minimal 3 menit), jadi model tier murah/cepat sengaja dipilih.
-// Mau lebih hemat lagi? Ganti ke "gemini-3.5-flash-lite". Mau analisis lebih dalam?
-// Ganti ke model "pro" terbaru -- cek daftar model aktif di https://ai.google.dev/gemini-api/docs/models
-const GEMINI_MODEL = "gemini-3.6-flash";
-const GEMINI_ENDPOINT =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
@@ -55,62 +38,42 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-// Panggilan ke Gemini generateContent -- satu prompt teks tunggal (bukan percakapan
-// multi-giliran, karena tiap request di sini sudah membawa seluruh konteks yang perlu
-// lewat ringkasan keuangan + pertanyaan, jadi cukup 1 "user turn").
-async function callGemini(promptText: string) {
-  const resp = await fetch(GEMINI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY!,
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: promptText }] }],
-    }),
-  });
-
+// Ambil harga terkini (dalam IDR) dari CoinGecko untuk 1 coin id (misal "bitcoin").
+// Dokumentasi: https://docs.coingecko.com/reference/simple-price -- endpoint publik, tanpa API key,
+// tapi ada rate limit wajar (cukup untuk dipanggil sesekali per user, bukan tiap detik).
+async function fetchCoinGeckoPriceIdr(coinId: string): Promise<number> {
+  const url =
+    `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coinId)}&vs_currencies=idr`;
+  const resp = await fetch(url);
   if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Response(
-      JSON.stringify({ error: "Gagal memanggil Gemini API", detail: errText }),
-      {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+    throw new Error(`CoinGecko API error (status ${resp.status}). Coba lagi sebentar lagi.`);
+  }
+  const data = await resp.json();
+  const harga = data?.[coinId]?.idr;
+  if (typeof harga !== "number") {
+    throw new Error(
+      `ID CoinGecko "${coinId}" tidak ditemukan/tidak punya harga IDR. Cek lagi ID-nya di halaman koin di coingecko.com.`,
     );
   }
-
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return String(text);
+  return harga;
 }
 
 Deno.serve(async (req: Request) => {
-  // Preflight CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  if (!GEMINI_API_KEY) {
-    return jsonResponse({
-      error:
-        "GEMINI_API_KEY belum diset di Supabase secrets. Jalankan: supabase secrets set GEMINI_API_KEY=AIzaSy-xxxx",
-    }, 500);
-  }
-
-  // Verifikasi bahwa yang memanggil adalah user yang sudah login (JWT dari header
-  // Authorization, otomatis dikirim oleh supabaseClient.functions.invoke() di client).
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
   try {
+    // Client di-scope ke JWT user yang memanggil -- RLS tabel `assets` otomatis membatasi
+    // baris yang bisa dibaca/ditulis cuma milik user ini sendiri (pola sama seperti analyze-finance).
     const supabase = createClient(SUPABASE_URL ?? "", SUPABASE_ANON_KEY ?? "", {
       global: { headers: { Authorization: authHeader } },
     });
@@ -120,73 +83,54 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { question, ...summary } = body || {};
-
-    // Ringkasan (dari buildFinanceSummaryForAI() di index.html) SUDAH berupa angka agregat
-    // per bulan/kategori -- bukan daftar transaksi mentah -- supaya payload kecil & tidak
-    // membocorkan detail transaksi individual (keterangan, dll) ke prompt lebih dari perlu.
-    const commonContext =
-      `Kamu asisten analisis keuangan pribadi untuk aplikasi pencatatan keuangan Indonesia (mata uang Rupiah/IDR). ` +
-      `Berikut ringkasan keuangan user BULAN BERJALAN ini:\n\n${
-        JSON.stringify(summary, null, 2)
-      }\n\n`;
-
-    // Mode "Tanya AI" (chat bebas dari tab Analisis) -- ada field "question" di body.
-    // Beda dari mode wawasan otomatis di bawah: di sini balasannya teks bebas (bukan JSON array),
-    // karena ini percakapan, bukan daftar kartu insight.
-    if (question && String(question).trim()) {
-      const qaPrompt = commonContext +
-        `User bertanya: "${String(question).trim()}"\n\n` +
-        `Jawab pertanyaan itu dalam Bahasa Indonesia, singkat (maksimal 3-4 kalimat), HANYA berdasarkan ` +
-        `angka pada ringkasan di atas. Kalau ringkasan datanya tidak cukup untuk menjawab pertanyaan itu ` +
-        `secara spesifik (misal user tanya soal kategori/periode yang tidak ada di ringkasan), katakan ` +
-        `dengan jujur bahwa datanya tidak tersedia di ringkasan ini, jangan mengarang angka. ` +
-        `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
-
-      let answerText: string;
-      try {
-        answerText = await callGemini(qaPrompt);
-      } catch (errResp) {
-        if (errResp instanceof Response) return errResp;
-        throw errResp;
-      }
-      return jsonResponse({ answer: answerText.trim() || "Maaf, tidak ada jawaban." });
+    const assetId = body?.asset_id;
+    if (!assetId) {
+      return jsonResponse({ error: "asset_id wajib dikirim." }, 400);
     }
 
-    // Mode wawasan otomatis (dipanggil dari renderInsights() di dashboard) -- balasannya array
-    // JSON berisi maksimal 3 kartu insight.
-    const prompt = commonContext +
-      `Berikan MAKSIMAL 3 rekomendasi/insight yang KONKRET, SPESIFIK, dan actionable dalam Bahasa Indonesia, ` +
-      `HANYA berdasarkan angka pada data di atas (jangan mengarang angka atau kategori yang tidak ada di data). ` +
-      `Kalau datanya terlalu sedikit/kosong untuk disimpulkan, cukup kasih 1 insight umum yang menyemangati/mengingatkan. ` +
-      `Balas HANYA dalam bentuk JSON array valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar array), formatnya:\n` +
-      `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat", "severity": "info" | "warning" | "success"}]`;
+    const { data: asset, error: fetchErr } = await supabase
+      .from("assets")
+      .select("id, nilai, simbol, jumlah_unit, sumber_harga, value_history")
+      .eq("id", assetId)
+      .single();
 
-    let rawText: string;
-    try {
-      rawText = await callGemini(prompt);
-    } catch (errResp) {
-      if (errResp instanceof Response) return errResp;
-      throw errResp;
+    if (fetchErr || !asset) {
+      return jsonResponse({ error: "Aset tidak ditemukan." }, 404);
+    }
+    if (!asset.simbol || !asset.jumlah_unit) {
+      return jsonResponse({
+        error:
+          'Aset ini belum diisi "ID CoinGecko" & "Jumlah Koin Dimiliki". Isi dulu lewat Edit Aset.',
+      }, 400);
+    }
+    if (asset.sumber_harga !== "coingecko") {
+      return jsonResponse({
+        error: `Sumber harga "${asset.sumber_harga || "-"}" belum didukung. Saat ini baru Kripto (CoinGecko) yang bisa auto-update.`,
+      }, 400);
     }
 
-    let insights: any[] = [];
-    try {
-      const cleaned = (rawText || "[]").replace(/```json|```/g, "").trim();
-      insights = JSON.parse(cleaned);
-      if (!Array.isArray(insights)) insights = [insights];
-    } catch (_e) {
-      // Kalau Gemini tidak balas JSON murni (jarang terjadi, tapi jaga-jaga), tetap tampilkan
-      // teksnya apa adanya sebagai satu insight, daripada gagal total.
-      insights = [{
-        title: "Analisis Gemini",
-        message: rawText || "Tidak ada respons dari Gemini.",
-        severity: "info",
-      }];
+    const hargaPerUnit = await fetchCoinGeckoPriceIdr(asset.simbol);
+    const nilaiBaru = Math.round(hargaPerUnit * Number(asset.jumlah_unit));
+
+    // Sama seperti submitAsset() di index.html: 1 titik value_history per hari, edit berkali-kali
+    // di hari yang sama menimpa titik hari itu, bukan menumpuk.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const history = Array.isArray(asset.value_history) ? asset.value_history.slice() : [];
+    const sameDayIdx = history.findIndex((h: any) => h.tanggal === todayStr);
+    if (sameDayIdx >= 0) history[sameDayIdx] = { tanggal: todayStr, nilai: nilaiBaru };
+    else history.push({ tanggal: todayStr, nilai: nilaiBaru });
+
+    const { error: updateErr } = await supabase
+      .from("assets")
+      .update({ nilai: nilaiBaru, terakhir: new Date().toISOString(), value_history: history })
+      .eq("id", assetId);
+
+    if (updateErr) {
+      return jsonResponse({ error: "Gagal menyimpan nilai baru: " + updateErr.message }, 500);
     }
 
-    return jsonResponse({ insights });
+    return jsonResponse({ harga_per_unit: hargaPerUnit, nilai_baru: nilaiBaru });
   } catch (e) {
-    return jsonResponse({ error: String(e) }, 500);
+    return jsonResponse({ error: String(e instanceof Error ? e.message : e) }, 500);
   }
 });
