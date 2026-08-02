@@ -1,46 +1,24 @@
-// supabase/functions/analyze-finance/index.ts
+// supabase/functions/get-exchange-rate/index.ts
 //
-// Edge Function untuk TIGA fitur di MyFinance yang sama-sama butuh Gemini AI:
-//   1. "Rekomendasi AI" (dashboard) -- body TANPA "question"/"mode" -> balas array insight JSON.
-//   2. "Tanya AI" (tab Analisis, chat bebas)      -- body DENGAN field "question" -> balas teks jawaban.
-//   3. "Ringkasan Bulanan" (tab Laporan)  -- body DENGAN mode: "monthly_summary" -> balas 1 paragraf.
+// Edge Function untuk fitur "Multi-currency" -- dipanggil dari modal Catat Transaksi tiap kali
+// user pilih akun yang mata uangnya BUKAN IDR, buat ambil kurs terkini (1 <mata_uang> = berapa IDR).
 //
-// KENAPA INI HARUS LEWAT EDGE FUNCTION (bukan dipanggil langsung dari browser)?
-// API key Gemini HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode
-// client (index.html), siapa pun yang membuka DevTools bisa mencuri key itu dan
-// memakainya atas nama akun Google AI-mu (kena tagihan/kuota kamu). Edge Function
-// ini berjalan di server Supabase, menyimpan key lewat "secret" (env var) yang
-// tidak pernah dikirim ke browser -- browser cuma mengirim RINGKASAN keuangan
-// (angka agregat, bukan API key) + pertanyaan bebas kalau ada, dan menerima
-// balasan JSON dari Gemini.
+// SUMBER: Frankfurter API (https://frankfurter.dev) -- kurs referensi harian dari European Central
+// Bank, gratis, TANPA API key. Dipilih karena publik & tanpa key (beda dari CoinGecko yang saya
+// cukup yakin, ini levelnya "cukup yakin tapi belum saya verifikasi live" -- kalau ternyata gagal
+// terus, kabari supaya dicarikan sumber lain, sama seperti kasus Yahoo Finance untuk Saham).
 //
-// CARA DEPLOY (lihat juga README.md bagian "Setup Rekomendasi AI"):
-//   1. Install Supabase CLI: https://supabase.com/docs/guides/cli
-//   2. supabase login
-//   3. supabase link --project-ref <project-ref-kamu>
-//   4. Ambil API key Gemini di https://aistudio.google.com/apikey (biasanya
-//      diawali "AIzaSy..."), lalu simpan sebagai secret:
-//      supabase secrets set GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//   5. supabase functions deploy analyze-finance --no-verify-jwt=false
+// KENAPA LEWAT EDGE FUNCTION padahal Frankfurter tidak butuh API key rahasia? Supaya konsisten 1
+// pola dengan refresh-asset-price, dan supaya kalau nanti ganti sumber kurs yang BUTUH API key,
+// tidak perlu ubah apapun di sisi client (index.html) -- cukup ubah function ini.
 //
-// Setelah itu section "Rekomendasi AI" (dashboard) dan "Tanya AI" (tab Analisis) berfungsi.
+// CARA DEPLOY:
+//   supabase functions deploy get-exchange-rate
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-// Model default: gemini-3.6-flash -- tier "Flash" (cepat & hemat biaya), cukup untuk
-// menganalisis ringkasan angka yang sudah dirapikan (bukan model reasoning berat).
-// Fitur ini bisa terpanggil cukup sering (tiap dashboard dibuka / tiap ada transaksi
-// baru, dengan jeda minimal 3 menit), jadi model tier murah/cepat sengaja dipilih.
-// Mau lebih hemat lagi? Ganti ke "gemini-3.5-flash-lite". Mau analisis lebih dalam?
-// Ganti ke model "pro" terbaru -- cek daftar model aktif di https://ai.google.dev/gemini-api/docs/models
-const GEMINI_MODEL = "gemini-3.6-flash";
-const GEMINI_ENDPOINT =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-// SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
 const corsHeaders = {
@@ -56,56 +34,14 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-// Panggilan ke Gemini generateContent -- satu prompt teks tunggal (bukan percakapan
-// multi-giliran, karena tiap request di sini sudah membawa seluruh konteks yang perlu
-// lewat ringkasan keuangan + pertanyaan, jadi cukup 1 "user turn").
-async function callGemini(promptText: string) {
-  const resp = await fetch(GEMINI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY!,
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: promptText }] }],
-    }),
-  });
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Response(
-      JSON.stringify({ error: "Gagal memanggil Gemini API", detail: errText }),
-      {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return String(text);
-}
-
 Deno.serve(async (req: Request) => {
-  // Preflight CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  if (!GEMINI_API_KEY) {
-    return jsonResponse({
-      error:
-        "GEMINI_API_KEY belum diset di Supabase secrets. Jalankan: supabase secrets set GEMINI_API_KEY=AIzaSy-xxxx",
-    }, 500);
-  }
-
-  // Verifikasi bahwa yang memanggil adalah user yang sudah login (JWT dari header
-  // Authorization, otomatis dikirim oleh supabaseClient.functions.invoke() di client).
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return jsonResponse({ error: "Unauthorized" }, 401);
@@ -121,97 +57,31 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { question, mode, ...summary } = body || {};
-
-    // Ringkasan (dari buildFinanceSummaryForAI() di index.html) SUDAH berupa angka agregat
-    // per bulan/kategori -- bukan daftar transaksi mentah -- supaya payload kecil & tidak
-    // membocorkan detail transaksi individual (keterangan, dll) ke prompt lebih dari perlu.
-    const commonContext =
-      `Kamu asisten analisis keuangan pribadi untuk aplikasi pencatatan keuangan Indonesia (mata uang Rupiah/IDR). ` +
-      `Berikut ringkasan keuangan user BULAN BERJALAN ini:\n\n${
-        JSON.stringify(summary, null, 2)
-      }\n\n`;
-
-    // Mode "Ringkasan Bulanan" (kartu di tab Laporan) -- fokus 1 paragraf naratif RETROSPEKTIF
-    // tentang bulan LALU (field pemasukan_bulan_lalu/pengeluaran_bulan_lalu di summary), beda dari
-    // mode insight di bawah yang fokus ke bulan berjalan yang masih aktif dicatat.
-    if (mode === "monthly_summary") {
-      const summaryPrompt = commonContext +
-        `Tulis SATU paragraf ringkasan laporan keuangan BULAN LALU (pakai field pemasukan_bulan_lalu & ` +
-        `pengeluaran_bulan_lalu di atas sebagai fokus utama, bukan bulan berjalan), dalam Bahasa Indonesia, ` +
-        `nada suportif dan mudah dibaca orang awam (BUKAN laporan akuntansi formal), maksimal 4-5 kalimat. ` +
-        `Sebutkan angka pemasukan & pengeluaran bulan lalu, bandingkan singkat dengan bulan sebelumnya kalau ` +
-        `datanya mengindikasikan tren naik/turun, dan sebut 1 kategori pengeluaran terbesar kalau relevan. ` +
-        `HANYA berdasarkan angka pada ringkasan di atas, jangan mengarang angka/kategori yang tidak ada. ` +
-        `Kalau datanya kosong/terlalu sedikit, katakan dengan jujur belum cukup data untuk bulan lalu. ` +
-        `Balas HANYA teks paragrafnya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
-
-      let summaryText: string;
-      try {
-        summaryText = await callGemini(summaryPrompt);
-      } catch (errResp) {
-        if (errResp instanceof Response) return errResp;
-        throw errResp;
-      }
-      return jsonResponse({ summary: summaryText.trim() || "Belum ada ringkasan." });
+    const mataUang = String(body?.mata_uang || "").trim().toUpperCase();
+    if (!mataUang) {
+      return jsonResponse({ error: "mata_uang wajib dikirim (mis. USD)." }, 400);
+    }
+    if (mataUang === "IDR") {
+      return jsonResponse({ rate: 1, tanggal: new Date().toISOString().slice(0, 10) });
     }
 
-    // Mode "Tanya AI" (chat bebas dari tab Analisis) -- ada field "question" di body.
-    // Beda dari mode wawasan otomatis di bawah: di sini balasannya teks bebas (bukan JSON array),
-    // karena ini percakapan, bukan daftar kartu insight.
-    if (question && String(question).trim()) {
-      const qaPrompt = commonContext +
-        `User bertanya: "${String(question).trim()}"\n\n` +
-        `Jawab pertanyaan itu dalam Bahasa Indonesia, singkat (maksimal 3-4 kalimat), HANYA berdasarkan ` +
-        `angka pada ringkasan di atas. Kalau ringkasan datanya tidak cukup untuk menjawab pertanyaan itu ` +
-        `secara spesifik (misal user tanya soal kategori/periode yang tidak ada di ringkasan), katakan ` +
-        `dengan jujur bahwa datanya tidak tersedia di ringkasan ini, jangan mengarang angka. ` +
-        `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
-
-      let answerText: string;
-      try {
-        answerText = await callGemini(qaPrompt);
-      } catch (errResp) {
-        if (errResp instanceof Response) return errResp;
-        throw errResp;
-      }
-      return jsonResponse({ answer: answerText.trim() || "Maaf, tidak ada jawaban." });
+    const url = `https://api.frankfurter.dev/v1/latest?base=${encodeURIComponent(mataUang)}&symbols=IDR`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      return jsonResponse({
+        error: `Gagal ambil kurs (status ${resp.status}). Kode mata uang "${mataUang}" mungkin tidak valid/tidak didukung, atau layanan kursnya sedang bermasalah.`,
+      }, 502);
+    }
+    const data = await resp.json();
+    const rate = data?.rates?.IDR;
+    if (typeof rate !== "number") {
+      return jsonResponse({
+        error: `Kurs untuk "${mataUang}" tidak ditemukan. Cek lagi kode mata uangnya (format 3 huruf, mis. USD, EUR, SGD).`,
+      }, 400);
     }
 
-    // Mode wawasan otomatis (dipanggil dari renderInsights() di dashboard) -- balasannya array
-    // JSON berisi maksimal 3 kartu insight.
-    const prompt = commonContext +
-      `Berikan MAKSIMAL 3 rekomendasi/insight yang KONKRET, SPESIFIK, dan actionable dalam Bahasa Indonesia, ` +
-      `HANYA berdasarkan angka pada data di atas (jangan mengarang angka atau kategori yang tidak ada di data). ` +
-      `Kalau datanya terlalu sedikit/kosong untuk disimpulkan, cukup kasih 1 insight umum yang menyemangati/mengingatkan. ` +
-      `Balas HANYA dalam bentuk JSON array valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar array), formatnya:\n` +
-      `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat", "severity": "info" | "warning" | "success"}]`;
-
-    let rawText: string;
-    try {
-      rawText = await callGemini(prompt);
-    } catch (errResp) {
-      if (errResp instanceof Response) return errResp;
-      throw errResp;
-    }
-
-    let insights: any[] = [];
-    try {
-      const cleaned = (rawText || "[]").replace(/```json|```/g, "").trim();
-      insights = JSON.parse(cleaned);
-      if (!Array.isArray(insights)) insights = [insights];
-    } catch (_e) {
-      // Kalau Gemini tidak balas JSON murni (jarang terjadi, tapi jaga-jaga), tetap tampilkan
-      // teksnya apa adanya sebagai satu insight, daripada gagal total.
-      insights = [{
-        title: "Analisis Gemini",
-        message: rawText || "Tidak ada respons dari Gemini.",
-        severity: "info",
-      }];
-    }
-
-    return jsonResponse({ insights });
+    return jsonResponse({ rate, tanggal: data?.date || new Date().toISOString().slice(0, 10) });
   } catch (e) {
-    return jsonResponse({ error: String(e) }, 500);
+    return jsonResponse({ error: String(e instanceof Error ? e.message : e) }, 500);
   }
 });
