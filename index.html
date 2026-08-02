@@ -1317,7 +1317,11 @@
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalFormContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center">
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalTitle">Catat Transaksi</h3>
-                <button type="button" onclick="closeModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <div class="flex items-center gap-1">
+                    <button type="button" id="btnScanStruk" onclick="triggerStrukScan()" title="Isi otomatis dari foto struk (AI)" aria-label="Scan Struk" class="text-indigo-500 hover:text-indigo-700 w-8 h-8 rounded-full hover:bg-indigo-50 flex items-center justify-center transition"><i class="fas fa-camera"></i></button>
+                    <input type="file" id="strukFileInput" accept="image/*" capture="environment" class="hidden" onchange="handleStrukFileSelected(event)">
+                    <button type="button" onclick="closeModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                </div>
             </div>
             
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
@@ -2210,7 +2214,17 @@ const api = (() => {
         if (error) throw error;
     }
 
-    // Manggil Edge Function 'refresh-asset-price' -- lihat supabase/functions/refresh-asset-price/index.ts.
+    // Manggil Edge Function 'scan-receipt' -- lihat supabase/functions/scan-receipt/index.ts.
+    // Kirim foto struk (SUDAH dikompres di client, lihat compressImageDataUrl) + daftar kategori
+    // Pengeluaran milik user ini (supaya Gemini cuma boleh milih dari kategori yang BENAR-BENAR ada).
+    async function scanReceiptRemote(imageBase64, mimeType, categories) {
+        const { data, error } = await supabaseClient.functions.invoke('scan-receipt', {
+            body: { image_base64: imageBase64, mime_type: mimeType, categories }
+        });
+        if (error) throw error;
+        if (data && data.error) throw new Error(data.error);
+        return data;
+    }
     // Beda dari CRUD lain di atas: fungsi ini TIDAK langsung query tabel `assets` dari sini, karena
     // logic ambil-harga-dari-CoinGecko + hitung nilai baru + update value_history dilakukan di server.
     async function refreshAssetPriceRemote(id) {
@@ -2310,6 +2324,7 @@ const api = (() => {
         editAsset: (id, data) => editAssetRemote(id, data),
         deleteAsset: (id) => deleteAssetRemote(id),
         refreshAssetPrice: (id) => refreshAssetPriceRemote(id),
+        scanReceipt: (imageBase64, mimeType, categories) => scanReceiptRemote(imageBase64, mimeType, categories),
         getRecurring: () => fetchRecurringRemote(),
         addRecurring: (data) => addRecurringRemote(data),
         editRecurring: (id, data) => editRecurringRemote(id, data),
@@ -4013,6 +4028,70 @@ const api = (() => {
             }
         }
 
+        // ========================== STRUK SCANNER (foto struk -> auto-isi form) ==========================
+        function triggerStrukScan() {
+            document.getElementById('strukFileInput').value = ''; // biar bisa pilih file yg sama 2x berturut-turut
+            document.getElementById('strukFileInput').click();
+        }
+
+        function handleStrukFileSelected(e) {
+            const file = e.target.files && e.target.files[0]; if (!file) return;
+            if (!file.type.startsWith('image/')) { showErrorToast('File harus berupa foto (JPG/PNG).'); e.target.value = ''; return; }
+            if (file.size > 10 * 1024 * 1024) { showErrorToast('Ukuran foto maksimal 10MB ya.'); e.target.value = ''; return; }
+
+            const btn = document.getElementById('btnScanStruk');
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+                // Dikompres dulu (maks sisi 1600px, JPEG 85%) -- foto kamera HP modern bisa 4-8MB
+                // mentah, terlalu besar buat payload sekali kirim & bikin lebih mahal ke Gemini,
+                // padahal untuk dibaca teksnya resolusi segitu sudah lebih dari cukup.
+                compressImageDataUrl(ev.target.result, 1600, 0.85).then(function (compressed) {
+                    const base64Only = compressed.split(',')[1]; // buang prefix "data:image/jpeg;base64,"
+                    // Kategori Pengeluaran user ini sendiri (bukan daftar generik) -- supaya AI cuma
+                    // boleh milih kategori yang BENAR-BENAR ada di akun user, tidak mengarang nama baru.
+                    const categories = Object.values(categoryDict.pengeluaran || {}).flatMap(p => p.subs.map(s => s.name));
+
+                    api.run.withSuccessHandler((hasil) => {
+                        applyStrukResultToForm(hasil);
+                        btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
+                    }).withFailureHandler((err) => {
+                        showErrorToast(err && err.message ? err.message : 'Gagal membaca struk. Coba foto yang lebih jelas.');
+                        btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
+                    }).scanReceipt(base64Only, 'image/jpeg', categories);
+                }).catch(function () {
+                    showErrorToast('Gagal memproses foto ini. Coba foto lain.');
+                    btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
+                });
+            };
+            reader.onerror = function () {
+                showErrorToast('Gagal membaca file foto.');
+                btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Isi form Catat Transaksi dari hasil ekstraksi AI. SENGAJA TIDAK auto-submit -- user harus
+        // cek & konfirmasi dulu (angka/kategori hasil AI bisa saja salah baca), baru tekan Simpan.
+        function applyStrukResultToForm(hasil) {
+            document.querySelector(`input[name="jenis"][value="Pengeluaran"]`).checked = true;
+            handleFormTypeChange();
+
+            if (hasil.tanggal) {
+                const d = new Date(hasil.tanggal);
+                if (!isNaN(d.getTime())) document.getElementById('tanggal').valueAsDate = d;
+            }
+            if (hasil.total) {
+                document.getElementById('jumlah').value = Math.round(hasil.total);
+                document.getElementById('jumlah_display').value = new Intl.NumberFormat('id-ID').format(Math.round(hasil.total));
+            }
+            if (hasil.merchant) document.getElementById('keterangan').value = hasil.merchant;
+            if (hasil.kategori) setCategoryUIFromValue(hasil.kategori, 'Pengeluaran');
+
+            showSuccessToast('Struk berhasil dibaca -- cek dulu datanya sebelum disimpan ya.');
+        }
+
         // ========================== FORM TRANSAKSI ACTIONS ==========================
         function openModal(isEdit = false) {
             const modal = document.getElementById('modalForm'); const content = document.getElementById('modalFormContent');
@@ -4024,7 +4103,8 @@ const api = (() => {
                 document.getElementById('jumlah').value = ''; document.getElementById('jumlah_display').value = '';
                 document.getElementById('tanggal').valueAsDate = new Date(); 
                 document.querySelector(`input[name="jenis"][value="Pengeluaran"]`).checked = true; handleFormTypeChange();
-            } else { document.getElementById('modalTitle').innerText = "Edit Transaksi"; document.getElementById('btnSubmitForm').innerText = "Simpan Perubahan"; }
+                document.getElementById('btnScanStruk').classList.remove('hidden');
+            } else { document.getElementById('modalTitle').innerText = "Edit Transaksi"; document.getElementById('btnSubmitForm').innerText = "Simpan Perubahan"; document.getElementById('btnScanStruk').classList.add('hidden'); }
         }
         function closeModal() {
             const content = document.getElementById('modalFormContent'); content.classList.add('translate-x-full');
