@@ -33,6 +33,20 @@ create table if not exists public.transactions (
 create index if not exists transactions_user_id_idx on public.transactions (user_id);
 create index if not exists transactions_tanggal_idx  on public.transactions (tanggal);
 
+-- Kolom buat fitur "Multi-currency" -- SEMUANYA OPSIONAL & backward-compatible. Transaksi LAMA
+-- (yang mata_uang-nya kosong/null) tetap dianggap IDR di seluruh aplikasi (lihat helper JS
+-- txIdrAmount() di index.html: kalau jumlah_idr kosong, fallback ke jumlah apa adanya).
+--   mata_uang   -> kode mata uang transaksi ini (mis. "USD"), null/kosong berarti IDR
+--   kurs        -> kurs 1 <mata_uang> ke IDR yang dipakai SAAT transaksi dicatat (snapshot, bukan
+--                  kurs hari ini -- supaya laporan bulan lalu tidak berubah2 tiap kurs bergerak)
+--   jumlah_idr  -> hasil konversi (jumlah * kurs) yang SUDAH dihitung & disimpan saat itu juga --
+--                  inilah yang dipakai untuk SEMUA total gabungan lintas akun/kategori. Kolom
+--                  `jumlah` aslinya tetap dalam mata uang akun itu sendiri (native), dipakai untuk
+--                  saldo per-akun & tampilan baris transaksi individual.
+alter table public.transactions add column if not exists mata_uang text;
+alter table public.transactions add column if not exists kurs numeric;
+alter table public.transactions add column if not exists jumlah_idr numeric;
+
 alter table public.transactions enable row level security;
 drop policy if exists "Users can view own transactions"   on public.transactions;
 drop policy if exists "Users can insert own transactions" on public.transactions;

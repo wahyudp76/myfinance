@@ -1365,14 +1365,15 @@
                         <div class="relative">
                             <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-[#151928] transition overflow-hidden">
-                                <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm md:text-base">Rp</span>
+                                <span id="jumlah-currency-prefix" class="pl-3 md:pl-4 text-slate-400 font-bold text-sm md:text-base">Rp</span>
                                 <input type="text" id="jumlah_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'jumlah')">
                                 <input type="hidden" id="jumlah">
                             </div>
                         </div>
                         <div>
                             <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-akun">Akun Sumber</label>
-                            <select id="akun" required class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm font-bold"></select>
+                            <select id="akun" required onchange="handleAccountChangeForCurrency()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm font-bold"></select>
+                            <p id="akun-currency-hint" class="hidden text-[10px] text-indigo-500 font-semibold mt-1"></p>
                         </div>
                         
                         <!-- CUSTOM CATEGORY SELECTOR UI -->
@@ -1561,6 +1562,14 @@
                     </div>
                 </div>
                 <p id="acc-modal-status" class="text-[10px] font-bold text-slate-400 flex items-center -mt-3"></p>
+
+                <!-- Mata Uang (fitur Growth "Multi-currency") -->
+                <div>
+                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mata Uang Akun</label>
+                    <input type="text" id="acc-modal-currency" maxlength="3" placeholder="IDR" autocomplete="off" oninput="this.value = this.value.toUpperCase()"
+                        class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold uppercase">
+                    <p class="text-[10px] text-slate-400 mt-1">Kosongkan/isi "IDR" kalau akun ini Rupiah biasa. Isi kode 3 huruf (mis. USD, SGD, EUR) kalau akun/rekening luar negeri -- transaksi di akun ini otomatis dikonversi ke Rupiah pakai kurs terkini untuk total gabungan.</p>
+                </div>
 
                 <!-- Icon Picker -->
                 <div>
@@ -2069,11 +2078,11 @@ const api = (() => {
         // penting untuk paging yang benar kalau banyak baris berbagi tanggal yang sama persis.
         const data = await fetchAllRows((from, to) => supabaseClient
             .from('transactions')
-            .select('id, jenis, tanggal, jumlah, akun, kategori, keterangan')
+            .select('id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr')
             .order('tanggal', { ascending: false })
             .order('id', { ascending: true })
             .range(from, to));
-        return data.map(row => ({ ...row, jumlah: Number(row.jumlah) }));
+        return data.map(row => ({ ...row, jumlah: Number(row.jumlah), jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null }));
     }
 
     async function addTransactionRemote(data) {
@@ -2085,7 +2094,10 @@ const api = (() => {
             jumlah: Number(data.jumlah),
             akun: data.akun,
             kategori: data.kategori,
-            keterangan: data.keterangan || null
+            keterangan: data.keterangan || null,
+            mata_uang: data.mata_uang || null,
+            kurs: data.kurs || null,
+            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah)
         });
         if (error) throw error;
     }
@@ -2097,7 +2109,10 @@ const api = (() => {
             jumlah: Number(data.jumlah),
             akun: data.akun,
             kategori: data.kategori,
-            keterangan: data.keterangan || null
+            keterangan: data.keterangan || null,
+            mata_uang: data.mata_uang || null,
+            kurs: data.kurs || null,
+            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah)
         }).eq('id', id);
         if (error) throw error;
     }
@@ -2229,6 +2244,14 @@ const api = (() => {
         if (error) throw error;
     }
 
+    // Manggil Edge Function 'get-exchange-rate' -- lihat supabase/functions/get-exchange-rate/index.ts.
+    async function getExchangeRateRemote(mataUang) {
+        const { data, error } = await supabaseClient.functions.invoke('get-exchange-rate', { body: { mata_uang: mataUang } });
+        if (error) throw error;
+        if (data && data.error) throw new Error(data.error);
+        return data;
+    }
+
     // Manggil Edge Function 'scan-receipt' -- lihat supabase/functions/scan-receipt/index.ts.
     // Kirim foto struk (SUDAH dikompres di client, lihat compressImageDataUrl) + daftar kategori
     // Pengeluaran milik user ini (supaya Gemini cuma boleh milih dari kategori yang BENAR-BENAR ada).
@@ -2340,6 +2363,7 @@ const api = (() => {
         deleteAsset: (id) => deleteAssetRemote(id),
         refreshAssetPrice: (id) => refreshAssetPriceRemote(id),
         scanReceipt: (imageBase64, mimeType, categories) => scanReceiptRemote(imageBase64, mimeType, categories),
+        getExchangeRate: (mataUang) => getExchangeRateRemote(mataUang),
         getRecurring: () => fetchRecurringRemote(),
         addRecurring: (data) => addRecurringRemote(data),
         editRecurring: (id, data) => editRecurringRemote(id, data),
@@ -2457,6 +2481,12 @@ const api = (() => {
         const defaultSettings = {
             accounts: ["Tunai (Cash)", "Bank BCA", "Bank Mandiri", "GoPay", "OVO", "ShopeePay", "Bibit"],
             accountIcons: {},
+            // Mata uang per akun (fitur Growth "Multi-currency") -- key = nama akun, value = kode 3
+            // huruf (mis. "USD"). Akun yang TIDAK ada di sini dianggap IDR (default). Dipisah dari
+            // appSettings.accounts (bukan diubah jadi array of object) SENGAJA -- supaya semua kode
+            // lama yang masih mengasumsikan appSettings.accounts = array of string tetap jalan
+            // tanpa perlu diubah satu-satu.
+            account_currencies: {},
             custom_categories: {
                 pengeluaran: { parents: [], subs: {} },
                 pemasukan: { parents: [], subs: {} }
@@ -2828,6 +2858,16 @@ const api = (() => {
 
         function formatRp(angka) { return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(angka); }
 
+        // Fitur Growth "Multi-currency": nilai IDR-equivalent 1 transaksi, dipakai utk SEMUA total
+        // gabungan lintas akun/kategori (Dashboard, grafik, dll). Transaksi lama (sebelum fitur ini
+        // ada) tidak punya jumlah_idr -> otomatis fallback ke jumlah apa adanya (yang memang selalu
+        // IDR untuk transaksi lama). Untuk saldo 1 akun spesifik, JANGAN pakai ini -- pakai t.jumlah
+        // (native) langsung, karena saldo akun ya dalam mata uang akun itu sendiri.
+        function txIdrAmount(t) {
+            const v = (t && t.jumlah_idr != null) ? t.jumlah_idr : (t ? t.jumlah : 0);
+            return Number(v) || 0;
+        }
+
         // Animasi angka Rp menghitung naik/turun secara halus tiap kali nilainya berubah,
         // alih-alih langsung "meloncat" ke angka baru. Nilai awal dibaca dari teks yang SEDANG
         // tampil di elemen itu, jadi transisinya terasa alami (bukan selalu mulai dari 0).
@@ -3049,6 +3089,7 @@ const api = (() => {
             document.getElementById('accModalTitle').innerText = isEdit ? 'Edit Akun' : 'Tambah Akun Baru';
             document.getElementById('accModalSubmitBtn').innerText = isEdit ? 'Simpan Perubahan' : 'Simpan Akun';
             document.getElementById('acc-modal-name').value = currentName;
+            document.getElementById('acc-modal-currency').value = (appSettings.account_currencies && appSettings.account_currencies[currentName]) || 'IDR';
             document.getElementById('acc-modal-saldo-wrap').classList.toggle('hidden', isEdit);
             document.getElementById('acc-modal-saldo').value = '';
             document.getElementById('acc-modal-saldo-display').value = '';
@@ -3344,6 +3385,14 @@ const api = (() => {
             } else {
                 appSettings.accounts.push(name);
             }
+
+            // Simpan mata uang akun (kosong/"IDR" -> hapus dari map, biar map-nya cuma isi
+            // pengecualian non-IDR, konsisten dengan pola accountIcons di atas).
+            if (!appSettings.account_currencies) appSettings.account_currencies = {};
+            const currencyInput = (document.getElementById('acc-modal-currency').value || '').trim().toUpperCase();
+            if (isEdit && oldName !== name) delete appSettings.account_currencies[oldName];
+            if (currencyInput && currencyInput !== 'IDR') { appSettings.account_currencies[name] = currencyInput; }
+            else { delete appSettings.account_currencies[name]; }
 
             // Update cache lokal dulu (tampilan langsung berubah), baru sinkronkan ke Spreadsheet.
             if (accountIconOverride) { appSettings.accountIcons[name] = accountIconOverride; }
@@ -3865,6 +3914,7 @@ const api = (() => {
         function updateFormOptions() {
             const akunSelect = document.getElementById('akun');
             akunSelect.innerHTML = appSettings.accounts.map(acc => `<option value="${acc}">${acc}</option>`).join('');
+            handleAccountChangeForCurrency(); // sinkronkan info mata uang/kurs ke akun yg kepilih (default: pertama)
             
             document.getElementById('kategori').value = '';
             document.getElementById('selected-category-display').innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>Pilih Kategori`;
@@ -3873,6 +3923,45 @@ const api = (() => {
             if (activeFormType === 'Pengeluaran') { labelKat.innerText = "Kategori Pengeluaran"; } 
             else if (activeFormType === 'Pemasukan') { labelKat.innerText = "Sumber Pemasukan"; } 
             else { labelKat.innerText = "Akun Tujuan (Ke)"; }
+        }
+
+        // ========================== MULTI-CURRENCY (akun & transaksi) ==========================
+        let currentTxMataUang = null; // null = IDR (default/mayoritas akun)
+        let currentTxKurs = 1;
+
+        function getAccountCurrency(akun) {
+            return (appSettings.account_currencies && appSettings.account_currencies[akun]) || 'IDR';
+        }
+
+        function updateCurrencyHintUI(mataUang, kurs, tanggalKurs, loading, error) {
+            const prefix = document.getElementById('jumlah-currency-prefix');
+            const hint = document.getElementById('akun-currency-hint');
+            if (!prefix || !hint) return;
+            if (!mataUang) { prefix.innerText = 'Rp'; hint.classList.add('hidden'); return; }
+            prefix.innerText = mataUang;
+            hint.classList.remove('hidden');
+            if (loading) { hint.innerText = 'Mengambil kurs terkini...'; return; }
+            if (error || !kurs) { hint.innerText = 'Gagal ambil kurs terkini. Coba pilih ulang akunnya, atau cek koneksi internet.'; return; }
+            hint.innerText = `Kurs: 1 ${mataUang} = Rp ${new Intl.NumberFormat('id-ID').format(Math.round(kurs))}` + (tanggalKurs ? ` (${tanggalKurs})` : '');
+        }
+
+        // Dipanggil tiap user GANTI PILIHAN akun secara aktif (termasuk saat form baru dibuka dgn akun
+        // default) -- BEDA dari saat edit transaksi lama (lihat editDataForm), yang sengaja TIDAK
+        // manggil ini supaya kurs HISTORIS transaksi lama tidak tertimpa kurs hari ini secara diam2.
+        function handleAccountChangeForCurrency() {
+            const akunEl = document.getElementById('akun');
+            if (!akunEl || !akunEl.value) { currentTxMataUang = null; currentTxKurs = 1; updateCurrencyHintUI(null, 1); return; }
+            const cur = getAccountCurrency(akunEl.value);
+            if (cur === 'IDR') { currentTxMataUang = null; currentTxKurs = 1; updateCurrencyHintUI(null, 1); return; }
+
+            updateCurrencyHintUI(cur, null, null, true);
+            api.run.withSuccessHandler((hasil) => {
+                currentTxMataUang = cur; currentTxKurs = hasil.rate;
+                updateCurrencyHintUI(cur, hasil.rate, hasil.tanggal, false);
+            }).withFailureHandler(() => {
+                currentTxMataUang = cur; currentTxKurs = null; // ditandai null -> submitForm() akan menolak submit sampai berhasil
+                updateCurrencyHintUI(cur, null, null, false, true);
+            }).getExchangeRate(cur);
         }
 
         function openCategorySelector() {
@@ -4136,6 +4225,11 @@ const api = (() => {
             document.getElementById('akun').value = item.akun; 
             document.getElementById('keterangan').value = item.keterangan || "";
             setCategoryUIFromValue(item.kategori, item.jenis);
+            // SENGAJA tidak manggil handleAccountChangeForCurrency() di sini -- pakai kurs HISTORIS
+            // yang tersimpan di transaksi ini (item.mata_uang/item.kurs), bukan kurs hari ini, supaya
+            // buka-tutup form edit tanpa mengubah apapun tidak diam2 mengubah nilai jumlah_idr lama.
+            if (item.mata_uang) { currentTxMataUang = item.mata_uang; currentTxKurs = item.kurs || 1; updateCurrencyHintUI(item.mata_uang, item.kurs, null, false); }
+            else { currentTxMataUang = null; currentTxKurs = 1; updateCurrencyHintUI(null, 1); }
             openModal(true);
         }
 
@@ -4145,12 +4239,17 @@ const api = (() => {
             const catVal = document.getElementById('kategori').value;
             if(!catVal) { alert("Silakan pilih kategori/tujuan transfer!"); return; }
             if(!form.checkValidity()) { form.reportValidity(); return; }
+            if (currentTxMataUang && !currentTxKurs) { showErrorToast('Kurs untuk akun ini belum berhasil diambil. Coba pilih ulang akunnya dulu.'); return; }
             
             showLoading(true);
             const wasEdit = !!currentEditId; // simpan sebelum async, karena currentEditId bisa berubah setelahnya
+            const jumlahNum = Number(document.getElementById('jumlah').value);
             const data = {
                 jenis: document.querySelector('input[name="jenis"]:checked').value, tanggal: document.getElementById('tanggal').value,
-                jumlah: document.getElementById('jumlah').value, akun: document.getElementById('akun').value, kategori: catVal, keterangan: document.getElementById('keterangan').value
+                jumlah: document.getElementById('jumlah').value, akun: document.getElementById('akun').value, kategori: catVal, keterangan: document.getElementById('keterangan').value,
+                // mata_uang/kurs null = akun IDR biasa (mayoritas transaksi) -> jumlah_idr = jumlah apa adanya.
+                mata_uang: currentTxMataUang, kurs: currentTxMataUang ? currentTxKurs : 1,
+                jumlah_idr: currentTxMataUang ? Math.round(jumlahNum * currentTxKurs) : jumlahNum
             };
             const onSaveFail = () => { showErrorToast('Gagal menyimpan transaksi. Periksa koneksi internet Anda lalu coba lagi.'); showLoading(false); };
             const onSaveOk = () => { closeModal(); refreshTransactionsOnly(); showSuccessToast(wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.'); };
@@ -4898,37 +4997,43 @@ const api = (() => {
 
             data.forEach(d => {
                 let date = parseTgl(d.tanggal); let amt = Number(d.jumlah);
+                // amt = NATIVE (mata uang akun itu sendiri) -- dipakai HANYA utk saldo per-akun di
+                // bawah (2 baris ini), karena saldo 1 akun ya dalam mata uang akun itu sendiri.
+                // amtIdr = versi IDR (lihat txIdrAmount() -- fallback ke amt kalau transaksi lama
+                // belum punya jumlah_idr, otomatis berarti IDR) -- dipakai utk SEMUA total gabungan
+                // lintas akun/kategori di bawahnya (itu sebabnya variabelnya beda).
+                let amtIdr = txIdrAmount(d);
                 let monthLabel = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
 
-                if(d.jenis === 'Pemasukan') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] += amt; totalIn += amt; } 
-                else if(d.jenis === 'Pengeluaran') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt; totalOut += amt; } 
+                if(d.jenis === 'Pemasukan') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] += amt; totalIn += amtIdr; } 
+                else if(d.jenis === 'Pengeluaran') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt; totalOut += amtIdr; } 
                 else if (d.jenis === 'Transfer') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt; if(accBalances[d.kategori] !== undefined) accBalances[d.kategori] += amt; }
 
                 let isCurMonth = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
                 if(isCurMonth) {
-                    if(d.jenis === 'Pemasukan') monthIn += amt;
+                    if(d.jenis === 'Pemasukan') monthIn += amtIdr;
                     if(d.jenis === 'Pengeluaran') { 
-                        monthOut += amt; 
+                        monthOut += amtIdr; 
                         let parentStyle = getCategoryStyle(d.kategori, 'Pengeluaran');
                         let parentName = parentStyle.parentName || 'Lain-lain';
-                        monthCatOutMap[parentName] = (monthCatOutMap[parentName] || 0) + amt; 
+                        monthCatOutMap[parentName] = (monthCatOutMap[parentName] || 0) + amtIdr; 
                     }
                     if(d.jenis !== 'Transfer') monthTxCount++;
                 }
                 if(date.getMonth() === prevMonthDate.getMonth() && date.getFullYear() === prevMonthDate.getFullYear()) {
-                    if(d.jenis === 'Pemasukan') prevMonthIn += amt;
-                    if(d.jenis === 'Pengeluaran') prevMonthOut += amt;
+                    if(d.jenis === 'Pemasukan') prevMonthIn += amtIdr;
+                    if(d.jenis === 'Pengeluaran') prevMonthOut += amtIdr;
                 }
                 if (d.jenis === 'Pengeluaran' && prior3MonthKeys.includes(monthKeyOf(date))) {
                     let parentStyle = getCategoryStyle(d.kategori, 'Pengeluaran');
                     let parentName = parentStyle.parentName || 'Lain-lain';
-                    catOut3MoMap[parentName] = (catOut3MoMap[parentName] || 0) + amt;
+                    catOut3MoMap[parentName] = (catOut3MoMap[parentName] || 0) + amtIdr;
                 }
                 let dKey = localKey(date);
-                if(last7Map[dKey]) { if(d.jenis === 'Pemasukan') last7Map[dKey].in += amt; if(d.jenis === 'Pengeluaran') last7Map[dKey].out += amt; }
+                if(last7Map[dKey]) { if(d.jenis === 'Pemasukan') last7Map[dKey].in += amtIdr; if(d.jenis === 'Pengeluaran') last7Map[dKey].out += amtIdr; }
 
                 if(!monthlyMap[monthLabel]) monthlyMap[monthLabel] = { in: 0, out: 0 };
-                if(d.jenis === 'Pemasukan') monthlyMap[monthLabel].in += amt; if(d.jenis === 'Pengeluaran') monthlyMap[monthLabel].out += amt;
+                if(d.jenis === 'Pemasukan') monthlyMap[monthLabel].in += amtIdr; if(d.jenis === 'Pengeluaran') monthlyMap[monthLabel].out += amtIdr;
             });
 
             animateRupiah(document.getElementById('dash-total'), totalIn - totalOut, true);
