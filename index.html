@@ -865,6 +865,21 @@
                     </div>
                 </div>
 
+                <!-- Ringkasan Bulanan -->
+                <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-file-lines text-xs"></i></div>
+                            <div class="min-w-0">
+                                <h4 class="text-sm font-bold text-slate-800">Ringkasan Bulanan <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Gemini</span></h4>
+                                <p class="text-[10px] text-slate-400">Laporan singkat keuangan bulan lalu, dibuat AI</p>
+                            </div>
+                        </div>
+                        <button onclick="requestMonthlySummary(true)" id="monthly-summary-refresh-btn" aria-label="Buat ulang ringkasan" title="Buat ulang" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-rotate text-xs"></i></button>
+                    </div>
+                    <div id="monthly-summary-container" class="p-4 md:p-5"></div>
+                </div>
+
                 <!-- Tanya AI -->
                 <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style="height: 440px;">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2 flex-shrink-0">
@@ -2802,7 +2817,7 @@ const api = (() => {
             let mobActive = document.getElementById('mobile-nav-' + activeNavId); if(mobActive) { mobActive.classList.remove('text-slate-400'); mobActive.classList.add('text-[#151928]', 'font-bold'); }
 
             if(viewName === 'dashboard') { processDataForUI(globalData); } 
-            else if(viewName === 'laporan') { renderReportTab(); } 
+            else if(viewName === 'laporan') { renderReportTab(); requestMonthlySummary(false); } 
             else if(viewName === 'kalender') { setTimeout(() => renderCalendar(globalData), 100); }
             else if(viewName === 'transaksi') { filterTransactions(); }
             else if(viewName === 'budget') { renderBudgetView(); }
@@ -5306,6 +5321,74 @@ const api = (() => {
                 renderAiInsightSetupNeeded();
             } finally {
                 aiInsightInFlight = false;
+                if (btn) btn.querySelector('i').classList.remove('fa-spin');
+            }
+        }
+
+        // ========================== RINGKASAN BULANAN (AI, tab Laporan) ==========================
+        // Beda dari "Rekomendasi AI" (kartu insight bulan BERJALAN di dashboard): ini 1 paragraf
+        // naratif fokus ke bulan LALU yang sudah selesai (lebih pas buat "laporan retrospektif").
+        // Datanya PAKAI ULANG buildFinanceSummaryForAI() yang sama (sudah ada pemasukan_bulan_lalu/
+        // pengeluaran_bulan_lalu di situ) -- tidak perlu hitung ulang apa pun di client.
+        // Di-cache di memory (per sesi login, bukan disimpan ke DB) supaya ganti-ganti tab Laporan
+        // tidak manggil Gemini berkali-kali -- baru generate ulang kalau user klik tombol refresh,
+        // atau bulan lalunya berubah (jarang terjadi dalam 1 sesi, tapi jaga-jaga lewat tengah malam).
+        let monthlySummaryCache = null;
+        let monthlySummaryCacheKey = null;
+        let monthlySummaryInFlight = false;
+
+        function renderMonthlySummaryLoading() {
+            const c = document.getElementById('monthly-summary-container'); if (!c) return;
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-400 flex items-center gap-2"><i class="fas fa-spinner fa-spin"></i>Gemini sedang menyusun ringkasan...</p>`;
+        }
+        function renderMonthlySummarySetupNeeded() {
+            const c = document.getElementById('monthly-summary-container'); if (!c) return;
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-500">Fitur ini butuh Edge Function <code class="bg-slate-100 px-1 rounded">analyze-finance</code> ter-deploy & API key Gemini diset. Lihat README.md bagian "Rekomendasi AI".</p>`;
+        }
+        function renderMonthlySummaryError() {
+            const c = document.getElementById('monthly-summary-container'); if (!c) return;
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-500">Gagal memuat ringkasan. Coba klik tombol refresh di atas.</p>`;
+        }
+        function renderMonthlySummaryText(text) {
+            const c = document.getElementById('monthly-summary-container'); if (!c) return;
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-700 leading-relaxed">${escapeHtml(text)}</p>`;
+        }
+
+        async function requestMonthlySummary(force) {
+            if (monthlySummaryInFlight) return;
+            if (!lastInsightsCtx) return;
+            const container = document.getElementById('monthly-summary-container'); if (!container) return;
+
+            // Kunci cache: bulan yang lagi jadi fokus "bulan lalu" (biar tetap valid walau di-generate
+            // dekat pergantian bulan). Format YYYY-MM dari prevMonth ctx kalau ada, fallback bulan ini.
+            const cacheKey = (lastInsightsCtx.now.getFullYear()) + '-' + (lastInsightsCtx.now.getMonth());
+            if (!force && monthlySummaryCache && monthlySummaryCacheKey === cacheKey) {
+                renderMonthlySummaryText(monthlySummaryCache);
+                return;
+            }
+
+            monthlySummaryInFlight = true;
+            renderMonthlySummaryLoading();
+            const btn = document.getElementById('monthly-summary-refresh-btn');
+            if (btn) btn.querySelector('i').classList.add('fa-spin');
+
+            try {
+                const summary = Object.assign({}, buildFinanceSummaryForAI(lastInsightsCtx), { mode: 'monthly_summary' });
+                const { data, error } = await supabaseClient.functions.invoke('analyze-finance', { body: summary });
+                if (error) throw error;
+                if (data && data.error) {
+                    renderMonthlySummarySetupNeeded();
+                } else if (data && data.summary) {
+                    monthlySummaryCache = data.summary;
+                    monthlySummaryCacheKey = cacheKey;
+                    renderMonthlySummaryText(data.summary);
+                } else {
+                    renderMonthlySummaryError();
+                }
+            } catch (e) {
+                renderMonthlySummarySetupNeeded();
+            } finally {
+                monthlySummaryInFlight = false;
                 if (btn) btn.querySelector('i').classList.remove('fa-spin');
             }
         }

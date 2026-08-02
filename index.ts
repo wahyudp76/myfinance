@@ -1,36 +1,47 @@
-// supabase/functions/scan-receipt/index.ts
+// supabase/functions/analyze-finance/index.ts
 //
-// Edge Function untuk fitur "Struk Scanner" -- tombol kamera di modal Catat Transaksi.
-// Beda dari analyze-finance (yang cuma kirim TEKS ringkasan angka): function ini kirim GAMBAR
-// (foto struk, base64) ke Gemini pakai kemampuan vision-nya, minta di-"baca" jadi data transaksi
-// terstruktur (nama toko, total, tanggal, kategori). Sama seperti analyze-finance, WAJIB lewat
-// Edge Function supaya GEMINI_API_KEY tidak pernah sampai ke browser.
+// Edge Function untuk TIGA fitur di MyFinance yang sama-sama butuh Gemini AI:
+//   1. "Rekomendasi AI" (dashboard) -- body TANPA "question"/"mode" -> balas array insight JSON.
+//   2. "Tanya AI" (tab Analisis, chat bebas)      -- body DENGAN field "question" -> balas teks jawaban.
+//   3. "Ringkasan Bulanan" (tab Laporan)  -- body DENGAN mode: "monthly_summary" -> balas 1 paragraf.
 //
-// PAKAI SECRET YANG SAMA seperti analyze-finance (GEMINI_API_KEY) -- kalau itu sudah di-set,
-// TIDAK perlu supabase secrets set lagi buat function ini.
+// KENAPA INI HARUS LEWAT EDGE FUNCTION (bukan dipanggil langsung dari browser)?
+// API key Gemini HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode
+// client (index.html), siapa pun yang membuka DevTools bisa mencuri key itu dan
+// memakainya atas nama akun Google AI-mu (kena tagihan/kuota kamu). Edge Function
+// ini berjalan di server Supabase, menyimpan key lewat "secret" (env var) yang
+// tidak pernah dikirim ke browser -- browser cuma mengirim RINGKASAN keuangan
+// (angka agregat, bukan API key) + pertanyaan bebas kalau ada, dan menerima
+// balasan JSON dari Gemini.
 //
-// CARA DEPLOY:
-//   supabase functions deploy scan-receipt
+// CARA DEPLOY (lihat juga README.md bagian "Setup Rekomendasi AI"):
+//   1. Install Supabase CLI: https://supabase.com/docs/guides/cli
+//   2. supabase login
+//   3. supabase link --project-ref <project-ref-kamu>
+//   4. Ambil API key Gemini di https://aistudio.google.com/apikey (biasanya
+//      diawali "AIzaSy..."), lalu simpan sebagai secret:
+//      supabase secrets set GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+//   5. supabase functions deploy analyze-finance --no-verify-jwt=false
+//
+// Setelah itu section "Rekomendasi AI" (dashboard) dan "Tanya AI" (tab Analisis) berfungsi.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-// Sengaja pakai model yang sama dengan analyze-finance supaya konsisten -- lihat catatan di file
-// itu soal nama model ini (cek https://ai.google.dev/gemini-api/docs/models kalau ternyata sudah
-// tidak berlaku). Model "flash" dipilih karena tugas baca struk itu straightforward (bukan
-// reasoning berat), dan supaya biaya per-scan tetap murah.
+// Model default: gemini-3.6-flash -- tier "Flash" (cepat & hemat biaya), cukup untuk
+// menganalisis ringkasan angka yang sudah dirapikan (bukan model reasoning berat).
+// Fitur ini bisa terpanggil cukup sering (tiap dashboard dibuka / tiap ada transaksi
+// baru, dengan jeda minimal 3 menit), jadi model tier murah/cepat sengaja dipilih.
+// Mau lebih hemat lagi? Ganti ke "gemini-3.5-flash-lite". Mau analisis lebih dalam?
+// Ganti ke model "pro" terbaru -- cek daftar model aktif di https://ai.google.dev/gemini-api/docs/models
 const GEMINI_MODEL = "gemini-3.6-flash";
 const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+// SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-
-// Batas ukuran base64 gambar yang diterima (~6MB) -- client SEHARUSNYA sudah mengompres ke jauh
-// di bawah ini (lihat compressImageDataUrl di index.html, maks 1600px & JPEG 85%), ini cuma jaga2
-// di sisi server supaya tidak ada payload raksasa yang lolos & bikin boros kuota Gemini.
-const MAX_BASE64_LENGTH = 8_000_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,19 +56,56 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// Panggilan ke Gemini generateContent -- satu prompt teks tunggal (bukan percakapan
+// multi-giliran, karena tiap request di sini sudah membawa seluruh konteks yang perlu
+// lewat ringkasan keuangan + pertanyaan, jadi cukup 1 "user turn").
+async function callGemini(promptText: string) {
+  const resp = await fetch(GEMINI_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": GEMINI_API_KEY!,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptText }] }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Response(
+      JSON.stringify({ error: "Gagal memanggil Gemini API", detail: errText }),
+      {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const data = await resp.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return String(text);
+}
+
 Deno.serve(async (req: Request) => {
+  // Preflight CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
+
   if (!GEMINI_API_KEY) {
     return jsonResponse({
-      error: "GEMINI_API_KEY belum diset di Supabase secrets. Jalankan: supabase secrets set GEMINI_API_KEY=AIzaSy-xxxx",
+      error:
+        "GEMINI_API_KEY belum diset di Supabase secrets. Jalankan: supabase secrets set GEMINI_API_KEY=AIzaSy-xxxx",
     }, 500);
   }
 
+  // Verifikasi bahwa yang memanggil adalah user yang sudah login (JWT dari header
+  // Authorization, otomatis dikirim oleh supabaseClient.functions.invoke() di client).
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return jsonResponse({ error: "Unauthorized" }, 401);
@@ -73,81 +121,97 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const imageBase64: string | undefined = body?.image_base64;
-    const mimeType: string = body?.mime_type || "image/jpeg";
-    const categories: string[] = Array.isArray(body?.categories) ? body.categories : [];
+    const { question, mode, ...summary } = body || {};
 
-    if (!imageBase64 || typeof imageBase64 !== "string") {
-      return jsonResponse({ error: "image_base64 wajib dikirim." }, 400);
-    }
-    if (imageBase64.length > MAX_BASE64_LENGTH) {
-      return jsonResponse({ error: "Ukuran foto terlalu besar. Coba foto lain atau kompres dulu." }, 400);
-    }
+    // Ringkasan (dari buildFinanceSummaryForAI() di index.html) SUDAH berupa angka agregat
+    // per bulan/kategori -- bukan daftar transaksi mentah -- supaya payload kecil & tidak
+    // membocorkan detail transaksi individual (keterangan, dll) ke prompt lebih dari perlu.
+    const commonContext =
+      `Kamu asisten analisis keuangan pribadi untuk aplikasi pencatatan keuangan Indonesia (mata uang Rupiah/IDR). ` +
+      `Berikut ringkasan keuangan user BULAN BERJALAN ini:\n\n${
+        JSON.stringify(summary, null, 2)
+      }\n\n`;
 
-    const categoryListText = categories.length > 0
-      ? categories.join(", ")
-      : "(user belum punya kategori pengeluaran kustom, boleh dikosongkan)";
+    // Mode "Ringkasan Bulanan" (kartu di tab Laporan) -- fokus 1 paragraf naratif RETROSPEKTIF
+    // tentang bulan LALU (field pemasukan_bulan_lalu/pengeluaran_bulan_lalu di summary), beda dari
+    // mode insight di bawah yang fokus ke bulan berjalan yang masih aktif dicatat.
+    if (mode === "monthly_summary") {
+      const summaryPrompt = commonContext +
+        `Tulis SATU paragraf ringkasan laporan keuangan BULAN LALU (pakai field pemasukan_bulan_lalu & ` +
+        `pengeluaran_bulan_lalu di atas sebagai fokus utama, bukan bulan berjalan), dalam Bahasa Indonesia, ` +
+        `nada suportif dan mudah dibaca orang awam (BUKAN laporan akuntansi formal), maksimal 4-5 kalimat. ` +
+        `Sebutkan angka pemasukan & pengeluaran bulan lalu, bandingkan singkat dengan bulan sebelumnya kalau ` +
+        `datanya mengindikasikan tren naik/turun, dan sebut 1 kategori pengeluaran terbesar kalau relevan. ` +
+        `HANYA berdasarkan angka pada ringkasan di atas, jangan mengarang angka/kategori yang tidak ada. ` +
+        `Kalau datanya kosong/terlalu sedikit, katakan dengan jujur belum cukup data untuk bulan lalu. ` +
+        `Balas HANYA teks paragrafnya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
 
-    const promptText =
-      `Ini foto struk/kuitansi belanja. Tugasmu membaca isinya dan mengekstrak data transaksi. ` +
-      `Balas HANYA dalam bentuk JSON valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar JSON), ` +
-      `dengan format persis:\n` +
-      `{"is_receipt": boolean, "merchant": string atau null, "total": number atau null, "tanggal": string (format YYYY-MM-DD) atau null, "kategori": string atau null}\n\n` +
-      `Aturan:\n` +
-      `- "is_receipt": false kalau gambar ini JELAS BUKAN struk/kuitansi belanja (misal foto orang, pemandangan, dokumen lain). Kalau false, field lain boleh null semua.\n` +
-      `- "merchant": nama toko/merchant/warung di struk itu, seringkas mungkin (2-4 kata).\n` +
-      `- "total": TOTAL akhir yang harus dibayar (bukan subtotal sebelum pajak/diskon kalau ada total akhir yang lebih jelas), sebagai angka murni tanpa "Rp"/titik/koma pemisah ribuan.\n` +
-      `- "tanggal": tanggal transaksi di struk itu kalau terlihat jelas, format YYYY-MM-DD. Kalau tidak ada/tidak jelas, null (JANGAN menebak/mengarang tanggal hari ini).\n` +
-      `- "kategori": pilih SATU yang PALING cocok dari daftar kategori berikut, HARUS PERSIS SAMA PENULISANNYA (case-sensitive) dengan salah satu di daftar ini, JANGAN membuat nama kategori baru: [${categoryListText}]. Kalau tidak ada satupun yang cocok, atau daftar kategorinya kosong, isi null.\n` +
-      `- Kalau ada bagian yang tidak yakin/tidak terbaca jelas, lebih baik null daripada menebak/mengarang.`;
-
-    const resp = await fetch(GEMINI_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: promptText },
-            { inline_data: { mime_type: mimeType, data: imageBase64 } },
-          ],
-        }],
-      }),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return jsonResponse({ error: "Gagal memanggil Gemini API", detail: errText }, 502);
+      let summaryText: string;
+      try {
+        summaryText = await callGemini(summaryPrompt);
+      } catch (errResp) {
+        if (errResp instanceof Response) return errResp;
+        throw errResp;
+      }
+      return jsonResponse({ summary: summaryText.trim() || "Belum ada ringkasan." });
     }
 
-    const geminiData = await resp.json();
-    const rawText = String(geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
+    // Mode "Tanya AI" (chat bebas dari tab Analisis) -- ada field "question" di body.
+    // Beda dari mode wawasan otomatis di bawah: di sini balasannya teks bebas (bukan JSON array),
+    // karena ini percakapan, bukan daftar kartu insight.
+    if (question && String(question).trim()) {
+      const qaPrompt = commonContext +
+        `User bertanya: "${String(question).trim()}"\n\n` +
+        `Jawab pertanyaan itu dalam Bahasa Indonesia, singkat (maksimal 3-4 kalimat), HANYA berdasarkan ` +
+        `angka pada ringkasan di atas. Kalau ringkasan datanya tidak cukup untuk menjawab pertanyaan itu ` +
+        `secara spesifik (misal user tanya soal kategori/periode yang tidak ada di ringkasan), katakan ` +
+        `dengan jujur bahwa datanya tidak tersedia di ringkasan ini, jangan mengarang angka. ` +
+        `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
 
-    let parsed: any;
+      let answerText: string;
+      try {
+        answerText = await callGemini(qaPrompt);
+      } catch (errResp) {
+        if (errResp instanceof Response) return errResp;
+        throw errResp;
+      }
+      return jsonResponse({ answer: answerText.trim() || "Maaf, tidak ada jawaban." });
+    }
+
+    // Mode wawasan otomatis (dipanggil dari renderInsights() di dashboard) -- balasannya array
+    // JSON berisi maksimal 3 kartu insight.
+    const prompt = commonContext +
+      `Berikan MAKSIMAL 3 rekomendasi/insight yang KONKRET, SPESIFIK, dan actionable dalam Bahasa Indonesia, ` +
+      `HANYA berdasarkan angka pada data di atas (jangan mengarang angka atau kategori yang tidak ada di data). ` +
+      `Kalau datanya terlalu sedikit/kosong untuk disimpulkan, cukup kasih 1 insight umum yang menyemangati/mengingatkan. ` +
+      `Balas HANYA dalam bentuk JSON array valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar array), formatnya:\n` +
+      `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat", "severity": "info" | "warning" | "success"}]`;
+
+    let rawText: string;
     try {
-      const cleaned = rawText.replace(/```json|```/g, "").trim();
-      parsed = JSON.parse(cleaned);
+      rawText = await callGemini(prompt);
+    } catch (errResp) {
+      if (errResp instanceof Response) return errResp;
+      throw errResp;
+    }
+
+    let insights: any[] = [];
+    try {
+      const cleaned = (rawText || "[]").replace(/```json|```/g, "").trim();
+      insights = JSON.parse(cleaned);
+      if (!Array.isArray(insights)) insights = [insights];
     } catch (_e) {
-      return jsonResponse({
-        error: "Gagal membaca respons AI. Coba foto ulang dengan pencahayaan lebih jelas.",
-      }, 502);
+      // Kalau Gemini tidak balas JSON murni (jarang terjadi, tapi jaga-jaga), tetap tampilkan
+      // teksnya apa adanya sebagai satu insight, daripada gagal total.
+      insights = [{
+        title: "Analisis Gemini",
+        message: rawText || "Tidak ada respons dari Gemini.",
+        severity: "info",
+      }];
     }
 
-    if (parsed?.is_receipt === false) {
-      return jsonResponse({
-        error: "Foto ini kelihatannya bukan struk belanja. Coba foto struk yang jelas.",
-      }, 400);
-    }
-
-    return jsonResponse({
-      merchant: parsed?.merchant ?? null,
-      total: typeof parsed?.total === "number" ? parsed.total : null,
-      tanggal: parsed?.tanggal ?? null,
-      kategori: parsed?.kategori ?? null,
-    });
+    return jsonResponse({ insights });
   } catch (e) {
-    return jsonResponse({ error: String(e instanceof Error ? e.message : e) }, 500);
+    return jsonResponse({ error: String(e) }, 500);
   }
 });
