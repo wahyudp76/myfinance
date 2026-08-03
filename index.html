@@ -5079,8 +5079,12 @@ const api = (() => {
                             color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#059669' : '#e11d48',
                             font: { size: 8, weight: 'bold' },
                             formatter: (v) => (v >= 0 ? '+' : '-') + formatShortVal(Math.abs(v)),
-                            anchor: 'end',
-                            align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? 'top' : 'bottom',
+                            // Semua label diatas -- utk batang positif: diatas puncaknya (anchor 'end').
+                            // Utk batang negatif (menjulur ke bawah dari 0): anchor 'start' = titik di
+                            // garis 0 (yaitu SISI ATAS batang negatif itu sendiri), align 'top' taruh
+                            // label persis diatas titik itu -- hasilnya tetap "diatas bar"-nya.
+                            anchor: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? 'end' : 'start',
+                            align: 'top',
                             offset: 2
                         },
                         tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y >= 0 ? '+Rp ' : '-Rp ') + formatRp(Math.abs(ctx.parsed.y)) } }
