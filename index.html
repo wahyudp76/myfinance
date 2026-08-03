@@ -5067,9 +5067,22 @@ const api = (() => {
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
+                    layout: { padding: { top: 16, bottom: 16 } },
                     plugins: {
                         legend: { display: false },
-                        datalabels: { display: false },
+                        // Label angka di tiap batang -- di ATAS batang kalau net positif (hijau), di
+                        // BAWAH batang kalau net negatif (merah), biar tidak nabrak batangnya sendiri.
+                        // Batang net 0 (hari tanpa transaksi) sengaja tidak dikasih label, biar tidak
+                        // penuh sesak kalau banyak hari kosong dalam 1 bulan.
+                        datalabels: {
+                            display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== 0,
+                            color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#059669' : '#e11d48',
+                            font: { size: 8, weight: 'bold' },
+                            formatter: (v) => (v >= 0 ? '+' : '-') + formatShortVal(Math.abs(v)),
+                            anchor: 'end',
+                            align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? 'top' : 'bottom',
+                            offset: 2
+                        },
                         tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y >= 0 ? '+Rp ' : '-Rp ') + formatRp(Math.abs(ctx.parsed.y)) } }
                     },
                     scales: {
