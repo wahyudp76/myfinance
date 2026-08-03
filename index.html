@@ -606,6 +606,27 @@
                 <div id="insight-top-cat-wrap" class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5"></div>
             </div>
 
+            <!-- Skor Kesehatan Finansial (Perluasan AI -- murni hitungan deterministik dari data
+                 bulan ini, BUKAN generate Gemini, supaya angkanya presisi & tidak butuh Edge
+                 Function/API key. Lihat computeFinancialHealthScore() -- 4 komponen berbobot. -->
+            <div class="bg-white rounded-2xl p-4 md:p-5 border border-slate-100 shadow-sm mb-6 md:mb-8">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest">Skor Kesehatan Finansial</h4>
+                        <i class="fas fa-heart-pulse text-rose-300 text-[10px]"></i>
+                    </div>
+                    <span id="health-score-label" class="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">-</span>
+                </div>
+                <div class="flex items-end gap-1.5 mb-2.5">
+                    <span id="health-score-number" class="text-3xl md:text-4xl font-extrabold text-slate-800 leading-none">-</span>
+                    <span class="text-xs md:text-sm text-slate-400 font-semibold mb-0.5">/100</span>
+                </div>
+                <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden mb-3.5">
+                    <div id="health-score-bar" class="h-full rounded-full transition-all duration-700" style="width:0%; background:#cbd5e1;"></div>
+                </div>
+                <div id="health-score-breakdown" class="grid grid-cols-2 gap-x-3 gap-y-1.5"></div>
+            </div>
+
             <div id="insights-section" class="mb-6 md:mb-8">
                 <div class="flex items-center gap-2 mb-3 md:mb-4">
                     <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest">Wawasan Keuangan</h4>
@@ -1391,7 +1412,8 @@
 
                         <div>
                             <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Keterangan (Opsional)</label>
-                            <input type="text" id="keterangan" placeholder="Contoh: Makan siang, Gaji..." class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm">
+                            <input type="text" id="keterangan" placeholder="Contoh: Makan siang, Gaji..." oninput="handleKeteranganInputForSuggestion()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm">
+                            <button type="button" id="category-suggestion-chip" onclick="applyCategorySuggestion()" class="hidden mt-1.5 text-[10px] md:text-xs font-bold text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 items-center gap-1.5 transition"><i class="fas fa-wand-magic-sparkles"></i><span id="category-suggestion-text"></span></button>
                         </div>
                     </div>
                 </form>
@@ -2244,6 +2266,18 @@ const api = (() => {
         if (error) throw error;
     }
 
+    // Manggil Edge Function 'analyze-finance' mode "suggest_category" -- lihat penjelasan mode ini
+    // di file itu. Beda dari Rekomendasi AI/Tanya AI/Ringkasan Bulanan (yang butuh ringkasan angka
+    // keuangan), ini cuma butuh teks keterangan singkat + daftar kategori valid milik user.
+    async function suggestCategoryRemote(keterangan, jenis, categories) {
+        const { data, error } = await supabaseClient.functions.invoke('analyze-finance', {
+            body: { mode: 'suggest_category', keterangan, jenis, categories }
+        });
+        if (error) throw error;
+        if (data && data.error) throw new Error(data.error);
+        return data;
+    }
+
     // Manggil Edge Function 'get-exchange-rate' -- lihat supabase/functions/get-exchange-rate/index.ts.
     async function getExchangeRateRemote(mataUang) {
         const { data, error } = await supabaseClient.functions.invoke('get-exchange-rate', { body: { mata_uang: mataUang } });
@@ -2364,6 +2398,7 @@ const api = (() => {
         refreshAssetPrice: (id) => refreshAssetPriceRemote(id),
         scanReceipt: (imageBase64, mimeType, categories) => scanReceiptRemote(imageBase64, mimeType, categories),
         getExchangeRate: (mataUang) => getExchangeRateRemote(mataUang),
+        suggestCategory: (keterangan, jenis, categories) => suggestCategoryRemote(keterangan, jenis, categories),
         getRecurring: () => fetchRecurringRemote(),
         addRecurring: (data) => addRecurringRemote(data),
         editRecurring: (id, data) => editRecurringRemote(id, data),
@@ -4108,6 +4143,7 @@ const api = (() => {
 
         function selectCategoryItem(name, parentName, type, icon, bg, color) {
             document.getElementById('kategori').value = name;
+            hideCategorySuggestion(); // user sudah pilih sendiri, saran AI (kalau lagi tampil) tidak relevan lagi
             
             let displayUi = document.getElementById('selected-category-display');
             if (type === 'Transfer') {
@@ -4120,6 +4156,7 @@ const api = (() => {
 
         function setCategoryUIFromValue(val, jenis) {
             document.getElementById('kategori').value = val;
+            hideCategorySuggestion();
             let displayUi = document.getElementById('selected-category-display');
             
             if(!val) { displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>Pilih Kategori`; return; }
@@ -4130,6 +4167,56 @@ const api = (() => {
                 let style = getCategoryStyle(val, jenis);
                 displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(style.parentName || style.parent)})</span>`;
             }
+        }
+
+        // ========================== SMART CATEGORIZATION (saran kategori dari keterangan) ==========================
+        let categorySuggestionTimer = null;
+        let categorySuggestionValue = null; // kategori yg lagi disarankan (buat tombol chip)
+        let categorySuggestionLastQuery = ''; // hindari nembak ulang Gemini kalau teksnya tidak berubah esensinya
+
+        function handleKeteranganInputForSuggestion() {
+            clearTimeout(categorySuggestionTimer);
+            const text = document.getElementById('keterangan').value.trim();
+            // Kalau kategori SUDAH dipilih manual duluan, jangan ganggu -- saran cuma relevan
+            // SEBELUM user menentukan kategorinya sendiri.
+            if (document.getElementById('kategori').value) { hideCategorySuggestion(); return; }
+            if (text.length < 3) { hideCategorySuggestion(); return; }
+            // Nunggu 700ms jeda ketikan (debounce) -- supaya tidak manggil Gemini tiap 1 huruf diketik.
+            categorySuggestionTimer = setTimeout(() => requestCategorySuggestion(text), 700);
+        }
+
+        function hideCategorySuggestion() {
+            categorySuggestionValue = null;
+            const chip = document.getElementById('category-suggestion-chip');
+            if (chip) chip.classList.add('hidden');
+        }
+
+        function requestCategorySuggestion(text) {
+            if (text === categorySuggestionLastQuery) return; // sama persis dgn request terakhir, skip
+            categorySuggestionLastQuery = text;
+            const jenis = activeFormType === 'Transfer' ? null : activeFormType; // Transfer tidak punya kategori kustom
+            if (!jenis) return;
+            const dict = jenis === 'Pengeluaran' ? categoryDict.pengeluaran : categoryDict.pemasukan;
+            const categories = Object.values(dict || {}).flatMap(p => p.subs.map(s => s.name));
+            if (categories.length === 0) return;
+
+            api.run.withSuccessHandler((hasil) => {
+                // Kalau user udah keburu isi kategori sendiri / ganti teks selagi nunggu respons AI, abaikan hasilnya.
+                if (document.getElementById('kategori').value) return;
+                if (document.getElementById('keterangan').value.trim() !== text) return;
+                if (!hasil || !hasil.kategori) { hideCategorySuggestion(); return; }
+                categorySuggestionValue = hasil.kategori;
+                document.getElementById('category-suggestion-text').innerText = `Saran kategori: ${hasil.kategori}`;
+                const chip = document.getElementById('category-suggestion-chip');
+                chip.classList.remove('hidden'); chip.classList.add('flex');
+            }).withFailureHandler(() => { /* diam2 gagal aja, ini fitur pemanis bukan yg kritikal */ })
+              .suggestCategory(text, jenis, categories);
+        }
+
+        function applyCategorySuggestion() {
+            if (!categorySuggestionValue) return;
+            setCategoryUIFromValue(categorySuggestionValue, activeFormType);
+            hideCategorySuggestion();
         }
 
         // ========================== STRUK SCANNER (foto struk -> auto-isi form) ==========================
@@ -4208,6 +4295,7 @@ const api = (() => {
                 document.getElementById('tanggal').valueAsDate = new Date(); 
                 document.querySelector(`input[name="jenis"][value="Pengeluaran"]`).checked = true; handleFormTypeChange();
                 document.getElementById('btnScanStruk').classList.remove('hidden');
+                categorySuggestionLastQuery = ''; hideCategorySuggestion();
             } else { document.getElementById('modalTitle').innerText = "Edit Transaksi"; document.getElementById('btnSubmitForm').innerText = "Simpan Perubahan"; document.getElementById('btnScanStruk').classList.add('hidden'); }
         }
         function closeModal() {
@@ -4884,7 +4972,7 @@ const api = (() => {
                         if (inMap[day] !== undefined) { if(d.jenis === 'Pemasukan') inMap[day] += Number(d.jumlah); if(d.jenis === 'Pengeluaran') outMap[day] += Number(d.jumlah); }
                     });
                     
-                    for (let i = 1; i <= daysInMonth; i++) { chartLabels.push(`Tgl ${i}`); chartIn.push(inMap[i]); chartOut.push(outMap[i]); }
+                    for (let i = 1; i <= daysInMonth; i++) { chartLabels.push(String(i)); chartIn.push(inMap[i]); chartOut.push(outMap[i]); }
                 }
             }
 
@@ -4960,10 +5048,31 @@ const api = (() => {
             }
 
             if(charts.txTrend) charts.txTrend.destroy();
+            // Chart "Tren Transaksi" -- 1 batang per hari, ARUS KAS BERSIH (Masuk - Keluar), bukan
+            // 2 batang bertumpuk seperti sebelumnya: hijau kalau hari itu net positif, merah kalau
+            // net negatif, garis 0 sebagai pembanding. Style ini sengaja disamakan dgn referensi
+            // desain yang diminta user (foto: kartu cashflow + chart net per hari, sumbu Y format M).
+            let chartNet = chartLabels.map((_, i) => Number(chartIn[i] || 0) - Number(chartOut[i] || 0));
             charts.txTrend = new Chart(document.getElementById('txTrendChart').getContext('2d'), {
                 type: 'bar',
-                data: { labels: chartLabels, datasets: [{ label: 'Masuk', data: chartIn, backgroundColor: '#10b981' }, { label: 'Keluar', data: chartOut, backgroundColor: '#f43f5e' }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: '#fff', font: { size: 9, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'center', align: 'center' }, legend: {position:'top', labels:{boxWidth:10, font:{size:10, weight: 'bold'}}} }, scales: { x: {stacked: true, grid: {display:false}, ticks:{font:{size:9, weight: 'bold'}}}, y: {stacked: true, ticks:{font:{size:9}}, grid: {color: chartGridColor()}} } }
+                data: { labels: chartLabels, datasets: [{
+                    label: 'Arus Kas Bersih',
+                    data: chartNet,
+                    backgroundColor: chartNet.map(v => v >= 0 ? '#10b981' : '#f43f5e'),
+                    borderRadius: 3, borderSkipped: false, barPercentage: 0.55
+                }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y >= 0 ? '+Rp ' : '-Rp ') + formatRp(Math.abs(ctx.parsed.y)) } }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+                        y: { ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) }, grid: { color: chartGridColor(), borderDash: [4, 4] } }
+                    }
+                }
             });
         }
 
@@ -5177,7 +5286,9 @@ const api = (() => {
 
             renderBalanceTrendChart();
 
-            renderInsights({ now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount });
+            const insightsCtx = { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap };
+            renderInsights(insightsCtx);
+            renderHealthScore(insightsCtx);
         }
 
         // ========================== WAWASAN KEUANGAN (Financial Insights) ==========================
@@ -5198,6 +5309,72 @@ const api = (() => {
         // (paling penting/actionable duluan). Semua dihitung dari data yang SUDAH ada di memori
         // (globalData via aggregate yang dilempar processDataForUI + currentMonthBudgetsCache) --
         // tidak ada fetch tambahan di sini supaya ringan dipanggil tiap render dashboard.
+        // ========================== SKOR KESEHATAN FINANSIAL ==========================
+        // 4 komponen berbobot (total 100 kalau semua ada datanya; kalau user belum punya budget
+        // bulan ini, komponen "Kepatuhan Anggaran" di-skip & sisanya di-rescale ke /100 -- supaya
+        // orang yang belum pasang budget tidak otomatis dapat skor jelek gara2 "melanggar" budget
+        // yang bahkan belum dia buat).
+        function computeFinancialHealthScore(ctx) {
+            const components = [];
+
+            // 1. Tingkat menabung bulan ini (maks 40) -- target acuan 20% dari pemasukan = skor penuh.
+            if (ctx.monthIn > 0) {
+                const savingsRate = (ctx.monthIn - ctx.monthOut) / ctx.monthIn;
+                components.push({ label: 'Tingkat Menabung', score: Math.max(0, Math.min(40, (savingsRate / 0.20) * 40)), max: 40 });
+            }
+
+            // 2. Kepatuhan anggaran (maks 25) -- % kategori yg pengeluarannya masih <= budget-nya.
+            const budgetCats = Object.keys(currentMonthBudgetsCache || {}).filter(c => Number(currentMonthBudgetsCache[c]) > 0);
+            if (budgetCats.length > 0) {
+                const withinBudget = budgetCats.filter(c => (ctx.monthCatOutMap[c] || 0) <= Number(currentMonthBudgetsCache[c])).length;
+                components.push({ label: 'Kepatuhan Anggaran', score: (withinBudget / budgetCats.length) * 25, max: 25 });
+            }
+
+            // 3. Konsistensi bulanan (maks 20) -- dari beberapa bulan terakhir yg ada datanya, berapa
+            //    persen yang net-nya positif (pemasukan >= pengeluaran).
+            if (ctx.monthlyMap) {
+                const labels = Object.keys(ctx.monthlyMap).slice(-6);
+                if (labels.length > 0) {
+                    const positiveMonths = labels.filter(l => (ctx.monthlyMap[l].in - ctx.monthlyMap[l].out) >= 0).length;
+                    components.push({ label: 'Konsistensi Bulanan', score: (positiveMonths / labels.length) * 20, max: 20 });
+                }
+            }
+
+            // 4. Aktivitas pencatatan (maks 15) -- kebiasaan mencatat transaksi cukup rutin bulan ini
+            //    (acuan: 15 transaksi/bulan = skor penuh, ~1 transaksi tiap 2 hari).
+            components.push({ label: 'Aktivitas Pencatatan', score: Math.max(0, Math.min(15, (ctx.monthTxCount / 15) * 15)), max: 15 });
+
+            const totalScore = components.reduce((s, c) => s + c.score, 0);
+            const totalMax = components.reduce((s, c) => s + c.max, 0);
+            const finalScore = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+            return { finalScore, components };
+        }
+
+        function renderHealthScore(ctx) {
+            const numEl = document.getElementById('health-score-number');
+            if (!numEl) return;
+            const { finalScore, components } = computeFinancialHealthScore(ctx);
+            const barEl = document.getElementById('health-score-bar');
+            const labelEl = document.getElementById('health-score-label');
+            const breakdownEl = document.getElementById('health-score-breakdown');
+
+            numEl.innerText = finalScore;
+            barEl.style.width = finalScore + '%';
+
+            let band;
+            if (finalScore >= 75) band = { text: 'Sehat', color: '#10b981', badge: 'bg-emerald-100 text-emerald-600' };
+            else if (finalScore >= 50) band = { text: 'Perlu Perhatian', color: '#f59e0b', badge: 'bg-amber-100 text-amber-600' };
+            else band = { text: 'Kritis', color: '#f43f5e', badge: 'bg-rose-100 text-rose-600' };
+            barEl.style.background = band.color;
+            labelEl.innerText = band.text;
+            labelEl.className = 'text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0 ' + band.badge;
+
+            breakdownEl.innerHTML = components.map(c => {
+                const pct = c.max > 0 ? Math.round((c.score / c.max) * 100) : 0;
+                return `<div class="flex items-center justify-between text-[10px] md:text-xs"><span class="text-slate-400 truncate mr-2">${c.label}</span><span class="font-bold text-slate-600 flex-shrink-0">${pct}%</span></div>`;
+            }).join('');
+        }
+
         function computeFinancialInsights(ctx) {
             const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount } = ctx;
             const insights = [];
