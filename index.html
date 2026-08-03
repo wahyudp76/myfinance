@@ -5079,13 +5079,25 @@ const api = (() => {
                             color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#059669' : '#e11d48',
                             font: { size: 8, weight: 'bold' },
                             formatter: (v) => (v >= 0 ? '+' : '-') + formatShortVal(Math.abs(v)),
-                            // Semua label diatas -- utk batang positif: diatas puncaknya (anchor 'end').
-                            // Utk batang negatif (menjulur ke bawah dari 0): anchor 'start' = titik di
-                            // garis 0 (yaitu SISI ATAS batang negatif itu sendiri), align 'top' taruh
-                            // label persis diatas titik itu -- hasilnya tetap "diatas bar"-nya.
-                            anchor: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? 'end' : 'start',
+                            // SELALU anchor 'end' (ujung nilai batang) -- ini yg terbukti reliable (dipakai
+                            // jg utk batang positif sebelumnya, hasilnya benar). anchor 'start' SEMPAT
+                            // dipakai utk batang negatif tapi ternyata jaraknya ke garis 0 tidak konsisten
+                            // (makin tinggi batangnya, makin nabrak) -- makanya diganti pakai cara di bawah,
+                            // yang MENGHITUNG SENDIRI tinggi batang itu dlm piksel lalu geser label
+                            // sejauh itu, supaya PASTI lompat sampai ke atas batang seberapa pun tingginya.
+                            anchor: 'end',
                             align: 'top',
-                            offset: 2
+                            offset: (ctx) => {
+                                const v = ctx.dataset.data[ctx.dataIndex];
+                                if (v >= 0) return 2; // batang positif: anchor sudah di puncak, jarak kecil cukup
+                                try {
+                                    const el = ctx.chart.getDatasetMeta(ctx.datasetIndex).data[ctx.dataIndex];
+                                    if (el && typeof el.base === 'number' && typeof el.y === 'number') {
+                                        return Math.abs(el.base - el.y) + 4; // = tinggi batang (px) + sedikit jarak
+                                    }
+                                } catch (e) { /* fallback di bawah kalau struktur elemen beda dari dugaan */ }
+                                return 2;
+                            }
                         },
                         tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y >= 0 ? '+Rp ' : '-Rp ') + formatRp(Math.abs(ctx.parsed.y)) } }
                     },
