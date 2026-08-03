@@ -1327,7 +1327,11 @@
                         </div>
                     </div>
                     <div class="mt-4 md:mt-0 text-left md:text-right border-t md:border-t-0 border-slate-200 pt-3 md:pt-0">
-                        <p class="text-slate-400 text-xs md:text-sm font-medium" id="detail-category-month-label">Total Bulan Terpilih</p>
+                        <div class="flex items-center justify-start md:justify-end gap-2 mb-0.5">
+                            <button type="button" onclick="categoryDetailShiftMonth(-1)" aria-label="Bulan sebelumnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                            <p class="text-slate-500 text-xs md:text-sm font-bold" id="detail-category-month-label">Juli 2026</p>
+                            <button type="button" onclick="categoryDetailShiftMonth(1)" aria-label="Bulan berikutnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-right text-[10px]"></i></button>
+                        </div>
                         <p class="text-2xl md:text-3xl font-bold text-[#151928]" id="detail-category-total">Rp 0</p>
                     </div>
                 </div>
@@ -6914,9 +6918,16 @@ const api = (() => {
         }
 
         // ========================== CATEGORY DETAIL ==========================
+        // State bulan yang lagi ditampilkan di halaman Kategori Detail -- dipisah dari
+        // reportFilterMonth (punya tab Laporan) supaya user bisa geser bulan DI HALAMAN INI
+        // (pakai panah kiri/kanan) tanpa perlu balik ke Laporan dulu. Awalnya disamakan dgn
+        // reportFilterMonth (bulan yg lagi aktif di Laporan saat kategori ini diklik).
+        let categoryDetailYear = null, categoryDetailMonth = null, categoryDetailJenis = null, categoryDetailSpecificData = [];
+
         function openCategoryDetail(categoryName, jenis) {
             const filterVal = document.getElementById('reportFilterMonth').value || new Date().toISOString().slice(0, 7);
             const [year, month] = filterVal.split('-');
+            categoryDetailYear = Number(year); categoryDetailMonth = Number(month); categoryDetailJenis = jenis;
             
             document.getElementById('detail-category-name').innerText = categoryName;
             document.getElementById('detail-category-type').innerText = "Kategori " + jenis;
@@ -6930,18 +6941,12 @@ const api = (() => {
                 subCategories = subCategories.concat(categoryDict[jenis.toLowerCase()][categoryName].subs.map(s => s.name));
             }
 
-            let specificData = globalData.filter(d => d.jenis === jenis && subCategories.includes(d.kategori));
-            let specificDataMonth = specificData.filter(d => {
-                if(!d.tanggal) return false;
-                let dDate = parseTgl(d.tanggal);
-                return dDate.getFullYear() == year && (dDate.getMonth() + 1) == month;
-            });
-
-            let totalMonth = specificDataMonth.reduce((sum, d) => sum + Number(d.jumlah), 0);
-            animateRupiah(document.getElementById('detail-category-total'), totalMonth);
+            // "Semua Riwayat Transaksi" di bawah SENGAJA tidak ikut difilter per-bulan (namanya
+            // "SEMUA") -- cuma total & chart di atas yang bulan-spesifik (lihat renderCategoryDetailMonthData).
+            categoryDetailSpecificData = globalData.filter(d => d.jenis === jenis && subCategories.includes(d.kategori));
             
             const tbody = document.getElementById('category-table-body');
-            let sortedData = [...specificData].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
+            let sortedData = [...categoryDetailSpecificData].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
 
             if(sortedData.length === 0) {
                 tbody.innerHTML = `<div class="p-6 text-center text-slate-400">Belum ada transaksi di kategori ini.</div>`;
@@ -6996,6 +7001,36 @@ const api = (() => {
                 }).join('');
             }
 
+            renderCategoryDetailMonthData();
+            switchView('kategori-detail');
+        }
+
+        // Geser bulan yg ditampilkan di Kategori Detail (panah kiri/kanan di header) tanpa perlu
+        // balik ke tab Laporan. delta: -1 = mundur 1 bulan, +1 = maju 1 bulan.
+        function categoryDetailShiftMonth(delta) {
+            categoryDetailMonth += delta;
+            if (categoryDetailMonth < 1) { categoryDetailMonth = 12; categoryDetailYear--; }
+            else if (categoryDetailMonth > 12) { categoryDetailMonth = 1; categoryDetailYear++; }
+            renderCategoryDetailMonthData();
+        }
+
+        // Bagian yang BULAN-SPESIFIK dari halaman Kategori Detail: label bulan, total, & chart harian.
+        // Dipisah dari openCategoryDetail() supaya bisa dipanggil ulang sendiri saat geser bulan,
+        // tanpa perlu hitung ulang seluruh "Semua Riwayat Transaksi" (yg memang tidak berubah).
+        function renderCategoryDetailMonthData() {
+            const year = categoryDetailYear, month = categoryDetailMonth, jenis = categoryDetailJenis;
+            document.getElementById('detail-category-month-label').innerText =
+                new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+            let specificDataMonth = categoryDetailSpecificData.filter(d => {
+                if(!d.tanggal) return false;
+                let dDate = parseTgl(d.tanggal);
+                return dDate.getFullYear() === year && (dDate.getMonth() + 1) === month;
+            });
+
+            let totalMonth = specificDataMonth.reduce((sum, d) => sum + Number(d.jumlah), 0);
+            animateRupiah(document.getElementById('detail-category-total'), totalMonth);
+
             // Chart Bar Trend (Hanya untuk bulan yang terpilih)
             let daysInMonth = new Date(year, month, 0).getDate();
             let dailyMap = {};
@@ -7029,12 +7064,12 @@ const api = (() => {
                     },
                     scales: {
                         x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
-                        y: { grid: { color: chartGridColor() }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
+                        // Grid putus-putus & elegan sebagai garis batas antar nilai (konsisten dgn
+                        // chart "Tren Transaksi") -- lebih jelas terbaca dibanding garis solid polos.
+                        y: { grid: { color: chartGridColor(), borderDash: [4, 4] }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
                     }
                 }
             });
-
-            switchView('kategori-detail');
         }
 
         // ========================== KALENDER & POPUP DETAIL TANGGAL ==========================
