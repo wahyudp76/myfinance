@@ -5074,6 +5074,29 @@ const api = (() => {
             // net negatif, garis 0 sebagai pembanding. Style ini sengaja disamakan dgn referensi
             // desain yang diminta user (foto: kartu cashflow + chart net per hari, sumbu Y format M).
             let chartNet = chartLabels.map((_, i) => Number(chartIn[i] || 0) - Number(chartOut[i] || 0));
+
+            // Di layar sempit (HP), menampilkan label di SEMUA batang pasti numpuk/tumpang tindih --
+            // ruang horizontalnya tidak cukup buat puluhan angka. Jadi di layar sempit, cuma batang
+            // paling signifikan (nilai absolut terbesar) yang dikasih label, DENGAN jarak minimal
+            // antar batang yang dikasih label (supaya tidak 2 batang bersebelahan sama2 dikasih
+            // label lalu tetap numpuk). Batang lain tetap bisa dilihat detailnya lewat tap (tooltip).
+            const chartIsNarrow = window.innerWidth < 640;
+            let labelIndicesToShow = null;
+            if (chartIsNarrow) {
+                const maxLabelCount = 5;
+                const minIndexGap = Math.max(2, Math.floor(chartNet.length / (maxLabelCount + 1)));
+                const candidates = chartNet
+                    .map((v, i) => ({ v: Math.abs(v), i }))
+                    .filter(x => x.v > 0)
+                    .sort((a, b) => b.v - a.v);
+                const chosen = [];
+                for (const item of candidates) {
+                    if (chosen.length >= maxLabelCount) break;
+                    if (chosen.every(idx => Math.abs(idx - item.i) >= minIndexGap)) chosen.push(item.i);
+                }
+                labelIndicesToShow = new Set(chosen);
+            }
+
             charts.txTrend = new Chart(document.getElementById('txTrendChart').getContext('2d'), {
                 type: 'bar',
                 data: { labels: chartLabels, datasets: [{
@@ -5090,9 +5113,14 @@ const api = (() => {
                         // Label angka di tiap batang -- di ATAS batang kalau net positif (hijau), di
                         // BAWAH batang kalau net negatif (merah), biar tidak nabrak batangnya sendiri.
                         // Batang net 0 (hari tanpa transaksi) sengaja tidak dikasih label, biar tidak
-                        // penuh sesak kalau banyak hari kosong dalam 1 bulan.
+                        // penuh sesak kalau banyak hari kosong dalam 1 bulan. Di layar sempit, ditambah
+                        // filter labelIndicesToShow di atas (lihat komentarnya).
                         datalabels: {
-                            display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== 0,
+                            display: (ctx) => {
+                                if (ctx.dataset.data[ctx.dataIndex] === 0) return false;
+                                if (labelIndicesToShow && !labelIndicesToShow.has(ctx.dataIndex)) return false;
+                                return true;
+                            },
                             color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#059669' : '#e11d48',
                             font: { size: 8, weight: 'bold' },
                             formatter: (v) => (v >= 0 ? '+' : '-') + formatShortVal(Math.abs(v)),
@@ -7135,6 +7163,23 @@ const api = (() => {
             let chartLabels = Object.keys(dailyMap);
             let chartData = Object.values(dailyMap);
 
+            // Sama seperti chart "Tren Transaksi" -- di layar sempit (HP), batasi cuma beberapa
+            // batang paling signifikan yang dikasih label, dengan jarak minimal antar batang
+            // berlabel, supaya tidak numpuk. Batang lain tetap bisa dilihat lewat tap (tooltip).
+            const catChartIsNarrow = window.innerWidth < 640;
+            let catLabelIndicesToShow = null;
+            if (catChartIsNarrow) {
+                const maxLabelCount = 5;
+                const minIndexGap = Math.max(2, Math.floor(chartData.length / (maxLabelCount + 1)));
+                const candidates = chartData.map((v, i) => ({ v: Math.abs(v), i })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+                const chosen = [];
+                for (const item of candidates) {
+                    if (chosen.length >= maxLabelCount) break;
+                    if (chosen.every(idx => Math.abs(idx - item.i) >= minIndexGap)) chosen.push(item.i);
+                }
+                catLabelIndicesToShow = new Set(chosen);
+            }
+
             if(charts.catTrend) charts.catTrend.destroy();
             charts.catTrend = new Chart(document.getElementById('catTrendChart').getContext('2d'), {
                 type: 'bar',
@@ -7151,7 +7196,14 @@ const api = (() => {
                     responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
                     plugins: {
                         legend: { display: false },
-                        datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: jenis === 'Pemasukan' ? '#047857' : '#be123c', font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2 }
+                        datalabels: {
+                            display: (ctx) => {
+                                if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
+                                if (catLabelIndicesToShow && !catLabelIndicesToShow.has(ctx.dataIndex)) return false;
+                                return true;
+                            },
+                            color: jenis === 'Pemasukan' ? '#047857' : '#be123c', font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2
+                        }
                     },
                     scales: {
                         x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
