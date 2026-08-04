@@ -2640,6 +2640,12 @@ const api = (() => {
             if (typeof appSettings.profile.full_name !== 'string') appSettings.profile.full_name = '';
             if (typeof appSettings.profile.phone !== 'string') appSettings.profile.phone = '';
             if (typeof appSettings.profile.bio !== 'string') appSettings.profile.bio = '';
+            // Cache hasil AI (Rekomendasi AI & Ringkasan Bulanan) -- disimpan di Supabase (ikut
+            // tersinkron appSettings), BUKAN localStorage, supaya device lain (HP/laptop lain, akun
+            // yang sama) juga langsung dapat hasil yang sama tanpa perlu manggil Gemini ulang.
+            // null = belum pernah digenerate; { insights/summary, timestamp } = hasil terakhir.
+            if (appSettings.ai_insight_cache === undefined) appSettings.ai_insight_cache = null;
+            if (appSettings.monthly_summary_cache === undefined) appSettings.monthly_summary_cache = null;
         }
         ensureSettingsShape();
 
@@ -5513,21 +5519,35 @@ const api = (() => {
                 </div>`).join('');
 
             // Wawasan rule-based di atas selalu instan & gratis; di sisi ini kita juga minta analisis
-            // Gemini yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- otomatis, tapi
-            // dijaga jeda minimal supaya tidak memanggil API di setiap render/resize.
+            // Gemini yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- TAPI cuma
+            // benar2 manggil Gemini kalau belum ada cache tersimpan; kalau sudah ada, cache itu yang
+            // ditampilkan (lihat requestAiInsight()).
             requestAiInsight(false);
         }
 
         // ========================== REKOMENDASI AI (Gemini, via Supabase Edge Function) ==========================
         // BEDA dari "Wawasan Keuangan" di atas: itu rule-based (instan, gratis, jalan tanpa panggilan
         // ke Google Gemini). Ini benar-benar memanggil Gemini lewat internet, dengan ringkasan keuangan
-        // bulan berjalan sebagai konteks -- jadi selalu ikut berubah begitu ada transaksi baru (dipicu
-        // ulang dari renderInsights() di atas). API key Gemini TIDAK PERNAH ada di kode ini -- request
+        // bulan berjalan sebagai konteks. API key Gemini TIDAK PERNAH ada di kode ini -- request
         // lewat Supabase Edge Function 'analyze-finance' yang menyimpannya dengan aman di server
         // (lihat supabase/functions/analyze-finance/index.ts & panduan setup di README.md).
-        let lastAiInsightAt = 0;
+        //
+        // CACHE: hasil AI terakhir disimpan di Supabase (appSettings.ai_insight_cache, kolom `settings`
+        // -- ikut sinkron ke SEMUA device akun ini, bukan cuma browser yang barusan generate) dan
+        // dipakai lagi setiap kali dashboard dibuka/di-reload. Gemini TIDAK PERNAH dipanggil otomatis
+        // -- MURNI kalau tombol refresh (ikon reload di kartu ini) diklik manual, supaya kuota/token
+        // API tidak boros kepakai tanpa disadari.
         let aiInsightInFlight = false;
-        const AI_INSIGHT_COOLDOWN_MS = 3 * 60 * 1000; // jeda minimal antar panggilan OTOMATIS (bukan manual)
+
+        function loadCachedAiInsight() {
+            const cached = appSettings.ai_insight_cache;
+            if (!cached || !Array.isArray(cached.insights)) return null;
+            return cached;
+        }
+        function saveCachedAiInsight(insights) {
+            appSettings.ai_insight_cache = { insights, timestamp: Date.now() };
+            persistSettings(); // simpan ke Supabase -- ikut kebawa ke device lain akun yg sama
+        }
 
         function buildFinanceSummaryForAI(ctx) {
             const topCats = Object.entries(ctx.monthCatOutMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ({ kategori: k, jumlah: v }));
@@ -5584,6 +5604,18 @@ const api = (() => {
                 </div>`;
         }
 
+        function renderAiInsightEmpty() {
+            const container = document.getElementById('ai-insights-container'); if (!container) return;
+            container.innerHTML = `
+                <div class="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200 flex items-start gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-wand-magic-sparkles text-sm"></i></div>
+                    <div class="min-w-0">
+                        <p class="text-xs md:text-sm font-bold text-slate-600">Belum ada rekomendasi</p>
+                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">Klik tombol refresh di pojok kanan atas kartu ini buat minta Gemini menganalisis keuangan kamu.</p>
+                    </div>
+                </div>`;
+        }
+
         function renderAiInsights(insights) {
             const container = document.getElementById('ai-insights-container'); if (!container) return;
             if (!insights || insights.length === 0) {
@@ -5608,11 +5640,24 @@ const api = (() => {
 
         async function requestAiInsight(force) {
             if (aiInsightInFlight) return;
-            const nowMs = Date.now();
-            if (!force && (nowMs - lastAiInsightAt) < AI_INSIGHT_COOLDOWN_MS) return; // masih dalam jeda, biarin hasil lama
-            if (!lastInsightsCtx) return;
             if (!document.getElementById('ai-insights-container')) return;
 
+            if (!force) {
+                // TIDAK PERNAH manggil Gemini di sini -- cuma tampilkan cache Supabase kalau ada,
+                // atau state kosong yang minta user klik refresh manual. Ini yang bikin buka/reload
+                // dashboard (dari device manapun, karena cache-nya di Supabase) tidak boros token.
+                const cached = loadCachedAiInsight();
+                if (cached) {
+                    renderAiInsights(cached.insights);
+                    const tsEl = document.getElementById('ai-insight-timestamp');
+                    if (tsEl) tsEl.innerText = 'Diperbarui ' + new Date(cached.timestamp).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                } else {
+                    renderAiInsightEmpty();
+                }
+                return;
+            }
+
+            if (!lastInsightsCtx) return;
             aiInsightInFlight = true;
             renderAiInsightLoading();
             const btn = document.getElementById('ai-insight-refresh-btn');
@@ -5625,10 +5670,11 @@ const api = (() => {
                 if (data && data.error) {
                     renderAiInsightSetupNeeded();
                 } else {
-                    lastAiInsightAt = Date.now();
+                    const insights = (data && data.insights) || [];
+                    saveCachedAiInsight(insights);
                     const tsEl = document.getElementById('ai-insight-timestamp');
                     if (tsEl) tsEl.innerText = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                    renderAiInsights((data && data.insights) || []);
+                    renderAiInsights(insights);
                 }
             } catch (e) {
                 // Edge Function yang belum di-deploy biasanya balas 404 -- diperlakukan sebagai
@@ -5645,11 +5691,11 @@ const api = (() => {
         // naratif fokus ke bulan LALU yang sudah selesai (lebih pas buat "laporan retrospektif").
         // Datanya PAKAI ULANG buildFinanceSummaryForAI() yang sama (sudah ada pemasukan_bulan_lalu/
         // pengeluaran_bulan_lalu di situ) -- tidak perlu hitung ulang apa pun di client.
-        // Di-cache di memory (per sesi login, bukan disimpan ke DB) supaya ganti-ganti tab Laporan
-        // tidak manggil Gemini berkali-kali -- baru generate ulang kalau user klik tombol refresh,
-        // atau bulan lalunya berubah (jarang terjadi dalam 1 sesi, tapi jaga-jaga lewat tengah malam).
-        let monthlySummaryCache = null;
-        let monthlySummaryCacheKey = null;
+        // CACHE: disimpan di Supabase (appSettings.monthly_summary_cache), sama seperti Rekomendasi
+        // AI di atas -- ikut sinkron ke semua device akun ini, dan Gemini TIDAK PERNAH dipanggil
+        // otomatis, cuma kalau tombol refresh diklik manual. Konsekuensinya: kalau sudah lewat
+        // bulan tapi belum diklik refresh, ringkasannya akan tetap menunjukkan bulan yang lama
+        // sampai di-refresh manual -- ini SENGAJA (prioritas hemat kuota API di atas kesegaran data).
         let monthlySummaryInFlight = false;
 
         function renderMonthlySummaryLoading() {
@@ -5664,24 +5710,28 @@ const api = (() => {
             const c = document.getElementById('monthly-summary-container'); if (!c) return;
             c.innerHTML = `<p class="text-xs md:text-sm text-slate-500">Gagal memuat ringkasan. Coba klik tombol refresh di atas.</p>`;
         }
-        function renderMonthlySummaryText(text) {
+        function renderMonthlySummaryEmpty() {
             const c = document.getElementById('monthly-summary-container'); if (!c) return;
-            c.innerHTML = `<p class="text-xs md:text-sm text-slate-700 leading-relaxed">${escapeHtml(text)}</p>`;
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-500">Klik tombol refresh di pojok kanan atas kartu ini buat minta Gemini membuat ringkasan bulan lalu.</p>`;
+        }
+        function renderMonthlySummaryText(text, timestamp) {
+            const c = document.getElementById('monthly-summary-container'); if (!c) return;
+            const tsHtml = timestamp ? `<p class="text-[10px] text-slate-400 mt-2">Diperbarui ${escapeHtml(new Date(timestamp).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</p>` : '';
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-700 leading-relaxed">${escapeHtml(text)}</p>${tsHtml}`;
         }
 
         async function requestMonthlySummary(force) {
             if (monthlySummaryInFlight) return;
-            if (!lastInsightsCtx) return;
             const container = document.getElementById('monthly-summary-container'); if (!container) return;
 
-            // Kunci cache: bulan yang lagi jadi fokus "bulan lalu" (biar tetap valid walau di-generate
-            // dekat pergantian bulan). Format YYYY-MM dari prevMonth ctx kalau ada, fallback bulan ini.
-            const cacheKey = (lastInsightsCtx.now.getFullYear()) + '-' + (lastInsightsCtx.now.getMonth());
-            if (!force && monthlySummaryCache && monthlySummaryCacheKey === cacheKey) {
-                renderMonthlySummaryText(monthlySummaryCache);
+            if (!force) {
+                const cached = appSettings.monthly_summary_cache;
+                if (cached && cached.summary) renderMonthlySummaryText(cached.summary, cached.timestamp);
+                else renderMonthlySummaryEmpty();
                 return;
             }
 
+            if (!lastInsightsCtx) return;
             monthlySummaryInFlight = true;
             renderMonthlySummaryLoading();
             const btn = document.getElementById('monthly-summary-refresh-btn');
@@ -5694,9 +5744,10 @@ const api = (() => {
                 if (data && data.error) {
                     renderMonthlySummarySetupNeeded();
                 } else if (data && data.summary) {
-                    monthlySummaryCache = data.summary;
-                    monthlySummaryCacheKey = cacheKey;
-                    renderMonthlySummaryText(data.summary);
+                    const timestamp = Date.now();
+                    appSettings.monthly_summary_cache = { summary: data.summary, timestamp };
+                    persistSettings(); // simpan ke Supabase -- ikut kebawa ke device lain akun yg sama
+                    renderMonthlySummaryText(data.summary, timestamp);
                 } else {
                     renderMonthlySummaryError();
                 }
