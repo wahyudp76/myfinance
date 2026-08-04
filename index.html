@@ -3031,14 +3031,7 @@ const api = (() => {
             if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i>';">`;
             if (obj.type === 'badge') return `<div class="w-full h-full rounded-full ${obj.color} text-white flex items-center justify-center font-extrabold text-[9px] tracking-tight leading-none">${obj.value}</div>`;
             if (obj.type === 'icon') return `<div class="w-full h-full rounded-full ${obj.bg} ${obj.color} flex items-center justify-center"><i class="fas ${obj.value} text-[11px]"></i></div>`;
-            // BEDA dari 3 tipe lain di atas -- ikon 'icon-plain' (dipakai utk akun Tunai/Cash &
-            // Investasi/Saham) tadinya cuma <i> polos tanpa wrapper, jadi ukurannya ikut sizeClass
-            // (text-lg/text-xl) TANPA PEDULI seberapa kecil kotak tempatnya diletakkan -- makanya
-            // di badge kecil (mis. baris Riwayat Transaksi) ikonnya kegedean & numpuk ke teks
-            // sebelahnya. Disamakan gayanya dgn tipe 'icon' di atas: wrapper w-full h-full supaya
-            // SELALU pas & center di kotak manapun ia ditaruh, ukuran ikon dikecilkan & di-fix biar
-            // konsisten aman di kotak sekecil apapun (termasuk badge w-3 12px).
-            if (obj.type === 'icon-plain') return `<div class="w-full h-full flex items-center justify-center"><i class="fas ${obj.value} ${obj.color} text-[11px]"></i></div>`;
+            if (obj.type === 'icon-plain') return `<i class="fas ${obj.value} ${obj.color} ${sizeClass}"></i>`;
             return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
         }
 
