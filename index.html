@@ -3025,20 +3025,23 @@ const api = (() => {
         }
 
         // Merender objek ikon (auto-detect ATAU kustom pilihan/upload user) jadi HTML.
+        // Ikon "polos" (fallback wallet & icon-plain) dibungkus div w-full h-full yang center +
+        // overflow-hidden, supaya selalu pas & sejajar dengan tipe lain (image/badge/icon) yang
+        // sudah otomatis mengisi ukuran wadahnya, di ukuran wadah berapa pun ia dipakai.
         function renderAccountIconObj(obj, sizeClass) {
             sizeClass = sizeClass || 'text-xl';
-            if (!obj) return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
-            if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i>';">`;
+            if (!obj) return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas fa-wallet text-slate-500 ${sizeClass}"></i></div>`;
+            if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<div class=\\'w-full h-full flex items-center justify-center overflow-hidden\\'><i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i></div>';">`;
             if (obj.type === 'badge') return `<div class="w-full h-full rounded-full ${obj.color} text-white flex items-center justify-center font-extrabold text-[9px] tracking-tight leading-none">${obj.value}</div>`;
             if (obj.type === 'icon') return `<div class="w-full h-full rounded-full ${obj.bg} ${obj.color} flex items-center justify-center"><i class="fas ${obj.value} text-[11px]"></i></div>`;
-            if (obj.type === 'icon-plain') return `<i class="fas ${obj.value} ${obj.color} ${sizeClass}"></i>`;
-            return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
+            if (obj.type === 'icon-plain') return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas ${obj.value} ${obj.color} ${sizeClass}"></i></div>`;
+            return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas fa-wallet text-slate-500 ${sizeClass}"></i></div>`;
         }
 
         function getAccountLogo(name) {
             const override = appSettings.accountIcons && appSettings.accountIcons[name];
-            if (override) return renderAccountIconObj(override, 'text-lg');
-            return renderAccountIconObj(detectAutoAccountIcon(name), 'text-xl');
+            if (override) return renderAccountIconObj(override, 'text-sm');
+            return renderAccountIconObj(detectAutoAccountIcon(name), 'text-sm');
         }
 
         // Merender lingkaran ikon kategori: gambar kustom (kalau style.image ada, dari override user)
