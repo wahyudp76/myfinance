@@ -3028,21 +3028,22 @@ const api = (() => {
         // Ikon "polos" (fallback wallet & icon-plain) dibungkus div w-full h-full yang center +
         // overflow-hidden, supaya selalu pas & sejajar dengan tipe lain (image/badge/icon) yang
         // sudah otomatis mengisi ukuran wadahnya, di ukuran wadah berapa pun ia dipakai.
-        function renderAccountIconObj(obj, sizeClass) {
-            sizeClass = sizeClass || 'text-xl';
-            if (!obj) return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas fa-wallet text-slate-500 ${sizeClass} leading-none"></i></div>`;
-            if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<div class=\\'w-full h-full flex items-center justify-center overflow-hidden\\'><i class=\\'fas fa-wallet text-slate-400 ${sizeClass} leading-none\\'></i></div>';">`;
-            if (obj.type === 'badge') return `<div class="w-full h-full rounded-full ${obj.color} text-white flex items-center justify-center font-extrabold text-[9px] tracking-tight leading-none overflow-hidden">${obj.value}</div>`;
-            if (obj.type === 'icon') return `<div class="w-full h-full rounded-full ${obj.bg} ${obj.color} flex items-center justify-center overflow-hidden"><i class="fas ${obj.value} text-[11px] leading-none"></i></div>`;
-            if (obj.type === 'icon-plain') return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas ${obj.value} ${obj.color} ${sizeClass} leading-none"></i></div>`;
-            return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas fa-wallet text-slate-500 ${sizeClass} leading-none"></i></div>`;
+        function renderAccountIconObj(obj, sizePx) {
+            sizePx = sizePx || 20;
+            const iconStyle = `font-size:${sizePx}px;line-height:1;`;
+            if (!obj) return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas fa-wallet text-slate-500" style="${iconStyle}"></i></div>`;
+            if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<div class=\\'w-full h-full flex items-center justify-center overflow-hidden\\'><i class=\\'fas fa-wallet text-slate-400\\' style=\\'${iconStyle}\\'></i></div>';">`;
+            if (obj.type === 'badge') return `<div class="w-full h-full rounded-full ${obj.color} text-white flex items-center justify-center font-extrabold tracking-tight overflow-hidden" style="font-size:9px;line-height:1;">${obj.value}</div>`;
+            if (obj.type === 'icon') return `<div class="w-full h-full rounded-full ${obj.bg} ${obj.color} flex items-center justify-center overflow-hidden"><i class="fas ${obj.value}" style="font-size:11px;line-height:1;"></i></div>`;
+            if (obj.type === 'icon-plain') return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas ${obj.value} ${obj.color}" style="${iconStyle}"></i></div>`;
+            return `<div class="w-full h-full flex items-center justify-center overflow-hidden"><i class="fas fa-wallet text-slate-500" style="${iconStyle}"></i></div>`;
         }
 
-        function getAccountLogo(name, sizeClass) {
-            sizeClass = sizeClass || 'text-sm';
+        function getAccountLogo(name, sizePx) {
+            sizePx = sizePx || 14;
             const override = appSettings.accountIcons && appSettings.accountIcons[name];
-            if (override) return renderAccountIconObj(override, sizeClass);
-            return renderAccountIconObj(detectAutoAccountIcon(name), sizeClass);
+            if (override) return renderAccountIconObj(override, sizePx);
+            return renderAccountIconObj(detectAutoAccountIcon(name), sizePx);
         }
 
         // Merender lingkaran ikon kategori: gambar kustom (kalau style.image ada, dari override user)
@@ -3216,17 +3217,17 @@ const api = (() => {
             const autoObj = detectAutoAccountIcon(name);
 
             if (accountIconOverride) {
-                previewEl.innerHTML = renderAccountIconObj(accountIconOverride, 'text-2xl');
+                previewEl.innerHTML = renderAccountIconObj(accountIconOverride, 24);
                 statusEl.innerHTML = '<i class="fas fa-pen mr-1.5"></i> Pakai ikon kustom';
                 statusEl.className = 'text-[10px] font-bold text-indigo-500 flex items-center -mt-3';
                 resetBtn.classList.toggle('hidden', !autoObj);
             } else if (autoObj) {
-                previewEl.innerHTML = renderAccountIconObj(autoObj, 'text-2xl');
+                previewEl.innerHTML = renderAccountIconObj(autoObj, 24);
                 statusEl.innerHTML = '<i class="fas fa-circle-check mr-1.5"></i> Logo terdeteksi otomatis';
                 statusEl.className = 'text-[10px] font-bold text-emerald-500 flex items-center -mt-3';
                 resetBtn.classList.add('hidden');
             } else {
-                previewEl.innerHTML = renderAccountIconObj(null, 'text-2xl');
+                previewEl.innerHTML = renderAccountIconObj(null, 24);
                 statusEl.innerHTML = name.trim()
                     ? '<i class="fas fa-triangle-exclamation mr-1.5"></i> Logo tidak ditemukan, pilih ikon sendiri di bawah'
                     : 'Ketik nama akun, atau langsung pilih ikon sendiri di bawah';
@@ -3637,7 +3638,7 @@ const api = (() => {
                 // polos, dst) supaya saat foto dihapus, elemen kembali ke tampilan aslinya masing-
                 // masing -- bukan satu gaya fallback yang dipaksakan sama untuk semua elemen.
                 if (el.dataset.avatarDefaultHtml === undefined) { el.dataset.avatarDefaultHtml = el.innerHTML; }
-                el.innerHTML = avatarObj ? renderAccountIconObj(avatarObj, 'text-lg') : el.dataset.avatarDefaultHtml;
+                el.innerHTML = avatarObj ? renderAccountIconObj(avatarObj, 18) : el.dataset.avatarDefaultHtml;
             });
         }
 
@@ -3674,7 +3675,7 @@ const api = (() => {
             const removeBtn = document.getElementById('profile-modal-remove-photo');
             const obj = currentProfileAvatarObj();
             previewEl.innerHTML = obj
-                ? renderAccountIconObj(obj, 'text-3xl')
+                ? renderAccountIconObj(obj, 30)
                 : `<i class="fas fa-user text-3xl text-slate-300"></i>`;
             if (removeBtn) removeBtn.classList.toggle('hidden', !obj);
         }
@@ -5854,7 +5855,7 @@ const api = (() => {
                         ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
                             <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${row.jenis === 'Transfer' ? 'Transfer ke ' + row.kategori : row.kategori}</p>
-                            <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex items-center justify-center overflow-hidden flex-shrink-0">${getAccountLogo(row.akun, 'text-[9px]')}</span> ${row.akun} ${row.keterangan? '• ' + row.keterangan : ''}</p>
+                            <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex items-center justify-center overflow-hidden flex-shrink-0">${getAccountLogo(row.akun, 9)}</span> ${row.akun} ${row.keterangan? '• ' + row.keterangan : ''}</p>
                         </div>
                         <div class="text-right pl-2">
                             <p class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">Rp ${prefix}${formatRp(row.jumlah)}</p>
@@ -7061,7 +7062,7 @@ const api = (() => {
                                     ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
                                         <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.kategori}</p>
-                                        <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex items-center justify-center overflow-hidden flex-shrink-0">${getAccountLogo(row.akun, 'text-[9px]')}</span> ${row.akun} ${row.keterangan ? '• ' + row.keterangan : ''}</p>
+                                        <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex items-center justify-center overflow-hidden flex-shrink-0">${getAccountLogo(row.akun, 9)}</span> ${row.akun} ${row.keterangan ? '• ' + row.keterangan : ''}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
@@ -7221,7 +7222,7 @@ const api = (() => {
                                 ${categoryIconHtml(style, 'w-8 h-8 rounded-full flex items-center justify-center mr-3 shadow-sm border border-slate-50', 'text-sm')}
                                 <div>
                                     <p class="text-sm font-bold text-slate-800">${row.jenis==='Transfer'? 'Transfer ke '+row.kategori : row.kategori}</p>
-                                    <p class="text-[10px] md:text-xs text-slate-400 flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex items-center justify-center overflow-hidden flex-shrink-0">${getAccountLogo(row.akun, 'text-[9px]')}</span> ${row.akun} ${row.keterangan ? '• '+row.keterangan : ''}</p>
+                                    <p class="text-[10px] md:text-xs text-slate-400 flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex items-center justify-center overflow-hidden flex-shrink-0">${getAccountLogo(row.akun, 9)}</span> ${row.akun} ${row.keterangan ? '• '+row.keterangan : ''}</p>
                                 </div>
                             </div>
                             <div class="text-right text-sm font-bold ${color}">${prefix}Rp ${formatRp(row.jumlah)}</div>
