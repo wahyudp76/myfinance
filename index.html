@@ -4973,7 +4973,7 @@ const api = (() => {
                 for (let i = 29; i >= 0; i--) { let d = new Date(); d.setDate(d.getDate() - i); let key = d.toLocaleDateString('en-CA'); last30Days.push(key); inMap[key] = 0; outMap[key] = 0; }
                 data.forEach(d => {
                     if(!d.tanggal) return; let dStr = d.tanggal.split('T')[0];
-                    if(inMap[dStr] !== undefined) { if(d.jenis === 'Pemasukan') inMap[dStr] += Number(d.jumlah); if(d.jenis === 'Pengeluaran') outMap[dStr] += Number(d.jumlah); }
+                    if(inMap[dStr] !== undefined) { if(d.jenis === 'Pemasukan') inMap[dStr] += txIdrAmount(d); if(d.jenis === 'Pengeluaran') outMap[dStr] += txIdrAmount(d); }
                 });
                 chartLabels = last30Days.map(d => new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'short'}));
                 chartIn = last30Days.map(d => inMap[d]); chartOut = last30Days.map(d => outMap[d]);
@@ -4990,7 +4990,7 @@ const api = (() => {
                     
                     data.forEach(d => {
                         if(!d.tanggal) return; const day = parseTgl(d.tanggal).getDate();
-                        if (inMap[day] !== undefined) { if(d.jenis === 'Pemasukan') inMap[day] += Number(d.jumlah); if(d.jenis === 'Pengeluaran') outMap[day] += Number(d.jumlah); }
+                        if (inMap[day] !== undefined) { if(d.jenis === 'Pemasukan') inMap[day] += txIdrAmount(d); if(d.jenis === 'Pengeluaran') outMap[day] += txIdrAmount(d); }
                     });
                     
                     for (let i = 1; i <= daysInMonth; i++) { chartLabels.push(String(i)); chartIn.push(inMap[i]); chartOut.push(outMap[i]); }
@@ -5023,8 +5023,8 @@ const api = (() => {
                     // cuma memindahkan uang antar akun, tidak menambah/mengurangi kekayaan bersih).
                     let netTotal = 0;
                     rows.forEach(row => {
-                        if (row.jenis === 'Pemasukan') netTotal += Number(row.jumlah);
-                        else if (row.jenis === 'Pengeluaran') netTotal -= Number(row.jumlah);
+                        if (row.jenis === 'Pemasukan') netTotal += txIdrAmount(row);
+                        else if (row.jenis === 'Pengeluaran') netTotal -= txIdrAmount(row);
                     });
                     const netColor = netTotal > 0 ? 'text-emerald-500' : (netTotal < 0 ? 'text-rose-500' : 'text-slate-400');
                     const netPrefix = netTotal > 0 ? '+' : (netTotal < 0 ? '-' : '');
@@ -5032,7 +5032,7 @@ const api = (() => {
                     const rowsHtml = rows.map((row, idx) => {
                         let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
                         let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : '');
-                        let akuntxt = row.jenis === 'Transfer' ? `<span class="flex items-center"><div class="w-3.5 h-3.5 mr-1">${getAccountLogo(row.akun)}</div> ${row.akun} <i class="fas fa-arrow-right text-[9px] mx-1 text-slate-300"></i> <div class="w-3.5 h-3.5 mr-1">${getAccountLogo(row.kategori)}</div> ${row.kategori}</span>` : `<span class="flex items-center"><div class="w-3.5 h-3.5 mr-1.5">${getAccountLogo(row.akun)}</div> ${row.akun}</span>`;
+                        let akuntxt = row.jenis === 'Transfer' ? `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun} <i class="fas fa-arrow-right text-[9px] mx-1 text-slate-300"></i> <span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.kategori)}</span> ${row.kategori}</span>` : `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1.5 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun}</span>`;
                         let style = getCategoryStyle(row.kategori, row.jenis);
 
                         return `
@@ -5596,8 +5596,8 @@ const api = (() => {
             const daysInMonth = new Date(ctx.now.getFullYear(), ctx.now.getMonth() + 1, 0).getDate();
             let saldoGabungan = 0;
             globalData.forEach(t => {
-                if (t.jenis === 'Pemasukan') saldoGabungan += Number(t.jumlah);
-                else if (t.jenis === 'Pengeluaran') saldoGabungan -= Number(t.jumlah);
+                if (t.jenis === 'Pemasukan') saldoGabungan += txIdrAmount(t);
+                else if (t.jenis === 'Pengeluaran') saldoGabungan -= txIdrAmount(t);
             });
             return {
                 tanggal_hari_ini_ke: ctx.now.getDate(),
@@ -5816,7 +5816,7 @@ const api = (() => {
 
             globalData.forEach(t => {
                 const d = parseTgl(t.tanggal);
-                const amt = Number(t.jumlah);
+                const amt = txIdrAmount(t);
                 const delta = t.jenis === 'Pemasukan' ? amt : (t.jenis === 'Pengeluaran' ? -amt : 0);
                 if (delta === 0) return;
                 if (d < earliestCutoff) { balanceBeforePeriod += delta; return; }
@@ -6040,7 +6040,7 @@ const api = (() => {
                 if (d.jenis !== 'Pengeluaran' || !d.tanggal) return;
                 let dt = parseTgl(d.tanggal);
                 if (dt.getFullYear() != year || (dt.getMonth() + 1) != month) return;
-                actualCategoryMap[d.kategori] = (actualCategoryMap[d.kategori] || 0) + Number(d.jumlah);
+                actualCategoryMap[d.kategori] = (actualCategoryMap[d.kategori] || 0) + txIdrAmount(d);
             });
 
             let totalBudget = 0, totalActual = 0;
@@ -6503,7 +6503,7 @@ const api = (() => {
             for(let i=1; i<=daysInMonth; i++) dailyMap[i] = { in: 0, out: 0 }; 
             
             filteredData.forEach(d => { 
-                let date = parseTgl(d.tanggal); let amt = Number(d.jumlah); 
+                let date = parseTgl(d.tanggal); let amt = txIdrAmount(d); 
                 if(d.jenis === 'Pengeluaran') { 
                     let style = getCategoryStyle(d.kategori, 'Pengeluaran');
                     let pName = style.parentName || d.kategori;
@@ -6606,7 +6606,7 @@ const api = (() => {
                 const style = getCategoryStyle(t.kategori, 'Pengeluaran');
                 const pName = style.parentName || t.kategori;
                 if (!catMonthMap[pName]) catMonthMap[pName] = {};
-                catMonthMap[pName][mk] = (catMonthMap[pName][mk] || 0) + Number(t.jumlah);
+                catMonthMap[pName][mk] = (catMonthMap[pName][mk] || 0) + txIdrAmount(t);
             });
             const totals = Object.keys(catMonthMap).map(cat => ({ cat, total: Object.values(catMonthMap[cat]).reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total);
             const top5 = totals.slice(0, 5).map(t => t.cat);
@@ -7086,7 +7086,7 @@ const api = (() => {
                     const d = parseTgl(dateKey);
                     const dow = d.getDay(); // 0=Minggu ... 6=Sabtu
                     const badgeClass = dow === 0 ? 'bg-rose-500 text-white' : (dow === 6 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500');
-                    const dayTotal = rows.reduce((sum, row) => sum + Number(row.jumlah), 0);
+                    const dayTotal = rows.reduce((sum, row) => sum + txIdrAmount(row), 0);
 
                     const rowsHtml = rows.map(row => {
                         let style = getCategoryStyle(row.kategori, jenis);
@@ -7100,7 +7100,7 @@ const api = (() => {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
-                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">${prefix}Rp ${formatRp(row.jumlah)}</span>
+                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</span>
                                 </div>
                             </div>`;
                     }).join('');
@@ -7147,7 +7147,7 @@ const api = (() => {
                 return dDate.getFullYear() === year && (dDate.getMonth() + 1) === month;
             });
 
-            let totalMonth = specificDataMonth.reduce((sum, d) => sum + Number(d.jumlah), 0);
+            let totalMonth = specificDataMonth.reduce((sum, d) => sum + txIdrAmount(d), 0);
             animateRupiah(document.getElementById('detail-category-total'), totalMonth);
 
             // Chart Bar Trend (Hanya untuk bulan yang terpilih)
@@ -7157,7 +7157,7 @@ const api = (() => {
             
             specificDataMonth.forEach(row => {
                 let day = parseTgl(row.tanggal).getDate();
-                dailyMap[day] += Number(row.jumlah);
+                dailyMap[day] += txIdrAmount(row);
             });
 
             let chartLabels = Object.keys(dailyMap);
@@ -7222,7 +7222,7 @@ const api = (() => {
             let mIn = 0; let mOut = 0;
             globalData.forEach(d => {
                 let dDate = parseTgl(d.tanggal);
-                if (dDate.getMonth() === month && dDate.getFullYear() === year) { if(d.jenis === 'Pemasukan') mIn += Number(d.jumlah); if(d.jenis === 'Pengeluaran') mOut += Number(d.jumlah); }
+                if (dDate.getMonth() === month && dDate.getFullYear() === year) { if(d.jenis === 'Pemasukan') mIn += txIdrAmount(d); if(d.jenis === 'Pengeluaran') mOut += txIdrAmount(d); }
             });
             let elIn = document.getElementById('cal-in'); let elOut = document.getElementById('cal-out');
             if(elIn) animateRupiah(elIn, mIn); if(elOut) animateRupiah(elOut, mOut);
@@ -7231,7 +7231,7 @@ const api = (() => {
         function renderCalendar(data) {
             let eventsMap = {};
             data.forEach(d => {
-                let dateStr = d.tanggal.split('T')[0]; let amt = Number(d.jumlah);
+                let dateStr = d.tanggal.split('T')[0]; let amt = txIdrAmount(d);
                 if(!eventsMap[dateStr]) eventsMap[dateStr] = { in: 0, out: 0, transfer: 0 };
                 if(d.jenis === 'Pemasukan') eventsMap[dateStr].in += amt; 
                 if(d.jenis === 'Pengeluaran') eventsMap[dateStr].out += amt;
@@ -7283,7 +7283,7 @@ const api = (() => {
                                     <p class="text-[10px] md:text-xs text-slate-400 flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-block">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan ? '• '+row.keterangan : ''}</p>
                                 </div>
                             </div>
-                            <div class="text-right text-sm font-bold ${color}">${prefix}Rp ${formatRp(row.jumlah)}</div>
+                            <div class="text-right text-sm font-bold ${color}">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</div>
                         </div>`;
                 }).join('');
             }
