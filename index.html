@@ -4361,7 +4361,15 @@ const api = (() => {
                 jumlah_idr: currentTxMataUang ? Math.round(jumlahNum * currentTxKurs) : jumlahNum
             };
             const onSaveFail = () => { showErrorToast('Gagal menyimpan transaksi. Periksa koneksi internet Anda lalu coba lagi.'); showLoading(false); };
-            const onSaveOk = () => { closeModal(); refreshTransactionsOnly(); showSuccessToast(wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.'); };
+            // Ambil status budget SEBELUM transaksi ini masuk (cuma relevan utk Pengeluaran) -- dibandingkan
+            // lagi SETELAH data ke-refresh, buat deteksi baru saja lewat ambang 80%/100% (lihat penjelasan
+            // di notifyIfBudgetThresholdCrossed).
+            const budgetBefore = data.jenis === 'Pengeluaran' ? getCategoryBudgetStatus(catVal) : null;
+            const onSaveOk = () => {
+                closeModal();
+                refreshTransactionsOnly(() => { if (budgetBefore) notifyIfBudgetThresholdCrossed(catVal, budgetBefore); });
+                showSuccessToast(wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.');
+            };
             if(currentEditId) { api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).editTransaction(currentEditId, data); } 
             else { api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).addTransaction(data); }
         }
@@ -4505,7 +4513,7 @@ const api = (() => {
         // 6 tabel itu jelas tidak berubah oleh aksi tersebut. Dua fungsi di bawah ini cuma menarik ulang
         // tabel yang benar-benar terpengaruh, lalu menjalankan render yang sama seperti loadData() untuk
         // bagian yang relevan -- hasil akhir di layar identik, tapi jauh lebih sedikit request ke server.
-        function refreshTransactionsOnly() {
+        function refreshTransactionsOnly(afterCallback) {
             api.run.withSuccessHandler((transactions) => {
                 globalData = transactions || [];
 
@@ -4527,10 +4535,36 @@ const api = (() => {
                 if (document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }
 
                 showLoading(false);
+                if (typeof afterCallback === 'function') afterCallback();
             }).withFailureHandler((err) => {
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
                 showLoading(false);
             }).getTransactionsOnly();
+        }
+
+        // ========================== NOTIFIKASI BUDGET MEPET LIMIT (Quick win) ==========================
+        // Dicek tiap kali transaksi Pengeluaran disimpan (baru/edit) -- BUKAN dari cek berkala, tapi
+        // bandingkan persentase budget SEBELUM vs SESUDAH transaksi ini, supaya toast cuma muncul
+        // TEPAT SAAT baru melewati ambang batas (80%/100%), bukan berulang tiap nyimpen transaksi lain
+        // di kategori yang sudah lama over-budget (itu bakal annoying kalau notif terus tiap kali).
+        function getCategoryBudgetStatus(kategori) {
+            if (!lastInsightsCtx) return null;
+            const style = getCategoryStyle(kategori, 'Pengeluaran');
+            const parentName = style.parentName || kategori;
+            const budget = Number(currentMonthBudgetsCache[parentName]) || 0;
+            if (budget <= 0) return null; // kategori ini tidak ada budget-nya bulan ini
+            const spent = lastInsightsCtx.monthCatOutMap[parentName] || 0;
+            return { parentName, budget, spent, pct: spent / budget };
+        }
+
+        function notifyIfBudgetThresholdCrossed(kategori, before) {
+            const after = getCategoryBudgetStatus(kategori);
+            if (!after || !before) return;
+            if (before.pct < 1 && after.pct >= 1) {
+                showToast(`Budget "${after.parentName}" bulan ini sudah TERLAMPAUI -- Rp ${formatRp(after.spent)} dari Rp ${formatRp(after.budget)}.`, 'error');
+            } else if (before.pct < 0.8 && after.pct >= 0.8) {
+                showInfoToast(`Budget "${after.parentName}" sudah ${Math.round(after.pct * 100)}% terpakai bulan ini (Rp ${formatRp(after.spent)} dari Rp ${formatRp(after.budget)}).`);
+            }
         }
 
         function refreshAssetsOnly() {
@@ -6704,7 +6738,9 @@ const api = (() => {
                 const { data, error } = await supabaseClient.functions.invoke('analyze-finance', { body: Object.assign({}, summary, { question: question }) });
                 if (error) throw error;
                 if (data && data.error) {
-                    aiChatHistory.push({ role: 'assistant', text: 'Fitur Tanya AI belum aktif -- Edge Function-nya belum di-deploy/API key belum diset. Lihat README.md bagian "Setup Rekomendasi AI".' });
+                    // Tampilkan pesan aslinya dari server (mis. jeda rate limit, atau "belum di-setup")
+                    // -- bukan teks generik yang sama utk semua jenis error, biar user tau persis kenapa.
+                    aiChatHistory.push({ role: 'assistant', text: data.error });
                 } else {
                     aiChatHistory.push({ role: 'assistant', text: (data && data.answer) || 'Maaf, Gemini tidak memberi jawaban untuk pertanyaan ini.' });
                 }
@@ -6974,6 +7010,29 @@ const api = (() => {
 
             if (charts.accCashflow) charts.accCashflow.destroy();
             if (document.getElementById('accountDetailChart')) {
+                // Sama seperti chart "Tren Transaksi"/"Tren Kategori" -- di layar sempit (HP), cuma
+                // beberapa titik (bucket) paling signifikan yang dikasih label, dengan jarak minimal
+                // antar titik berlabel. Di sini ADA 2 dataset (Masuk & Keluar) per titik, jadi total
+                // teksnya 2x lebih padat -- batasnya dibuat lebih ketat (4, bukan 5) dari chart 1
+                // dataset. Titik yg tidak kepilih tetap ada batangnya, cuma tanpa angka di atasnya --
+                // detail nilainya tetap bisa dilihat lewat tap (tooltip).
+                const cashflowIsNarrow = window.innerWidth < 640;
+                let cashflowIndicesToShow = null;
+                if (cashflowIsNarrow) {
+                    const maxLabelCount = 4;
+                    const minIndexGap = Math.max(2, Math.floor(bucketLabels.length / (maxLabelCount + 1)));
+                    const candidates = bucketLabels
+                        .map((_, i) => ({ v: Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0), i }))
+                        .filter(x => x.v > 0)
+                        .sort((a, b) => b.v - a.v);
+                    const chosen = [];
+                    for (const item of candidates) {
+                        if (chosen.length >= maxLabelCount) break;
+                        if (chosen.every(idx => Math.abs(idx - item.i) >= minIndexGap)) chosen.push(item.i);
+                    }
+                    cashflowIndicesToShow = new Set(chosen);
+                }
+
                 charts.accCashflow = new Chart(document.getElementById('accountDetailChart').getContext('2d'), {
                     type: 'bar',
                     data: {
@@ -6987,7 +7046,14 @@ const api = (() => {
                         responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
                         plugins: {
                             legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } },
-                            datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: (ctx) => chartLabelColor(ctx.dataset.backgroundColor), font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2 },
+                            datalabels: {
+                                display: (ctx) => {
+                                    if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
+                                    if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
+                                    return true;
+                                },
+                                color: (ctx) => chartLabelColor(ctx.dataset.backgroundColor), font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2
+                            },
                             tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': Rp ' + formatRp(ctx.raw) } }
                         },
                         scales: {
