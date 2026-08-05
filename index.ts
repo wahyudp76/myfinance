@@ -201,6 +201,26 @@ Deno.serve(async (req: Request) => {
     // Beda dari mode wawasan otomatis di bawah: di sini balasannya teks bebas (bukan JSON array),
     // karena ini percakapan, bukan daftar kartu insight.
     if (question && String(question).trim()) {
+      // Quick win "Rate limit Tanya AI" -- beda dari Rekomendasi AI/Ringkasan Bulanan (yang sudah
+      // aman karena murni klik manual, tidak ada auto-trigger), chat ini WAJAR dipakai berkali-kali
+      // dalam waktu singkat oleh user asli -- makanya bukan "1x per sesi", tapi jeda MINIMAL antar
+      // pesan (biar tetap kerasa seperti chat biasa, cuma dicegah di-spam/disalahgunakan).
+      const MIN_GAP_MS = 8000; // 8 detik
+      const { data: rl } = await supabase
+        .from("rate_limits")
+        .select("last_ai_chat_at")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (rl?.last_ai_chat_at) {
+        const elapsed = Date.now() - new Date(rl.last_ai_chat_at).getTime();
+        if (elapsed < MIN_GAP_MS) {
+          const waitSec = Math.ceil((MIN_GAP_MS - elapsed) / 1000);
+          return jsonResponse({
+            error: `Tunggu ${waitSec} detik lagi sebelum kirim pesan berikutnya ya.`,
+          }, 429);
+        }
+      }
+
       const qaPrompt = commonContext +
         `User bertanya: "${String(question).trim()}"\n\n` +
         `Jawab pertanyaan itu dalam Bahasa Indonesia, singkat (maksimal 3-4 kalimat), HANYA berdasarkan ` +
@@ -216,6 +236,9 @@ Deno.serve(async (req: Request) => {
         if (errResp instanceof Response) return errResp;
         throw errResp;
       }
+      // Catat waktu panggilan yang BERHASIL saja (kalau Gemini-nya gagal, tidak dihitung, biar user
+      // tidak "kena jeda" gara2 error yang bukan salah dia).
+      await supabase.from("rate_limits").upsert({ user_id: userData.user.id, last_ai_chat_at: new Date().toISOString() });
       return jsonResponse({ answer: answerText.trim() || "Maaf, tidak ada jawaban." });
     }
 

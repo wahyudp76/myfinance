@@ -179,3 +179,19 @@ drop policy if exists "Users manage own recurring transactions" on public.recurr
 create policy "Users manage own recurring transactions" on public.recurring_transactions
     for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+-- ----------------------------------------------------------------------------
+-- 8. RATE_LIMITS -- 1 baris per user, dipakai Edge Function 'analyze-finance' (mode Tanya AI)
+--    buat mencegah spam chat yang boros token Gemini. Ditaruh di tabel SENDIRI (bukan numpang di
+--    kolom `settings`) supaya baca-tulisnya tidak bentrok/tertimpa sama proses lain yang juga
+--    nulis ke `settings` (mis. cache Rekomendasi AI) -- lihat catatan di analyze-finance/index.ts.
+-- ----------------------------------------------------------------------------
+create table if not exists public.rate_limits (
+    user_id         uuid primary key references auth.users(id) on delete cascade,
+    last_ai_chat_at timestamptz
+);
+
+alter table public.rate_limits enable row level security;
+drop policy if exists "Users manage own rate limit row" on public.rate_limits;
+create policy "Users manage own rate limit row" on public.rate_limits
+    for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
