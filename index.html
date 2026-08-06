@@ -214,12 +214,31 @@
 
 
         /* ================= LOGIN VIEW ================= */
-        #loginView { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 16px; }
+        #loginView { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 16px; }
         /* PENTING: #loginView (selector ID) secara spesifisitas CSS akan selalu menang atas
            class ".hidden" bawaan Tailwind (selector class biasa), APAPUN urutannya di stylesheet --
            tanpa baris di bawah ini, classList.add('hidden') di JS tidak akan pernah benar-benar
            menyembunyikan elemen ini secara visual. */
         #loginView.hidden { display: none; }
+        /* #appShell dipakai bareng class Tailwind "h-screen" (height:100vh) -- override lewat ID
+           (spesifisitas lebih tinggi dari class biasa, sama seperti trik #loginView.hidden di atas)
+           supaya tinggi shell mengikuti viewport SUNGGUHAN yang terlihat di layar, bukan viewport
+           terbesar yang mungkin (address bar disembunyikan). Tanpa ini, nav bar bawah/konten bisa
+           sedikit terpotong di HP saat address bar browser sedang tampil. 100vh dipertahankan lebih
+           dulu sebagai fallback untuk browser lama yang belum kenal 100dvh. */
+        #appShell { height: 100vh; height: 100dvh; }
+        /* BUG: class "pb-safe" dipakai di navbar bawah (mobile) untuk kasih jarak aman dari home
+           indicator iPhone (atau gesture bar Android) -- tapi "pb-safe" BUKAN utility Tailwind
+           bawaan (butuh plugin tailwindcss-safe-area yang TIDAK terpasang di sini), jadi sebelum ini
+           class-nya tidak melakukan apa-apa. Navbar bawah pun mepet betul ke tepi layar di HP dengan
+           home indicator, kadang bikin ikon terakhir sulit disentuh / ketutup gesture bar sistem.
+           env(...) = 0 di browser yang tidak kenal properti ini, jadi aman dipakai tanpa @supports.
+           "height" dibuat calc(...) + !important (bukan cuma nambah padding-bottom) supaya bar-nya
+           BERTAMBAH TINGGI, bukan cuma icon di dalamnya ketekan naik/kepotong -- h-16 dari Tailwind
+           menetapkan height:4rem yang FIXED (box-sizing: border-box), jadi kalau cuma nambah
+           padding-bottom tanpa nambah height, ikon+label yang sudah ada bakal makin sempit
+           (bisa kepotong) di ruang yang tersisa, bukannya bar-nya yang bertambah tinggi ke bawah. */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); height: calc(4rem + env(safe-area-inset-bottom, 0px)) !important; }
         .tab-btn.active { background: #151928; color: #fff; }
         .tab-btn { color: #64748b; }
 
@@ -722,7 +741,7 @@
                 <!-- Search Input -->
                 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center relative">
                     <span class="text-slate-400 pl-2 pr-3"><i class="fas fa-search"></i></span>
-                    <input type="text" id="txSearchInput" oninput="filterTransactions()" placeholder="Cari kategori, keterangan, atau akun..." class="w-full bg-transparent border-none outline-none text-xs md:text-sm text-slate-700">
+                    <input type="text" id="txSearchInput" oninput="debouncedFilterTransactions()" placeholder="Cari kategori, keterangan, atau akun..." class="w-full bg-transparent border-none outline-none text-xs md:text-sm text-slate-700">
                 </div>
                 
                 <!-- Filter Option -->
@@ -4984,6 +5003,19 @@ const api = (() => {
             showSuccessToast(`${lastFilteredTransactions.length} transaksi berhasil diekspor ke CSV.`);
         }
 
+        // Debounce KHUSUS untuk input pencarian (txSearchInput) -- sebelumnya oninput langsung
+        // memanggil filterTransactions() di SETIAP huruf yang diketik, dan filterTransactions()
+        // ikut destroy+rebuild chart Chart.js (charts.txTrend) tiap kali dipanggil. Untuk riwayat
+        // transaksi yang sudah banyak (menumpuk tahunan), ini bikin ketikan di kolom pencarian
+        // terasa patah-patah/lag, terutama di HP. Pemanggil LAIN (ganti bulan, pindah tab, setelah
+        // tambah/edit/hapus data) TIDAK lewat wrapper ini -- tetap langsung/instan seperti semula,
+        // supaya hasilnya tetap terasa segera setelah aksi yang bukan ketikan beruntun.
+        let _txSearchDebounceTimer = null;
+        function debouncedFilterTransactions() {
+            if (_txSearchDebounceTimer) clearTimeout(_txSearchDebounceTimer);
+            _txSearchDebounceTimer = setTimeout(filterTransactions, 300);
+        }
+
         function filterTransactions() {
             let data = [...globalData];
             
@@ -5066,7 +5098,7 @@ const api = (() => {
                     const rowsHtml = rows.map((row, idx) => {
                         let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
                         let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : '');
-                        let akuntxt = row.jenis === 'Transfer' ? `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun} <i class="fas fa-arrow-right text-[9px] mx-1 text-slate-300"></i> <span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.kategori)}</span> ${row.kategori}</span>` : `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1.5 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun}</span>`;
+                        let akuntxt = row.jenis === 'Transfer' ? `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} <i class="fas fa-arrow-right text-[9px] mx-1 text-slate-300"></i> <span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.kategori)}</span> ${escapeHtml(row.kategori)}</span>` : `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1.5 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)}</span>`;
                         let style = getCategoryStyle(row.kategori, row.jenis);
 
                         return `
@@ -5074,9 +5106,9 @@ const api = (() => {
                                 <div class="flex items-center min-w-0">
                                     ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
-                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.jenis === 'Transfer' ? 'Transfer' : row.kategori}</p>
+                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.jenis === 'Transfer' ? 'Transfer' : escapeHtml(row.kategori)}</p>
                                         <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5">${akuntxt}</p>
-                                        ${row.keterangan ? `<p class="text-[10px] md:text-xs text-slate-400 truncate">${row.keterangan}</p>` : ''}
+                                        ${row.keterangan ? `<p class="text-[10px] md:text-xs text-slate-400 truncate">${escapeHtml(row.keterangan)}</p>` : ''}
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
@@ -5922,8 +5954,8 @@ const api = (() => {
                     <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms" onclick="switchView('transaksi')">
                         ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${row.jenis === 'Transfer' ? 'Transfer ke ' + row.kategori : row.kategori}</p>
-                            <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 flex items-center">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan? '• ' + row.keterangan : ''}</p>
+                            <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
+                            <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 flex items-center">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} ${row.keterangan? '• ' + escapeHtml(row.keterangan) : ''}</p>
                         </div>
                         <div class="text-right pl-2">
                             <p class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">Rp ${prefix}${formatRp(row.jumlah)}</p>
@@ -6864,8 +6896,8 @@ const api = (() => {
                                 <div class="flex items-center min-w-0">
                                     ${categoryIconHtml(iconStyle, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
-                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${labelStr}</p>
-                                        <p class="text-[10px] md:text-xs text-slate-400 truncate">${row.keterangan || '-'}</p>
+                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(labelStr)}</p>
+                                        <p class="text-[10px] md:text-xs text-slate-400 truncate">${row.keterangan ? escapeHtml(row.keterangan) : '-'}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
@@ -7161,8 +7193,8 @@ const api = (() => {
                                 <div class="flex items-center min-w-0">
                                     ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
-                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${row.kategori}</p>
-                                        <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan ? '• ' + row.keterangan : ''}</p>
+                                        <p class="text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(row.kategori)}</p>
+                                        <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} ${row.keterangan ? '• ' + escapeHtml(row.keterangan) : ''}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
@@ -7345,8 +7377,8 @@ const api = (() => {
                             <div class="flex items-center">
                                 ${categoryIconHtml(style, 'w-8 h-8 rounded-full flex items-center justify-center mr-3 shadow-sm border border-slate-50', 'text-sm')}
                                 <div>
-                                    <p class="text-sm font-bold text-slate-800">${row.jenis==='Transfer'? 'Transfer ke '+row.kategori : row.kategori}</p>
-                                    <p class="text-[10px] md:text-xs text-slate-400 flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-block">${getAccountLogo(row.akun)}</span> ${row.akun} ${row.keterangan ? '• '+row.keterangan : ''}</p>
+                                    <p class="text-sm font-bold text-slate-800">${row.jenis==='Transfer'? 'Transfer ke '+escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
+                                    <p class="text-[10px] md:text-xs text-slate-400 flex items-center mt-0.5"><span class="w-3 h-3 mr-1 inline-block">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} ${row.keterangan ? '• '+escapeHtml(row.keterangan) : ''}</p>
                                 </div>
                             </div>
                             <div class="text-right text-sm font-bold ${color}">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</div>
