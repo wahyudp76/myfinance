@@ -15,7 +15,7 @@
             } catch (e) { /* localStorage bisa saja diblokir (mode privat ketat) -- diamkan, default ke terang */ }
         })();
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>MyFinance Dashboard</title>
     <meta name="description" content="Dashboard keuangan pribadi -- catat transaksi, kelola budget, dan pantau aset dalam satu tempat.">
     <!-- PENTING: ini aplikasi PRIBADI (butuh login, berisi data keuangan), bukan situs publik --
@@ -239,6 +239,12 @@
            padding-bottom tanpa nambah height, ikon+label yang sudah ada bakal makin sempit
            (bisa kepotong) di ruang yang tersisa, bukannya bar-nya yang bertambah tinggi ke bawah. */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); height: calc(4rem + env(safe-area-inset-bottom, 0px)) !important; }
+        /* Sama seperti .pb-safe di atas, tapi untuk bagian ATAS layar -- dipakai di top bar mobile.
+           apple-mobile-web-app-status-bar-style di sini "black-translucent", artinya kalau app dibuka
+           dari ikon Home Screen di iPhone (mode standalone), konten web digambar SAMPAI KE BAWAH status
+           bar (jam/baterai/sinyal), bukan di bawahnya -- jadi tanpa padding ini, top bar bisa ketiban/
+           ketutup status bar. Tidak berpengaruh saat dibuka lewat browser biasa (env = 0 di sana). */
+        .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
         .tab-btn.active { background: #151928; color: #fff; }
         .tab-btn { color: #64748b; }
 
@@ -310,6 +316,49 @@
         .dark .ring-slate-100 { --tw-ring-color: #334155; }
         .dark .ring-slate-200 { --tw-ring-color: #475569; }
         .dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #334155; }
+
+        /* -- Warna aksen (badge status, ikon kategori/akun kustom, dsb) --
+           Sebelum ini CUMA abu-abu (bg-white/slate/text-slate) yang di-remap utk dark mode.
+           Palet 18 ikon+warna kategori (lihat categoryIconPalette dkk) & badge status
+           ("Aman"/"Waspada"/"Over Budget") pakai warna pastel Tailwind (mis. bg-rose-100
+           text-rose-600) yang TIDAK ke-cover sama sekali -- efeknya badge/ikon itu tetap
+           terang mencolok nempel di atas latar gelap, bukannya menyatu dgn tema.
+           Pola: background jadi versi transparan redup dari warna itu (menyatu dgn latar
+           gelap), teks jadi versi lebih terang (shade 400) supaya kontras tetap terjaga. */
+        .dark .bg-rose-50, .dark .bg-rose-100 { background-color: rgba(244,63,94,0.16); }
+        .dark .text-rose-500, .dark .text-rose-600 { color: #fb7185; }
+        .dark .bg-emerald-50, .dark .bg-emerald-100 { background-color: rgba(16,185,129,0.16); }
+        .dark .text-emerald-500, .dark .text-emerald-600 { color: #34d399; }
+        .dark .bg-amber-50, .dark .bg-amber-100 { background-color: rgba(245,158,11,0.16); }
+        .dark .text-amber-500, .dark .text-amber-600 { color: #fbbf24; }
+        .dark .bg-indigo-50, .dark .bg-indigo-100 { background-color: rgba(99,102,241,0.18); }
+        .dark .text-indigo-500, .dark .text-indigo-600 { color: #818cf8; }
+        .dark .bg-blue-50, .dark .bg-blue-100 { background-color: rgba(59,130,246,0.18); }
+        .dark .text-blue-500, .dark .text-blue-600 { color: #60a5fa; }
+        .dark .bg-violet-50, .dark .bg-violet-100 { background-color: rgba(139,92,246,0.18); }
+        .dark .text-violet-500, .dark .text-violet-600 { color: #a78bfa; }
+        .dark .bg-purple-50, .dark .bg-purple-100 { background-color: rgba(168,85,247,0.18); }
+        .dark .text-purple-500, .dark .text-purple-600 { color: #c084fc; }
+        .dark .bg-teal-50, .dark .bg-teal-100 { background-color: rgba(20,184,166,0.16); }
+        .dark .text-teal-500, .dark .text-teal-600 { color: #2dd4bf; }
+        .dark .bg-cyan-50, .dark .bg-cyan-100 { background-color: rgba(6,182,212,0.16); }
+        .dark .text-cyan-500, .dark .text-cyan-600 { color: #22d3ee; }
+        .dark .bg-orange-50, .dark .bg-orange-100 { background-color: rgba(249,115,22,0.16); }
+        .dark .text-orange-500, .dark .text-orange-600 { color: #fb923c; }
+        .dark .bg-pink-50, .dark .bg-pink-100 { background-color: rgba(236,72,153,0.16); }
+        .dark .text-pink-500, .dark .text-pink-600 { color: #f472b6; }
+        .dark .bg-lime-50, .dark .bg-lime-100 { background-color: rgba(132,204,22,0.16); }
+        .dark .text-lime-500, .dark .text-lime-600 { color: #a3e635; }
+        .dark .bg-yellow-50, .dark .bg-yellow-100 { background-color: rgba(234,179,8,0.16); }
+        .dark .text-yellow-500, .dark .text-yellow-600 { color: #facc15; }
+        .dark .bg-sky-50, .dark .bg-sky-100 { background-color: rgba(14,165,233,0.16); }
+        .dark .text-sky-500, .dark .text-sky-600 { color: #38bdf8; }
+        .dark .bg-fuchsia-50, .dark .bg-fuchsia-100 { background-color: rgba(217,70,239,0.16); }
+        .dark .text-fuchsia-500, .dark .text-fuchsia-600 { color: #e879f9; }
+        .dark .bg-green-50, .dark .bg-green-100 { background-color: rgba(34,197,94,0.16); }
+        .dark .text-green-500, .dark .text-green-600 { color: #4ade80; }
+        .dark .bg-red-50, .dark .bg-red-100 { background-color: rgba(239,68,68,0.16); }
+        .dark .text-red-500, .dark .text-red-600 { color: #f87171; }
 
         /* -- Placeholder teks di input/textarea -- */
         .dark input::placeholder, .dark textarea::placeholder { color: #64748b; opacity: 1; }
@@ -498,7 +547,7 @@
     <div id="appShell" class="hidden h-screen flex flex-col md:flex-row">
 
     <!-- Mobile Top Bar -->
-    <div class="md:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between z-20 shadow-sm flex-shrink-0">
+    <div class="md:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between z-20 shadow-sm flex-shrink-0 pt-safe">
         <div class="flex items-center">
             <div class="bg-[#151928] text-white p-1.5 rounded-lg mr-2 flex items-center justify-center shadow-md shadow-slate-900/10"><i class="fas fa-wallet text-xs"></i></div>
             <h1 class="text-lg font-extrabold tracking-tight text-slate-900">MyFinance</h1>
@@ -3580,7 +3629,7 @@ const api = (() => {
 
             if (!entries.length || total <= 0) {
                 if (legendEl) legendEl.innerHTML = '';
-                if (listEl) listEl.innerHTML = `<div class="text-center text-xs text-slate-400 py-6">${emptyMessage || 'Belum ada data.'}</div>`;
+                if (listEl) listEl.innerHTML = `<div class="text-center text-slate-400 py-8 stagger-item"><i class="fas fa-chart-pie text-2xl mb-2 opacity-60"></i><p class="text-xs">${emptyMessage || 'Belum ada data.'}</p></div>`;
                 return;
             }
 
@@ -4114,7 +4163,7 @@ const api = (() => {
 
             if (activeCategoryTab === 'Transfer') {
                 const rows = appSettings.accounts.filter(acc => document.getElementById('akun').value !== acc).map(acc => `
-                        <div onclick="selectCategoryItem('${jsStr(acc)}', 'Transfer', 'Transfer', 'fa-wallet', 'bg-blue-100', 'text-blue-500')" class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-slate-300">
+                        <div onclick="selectCategoryItem('${jsStr(acc)}', 'Transfer', 'Transfer')" class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-slate-300">
                             <div class="flex items-center"><div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-3">${getAccountLogo(acc)}</div><span class="font-bold text-sm text-slate-700">${escapeHtml(acc)}</span></div>
                         </div>`).join('');
                 container.innerHTML = `<div class="text-xs text-slate-400 font-bold uppercase mb-2">Pilih Akun Tujuan</div>` + rows;
@@ -4123,18 +4172,29 @@ const api = (() => {
 
                 container.innerHTML = Object.keys(dict).map((parentName, index) => {
                     let parent = dict[parentName];
-                    
-                    let parentSelectButton = `<div onclick="selectCategoryItem('${jsStr(parentName)}', '${jsStr(parentName)}', '${activeCategoryTab}', '${parent.icon}', '${parent.bg}', '${parent.color}')" class="flex items-center justify-between bg-indigo-50/50 hover:bg-indigo-100/50 text-[#151928] p-2.5 rounded-xl text-xs font-bold cursor-pointer transition mb-2">
+                    // BUG FIX (sama seperti di Budget): sebelumnya ikon/warna kategori di picker ini
+                    // diambil LANGSUNG dari categoryDict mentah (parent.icon/bg/color, sub.icon), dan
+                    // dioper sebagai parameter ke selectCategoryItem() lewat atribut onclick -- jadi
+                    // kustomisasi ikon/warna dari Pengaturan dan gambar kustom yang diupload user
+                    // tidak pernah tampil di sini. Sekarang pakai getCategoryStyle() (sumber yang sama
+                    // dengan Riwayat Transaksi/Budget dsb) dan selectCategoryItem() cukup dioper
+                    // nama+tipe-nya saja, style-nya dihitung ulang di dalam fungsi itu sendiri.
+                    let parentStyle = getCategoryStyle(parentName, activeCategoryTab);
+
+                    let parentSelectButton = `<div onclick="selectCategoryItem('${jsStr(parentName)}', '${jsStr(parentName)}', '${activeCategoryTab}')" class="flex items-center justify-between bg-indigo-50/50 hover:bg-indigo-100/50 text-[#151928] p-2.5 rounded-xl text-xs font-bold cursor-pointer transition mb-2">
                         <span>Pilih Utama: ${escapeHtml(parentName)}</span>
                         <i class="fas fa-check-double text-[10px]"></i>
                     </div>`;
 
-                    let subHtml = parent.subs.map(sub => `
-                        <div onclick="selectCategoryItem('${jsStr(sub.name)}', '${jsStr(parentName)}', '${activeCategoryTab}', '${sub.icon}', '${parent.bg}', '${parent.color}')" class="flex flex-col items-center justify-center cursor-pointer hover:bg-white p-2 rounded-xl transition border border-transparent hover:border-slate-100">
-                            <div class="w-10 h-10 md:w-12 md:h-12 rounded-full ${parent.bg} ${parent.color} flex items-center justify-center text-sm md:text-base mb-1 shadow-sm border border-white"><i class="fas ${sub.icon}"></i></div>
+                    let subHtml = parent.subs.map(sub => {
+                        let subStyle = getCategoryStyle(sub.name, activeCategoryTab);
+                        return `
+                        <div onclick="selectCategoryItem('${jsStr(sub.name)}', '${jsStr(parentName)}', '${activeCategoryTab}')" class="flex flex-col items-center justify-center cursor-pointer hover:bg-white p-2 rounded-xl transition border border-transparent hover:border-slate-100">
+                            ${categoryIconHtml(subStyle, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-base mb-1 shadow-sm border border-white', 'text-sm md:text-base')}
                             <span class="text-[9px] md:text-[10px] font-bold text-slate-600 text-center leading-tight tracking-tight">${escapeHtml(sub.name)}</span>
                         </div>
-                    `).join('');
+                    `;
+                    }).join('');
 
                     if(parent.subs.length === 0) { subHtml = `<div class="col-span-4 text-center text-[10px] text-slate-400 py-2">Belum ada sub-kategori kustom.</div>`; }
 
@@ -4142,7 +4202,7 @@ const api = (() => {
                         <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
                             <div onclick="toggleAccordion('acc-${index}')" class="p-3 md:p-4 flex items-center justify-between cursor-pointer select-none">
                                 <div class="flex items-center">
-                                    <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl ${parent.bg} ${parent.color} flex items-center justify-center mr-3 md:mr-4"><i class="fas ${parent.icon}"></i></div>
+                                    ${categoryIconHtml(parentStyle, 'w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center mr-3 md:mr-4', '')}
                                     <span class="font-bold text-sm text-slate-700 tracking-tight">${escapeHtml(parentName)}</span>
                                 </div>
                                 <i id="icon-acc-${index}" class="fas fa-chevron-down text-slate-400 text-xs accordion-icon"></i>
@@ -4181,7 +4241,7 @@ const api = (() => {
             }
         }
 
-        function selectCategoryItem(name, parentName, type, icon, bg, color) {
+        function selectCategoryItem(name, parentName, type) {
             document.getElementById('kategori').value = name;
             hideCategorySuggestion(); // user sudah pilih sendiri, saran AI (kalau lagi tampil) tidak relevan lagi
             
@@ -4189,7 +4249,12 @@ const api = (() => {
             if (type === 'Transfer') {
                 displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(name)}</div><span class="font-bold text-slate-800">${escapeHtml(name)}</span>`;
             } else {
-                displayUi.innerHTML = `<div class="w-6 h-6 rounded-full ${bg} ${color} flex items-center justify-center mr-2"><i class="fas ${icon} text-[10px]"></i></div><span class="font-bold text-slate-800">${escapeHtml(name)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(parentName)})</span>`;
+                // BUG FIX: sebelumnya icon/bg/color dioper langsung dari HTML (lihat renderCategoryTabs())
+                // dan bisa jadi stale/tidak sinkron dengan kustomisasi Pengaturan atau gambar upload.
+                // Sekarang dihitung ulang di sini lewat getCategoryStyle(), sama seperti
+                // setCategoryUIFromValue() di bawah -- satu sumber kebenaran untuk semua tampilan ikon.
+                let style = getCategoryStyle(name, type);
+                displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(name)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(parentName)})</span>`;
             }
             closeCategorySelector();
         }
@@ -6862,7 +6927,7 @@ const api = (() => {
             if (countEl) countEl.innerText = sortedData.length + ' transaksi';
 
             if (sortedData.length === 0) {
-                tbody.innerHTML = `<div class="p-6 text-center text-slate-400">Belum ada transaksi untuk akun ini.</div>`;
+                tbody.innerHTML = `<div class="text-center py-10 text-slate-400 stagger-item"><i class="fas fa-receipt text-3xl mb-3"></i><p class="text-xs font-semibold">Belum ada transaksi di akun ini.</p><p class="text-[11px] mt-1">Transaksi yang memakai akun ini akan muncul di sini.</p></div>`;
             } else {
                 const dayAbbrevID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
                 // Grup dibangun sambil tetap menjaga urutan tanggal terbaru->terlama dari sortedData
@@ -7180,7 +7245,7 @@ const api = (() => {
             let sortedData = [...categoryDetailSpecificData].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
 
             if(sortedData.length === 0) {
-                tbody.innerHTML = `<div class="p-6 text-center text-slate-400">Belum ada transaksi di kategori ini.</div>`;
+                tbody.innerHTML = `<div class="text-center py-10 text-slate-400 stagger-item"><i class="fas fa-receipt text-3xl mb-3"></i><p class="text-xs font-semibold">Belum ada transaksi di kategori ini.</p><p class="text-[11px] mt-1">Transaksi yang masuk kategori ini akan muncul di sini.</p></div>`;
             } else {
                 const dayAbbrevID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
                 const prefix = jenis === 'Pemasukan' ? '+' : '-';
