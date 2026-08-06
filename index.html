@@ -6014,6 +6014,10 @@ const api = (() => {
                 const parent = categoryDict.pengeluaran[parentName];
                 const hasSubs = parent.subs && parent.subs.length > 0;
                 const pSlug = slugify(parentName);
+                // BUG FIX: sama seperti di renderBudgetView() -- sebelumnya pakai parent.bg/color/icon
+                // & sub.icon mentah dari categoryDict, jadi kustomisasi ikon/warna/gambar upload dari
+                // Pengaturan tidak ikut kebawa ke modal ini. Pakai getCategoryStyle() supaya sinkron.
+                const parentStyle = getCategoryStyle(parentName, 'Pengeluaran');
 
                 let parentVal = 0;
                 if (!hasSubs) {
@@ -6025,7 +6029,7 @@ const api = (() => {
                 let rowHtml = `
                     <div class="mt-4 mb-1">
                         <div class="flex items-center gap-3 bg-slate-100/70 rounded-2xl p-2.5 ring-1 ring-slate-200">
-                            <div class="w-9 h-9 rounded-xl ${parent.bg} ${parent.color} flex items-center justify-center flex-shrink-0 shadow-sm"><i class="fas ${parent.icon} text-xs"></i></div>
+                            ${categoryIconHtml(parentStyle, 'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm', 'text-xs')}
                             <div class="flex-1 min-w-0">
                                 <span class="text-xs font-bold text-slate-700 block truncate">${escapeHtml(parentName)}</span>
                                 ${hasSubs ? `<span class="text-[9px] text-slate-400 font-semibold">Akumulasi sub-kategori</span>` : ''}
@@ -6042,9 +6046,10 @@ const api = (() => {
                     parent.subs.forEach(sub => {
                         const subVal = cloudBudgets[sub.name] || '';
                         const sSlug = slugify(sub.name);
+                        const subStyle = getCategoryStyle(sub.name, 'Pengeluaran');
                         subsHtml += `
                             <div class="flex items-center gap-3 bg-white rounded-xl p-2 ring-1 ring-slate-100 shadow-sm">
-                                <div class="w-7 h-7 rounded-lg ${parent.bg} ${parent.color} flex items-center justify-center flex-shrink-0 text-[10px]"><i class="fas ${sub.icon}"></i></div>
+                                ${categoryIconHtml(subStyle, 'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', 'text-[10px]')}
                                 <span class="text-[11px] font-bold text-slate-600 flex-1 min-w-0 truncate">${escapeHtml(sub.name)}</span>
                                 <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-100 px-2.5 py-1.5 flex-shrink-0 w-28 focus-within:ring-2 focus-within:ring-indigo-300 transition">
                                     <span class="text-[9px] text-slate-400 mr-1">Rp</span>
@@ -6115,6 +6120,13 @@ const api = (() => {
             Object.keys(categoryDict.pengeluaran).forEach(parentName => {
                 const parent = categoryDict.pengeluaran[parentName];
                 const hasSubs = parent.subs && parent.subs.length > 0;
+                // BUG FIX: sebelumnya ikon/warna di perincian Budget diambil LANGSUNG dari
+                // categoryDict mentah (parent.icon/bg/color, sub.icon) -- ini melewati
+                // getCategoryStyle(), jadi kustomisasi ikon/warna dari Pengaturan DAN foto/gambar
+                // kustom yang diupload user tidak pernah ikut kebawa ke halaman Budget (selalu
+                // tampil ikon+warna bawaan/default, beda dari yang tampil di Riwayat Transaksi/
+                // Kategori dsb). Sekarang pakai getCategoryStyle() yang sama supaya selalu sinkron.
+                const parentStyle = getCategoryStyle(parentName, 'Pengeluaran');
 
                 let pBudget = 0;
                 let pActual = 0;
@@ -6127,7 +6139,8 @@ const api = (() => {
                         pBudget += sBudget;
                         pActual += sActual;
                         const sPct = sBudget > 0 ? Math.round((sActual / sBudget) * 100) : (sActual > 0 ? 100 : 0);
-                        subEntries.push({ name: sub.name, budget: sBudget, actual: sActual, pct: sPct, icon: sub.icon, bg: parent.bg, color: parent.color });
+                        const subStyle = getCategoryStyle(sub.name, 'Pengeluaran');
+                        subEntries.push({ name: sub.name, budget: sBudget, actual: sActual, pct: sPct, icon: subStyle.icon, bg: subStyle.bg, color: subStyle.color, image: subStyle.image });
                     });
                 } else {
                     pBudget = cloudBudgets[parentName] || 0;
@@ -6136,7 +6149,7 @@ const api = (() => {
                 const directActual = actualCategoryMap[parentName] || 0;
                 pActual += directActual;
                 if (hasSubs && directActual > 0) {
-                    subEntries.push({ name: 'Tanpa sub-kategori', budget: 0, actual: directActual, pct: 100, icon: 'fa-ellipsis', bg: parent.bg, color: parent.color, isDirect: true });
+                    subEntries.push({ name: 'Tanpa sub-kategori', budget: 0, actual: directActual, pct: 100, icon: 'fa-ellipsis', bg: parentStyle.bg, color: parentStyle.color, image: parentStyle.image, isDirect: true });
                 }
 
                 if (pBudget > 0 || pActual > 0) {
@@ -6149,9 +6162,10 @@ const api = (() => {
                         budget: pBudget, 
                         actual: pActual, 
                         pct: pct, 
-                        icon: parent.icon, 
-                        bg: parent.bg, 
-                        color: parent.color,
+                        icon: parentStyle.icon, 
+                        bg: parentStyle.bg, 
+                        color: parentStyle.color,
+                        image: parentStyle.image,
                         subEntries: subEntries
                     });
                 }
@@ -6242,7 +6256,7 @@ const api = (() => {
                         return `<div class="bg-white rounded-xl p-2.5 ring-1 ring-slate-100 ${s.isDirect ? 'border border-dashed border-slate-200' : ''}">
                             <div class="flex items-center justify-between mb-2 gap-2">
                                 <div class="flex items-center min-w-0">
-                                    <div class="w-7 h-7 rounded-lg ${s.bg} ${s.color} flex items-center justify-center mr-2 flex-shrink-0 text-[10px]"><i class="fas ${s.icon}"></i></div>
+                                    ${categoryIconHtml(s, 'w-7 h-7 rounded-lg flex items-center justify-center mr-2 flex-shrink-0', 'text-[10px]')}
                                     <div class="min-w-0">
                                         <p class="text-[11px] font-bold text-slate-700 truncate">${escapeHtml(s.name)}</p>
                                         <p class="text-[9px] text-slate-400 font-semibold whitespace-nowrap">Rp ${formatRp(s.actual)} <span class="text-slate-300">/ Rp ${formatRp(s.budget)}</span></p>
@@ -6261,7 +6275,7 @@ const api = (() => {
                         <div class="p-4 ${canExpand ? 'cursor-pointer select-none' : ''}" ${canExpand ? `onclick="toggleAccordion('${accId}')"` : ''}>
                             <div class="flex items-center justify-between mb-2.5 gap-2">
                                 <div class="flex items-center min-w-0">
-                                    <div class="w-9 h-9 rounded-xl ${e.bg} ${e.color} flex items-center justify-center mr-3 flex-shrink-0"><i class="fas ${e.icon} text-xs"></i></div>
+                                    ${categoryIconHtml(e, 'w-9 h-9 rounded-xl flex items-center justify-center mr-3 flex-shrink-0', 'text-xs')}
                                     <div class="min-w-0">
                                         <p class="text-xs md:text-sm font-extrabold text-slate-800 truncate">${escapeHtml(e.name)}</p>
                                         <p class="text-[10px] text-slate-400 font-bold whitespace-nowrap">Rp ${formatRp(e.actual)} <span class="text-slate-300">/ Rp ${formatRp(e.budget)}</span></p>
