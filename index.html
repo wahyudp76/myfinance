@@ -7400,7 +7400,19 @@ const api = (() => {
                 // teksnya 2x lebih padat -- batasnya dibuat lebih ketat (4, bukan 5) dari chart 1
                 // dataset. Titik yg tidak kepilih tetap ada batangnya, cuma tanpa angka di atasnya --
                 // detail nilainya tetap bisa dilihat lewat tap (tooltip).
-                const cashflowIsNarrow = window.innerWidth < 640;
+                //
+                // BUG FIX: "sempit?" sebelumnya dicek dari window.innerWidth (lebar JENDELA), padahal
+                // chart ini duduk berdampingan 2-kolom (grid-cols-1 lg:grid-cols-2) berbarengan dgn
+                // chart "Tren Saldo Akun". Di web/desktop, window-nya memang lebar (>=640px) jadi
+                // pengecekan lama menganggap "tidak sempit" dan MEMAKSA semua label tampil -- padahal
+                // canvas chart ini sendiri cuma dapat separuh lebar window (berbagi kolom), jadi kalau
+                // titik datanya banyak, label "Masuk"/"Keluar" di tiap titik jadi numpuk/tumpang-tindih.
+                // Di HP (1 kolom) kebetulan tidak kelihatan krn window sempit = lolos threshold lama
+                // dgn kebetulan benar. Sekarang dicek dari lebar CONTAINER chart yg sebenarnya dibagi
+                // jumlah titik data -- akurat di ukuran layar & jumlah data berapa pun.
+                const cashflowContainerWidth = document.getElementById('accountDetailChart').parentElement.clientWidth || window.innerWidth;
+                const cashflowPxPerBucket = bucketLabels.length > 0 ? cashflowContainerWidth / bucketLabels.length : Infinity;
+                const cashflowIsNarrow = cashflowPxPerBucket < 60;
                 let cashflowIndicesToShow = null;
                 if (cashflowIsNarrow) {
                     const maxLabelCount = 4;
