@@ -294,6 +294,7 @@
 
         /* -- Latar (background) -- */
         .dark .bg-white { background-color: #1e293b; }             /* kartu, modal, dsb -> slate-800 */
+        .dark .ring-offset-1 { --tw-ring-offset-color: #1e293b; }  /* ring pemilih ikon/warna (mis. Tujuan Keuangan) -- biar offset-nya ikut gelap, bukan celah putih terang */
         .dark .bg-slate-50 { background-color: #0f172a; }           /* latar halaman -> slate-900 (paling gelap) */
         .dark .bg-slate-100 { background-color: #334155; }          /* elemen sedikit terangkat/hover -> slate-700 */
         .dark .bg-slate-200 { background-color: #475569; }          /* -> slate-600 */
@@ -1069,6 +1070,22 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Tujuan Keuangan (Financial Goals) -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800">Tujuan Keuangan</h4>
+                        <p class="text-[10px] md:text-xs text-slate-400 mt-0.5">Nabung buat target yang kamu incar</p>
+                    </div>
+                    <button onclick="openGoalModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-1.5 flex-shrink-0">
+                        <i class="fas fa-plus text-[10px]"></i> <span class="hidden sm:inline">Tambah</span> Tujuan
+                    </button>
+                </div>
+                <div id="goals-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <!-- Items rendered dynamically -->
+                </div>
+            </div>
         </div>
 
         <!-- KALENDER VIEW -->
@@ -1573,6 +1590,80 @@
                 <button type="button" id="btnSubmitAssetForm" onclick="submitAsset(new Event('submit'))" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm md:text-base">
                     Simpan Aset
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL TUJUAN KEUANGAN (Financial Goals) -->
+    <div id="modalGoal" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex justify-end">
+        <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalGoalContent">
+            <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
+                <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalGoalTitle">Tujuan Baru</h3>
+                <button type="button" onclick="closeGoalModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 md:p-6 flex-1 overflow-y-auto">
+                <form id="formGoal" onsubmit="submitGoalForm(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Tujuan</label>
+                            <input type="text" id="goal_nama" required placeholder="Contoh: Liburan ke Bali, DP Rumah, Dana Darurat" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Dana</label>
+                            <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
+                                <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                                <input type="text" id="goal_target_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_target')">
+                                <input type="hidden" id="goal_target">
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sudah Terkumpul (opsional)</label>
+                            <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
+                                <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                                <input type="text" id="goal_terkumpul_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_terkumpul')">
+                                <input type="hidden" id="goal_terkumpul">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Tanggal (opsional)</label>
+                            <input type="date" id="goal_deadline" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Ikon & Warna</label>
+                            <div id="goal-icon-palette" class="grid grid-cols-5 gap-2 mb-3"></div>
+                            <div id="goal-color-palette" class="flex items-center gap-2"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="p-5 md:p-6 border-t border-slate-100 bg-white">
+                <button type="button" id="btnSubmitGoalForm" onclick="submitGoalForm(new Event('submit'))" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm md:text-base">
+                    Simpan Tujuan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SETOR DANA (tambah progres ke satu tujuan) -->
+    <div id="modalGoalContribute" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
+        <div class="bg-white w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalGoalContributeContent">
+            <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+            </div>
+            <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-800">Setor Dana <span id="goal-contribute-name" class="text-indigo-500"></span></h3>
+                <button type="button" onclick="closeGoalContributeModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5">
+                <form id="formGoalContribute" onsubmit="submitGoalContribute(event)">
+                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Setoran</label>
+                    <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden mb-4">
+                        <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                        <input type="text" id="goal_contribute_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_contribute_amount')">
+                        <input type="hidden" id="goal_contribute_amount">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm">Setor</button>
+                </form>
             </div>
         </div>
     </div>
@@ -2687,6 +2778,7 @@ const api = (() => {
         // yang jalan sekali di awal, jadi field baru yang hilang dari data lama bisa bikin error
         // (mis. "Cannot read properties of undefined") begitu bagian lain kode mengaksesnya.
         function ensureSettingsShape() {
+            if (!appSettings.financial_goals) appSettings.financial_goals = []; // fitur Tujuan Keuangan -- array murni di appSettings, tanpa tabel/migrasi Supabase baru
             if (!appSettings.custom_categories) appSettings.custom_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
             ['pengeluaran', 'pemasukan'].forEach(type => {
                 if (!appSettings.custom_categories[type]) appSettings.custom_categories[type] = { parents: [], subs: {} };
@@ -5753,14 +5845,23 @@ const api = (() => {
                 </div>`;
         }
 
-        function renderAiInsightSetupNeeded() {
+        function renderAiInsightSetupNeeded(detail) {
             const container = document.getElementById('ai-insights-container'); if (!container) return;
+            // BUG FIX: sebelumnya SEMUA jenis kegagalan (function belum di-deploy, API key salah,
+            // Gemini API error, rate limit, dsb) ditampilkan dengan pesan generik yang sama persis
+            // ("belum di-deploy") -- padahal "Tanya AI" di bawah sudah lebih dulu menampilkan pesan
+            // error ASLI dari server (lihat requestAiChatQuestion()), jadi user bisa tau persis
+            // kenapa gagal. Sekarang detail error aslinya (data.error dari server, atau e.message
+            // kalau function-nya sendiri tidak terjangkau) ikut ditampilkan di sini juga, supaya
+            // kasus "sudah deploy tapi masih dibilang belum aktif" bisa langsung ketahuan sebabnya.
+            const detailHtml = detail ? `<p class="text-[10px] md:text-[11px] text-rose-500 mt-1.5 font-mono break-words">Detail: ${escapeHtml(String(detail))}</p>` : '';
             container.innerHTML = `
                 <div class="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200 flex items-start gap-3">
                     <div class="w-9 h-9 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-plug-circle-xmark text-sm"></i></div>
                     <div class="min-w-0">
                         <p class="text-xs md:text-sm font-bold text-slate-600">Rekomendasi AI belum aktif</p>
                         <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">Fitur ini butuh Edge Function <code class="bg-slate-200 px-1 rounded">analyze-finance</code> di-deploy dan API key Gemini diset di Supabase. Lihat panduan di README.md bagian "Rekomendasi AI".</p>
+                        ${detailHtml}
                     </div>
                 </div>`;
         }
@@ -5838,7 +5939,7 @@ const api = (() => {
                 const { data, error } = await supabaseClient.functions.invoke('analyze-finance', { body: summary });
                 if (error) throw error;
                 if (data && data.error) {
-                    renderAiInsightSetupNeeded();
+                    renderAiInsightSetupNeeded(data.error);
                 } else {
                     const insights = (data && data.insights) || [];
                     saveCachedAiInsight(insights);
@@ -5847,9 +5948,10 @@ const api = (() => {
                     renderAiInsights(insights);
                 }
             } catch (e) {
-                // Edge Function yang belum di-deploy biasanya balas 404 -- diperlakukan sebagai
-                // "belum di-setup" (bukan error biasa) supaya pesannya membantu, bukan bikin panik.
-                renderAiInsightSetupNeeded();
+                // Edge Function yang belum di-deploy biasanya balas 404, tapi bisa juga gagal
+                // karena sebab lain (401/403/500/timeout dsb) -- pesan e.message ikut ditampilkan
+                // (lihat renderAiInsightSetupNeeded()) supaya keduanya bisa dibedakan.
+                renderAiInsightSetupNeeded(e && e.message ? e.message : null);
             } finally {
                 aiInsightInFlight = false;
                 if (btn) btn.querySelector('i').classList.remove('fa-spin');
@@ -5872,9 +5974,12 @@ const api = (() => {
             const c = document.getElementById('monthly-summary-container'); if (!c) return;
             c.innerHTML = `<p class="text-xs md:text-sm text-slate-400 flex items-center gap-2"><i class="fas fa-spinner fa-spin"></i>Gemini sedang menyusun ringkasan...</p>`;
         }
-        function renderMonthlySummarySetupNeeded() {
+        function renderMonthlySummarySetupNeeded(detail) {
             const c = document.getElementById('monthly-summary-container'); if (!c) return;
-            c.innerHTML = `<p class="text-xs md:text-sm text-slate-500">Fitur ini butuh Edge Function <code class="bg-slate-100 px-1 rounded">analyze-finance</code> ter-deploy & API key Gemini diset. Lihat README.md bagian "Rekomendasi AI".</p>`;
+            // BUG FIX: sama seperti renderAiInsightSetupNeeded() -- detail error asli dari server
+            // sekarang ikut ditampilkan, bukan cuma teks generik "belum di-deploy" untuk semua kasus.
+            const detailHtml = detail ? `<p class="text-[10px] md:text-[11px] text-rose-500 mt-1.5 font-mono break-words">Detail: ${escapeHtml(String(detail))}</p>` : '';
+            c.innerHTML = `<p class="text-xs md:text-sm text-slate-500">Fitur ini butuh Edge Function <code class="bg-slate-100 px-1 rounded">analyze-finance</code> ter-deploy & API key Gemini diset. Lihat README.md bagian "Rekomendasi AI".</p>${detailHtml}`;
         }
         function renderMonthlySummaryError() {
             const c = document.getElementById('monthly-summary-container'); if (!c) return;
@@ -5912,7 +6017,7 @@ const api = (() => {
                 const { data, error } = await supabaseClient.functions.invoke('analyze-finance', { body: summary });
                 if (error) throw error;
                 if (data && data.error) {
-                    renderMonthlySummarySetupNeeded();
+                    renderMonthlySummarySetupNeeded(data.error);
                 } else if (data && data.summary) {
                     const timestamp = Date.now();
                     appSettings.monthly_summary_cache = { summary: data.summary, timestamp };
@@ -5922,7 +6027,7 @@ const api = (() => {
                     renderMonthlySummaryError();
                 }
             } catch (e) {
-                renderMonthlySummarySetupNeeded();
+                renderMonthlySummarySetupNeeded(e && e.message ? e.message : null);
             } finally {
                 monthlySummaryInFlight = false;
                 if (btn) btn.querySelector('i').classList.remove('fa-spin');
@@ -6504,6 +6609,174 @@ const api = (() => {
                 palette: modernPalette,
                 emptyMessage: 'Belum ada aset yang dicatat.'
             });
+            renderGoalsList();
+        }
+
+        // ========================== TUJUAN KEUANGAN (Financial Goals) ==========================
+        // Disimpan di appSettings.financial_goals (array biasa, ikut kesinkron lewat persistSettings()
+        // yang sudah ada) -- SENGAJA tidak bikin tabel Supabase baru, sama seperti pola categoryStyles/
+        // accountIcons sebelumnya, supaya tidak perlu migrasi SQL tambahan.
+        const goalIconPalette = ['fa-plane', 'fa-house', 'fa-car', 'fa-graduation-cap', 'fa-ring', 'fa-piggy-bank', 'fa-laptop', 'fa-umbrella-beach', 'fa-gift', 'fa-heart-pulse'];
+        const goalColorPalette = [
+            { bg: 'bg-indigo-100', color: 'text-indigo-500' }, { bg: 'bg-rose-100', color: 'text-rose-500' },
+            { bg: 'bg-emerald-100', color: 'text-emerald-500' }, { bg: 'bg-amber-100', color: 'text-amber-500' },
+            { bg: 'bg-cyan-100', color: 'text-cyan-500' }, { bg: 'bg-purple-100', color: 'text-purple-500' }
+        ];
+        let goalFormState = { icon: 'fa-piggy-bank', bg: 'bg-indigo-100', color: 'text-indigo-500' };
+        let currentGoalEditId = null;
+        let currentGoalContributeId = null;
+
+        function renderGoalIconColorPalette() {
+            const iconWrap = document.getElementById('goal-icon-palette');
+            iconWrap.innerHTML = goalIconPalette.map(ic => `
+                <button type="button" onclick="pickGoalIcon('${ic}')" class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === goalFormState.icon ? goalFormState.bg + ' ' + goalFormState.color + ' ring-2 ring-offset-1 ring-indigo-400' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}">
+                    <i class="fas ${ic} text-sm"></i>
+                </button>`).join('');
+            const colorWrap = document.getElementById('goal-color-palette');
+            colorWrap.innerHTML = goalColorPalette.map(c => `
+                <button type="button" onclick="pickGoalColor('${c.bg}','${c.color}')" class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === goalFormState.bg ? 'ring-2 ring-offset-1 ring-indigo-400' : ''}">
+                    ${c.bg === goalFormState.bg ? `<i class="fas fa-check text-[10px] ${c.color}"></i>` : ''}
+                </button>`).join('');
+        }
+        function pickGoalIcon(icon) { goalFormState.icon = icon; renderGoalIconColorPalette(); }
+        function pickGoalColor(bg, color) { goalFormState.bg = bg; goalFormState.color = color; renderGoalIconColorPalette(); }
+
+        function renderGoalsList() {
+            const listEl = document.getElementById('goals-list-container'); if (!listEl) return;
+            const goals = appSettings.financial_goals || [];
+            if (goals.length === 0) {
+                listEl.innerHTML = `
+                    <div class="col-span-1 md:col-span-2 py-12 text-center text-slate-400 stagger-item">
+                        <i class="fas fa-bullseye text-4xl mb-3 opacity-30"></i>
+                        <p class="text-sm font-bold text-slate-500">Belum ada tujuan keuangan</p>
+                        <p class="text-[10px]">Bikin target pertamamu lewat tombol Tambah Tujuan.</p>
+                    </div>`;
+                return;
+            }
+            listEl.innerHTML = goals.map(g => {
+                const target = Number(g.target) || 0, terkumpul = Number(g.terkumpul) || 0;
+                const pct = target > 0 ? Math.min(100, Math.round((terkumpul / target) * 100)) : 0;
+                const sisa = Math.max(0, target - terkumpul);
+                const isDone = terkumpul >= target && target > 0;
+                let deadlineHtml = '';
+                if (g.deadline) {
+                    const days = Math.ceil((new Date(g.deadline + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+                    deadlineHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-calendar-days"></i> ${days > 0 ? days + ' hari lagi' : (days === 0 ? 'Hari ini' : 'Lewat tenggat')}</span>`;
+                }
+                return `
+                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm stagger-item">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center min-w-0">
+                            <div class="w-10 h-10 rounded-xl ${g.bg} ${g.color} flex items-center justify-center mr-3 flex-shrink-0"><i class="fas ${g.icon}"></i></div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-slate-800 truncate">${escapeHtml(g.nama)}</p>
+                                ${deadlineHtml}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button onclick="openGoalModal(true,'${g.id}')" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
+                            <button onclick="removeGoal('${g.id}')" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
+                        </div>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
+                        <div class="h-full rounded-full ${isDone ? 'bg-emerald-400' : 'bg-indigo-400'} transition-all" style="width:${pct}%"></div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-[11px] font-bold ${isDone ? 'text-emerald-500' : 'text-slate-500'}">${pct}% -- Rp ${new Intl.NumberFormat('id-ID').format(terkumpul)}</span>
+                        <span class="text-[10px] text-slate-400">dari Rp ${new Intl.NumberFormat('id-ID').format(target)}</span>
+                    </div>
+                    ${isDone
+                        ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Tercapai!</div>`
+                        : `<button onclick="openGoalContributeModal('${g.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Setor Dana <span class="text-slate-400 font-normal">(sisa Rp ${new Intl.NumberFormat('id-ID').format(sisa)})</span></button>`}
+                </div>`;
+            }).join('');
+        }
+
+        function openGoalModal(isEdit = false, id = null) {
+            const modal = document.getElementById('modalGoal'); const content = document.getElementById('modalGoalContent');
+            modal.classList.remove('hidden'); setTimeout(() => { content.classList.remove('translate-x-full'); }, 10);
+            document.getElementById('formGoal').reset();
+            document.getElementById('goal_target').value = ''; document.getElementById('goal_target_display').value = '';
+            document.getElementById('goal_terkumpul').value = ''; document.getElementById('goal_terkumpul_display').value = '';
+
+            if (!isEdit) {
+                currentGoalEditId = null;
+                document.getElementById('modalGoalTitle').innerText = 'Tujuan Baru';
+                document.getElementById('btnSubmitGoalForm').innerText = 'Simpan Tujuan';
+                goalFormState = { icon: 'fa-piggy-bank', bg: 'bg-indigo-100', color: 'text-indigo-500' };
+            } else {
+                const g = (appSettings.financial_goals || []).find(x => x.id === id); if (!g) return;
+                currentGoalEditId = id;
+                document.getElementById('modalGoalTitle').innerText = 'Ubah Tujuan';
+                document.getElementById('btnSubmitGoalForm').innerText = 'Simpan Perubahan';
+                document.getElementById('goal_nama').value = g.nama;
+                document.getElementById('goal_target').value = g.target;
+                document.getElementById('goal_target_display').value = new Intl.NumberFormat('id-ID').format(g.target);
+                document.getElementById('goal_terkumpul').value = g.terkumpul;
+                document.getElementById('goal_terkumpul_display').value = new Intl.NumberFormat('id-ID').format(g.terkumpul);
+                document.getElementById('goal_deadline').value = g.deadline || '';
+                goalFormState = { icon: g.icon, bg: g.bg, color: g.color };
+            }
+            renderGoalIconColorPalette();
+        }
+        function closeGoalModal() {
+            const content = document.getElementById('modalGoalContent'); content.classList.add('translate-x-full');
+            setTimeout(() => { document.getElementById('modalGoal').classList.add('hidden'); }, 300);
+        }
+        function submitGoalForm(e) {
+            e.preventDefault();
+            const nama = document.getElementById('goal_nama').value.trim();
+            const target = Number(document.getElementById('goal_target').value) || 0;
+            const terkumpul = Number(document.getElementById('goal_terkumpul').value) || 0;
+            const deadline = document.getElementById('goal_deadline').value || null;
+            if (!nama || target <= 0) { showErrorToast('Nama dan target dana wajib diisi.'); return; }
+
+            if (!appSettings.financial_goals) appSettings.financial_goals = [];
+            if (currentGoalEditId) {
+                const g = appSettings.financial_goals.find(x => x.id === currentGoalEditId);
+                if (g) Object.assign(g, { nama, target, terkumpul, deadline, icon: goalFormState.icon, bg: goalFormState.bg, color: goalFormState.color });
+            } else {
+                appSettings.financial_goals.push({ id: 'goal_' + Date.now(), nama, target, terkumpul, deadline, icon: goalFormState.icon, bg: goalFormState.bg, color: goalFormState.color });
+            }
+            persistSettings();
+            renderGoalsList();
+            closeGoalModal();
+            showSuccessToast('Tujuan keuangan berhasil disimpan.');
+        }
+        function removeGoal(id) {
+            showConfirm('Hapus tujuan keuangan ini? Progres yang sudah tercatat akan ikut hilang.', () => {
+                appSettings.financial_goals = (appSettings.financial_goals || []).filter(x => x.id !== id);
+                persistSettings();
+                renderGoalsList();
+                showSuccessToast('Tujuan keuangan dihapus.');
+            });
+        }
+
+        function openGoalContributeModal(id) {
+            const g = (appSettings.financial_goals || []).find(x => x.id === id); if (!g) return;
+            currentGoalContributeId = id;
+            document.getElementById('goal-contribute-name').innerText = g.nama;
+            document.getElementById('formGoalContribute').reset();
+            document.getElementById('goal_contribute_amount').value = ''; document.getElementById('goal_contribute_display').value = '';
+            const modal = document.getElementById('modalGoalContribute'); const content = document.getElementById('modalGoalContributeContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => { content.classList.remove('translate-y-full', 'opacity-0'); content.classList.remove('md:scale-95'); }, 10);
+        }
+        function closeGoalContributeModal() {
+            const content = document.getElementById('modalGoalContributeContent');
+            content.classList.add('translate-y-full', 'md:scale-95', 'opacity-0');
+            setTimeout(() => { document.getElementById('modalGoalContribute').classList.add('hidden'); }, 300);
+        }
+        function submitGoalContribute(e) {
+            e.preventDefault();
+            const amount = Number(document.getElementById('goal_contribute_amount').value) || 0;
+            if (amount <= 0) { showErrorToast('Isi jumlah setoran dulu.'); return; }
+            const g = (appSettings.financial_goals || []).find(x => x.id === currentGoalContributeId); if (!g) return;
+            g.terkumpul = (Number(g.terkumpul) || 0) + amount;
+            persistSettings();
+            renderGoalsList();
+            closeGoalContributeModal();
+            showSuccessToast(`Setoran Rp ${new Intl.NumberFormat('id-ID').format(amount)} berhasil dicatat.`);
         }
 
         // ---------- Detail Aset (riwayat & grafik performa satu aset) ----------
