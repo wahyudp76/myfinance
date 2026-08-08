@@ -198,6 +198,17 @@
         .fc-event { border: none !important; border-radius: 6px !important; padding: 4px 6px !important; font-size: 0.75rem !important; font-weight: 700 !important; cursor: pointer; transition: transform 0.1s; margin-bottom: 3px !important; }
         .fc-event:hover { transform: scale(1.02); }
 
+        /* Proyeksi tagihan/transaksi berulang yang AKAN datang -- sengaja beda gaya (garis putus2,
+           transparan, ikon repeat) dari transaksi yg sudah benar2 tercatat, spy user tidak salah kira
+           itu transaksi nyata. Lihat renderCalendar(). */
+        .fc-event.cal-event-projected { background: transparent !important; border: 1.5px dashed #a78bfa !important; color: #7c3aed !important; }
+        .cal-event-projected-inner { display: flex; align-items: center; gap: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-event-projected-inner i { font-size: 0.6rem; flex-shrink: 0; }
+
+        /* Tint tipis per-sel tanggal berdasarkan arus kas bersih hari itu (heatmap sekilas). */
+        .fc-daygrid-day.cal-day-positive { background: rgba(16, 185, 129, 0.06); }
+        .fc-daygrid-day.cal-day-negative { background: rgba(244, 63, 94, 0.05); }
+
         .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800; color: #191527; }
         .fc .fc-button-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed) !important; border-color: transparent !important; text-transform: capitalize; border-radius: 8px !important; padding: 8px 16px !important; font-weight: 600 !important; }
         .fc .fc-button-primary:hover { background: linear-gradient(135deg, #4338ca, #6d28d9) !important; }
@@ -381,6 +392,9 @@
         .dark .fc-day-today { background: rgba(99, 102, 241, 0.12) !important; }
         .dark .fc-toolbar-title { color: #f1f5f9; }
         .dark .fc-daygrid-day.fc-day-other .fc-daygrid-day-number { opacity: 0.35; }
+        .dark .fc-event.cal-event-projected { border-color: #8b5cf6 !important; color: #c4b5fd !important; }
+        .dark .fc-daygrid-day.cal-day-positive { background: rgba(16, 185, 129, 0.1); }
+        .dark .fc-daygrid-day.cal-day-negative { background: rgba(244, 63, 94, 0.09); }
 
         /* -- Tombol pilihan tema (Pengaturan) -- */
         .theme-btn { border: 1.5px solid transparent; }
@@ -1113,10 +1127,11 @@
             </div>
 
             <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm w-full">
-                <div class="flex items-center gap-4 mb-4 text-[10px] md:text-xs font-semibold text-slate-500">
+                <div class="flex items-center gap-4 mb-4 text-[10px] md:text-xs font-semibold text-slate-500 flex-wrap">
                     <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Pemasukan</span>
                     <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span> Pengeluaran</span>
                     <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Transfer</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border-2 border-dashed border-violet-400"></span> Terjadwal (belum tercatat)</span>
                 </div>
                 <div id="calendar" class="w-full"></div>
             </div>
@@ -3245,6 +3260,24 @@ const api = (() => {
             return new Date(String(tanggalStr).split('T')[0] + 'T00:00:00');
         }
 
+        // Pasangan resmi utk parseTgl() -- ubah objek Date jadi teks "YYYY-MM-DD" pakai KOMPONEN
+        // LOKAL (getFullYear/getMonth/getDate), BUKAN d.toISOString().slice(0,10).
+        // KENAPA PENTING: toISOString() selalu mengonversi ke UTC dulu. Untuk zona waktu yang lebih
+        // cepat dari UTC (WIB/WITA/WIT semua UTC+7/8/9), tengah malam waktu lokal itu masih SORE HARI
+        // SEBELUMNYA di UTC -- jadi toISOString().slice(0,10) diam-diam mundur SATU HARI. Ini bikin
+        // bug nyata & bukan cuma teori: advanceDueDate() menjadwalkan transaksi berulang H-1 dari
+        // yang seharusnya, dan pengecekan "todayStr" bisa salah selama jam 00:00-06:59 WIB (masih
+        // dianggap "kemarin"). toDateStr() di bawah ini aman dipakai kapan pun/zona waktu mana pun.
+        function toDateStr(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        // "Hari ini" dalam bentuk teks YYYY-MM-DD yang AMAN zona waktu -- pengganti pola lama
+        // `new Date().toISOString().slice(0,10)` yang tersebar di banyak tempat (lihat toDateStr()).
+        function todayDateStr() {
+            return toDateStr(new Date());
+        }
+
         function renderSettings() {
             rebuildCategoryDict();
             renderUserIdentity();
@@ -3638,7 +3671,7 @@ const api = (() => {
             if (!isEdit && saldoAwal > 0) {
                 showLoading(true);
                 const data = {
-                    jenis: 'Pemasukan', tanggal: new Date().toISOString().slice(0, 10),
+                    jenis: 'Pemasukan', tanggal: todayDateStr(),
                     jumlah: String(saldoAwal), akun: name, kategori: 'Saldo Awal', keterangan: 'Saldo awal saat akun dibuat'
                 };
                 api.run.withSuccessHandler(() => { refreshTransactionsOnly(); }).withFailureHandler(() => {
@@ -4648,7 +4681,7 @@ const api = (() => {
             };
 
             const wasEdit = !!currentAssetEditId; // simpan sebelum async
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayStr = todayDateStr();
 
             // Kelola value_history: titik baru cuma ditambah kalau NILAINYA benar-benar berubah,
             // supaya edit nama/kategori/platform doang tidak menghasilkan titik history yang
@@ -4759,7 +4792,7 @@ const api = (() => {
         function loadData() {
             showLoading(true);
             
-            const targetBulan = document.getElementById('budgetFilterMonth').value || new Date().toISOString().slice(0, 7);
+            const targetBulan = document.getElementById('budgetFilterMonth').value || todayDateStr().slice(0, 7);
 
             api.run.withSuccessHandler((response) => {
                 globalData = response.transactions || [];
@@ -4865,21 +4898,21 @@ const api = (() => {
         // bulan yang lebih pendek. Jadi dicek & dijatuhkan ke hari TERAKHIR bulan/tahun target kalau meluber.
         function advanceDueDate(dateStr, frequency) {
             const d = new Date(dateStr + 'T00:00:00');
-            if (frequency === 'harian') { d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); }
-            if (frequency === 'mingguan') { d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); }
+            if (frequency === 'harian') { d.setDate(d.getDate() + 1); return toDateStr(d); }
+            if (frequency === 'mingguan') { d.setDate(d.getDate() + 7); return toDateStr(d); }
             if (frequency === 'bulanan') {
                 const targetMonth = d.getMonth() + 1;
                 d.setMonth(targetMonth);
                 if (d.getMonth() !== (targetMonth % 12)) { d.setDate(0); }
-                return d.toISOString().slice(0, 10);
+                return toDateStr(d);
             }
             if (frequency === 'tahunan') {
                 const originalMonth = d.getMonth();
                 d.setFullYear(d.getFullYear() + 1);
                 if (d.getMonth() !== originalMonth) { d.setDate(0); }
-                return d.toISOString().slice(0, 10);
+                return toDateStr(d);
             }
-            return d.toISOString().slice(0, 10);
+            return toDateStr(d);
         }
 
         // Dipanggil sekali setiap sesi (lihat flag _recurringProcessed) setelah loadData() selesai.
@@ -4888,7 +4921,7 @@ const api = (() => {
             _recurringProcessed = true;
             if (!globalRecurring || globalRecurring.length === 0) return;
 
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayStr = todayDateStr();
             const dueItems = globalRecurring.filter(r => r.active && r.next_due_date <= todayStr);
             if (dueItems.length === 0) return;
 
@@ -4947,7 +4980,7 @@ const api = (() => {
             if (active.length === 0) { el.textContent = 'Belum ada transaksi berulang'; el.className = 'text-[10px] text-slate-400'; return; }
             // Tambahan: kalau ada yang jatuh tempo hari ini/terlewat, tonjolkan di ringkasan dashboard
             // ini juga -- supaya kelihatan tanpa perlu buka modal "Kelola" dulu.
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayStr = todayDateStr();
             const overdueCount = active.filter(r => r.next_due_date <= todayStr).length;
             if (overdueCount > 0) {
                 el.textContent = `${overdueCount} jatuh tempo hari ini/terlewat`;
@@ -4979,7 +5012,7 @@ const api = (() => {
                 return;
             }
             const sorted = [...globalRecurring].sort((a, b) => (b.active - a.active) || a.next_due_date.localeCompare(b.next_due_date));
-            const todayStr0 = new Date().toISOString().slice(0, 10);
+            const todayStr0 = todayDateStr();
             container.innerHTML = sorted.map(item => {
                 const style = getCategoryStyle(item.kategori, item.jenis);
                 const dueLabel = new Date(item.next_due_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -5075,7 +5108,7 @@ const api = (() => {
             document.getElementById('recurring-kategori').value = item ? item.kategori : '';
             document.getElementById('recurring-keterangan').value = item ? (item.keterangan || '') : '';
             document.getElementById('recurring-frequency').value = item ? item.frequency : 'bulanan';
-            document.getElementById('recurring-start-date').value = item ? item.start_date : new Date().toISOString().slice(0, 10);
+            document.getElementById('recurring-start-date').value = item ? item.start_date : todayDateStr();
             const noEndDate = !item || !item.end_date;
             document.getElementById('recurring-no-end-date').checked = noEndDate;
             document.getElementById('recurring-end-date').value = (item && item.end_date) ? item.end_date : '';
@@ -5161,7 +5194,7 @@ const api = (() => {
             }
             const header = ['Tanggal', 'Jenis', 'Kategori', 'Akun', 'Keterangan', 'Jumlah'];
             const rows = lastFilteredTransactions.map(row => [
-                row.tanggal ? parseTgl(row.tanggal).toISOString().slice(0, 10) : '',
+                row.tanggal ? toDateStr(parseTgl(row.tanggal)) : '',
                 row.jenis || '',
                 row.kategori || '',
                 row.akun || '',
@@ -5174,7 +5207,7 @@ const api = (() => {
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayStr = todayDateStr();
             a.href = url;
             a.download = `myfinance-transaksi-${todayStr}.csv`;
             document.body.appendChild(a);
@@ -6826,7 +6859,7 @@ const api = (() => {
 
             // Kalau history kosong (aset lama dari sebelum fitur ini ada), pakai nilai saat ini
             // sebagai satu-satunya titik, supaya tetap ada sesuatu yang ditampilkan di grafik.
-            const rawHistory = (asset.value_history && asset.value_history.length) ? asset.value_history : [{ tanggal: asset.terakhir ? asset.terakhir.slice(0, 10) : new Date().toISOString().slice(0, 10), nilai: asset.nilai }];
+            const rawHistory = (asset.value_history && asset.value_history.length) ? asset.value_history : [{ tanggal: asset.terakhir ? asset.terakhir.slice(0, 10) : todayDateStr(), nilai: asset.nilai }];
             const history = [...rawHistory].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
             const sinceLabel = 'Sejak ' + new Date(history[0].tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -6917,14 +6950,14 @@ const api = (() => {
                 return [
                     a.nama, a.kategori, a.platform || '',
                     a.modal, a.nilai, returnRp.toFixed(0), returnPct.toFixed(2),
-                    a.terakhir ? new Date(a.terakhir).toISOString().slice(0, 10) : ''
+                    a.terakhir ? toDateStr(new Date(a.terakhir)) : ''
                 ];
             });
             const csvContent = '\uFEFF' + [header, ...rows].map(r => r.map(csvField).join(',')).join('\r\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayStr = todayDateStr();
             a.href = url;
             a.download = `myfinance-aset-${todayStr}.csv`;
             document.body.appendChild(a);
@@ -7530,7 +7563,7 @@ const api = (() => {
         let categoryDetailYear = null, categoryDetailMonth = null, categoryDetailJenis = null, categoryDetailSpecificData = [];
 
         function openCategoryDetail(categoryName, jenis) {
-            const filterVal = document.getElementById('reportFilterMonth').value || new Date().toISOString().slice(0, 7);
+            const filterVal = document.getElementById('reportFilterMonth').value || todayDateStr().slice(0, 7);
             const [year, month] = filterVal.split('-');
             categoryDetailYear = Number(year); categoryDetailMonth = Number(month); categoryDetailJenis = jenis;
             
@@ -7730,6 +7763,31 @@ const api = (() => {
                 if(eventsMap[date].transfer > 0) calendarEvents.push({ title: '⇄' + formatShortVal(eventsMap[date].transfer), start: date, backgroundColor: '#dbeafe', textColor: '#2563eb' });
             });
 
+            // TAMBAHAN 1: proyeksi TAGIHAN BERULANG yang akan datang (belum benar-benar tercatat --
+            // beda dari event di atas yg semuanya transaksi yg SUDAH terjadi). Ini yang bikin kalender
+            // berguna buat PERENCANAAN ke depan ("apa saja yang bakal jatuh tempo bulan ini"), bukan
+            // cuma catatan yg sudah lewat. Ditandai gaya berbeda (garis putus-putus, ikon repeat) di
+            // renderEventContent supaya tidak tertukar dgn transaksi yg sudah benar-benar tercatat.
+            // Diproyeksikan sampai 2 tahun ke depan (dibatasi juga oleh end_date template kalau ada),
+            // dgn batas iterasi jaga-jaga spy tidak berat kalau frekuensinya harian.
+            const projectionCeiling = new Date(); projectionCeiling.setFullYear(projectionCeiling.getFullYear() + 2);
+            const projectionCeilingStr = toDateStr(projectionCeiling);
+            (globalRecurring || []).filter(r => r.active).forEach(item => {
+                let dueDate = item.next_due_date;
+                let iterations = 0;
+                while (dueDate && dueDate <= projectionCeilingStr && iterations < 60) {
+                    if (item.end_date && dueDate > item.end_date) break;
+                    calendarEvents.push({
+                        title: (item.jenis === 'Pengeluaran' ? '-' : (item.jenis === 'Pemasukan' ? '+' : '⇄')) + formatShortVal(item.jumlah),
+                        start: dueDate,
+                        classNames: ['cal-event-projected'],
+                        extendedProps: { isProjected: true, recurringLabel: item.keterangan || item.kategori, frequency: item.frequency }
+                    });
+                    dueDate = advanceDueDate(dueDate, item.frequency);
+                    iterations++;
+                }
+            });
+
             let isMobile = window.innerWidth < 768;
             _calendarWasMobile = isMobile;
             // Simpan tanggal yang lagi ditampilkan SEBELUM instance lama dihancurkan, supaya
@@ -7741,7 +7799,30 @@ const api = (() => {
             const preservedDate = calendarInstance ? calendarInstance.getDate() : null;
             if (calendarInstance) calendarInstance.destroy();
             calendarInstance = new FullCalendar.Calendar(document.getElementById('calendar'), {
-                initialView: 'dayGridMonth', initialDate: preservedDate || undefined, events: calendarEvents, height: 'auto', contentHeight: 'auto', aspectRatio: isMobile ? 0.7 : 1.35, dayMaxEvents: 2, 
+                initialView: 'dayGridMonth', initialDate: preservedDate || undefined, events: calendarEvents, height: 'auto', contentHeight: 'auto', aspectRatio: isMobile ? 0.7 : 1.35, dayMaxEvents: 3,
+                // TAMBAHAN 2: render custom cuma utk event proyeksi (tambah ikon repeat) -- event
+                // transaksi asli tetap pakai rendering bawaan FullCalendar (return true), supaya
+                // tidak menyentuh/berisiko ke jalur yg sudah jalan baik.
+                eventContent: function(arg) {
+                    if (arg.event.extendedProps.isProjected) {
+                        return { html: `<div class="cal-event-projected-inner"><i class="fas fa-repeat"></i>${arg.event.title}</div>` };
+                    }
+                    return true;
+                },
+                // TAMBAHAN 3: tint tipis di sel tanggal berdasarkan arus kas bersih hari itu (hijau =
+                // net positif, merah = net negatif) -- sekilas kelihatan pola bulan ini tanpa perlu
+                // baca angka satu-satu. Cuma utk tanggal yg BENAR-BENAR punya transaksi (bukan yg cuma
+                // ada proyeksi tagihan), dan diabaikan di tanggal "hari ini" spy tidak tabrakan dgn
+                // highlight gradient ungu yg sudah ada.
+                dayCellClassNames: function(arg) {
+                    const ds = toDateStr(arg.date);
+                    const ev = eventsMap[ds];
+                    if (!ev || ds === todayDateStr()) return [];
+                    const net = ev.in - ev.out;
+                    if (net > 0) return ['cal-day-positive'];
+                    if (net < 0) return ['cal-day-negative'];
+                    return [];
+                },
                 headerToolbar: { left: isMobile ? 'title' : 'prev,next', center: isMobile ? '' : 'title', right: isMobile ? 'prev,next' : 'today' }, buttonText: { today: 'Hari Ini' },
                 datesSet: function(info) { updateCalendarSummary(info.view.currentStart, info.view.currentEnd); },
                 dateClick: function(info) { openCalendarDetail(info.dateStr); }, eventClick: function(info) { openCalendarDetail(info.event.startStr.split('T')[0]); }
@@ -7753,10 +7834,27 @@ const api = (() => {
             document.getElementById('calendarDetailTitle').innerText = "Transaksi " + parseTgl(dateStr).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'});
             let dayData = globalData.filter(d => d.tanggal.startsWith(dateStr));
             let container = document.getElementById('calendarDetailContent');
-            
-            if(dayData.length === 0) { container.innerHTML = '<p class="text-center text-slate-400 text-sm py-8">Tidak ada transaksi.</p>'; } 
+
+            // TAMBAHAN: kalau tanggal yg diklik ada di MASA DEPAN, cek juga apakah ada transaksi
+            // berulang yg terjadwal jatuh tempo persis di tanggal itu -- supaya modal ini juga
+            // berguna buat "apa yang AKAN terjadi", bukan cuma "apa yg sudah terjadi". Item ini
+            // murni proyeksi (belum benar-benar tercatat), ditandai jelas beda dari transaksi asli.
+            let scheduledItems = [];
+            if (dateStr > todayDateStr()) {
+                (globalRecurring || []).filter(r => r.active).forEach(item => {
+                    let d = item.next_due_date, i = 0;
+                    while (d && d <= dateStr && i < 60) {
+                        if (item.end_date && d > item.end_date) break;
+                        if (d === dateStr) { scheduledItems.push(item); break; }
+                        d = advanceDueDate(d, item.frequency);
+                        i++;
+                    }
+                });
+            }
+
+            if (dayData.length === 0 && scheduledItems.length === 0) { container.innerHTML = '<p class="text-center text-slate-400 text-sm py-8">Tidak ada transaksi.</p>'; }
             else {
-                container.innerHTML = dayData.map(row => {
+                let html = dayData.map(row => {
                     let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
                     let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : '');
                     let style = getCategoryStyle(row.kategori, row.jenis);
@@ -7772,6 +7870,25 @@ const api = (() => {
                             <div class="text-right text-sm font-bold ${color}">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</div>
                         </div>`;
                 }).join('');
+                if (scheduledItems.length > 0) {
+                    html += `<div class="text-[10px] font-bold text-violet-500 uppercase px-2 pt-3 pb-1.5 ${dayData.length > 0 ? 'border-t border-slate-100 mt-2' : ''}"><i class="fas fa-repeat mr-1"></i>Terjadwal (belum tercatat)</div>` +
+                        scheduledItems.map(item => {
+                            let style = getCategoryStyle(item.kategori, item.jenis);
+                            let prefix = item.jenis === 'Pengeluaran' ? '-' : (item.jenis === 'Pemasukan' ? '+' : '');
+                            return `
+                            <div class="flex justify-between items-center py-3 px-2 opacity-70">
+                                <div class="flex items-center">
+                                    ${categoryIconHtml(style, 'w-8 h-8 rounded-full flex items-center justify-center mr-3 border border-dashed border-violet-200', 'text-sm')}
+                                    <div>
+                                        <p class="text-sm font-bold text-slate-600">${escapeHtml(item.keterangan || item.kategori)}</p>
+                                        <p class="text-[10px] md:text-xs text-slate-400">${RECURRING_FREQ_LABEL[item.frequency] || item.frequency}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right text-sm font-bold text-violet-400">${prefix}Rp ${formatRp(item.jumlah)}</div>
+                            </div>`;
+                        }).join('');
+                }
+                container.innerHTML = html;
             }
             document.getElementById('modalCalendarDetail').classList.remove('hidden');
         }
