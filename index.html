@@ -4943,8 +4943,19 @@ const api = (() => {
         function renderRecurringSummary() {
             const el = document.getElementById('recurring-summary-text');
             if (!el) return;
-            const activeCount = (globalRecurring || []).filter(r => r.active).length;
-            el.textContent = activeCount === 0 ? 'Belum ada transaksi berulang' : `${activeCount} aktif`;
+            const active = (globalRecurring || []).filter(r => r.active);
+            if (active.length === 0) { el.textContent = 'Belum ada transaksi berulang'; el.className = 'text-[10px] text-slate-400'; return; }
+            // Tambahan: kalau ada yang jatuh tempo hari ini/terlewat, tonjolkan di ringkasan dashboard
+            // ini juga -- supaya kelihatan tanpa perlu buka modal "Kelola" dulu.
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const overdueCount = active.filter(r => r.next_due_date <= todayStr).length;
+            if (overdueCount > 0) {
+                el.textContent = `${overdueCount} jatuh tempo hari ini/terlewat`;
+                el.className = 'text-[10px] text-rose-500 font-bold';
+            } else {
+                el.textContent = `${active.length} aktif`;
+                el.className = 'text-[10px] text-slate-400';
+            }
         }
 
         // ---------- Modal Daftar Transaksi Berulang ----------
@@ -4968,16 +4979,29 @@ const api = (() => {
                 return;
             }
             const sorted = [...globalRecurring].sort((a, b) => (b.active - a.active) || a.next_due_date.localeCompare(b.next_due_date));
+            const todayStr0 = new Date().toISOString().slice(0, 10);
             container.innerHTML = sorted.map(item => {
                 const style = getCategoryStyle(item.kategori, item.jenis);
                 const dueLabel = new Date(item.next_due_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
                 const sign = item.jenis === 'Pengeluaran' ? '-' : (item.jenis === 'Pemasukan' ? '+' : '');
+                // Tambahan: penanda visual seberapa dekat jatuh tempo -- sebelumnya tanggal "Berikutnya"
+                // cuma teks abu-abu polos, jadi user harus baca satu-satu buat tau mana yang perlu
+                // disiapkan dananya duluan. Cuma dihitung utk item yang masih aktif (yg dijeda tidak
+                // relevan buat diburu-buru). Transaksinya sendiri tetap otomatis tercatat begitu jatuh
+                // tempo lewat processDueRecurring() -- ini murni bantu user lihat sekilas, bukan pengganti itu.
+                const daysLeft = Math.round((new Date(item.next_due_date + 'T00:00:00') - new Date(todayStr0 + 'T00:00:00')) / 86400000);
+                let dueBadge = '';
+                if (item.active) {
+                    if (daysLeft < 0) dueBadge = `<span class="text-rose-500 font-bold">&middot; Terlewat ${Math.abs(daysLeft)} hari</span>`;
+                    else if (daysLeft === 0) dueBadge = `<span class="text-rose-500 font-bold">&middot; Jatuh tempo hari ini</span>`;
+                    else if (daysLeft <= 3) dueBadge = `<span class="text-amber-500 font-bold">&middot; ${daysLeft} hari lagi</span>`;
+                }
                 return `
                 <div class="flex items-center bg-white border border-slate-100 rounded-2xl p-3 mb-2 ${item.active ? '' : 'opacity-50'}">
                     ${categoryIconHtml(style, 'w-10 h-10 rounded-xl flex items-center justify-center mr-3 flex-shrink-0')}
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-bold text-slate-800 truncate">${escapeHtml(item.keterangan || item.kategori)}</p>
-                        <p class="text-[10px] text-slate-400">${RECURRING_FREQ_LABEL[item.frequency] || item.frequency} &middot; Berikutnya: ${dueLabel}</p>
+                        <p class="text-[10px] text-slate-400">${RECURRING_FREQ_LABEL[item.frequency] || item.frequency} &middot; Berikutnya: ${dueLabel} ${dueBadge}</p>
                     </div>
                     <div class="text-right mr-2 flex-shrink-0">
                         <p class="text-xs font-extrabold ${item.jenis === 'Pengeluaran' ? 'text-rose-500' : (item.jenis === 'Pemasukan' ? 'text-emerald-500' : 'text-blue-500')}">${sign} Rp ${formatRp(item.jumlah)}</p>
