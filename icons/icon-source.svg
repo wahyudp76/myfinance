@@ -1,25 +1,36 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4f46e5"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+    <linearGradient id="bodyGrad" x1="20%" y1="0%" x2="75%" y2="100%">
+      <stop offset="0%" stop-color="#8d8af3"/>
+      <stop offset="45%" stop-color="#6c4ee4"/>
+      <stop offset="100%" stop-color="#6a3de0"/>
     </linearGradient>
-    <linearGradient id="coin" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fde68a"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
+    <linearGradient id="coinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f9d68a"/>
+      <stop offset="100%" stop-color="#e8a93a"/>
     </linearGradient>
+    <clipPath id="bodyClip">
+      <rect x="0" y="0" width="512" height="512" rx="112"/>
+    </clipPath>
   </defs>
 
-  <!-- Full-bleed background, edge to edge. No border or padding: this rounded square IS the whole canvas. -->
-  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bodyGrad)"/>
 
-  <!-- Card + coin glyph, scaled slightly in from center for comfortable margin
-       under Android's maskable-icon safe zone (adaptive icons can crop to a circle). -->
-  <g transform="translate(256,256) scale(0.9) translate(-256,-256)">
-    <rect x="112" y="168" width="288" height="196" rx="30" fill="#ffffff"/>
-    <rect x="146" y="228" width="56" height="40" rx="8" fill="#c7d2fe"/>
-    <rect x="146" y="292" width="140" height="14" rx="7" fill="#e0e7ff"/>
-    <circle cx="366" cy="330" r="42" fill="url(#coin)"/>
-    <circle cx="366" cy="330" r="42" fill="none" stroke="#ffffff" stroke-width="8"/>
+  <g clip-path="url(#bodyClip)">
+    <path d="M0,120 Q256,168 512,120 V0 H0 Z" fill="#ffffff" opacity="0.15"/>
   </g>
+
+  <circle cx="196" cy="292" r="34" fill="#211c3a"/>
+  <circle cx="316" cy="292" r="34" fill="#211c3a"/>
+  <circle cx="184" cy="280" r="9" fill="#ffffff"/>
+  <circle cx="304" cy="280" r="9" fill="#ffffff"/>
+
+  <circle cx="138" cy="316" r="24" fill="#b06fce" opacity="0.85"/>
+  <circle cx="374" cy="316" r="24" fill="#b06fce" opacity="0.85"/>
+
+  <path d="M182 340 Q256 384 330 340" stroke="#211c3a" stroke-width="16" stroke-linecap="round" fill="none"/>
+
+  <circle cx="382" cy="118" r="60" fill="#ffffff"/>
+  <circle cx="382" cy="118" r="48" fill="url(#coinGrad)"/>
+  <text x="382" y="134" font-family="Arial, sans-serif" font-size="40" font-weight="800" fill="#8a5a12" text-anchor="middle">Rp</text>
 </svg>
