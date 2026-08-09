@@ -27,6 +27,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#151928">
     <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="icons/favicon-16.png" sizes="16x16" type="image/png">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1100,6 +1101,22 @@
                     <!-- Items rendered dynamically -->
                 </div>
             </div>
+
+            <!-- Utang & Cicilan (Debt Tracker) -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800">Utang & Cicilan</h4>
+                        <p class="text-[10px] md:text-xs text-slate-400 mt-0.5">Pantau pelunasan cicilan/pinjaman kamu</p>
+                    </div>
+                    <button onclick="openDebtModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-1.5 flex-shrink-0">
+                        <i class="fas fa-plus text-[10px]"></i> <span class="hidden sm:inline">Tambah</span> Utang
+                    </button>
+                </div>
+                <div id="debts-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <!-- Items rendered dynamically -->
+                </div>
+            </div>
         </div>
 
         <!-- KALENDER VIEW -->
@@ -1285,6 +1302,22 @@
 
                     <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Kategori Tersedia</p>
                     <div id="list-tree-pengeluaran" class="space-y-1.5 overflow-y-auto flex-1 pr-1 -mr-1"></div>
+                </div>
+
+                <!-- CADANGAN DATA (Backup) -->
+                <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                    <div class="flex items-center mb-3">
+                        <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-cloud-arrow-down text-sm"></i></div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-slate-800 text-sm leading-tight">Cadangan Data</h4>
+                            <p class="text-[10px] text-slate-400">Unduh salinan seluruh data kamu</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 leading-relaxed mb-4 flex-1">Semua transaksi, akun, kategori (termasuk ikon/warna kustom), transaksi berulang, aset, budget, dan tujuan keuangan disimpan jadi satu file JSON -- buat jaga-jaga atau dipindah ke perangkat lain.</p>
+                    <button onclick="downloadFullBackup()" class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl py-3 text-sm font-semibold transition flex items-center justify-center gap-2">
+                        <i class="fas fa-download text-xs"></i> Unduh Cadangan (JSON)
+                    </button>
+                    <p class="text-[10px] text-slate-400 mt-2 text-center">Terakhir diunduh: <span id="backup-last-download">belum pernah</span></p>
                 </div>
 
             </div>
@@ -1678,6 +1711,85 @@
                         <input type="hidden" id="goal_contribute_amount">
                     </div>
                     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm">Setor</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL TAMBAH/UBAH UTANG -->
+    <div id="modalDebt" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex justify-end">
+        <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalDebtContent">
+            <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-rose-50/50">
+                <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalDebtTitle">Utang Baru</h3>
+                <button type="button" onclick="closeDebtModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 md:p-6 flex-1 overflow-y-auto">
+                <form id="formDebt" onsubmit="submitDebtForm(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Utang/Cicilan</label>
+                            <input type="text" id="debt_nama" required placeholder="Contoh: Cicilan Motor, Kartu Kredit BCA" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-rose-400 outline-none transition text-xs md:text-sm font-semibold">
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Total Utang Awal</label>
+                            <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
+                                <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                                <input type="text" id="debt_total_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_total'); syncDebtRemainingDefault();">
+                                <input type="hidden" id="debt_total">
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sisa Utang Sekarang</label>
+                            <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
+                                <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                                <input type="text" id="debt_sisa_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_sisa')">
+                                <input type="hidden" id="debt_sisa">
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Cicilan per Bulan (opsional)</label>
+                            <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
+                                <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                                <input type="text" id="debt_cicilan_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_cicilan')">
+                                <input type="hidden" id="debt_cicilan">
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Diisi supaya estimasi lama pelunasan bisa dihitung.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Ikon & Warna</label>
+                            <div id="debt-icon-palette" class="grid grid-cols-5 gap-2 mb-3"></div>
+                            <div id="debt-color-palette" class="flex items-center gap-2"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="p-5 md:p-6 border-t border-slate-100 bg-white">
+                <button type="button" id="btnSubmitDebtForm" onclick="submitDebtForm(new Event('submit'))" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-rose-500/30 text-sm md:text-base">
+                    Simpan Utang
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL BAYAR CICILAN (kurangi sisa utang satu item) -->
+    <div id="modalDebtPay" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
+        <div class="bg-white w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalDebtPayContent">
+            <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+            </div>
+            <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-800">Bayar Cicilan <span id="debt-pay-name" class="text-rose-500"></span></h3>
+                <button type="button" onclick="closeDebtPayModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5">
+                <form id="formDebtPay" onsubmit="submitDebtPay(event)">
+                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Pembayaran</label>
+                    <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden mb-4">
+                        <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
+                        <input type="text" id="debt_pay_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_pay_amount')">
+                        <input type="hidden" id="debt_pay_amount">
+                    </div>
+                    <button type="submit" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-500/30 text-sm">Bayar</button>
                 </form>
             </div>
         </div>
@@ -2794,6 +2906,7 @@ const api = (() => {
         // (mis. "Cannot read properties of undefined") begitu bagian lain kode mengaksesnya.
         function ensureSettingsShape() {
             if (!appSettings.financial_goals) appSettings.financial_goals = []; // fitur Tujuan Keuangan -- array murni di appSettings, tanpa tabel/migrasi Supabase baru
+            if (!appSettings.debts) appSettings.debts = []; // fitur Utang & Cicilan -- pola yang sama persis dengan financial_goals
             if (!appSettings.custom_categories) appSettings.custom_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
             ['pengeluaran', 'pemasukan'].forEach(type => {
                 if (!appSettings.custom_categories[type]) appSettings.custom_categories[type] = { parents: [], subs: {} };
@@ -6667,6 +6780,7 @@ const api = (() => {
                 emptyMessage: 'Belum ada aset yang dicatat.'
             });
             renderGoalsList();
+            renderDebtsList();
         }
 
         // ========================== TUJUAN KEUANGAN (Financial Goals) ==========================
@@ -6834,6 +6948,188 @@ const api = (() => {
             renderGoalsList();
             closeGoalContributeModal();
             showSuccessToast(`Setoran Rp ${new Intl.NumberFormat('id-ID').format(amount)} berhasil dicatat.`);
+        }
+
+        // ========================== UTANG & CICILAN (Debt Tracker) ==========================
+        // Pasangan dari Tujuan Keuangan di atas -- pola PERSIS sama (array di appSettings.debts,
+        // sinkron lewat persistSettings() yang sudah ada, tanpa tabel/migrasi Supabase baru), cuma
+        // progresnya kebalikan: Tujuan Keuangan menuju ATAS (terkumpul naik ke target), Utang
+        // menuju BAWAH (sisa turun ke nol).
+        const debtIconPalette = ['fa-credit-card', 'fa-car', 'fa-house', 'fa-motorcycle', 'fa-graduation-cap', 'fa-file-invoice-dollar', 'fa-hand-holding-dollar', 'fa-mobile-screen', 'fa-briefcase', 'fa-receipt'];
+        const debtColorPalette = [
+            { bg: 'bg-rose-100', color: 'text-rose-500' }, { bg: 'bg-orange-100', color: 'text-orange-500' },
+            { bg: 'bg-amber-100', color: 'text-amber-500' }, { bg: 'bg-slate-200', color: 'text-slate-600' },
+            { bg: 'bg-pink-100', color: 'text-pink-500' }, { bg: 'bg-purple-100', color: 'text-purple-500' }
+        ];
+        let debtFormState = { icon: 'fa-credit-card', bg: 'bg-rose-100', color: 'text-rose-500' };
+        let currentDebtEditId = null;
+        let currentDebtPayId = null;
+
+        function renderDebtIconColorPalette() {
+            const iconWrap = document.getElementById('debt-icon-palette');
+            iconWrap.innerHTML = debtIconPalette.map(ic => `
+                <button type="button" onclick="pickDebtIcon('${ic}')" class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === debtFormState.icon ? debtFormState.bg + ' ' + debtFormState.color + ' ring-2 ring-offset-1 ring-rose-400' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}">
+                    <i class="fas ${ic} text-sm"></i>
+                </button>`).join('');
+            const colorWrap = document.getElementById('debt-color-palette');
+            colorWrap.innerHTML = debtColorPalette.map(c => `
+                <button type="button" onclick="pickDebtColor('${c.bg}','${c.color}')" class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === debtFormState.bg ? 'ring-2 ring-offset-1 ring-rose-400' : ''}">
+                    ${c.bg === debtFormState.bg ? `<i class="fas fa-check text-[10px] ${c.color}"></i>` : ''}
+                </button>`).join('');
+        }
+        function pickDebtIcon(icon) { debtFormState.icon = icon; renderDebtIconColorPalette(); }
+        function pickDebtColor(bg, color) { debtFormState.bg = bg; debtFormState.color = color; renderDebtIconColorPalette(); }
+
+        // Kalau lagi bikin utang BARU (bukan edit), begitu "Total Utang" diisi, "Sisa Utang" ikut
+        // ke-auto-isi sama (asumsi wajar: pas pertama dicatat, belum ada yang dibayar sama sekali).
+        // User tetap bebas mengubahnya manual kalau ternyata sudah sempat bayar sebagian sebelumnya.
+        function syncDebtRemainingDefault() {
+            if (currentDebtEditId) return;
+            const sisaDisplay = document.getElementById('debt_sisa_display');
+            if (sisaDisplay.value) return;
+            document.getElementById('debt_sisa_display').value = document.getElementById('debt_total_display').value;
+            document.getElementById('debt_sisa').value = document.getElementById('debt_total').value;
+        }
+
+        function renderDebtsList() {
+            const listEl = document.getElementById('debts-list-container'); if (!listEl) return;
+            const debts = appSettings.debts || [];
+            if (debts.length === 0) {
+                listEl.innerHTML = `
+                    <div class="col-span-1 md:col-span-2 py-12 text-center text-slate-400 stagger-item">
+                        <i class="fas fa-hand-holding-dollar text-4xl mb-3 opacity-30"></i>
+                        <p class="text-sm font-bold text-slate-500">Belum ada utang/cicilan tercatat</p>
+                        <p class="text-[10px]">Bikin catatan pertamamu lewat tombol Tambah Utang.</p>
+                    </div>`;
+                return;
+            }
+            listEl.innerHTML = debts.map(d => {
+                const total = Number(d.totalUtang) || 0, sisa = Math.max(0, Number(d.sisaUtang) || 0);
+                const paidPct = total > 0 ? Math.min(100, Math.round(((total - sisa) / total) * 100)) : 0;
+                const isLunas = sisa <= 0;
+                let estimasiHtml = '';
+                if (!isLunas && d.cicilanPerBulan > 0) {
+                    const bulanLagi = Math.ceil(sisa / d.cicilanPerBulan);
+                    estimasiHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-hourglass-half"></i> ~${bulanLagi} bulan lagi (estimasi)</span>`;
+                }
+                return `
+                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm stagger-item">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center min-w-0">
+                            <div class="w-10 h-10 rounded-xl ${d.bg} ${d.color} flex items-center justify-center mr-3 flex-shrink-0"><i class="fas ${d.icon}"></i></div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-slate-800 truncate">${escapeHtml(d.nama)}</p>
+                                ${estimasiHtml}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button onclick="openDebtModal(true,'${d.id}')" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
+                            <button onclick="removeDebt('${d.id}')" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
+                        </div>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
+                        <div class="h-full rounded-full ${isLunas ? 'bg-emerald-400' : 'bg-rose-400'} transition-all" style="width:${paidPct}%"></div>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-[11px] font-bold ${isLunas ? 'text-emerald-500' : 'text-slate-500'}">${paidPct}% terlunasi</span>
+                        <span class="text-[10px] text-slate-400">sisa Rp ${new Intl.NumberFormat('id-ID').format(sisa)}</span>
+                    </div>
+                    ${isLunas
+                        ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Lunas!</div>`
+                        : `<button onclick="openDebtPayModal('${d.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Bayar Cicilan</button>`}
+                </div>`;
+            }).join('');
+        }
+
+        function openDebtModal(isEdit = false, id = null) {
+            const modal = document.getElementById('modalDebt'); const content = document.getElementById('modalDebtContent');
+            modal.classList.remove('hidden'); setTimeout(() => { content.classList.remove('translate-x-full'); }, 10);
+            document.getElementById('formDebt').reset();
+            document.getElementById('debt_total').value = ''; document.getElementById('debt_total_display').value = '';
+            document.getElementById('debt_sisa').value = ''; document.getElementById('debt_sisa_display').value = '';
+            document.getElementById('debt_cicilan').value = ''; document.getElementById('debt_cicilan_display').value = '';
+
+            if (!isEdit) {
+                currentDebtEditId = null;
+                document.getElementById('modalDebtTitle').innerText = 'Utang Baru';
+                document.getElementById('btnSubmitDebtForm').innerText = 'Simpan Utang';
+                debtFormState = { icon: 'fa-credit-card', bg: 'bg-rose-100', color: 'text-rose-500' };
+            } else {
+                const d = (appSettings.debts || []).find(x => x.id === id); if (!d) return;
+                currentDebtEditId = id;
+                document.getElementById('modalDebtTitle').innerText = 'Ubah Utang';
+                document.getElementById('btnSubmitDebtForm').innerText = 'Simpan Perubahan';
+                document.getElementById('debt_nama').value = d.nama;
+                document.getElementById('debt_total').value = d.totalUtang;
+                document.getElementById('debt_total_display').value = new Intl.NumberFormat('id-ID').format(d.totalUtang);
+                document.getElementById('debt_sisa').value = d.sisaUtang;
+                document.getElementById('debt_sisa_display').value = new Intl.NumberFormat('id-ID').format(d.sisaUtang);
+                if (d.cicilanPerBulan) {
+                    document.getElementById('debt_cicilan').value = d.cicilanPerBulan;
+                    document.getElementById('debt_cicilan_display').value = new Intl.NumberFormat('id-ID').format(d.cicilanPerBulan);
+                }
+                debtFormState = { icon: d.icon, bg: d.bg, color: d.color };
+            }
+            renderDebtIconColorPalette();
+        }
+        function closeDebtModal() {
+            const content = document.getElementById('modalDebtContent'); content.classList.add('translate-x-full');
+            setTimeout(() => { document.getElementById('modalDebt').classList.add('hidden'); }, 300);
+        }
+        function submitDebtForm(e) {
+            e.preventDefault();
+            const nama = document.getElementById('debt_nama').value.trim();
+            const totalUtang = Number(document.getElementById('debt_total').value) || 0;
+            const sisaUtang = Number(document.getElementById('debt_sisa').value) || 0;
+            const cicilanPerBulan = Number(document.getElementById('debt_cicilan').value) || 0;
+            if (!nama || totalUtang <= 0) { showErrorToast('Nama dan total utang wajib diisi.'); return; }
+
+            if (!appSettings.debts) appSettings.debts = [];
+            if (currentDebtEditId) {
+                const d = appSettings.debts.find(x => x.id === currentDebtEditId);
+                if (d) Object.assign(d, { nama, totalUtang, sisaUtang, cicilanPerBulan, icon: debtFormState.icon, bg: debtFormState.bg, color: debtFormState.color });
+            } else {
+                appSettings.debts.push({ id: 'debt_' + Date.now(), nama, totalUtang, sisaUtang, cicilanPerBulan, icon: debtFormState.icon, bg: debtFormState.bg, color: debtFormState.color });
+            }
+            persistSettings();
+            renderDebtsList();
+            closeDebtModal();
+            showSuccessToast('Utang berhasil disimpan.');
+        }
+        function removeDebt(id) {
+            showConfirm('Hapus catatan utang ini? Riwayat progres yang sudah tercatat akan ikut hilang.', () => {
+                appSettings.debts = (appSettings.debts || []).filter(x => x.id !== id);
+                persistSettings();
+                renderDebtsList();
+                showSuccessToast('Catatan utang dihapus.');
+            });
+        }
+
+        function openDebtPayModal(id) {
+            const d = (appSettings.debts || []).find(x => x.id === id); if (!d) return;
+            currentDebtPayId = id;
+            document.getElementById('debt-pay-name').innerText = d.nama;
+            document.getElementById('formDebtPay').reset();
+            document.getElementById('debt_pay_amount').value = ''; document.getElementById('debt_pay_display').value = '';
+            const modal = document.getElementById('modalDebtPay'); const content = document.getElementById('modalDebtPayContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => { content.classList.remove('translate-y-full', 'opacity-0'); content.classList.remove('md:scale-95'); }, 10);
+        }
+        function closeDebtPayModal() {
+            const content = document.getElementById('modalDebtPayContent');
+            content.classList.add('translate-y-full', 'md:scale-95', 'opacity-0');
+            setTimeout(() => { document.getElementById('modalDebtPay').classList.add('hidden'); }, 300);
+        }
+        function submitDebtPay(e) {
+            e.preventDefault();
+            const amount = Number(document.getElementById('debt_pay_amount').value) || 0;
+            if (amount <= 0) { showErrorToast('Isi jumlah pembayaran dulu.'); return; }
+            const d = (appSettings.debts || []).find(x => x.id === currentDebtPayId); if (!d) return;
+            d.sisaUtang = Math.max(0, (Number(d.sisaUtang) || 0) - amount);
+            persistSettings();
+            renderDebtsList();
+            closeDebtPayModal();
+            showSuccessToast(`Pembayaran Rp ${new Intl.NumberFormat('id-ID').format(amount)} berhasil dicatat.`);
         }
 
         // ---------- Detail Aset (riwayat & grafik performa satu aset) ----------
