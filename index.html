@@ -1020,6 +1020,28 @@
                 </div>
             </header>
 
+            <!-- Kekayaan Bersih (Net Worth = total Aset - total Utang) -->
+            <div class="bg-gradient-to-br from-[#151928] to-indigo-900 rounded-2xl p-5 md:p-6 shadow-lg mb-6 md:mb-8 text-white">
+                <p class="text-[10px] md:text-xs font-bold text-white/60 uppercase tracking-wide mb-1">Kekayaan Bersih</p>
+                <p id="networth-total" class="text-3xl md:text-4xl font-extrabold mb-4 truncate">Rp 0</p>
+                <div class="flex items-center flex-wrap gap-x-5 gap-y-1.5 text-xs md:text-sm mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
+                        <span class="text-white/60">Aset</span>
+                        <span id="networth-aset" class="font-bold">Rp 0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-400 flex-shrink-0"></span>
+                        <span class="text-white/60">Utang</span>
+                        <span id="networth-utang" class="font-bold">Rp 0</span>
+                    </div>
+                </div>
+                <div class="w-full h-2 rounded-full bg-white/10 overflow-hidden flex">
+                    <div id="networth-bar-aset" class="h-full bg-emerald-400" style="width:100%"></div>
+                    <div id="networth-bar-utang" class="h-full bg-rose-400" style="width:0%"></div>
+                </div>
+            </div>
+
             <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 md:mb-8">
                 <div class="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100 shadow-sm">
@@ -6781,6 +6803,21 @@ const api = (() => {
             });
             renderGoalsList();
             renderDebtsList();
+
+            // Kekayaan Bersih = total nilai aset SAAT INI (sudah dihitung di atas sbg totalNilai)
+            // dikurangi total SISA utang yang belum lunas. Ditaruh di sini (bukan fungsi
+            // terpisah) krn butuh totalNilai yang sudah dihitung barusan.
+            const totalUtangBersih = (appSettings.debts || []).reduce((sum, d) => sum + Math.max(0, Number(d.sisaUtang) || 0), 0);
+            const netWorth = totalNilai - totalUtangBersih;
+            const nwEl = document.getElementById('networth-total');
+            nwEl.classList.toggle('text-rose-300', netWorth < 0); // utang lebih besar dari aset -- kasih sinyal visual, bukan cuma angka minus yang gampang keskip
+            animateRupiah(nwEl, netWorth);
+            animateRupiah(document.getElementById('networth-aset'), totalNilai);
+            animateRupiah(document.getElementById('networth-utang'), totalUtangBersih);
+            const nwDenom = totalNilai + totalUtangBersih;
+            const asetBarPct = nwDenom > 0 ? (totalNilai / nwDenom) * 100 : 100;
+            document.getElementById('networth-bar-aset').style.width = asetBarPct + '%';
+            document.getElementById('networth-bar-utang').style.width = (100 - asetBarPct) + '%';
         }
 
         // ========================== TUJUAN KEUANGAN (Financial Goals) ==========================
