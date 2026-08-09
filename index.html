@@ -8339,5 +8339,19 @@ const api = (() => {
         }
 
     </script>
+
+    <script>
+        // Daftarkan Service Worker (lihat sw.js) -- dibungkus try/catch & pengecekan fitur
+        // supaya browser lama yang belum kenal Service Worker tetap jalan normal tanpa error.
+        // Ditaruh di 'load' (bukan langsung), supaya proses registrasinya tidak ikut menunda
+        // render pertama halaman.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch((err) => {
+                    console.error('Registrasi Service Worker gagal (app tetap jalan normal via network biasa):', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>
