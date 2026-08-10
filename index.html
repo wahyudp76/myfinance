@@ -1208,6 +1208,20 @@
                     </button>
                 </div>
 
+                <!-- BOT WHATSAPP (Fonnte) -->
+                <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                    <div class="flex items-center mb-4">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-500 flex items-center justify-center mr-3 flex-shrink-0 text-xl"><i class="fab fa-whatsapp"></i></div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-slate-800 text-sm leading-tight">Bot WhatsApp</h4>
+                            <p class="text-[11px] text-slate-400">Catat transaksi lewat chat</p>
+                        </div>
+                    </div>
+                    <div id="whatsapp-link-status" class="mt-auto">
+                        <div class="h-10 flex items-center justify-center"><i class="fas fa-circle-notch fa-spin text-slate-300"></i></div>
+                    </div>
+                </div>
+
                 <!-- TAMPILAN (Tema Terang/Gelap/Sistem) -->
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
@@ -3422,8 +3436,68 @@ const api = (() => {
             populateParentSelect('pemasukan');
             populateParentSelect('pengeluaran');
             updateFormOptions();
+            renderWhatsappLinkStatus();
             const accEl = document.getElementById('settings-stat-accounts'); if (accEl) accEl.innerText = appSettings.accounts.length;
             const catEl = document.getElementById('settings-stat-categories'); if (catEl) catEl.innerText = Object.keys(categoryDict.pemasukan).length + Object.keys(categoryDict.pengeluaran).length;
+        }
+
+        // ========================== BOT WHATSAPP (Fonnte) ==========================
+        // GANTI dengan nomor WhatsApp device Fonnte kamu sendiri (format 62xxx, tanpa +/spasi)
+        // -- cuma dipakai buat ditampilkan sbg instruksi ke user, tidak mempengaruhi logika.
+        const WHATSAPP_BOT_NUMBER = '628XXXXXXXXXX';
+
+        async function renderWhatsappLinkStatus() {
+            const container = document.getElementById('whatsapp-link-status');
+            if (!container) return;
+            try {
+                const { data: userData, error: userErr } = await supabaseClient.auth.getUser();
+                if (userErr || !userData.user) return;
+                const { data } = await supabaseClient.from('whatsapp_links').select('whatsapp_number, linked_at').eq('user_id', userData.user.id).maybeSingle();
+                if (data) {
+                    container.innerHTML = `
+                        <div class="bg-emerald-50 rounded-xl p-3 flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-emerald-700">Terhubung</p>
+                                <p class="text-[11px] text-emerald-600 truncate">+${escapeHtml(data.whatsapp_number)}</p>
+                            </div>
+                            <button onclick="unlinkWhatsapp()" class="text-[11px] font-semibold text-rose-500 hover:text-rose-600 flex-shrink-0">Putuskan</button>
+                        </div>`;
+                } else {
+                    container.innerHTML = `<button onclick="generateWhatsappLinkCode()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs md:text-sm font-bold py-2.5 rounded-xl transition">Hubungkan WhatsApp</button>`;
+                }
+            } catch (e) {
+                container.innerHTML = `<p class="text-[11px] text-slate-400 text-center">Gagal memuat status.</p>`;
+            }
+        }
+
+        async function generateWhatsappLinkCode() {
+            const container = document.getElementById('whatsapp-link-status');
+            try {
+                const { data: userData, error: userErr } = await supabaseClient.auth.getUser();
+                if (userErr || !userData.user) { showErrorToast('Sesi login tidak ditemukan.'); return; }
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: userData.user.id, code });
+                if (error) { showErrorToast('Gagal membuat kode. Coba lagi.'); return; }
+                container.innerHTML = `
+                    <div class="bg-slate-50 rounded-xl p-3 text-center">
+                        <p class="text-[10px] text-slate-400 mb-1">Kirim pesan ini ke WhatsApp bot (${escapeHtml(WHATSAPP_BOT_NUMBER)}):</p>
+                        <p class="text-base font-mono font-extrabold text-slate-800 mb-1 tracking-wide">LINK ${code}</p>
+                        <p class="text-[10px] text-slate-400 mb-2">Kode berlaku 10 menit.</p>
+                        <button onclick="renderWhatsappLinkStatus()" class="text-[11px] font-semibold text-indigo-500 hover:text-indigo-600">Sudah kirim? Cek status</button>
+                    </div>`;
+            } catch (e) {
+                showErrorToast('Gagal membuat kode. Coba lagi.');
+            }
+        }
+
+        function unlinkWhatsapp() {
+            showConfirm('Putuskan nomor WhatsApp dari akun ini? Kamu bisa hubungkan lagi kapan saja.', async () => {
+                const { data: userData } = await supabaseClient.auth.getUser();
+                if (!userData.user) return;
+                await supabaseClient.from('whatsapp_links').delete().eq('user_id', userData.user.id);
+                showSuccessToast('WhatsApp berhasil diputuskan.');
+                renderWhatsappLinkStatus();
+            });
         }
 
         function persistSettings() {
