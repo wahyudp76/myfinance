@@ -918,6 +918,42 @@
             </header>
             
             <div class="grid grid-cols-1 gap-4 md:gap-6 mb-8">
+                <!-- Ringkasan Tahunan -->
+                <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
+                    <div class="flex items-center justify-between mb-1">
+                        <h4 class="text-xs md:text-sm font-bold text-slate-700">Ringkasan Tahun Ini</h4>
+                        <div class="flex items-center gap-1">
+                            <button onclick="shiftReportYear(-1)" aria-label="Tahun sebelumnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                            <span id="report-year-label" class="text-xs font-bold text-slate-600 w-12 text-center"></span>
+                            <button onclick="shiftReportYear(1)" aria-label="Tahun berikutnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-right text-[10px]"></i></button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4 md:mb-6">Dibanding tahun sebelumnya, dan bentuk arus kas 12 bulan sekaligus</p>
+
+                    <div class="grid grid-cols-3 gap-2 md:gap-4 mb-5">
+                        <div class="bg-emerald-50/60 rounded-xl p-3">
+                            <p class="text-[10px] text-slate-400 mb-1">Pemasukan</p>
+                            <p id="yearly-total-in" class="text-sm md:text-lg font-extrabold text-emerald-600 truncate">Rp 0</p>
+                            <p id="yearly-change-in" class="text-[10px] font-semibold mt-0.5"></p>
+                        </div>
+                        <div class="bg-rose-50/60 rounded-xl p-3">
+                            <p class="text-[10px] text-slate-400 mb-1">Pengeluaran</p>
+                            <p id="yearly-total-out" class="text-sm md:text-lg font-extrabold text-rose-600 truncate">Rp 0</p>
+                            <p id="yearly-change-out" class="text-[10px] font-semibold mt-0.5"></p>
+                        </div>
+                        <div class="bg-indigo-50/60 rounded-xl p-3">
+                            <p class="text-[10px] text-slate-400 mb-1">Tabungan</p>
+                            <p id="yearly-total-net" class="text-sm md:text-lg font-extrabold text-indigo-600 truncate">Rp 0</p>
+                            <p id="yearly-change-net" class="text-[10px] font-semibold mt-0.5"></p>
+                        </div>
+                    </div>
+
+                    <div class="h-40 md:h-56 relative">
+                        <canvas id="yearlyNetChart"></canvas>
+                        <p id="yearlyNetChart-empty" class="hidden absolute inset-0 flex items-center justify-center text-xs text-slate-400 text-center px-6">Belum ada transaksi di tahun ini.</p>
+                    </div>
+                </div>
+
                 <!-- Trend Bar Chart -->
                 <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
                     <h4 class="text-xs md:text-sm font-bold text-slate-700 mb-1">Tren Pemasukan vs Pengeluaran</h4>
@@ -3444,7 +3480,7 @@ const api = (() => {
         // ========================== BOT WHATSAPP (Fonnte) ==========================
         // GANTI dengan nomor WhatsApp device Fonnte kamu sendiri (format 62xxx, tanpa +/spasi)
         // -- cuma dipakai buat ditampilkan sbg instruksi ke user, tidak mempengaruhi logika.
-        const WHATSAPP_BOT_NUMBER = '6285664968099';
+        const WHATSAPP_BOT_NUMBER = '628XXXXXXXXXX';
 
         async function renderWhatsappLinkStatus() {
             const container = document.getElementById('whatsapp-link-status');
@@ -7375,7 +7411,80 @@ const api = (() => {
         }
 
         // ========================== LAPORAN TAB & CATEGORY DETAIL ==========================
+        // ========================== RINGKASAN TAHUNAN ==========================
+        // Melengkapi Laporan yang sebelumnya cuma per-bulan -- ini kasih gambaran satu
+        // TAHUN PENUH sekaligus, dibanding tahun lalu. Murni dari globalData yang sudah
+        // ada (tidak perlu fetch tambahan), jadi aman dipakai bareng filter bulan di atas
+        // tanpa saling ganggu.
+        let selectedReportYear = new Date().getFullYear();
+        function shiftReportYear(delta) {
+            selectedReportYear += delta;
+            renderYearlyReport();
+        }
+        function formatYearlyChange(curr, prev) {
+            if (prev <= 0) return curr > 0 ? '<span class="text-slate-400">baru tahun ini</span>' : '';
+            const pct = Math.round(((curr - prev) / prev) * 100);
+            const cls = pct >= 0 ? 'text-emerald-500' : 'text-rose-500';
+            const arrow = pct >= 0 ? '&uarr;' : '&darr;';
+            return `<span class="${cls}">${arrow} ${Math.abs(pct)}% vs tahun lalu</span>`;
+        }
+        function renderYearlyReport() {
+            const yearEl = document.getElementById('report-year-label'); if (!yearEl) return;
+            const year = selectedReportYear, lastYear = year - 1;
+            yearEl.innerText = year;
+
+            const monthlyNet = Array(12).fill(0);
+            let totalIn = 0, totalOut = 0, totalInLast = 0, totalOutLast = 0;
+            let hasDataThisYear = false;
+
+            (globalData || []).forEach(row => {
+                if (!row.tanggal) return;
+                const d = parseTgl(row.tanggal);
+                const y = d.getFullYear();
+                const amt = txIdrAmount(row);
+                if (y === year) {
+                    hasDataThisYear = true;
+                    if (row.jenis === 'Pemasukan') { totalIn += amt; monthlyNet[d.getMonth()] += amt; }
+                    else if (row.jenis === 'Pengeluaran') { totalOut += amt; monthlyNet[d.getMonth()] -= amt; }
+                } else if (y === lastYear) {
+                    if (row.jenis === 'Pemasukan') totalInLast += amt;
+                    else if (row.jenis === 'Pengeluaran') totalOutLast += amt;
+                }
+            });
+
+            const totalNet = totalIn - totalOut, totalNetLast = totalInLast - totalOutLast;
+            animateRupiah(document.getElementById('yearly-total-in'), totalIn);
+            animateRupiah(document.getElementById('yearly-total-out'), totalOut);
+            const netEl = document.getElementById('yearly-total-net');
+            netEl.classList.toggle('text-rose-500', totalNet < 0);
+            netEl.classList.toggle('text-indigo-600', totalNet >= 0);
+            animateRupiah(netEl, totalNet);
+            document.getElementById('yearly-change-in').innerHTML = formatYearlyChange(totalIn, totalInLast);
+            document.getElementById('yearly-change-out').innerHTML = formatYearlyChange(totalOut, totalOutLast);
+            document.getElementById('yearly-change-net').innerHTML = formatYearlyChange(totalNet, totalNetLast);
+
+            const emptyEl = document.getElementById('yearlyNetChart-empty');
+            emptyEl.classList.toggle('hidden', hasDataThisYear);
+
+            if (charts.yearlyNet) charts.yearlyNet.destroy();
+            const monthLabels = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+            charts.yearlyNet = new Chart(document.getElementById('yearlyNetChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: monthLabels, datasets: [{ data: monthlyNet, backgroundColor: monthlyNet.map(v => v >= 0 ? '#34d399' : '#fb7185'), borderRadius: 6, maxBarThickness: 28 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, datalabels: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y >= 0 ? '+' : '-') + 'Rp' + formatShortVal(Math.abs(ctx.parsed.y)) } } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                        y: { grid: { color: chartGridColor() }, ticks: { font: { size: 10 }, callback: (v) => formatShortVal(v) } }
+                    }
+                }
+            });
+        }
+
         function renderReportTab() {
+            renderYearlyReport();
             let filterVal = document.getElementById('reportFilterMonth').value; if(!filterVal) return;
             let [year, month] = filterVal.split('-');
             let filteredData = globalData.filter(d => { if(!d.tanggal) return false; let dDate = parseTgl(d.tanggal); return dDate.getFullYear() == year && (dDate.getMonth() + 1) == month; });
