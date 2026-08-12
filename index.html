@@ -309,6 +309,20 @@
         .dark .ring-offset-1 { --tw-ring-offset-color: #1e293b; }  /* ring pemilih ikon/warna (mis. Tujuan Keuangan) -- biar offset-nya ikut gelap, bukan celah putih terang */
         .dark .bg-slate-50 { background-color: #0f172a; }           /* latar halaman -> slate-900 (paling gelap) */
         .dark .bg-slate-100 { background-color: #334155; }          /* elemen sedikit terangkat/hover -> slate-700 */
+        /* BUG FIX: aturan di atas cuma cocok utk class PERSIS "bg-slate-50"/"bg-slate-100" --
+           Tailwind's opacity-modifier ("bg-slate-50/70", "bg-indigo-50/50", dst, dipakai di header
+           modal/accordion/kartu mini) menghasilkan NAMA CLASS BEDA (mis. "bg-slate-50\/70" sbg
+           string literal), jadi tidak ke-cover sama sekali oleh selector class biasa -- kartu2 itu
+           tetap terang di dark mode. Dipakai selector [class*="..."] (substring match, bukan exact
+           match) supaya SEMUA varian opacity ke-cover sekaligus, termasuk yg mungkin ditambahkan
+           nanti, tanpa perlu daftar satu-satu tiap angka opacity yang dipakai.
+           Sengaja TIDAK termasuk bg-slate-900 (dipakai utk overlay backdrop modal -- itu memang
+           harus tetap gelap di kedua tema, bukan bug). */
+        .dark [class*="bg-slate-50/"] { background-color: #0f172a; }
+        .dark [class*="bg-slate-100/"] { background-color: #334155; }
+        .dark [class*="bg-rose-50/"], .dark [class*="bg-rose-100/"] { background-color: rgba(244,63,94,0.16); }
+        .dark [class*="bg-emerald-50/"], .dark [class*="bg-emerald-100/"] { background-color: rgba(16,185,129,0.16); }
+        .dark [class*="bg-indigo-50/"], .dark [class*="bg-indigo-100/"] { background-color: rgba(99,102,241,0.18); }
         .dark .bg-slate-200 { background-color: #475569; }          /* -> slate-600 */
         .dark .bg-slate-300 { background-color: #64748b; }          /* drag-handle modal mobile -> slate-500 */
 
