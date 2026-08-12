@@ -1047,7 +1047,7 @@
                     <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
                     <div class="p-3 border-t border-slate-100 flex items-center gap-2 flex-shrink-0">
                         <input type="text" id="ai-chat-input" placeholder="mis. berapa pengeluaran transport 3 bulan terakhir?" onkeydown="if(event.key==='Enter'){sendAiChatQuestion();}" class="flex-1 bg-slate-100 rounded-xl px-3.5 py-2.5 text-xs md:text-sm outline-none focus:ring-2 focus:ring-indigo-300 min-w-0">
-                        <button onclick="sendAiChatQuestion()" id="ai-chat-send-btn" class="w-10 h-10 rounded-xl bg-[#151928] hover:bg-black active:scale-95 text-white flex items-center justify-center flex-shrink-0 transition"><i class="fas fa-paper-plane text-xs"></i></button>
+                        <button onclick="sendAiChatQuestion()" id="ai-chat-send-btn" aria-label="Kirim pertanyaan" class="w-10 h-10 rounded-xl bg-[#151928] hover:bg-black active:scale-95 text-white flex items-center justify-center flex-shrink-0 transition"><i class="fas fa-paper-plane text-xs"></i></button>
                     </div>
                 </div>
             </div>
@@ -1344,13 +1344,13 @@
                         <select id="parent-select-pemasukan" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
                             <input type="text" id="new-sub-pemasukan" placeholder="Nama sub-kategori (cth: Uang Jajan)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pemasukan');}">
-                            <button onclick="addSubCategory('pemasukan')" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button onclick="addSubCategory('pemasukan')" aria-label="Tambah sub-kategori pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
                     <div id="catform-pemasukan-parent" class="mb-3 hidden">
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
                             <input type="text" id="new-parent-pemasukan" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addParentCategory('pemasukan');}">
-                            <button onclick="addParentCategory('pemasukan')" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button onclick="addParentCategory('pemasukan')" aria-label="Tambah kategori utama pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
 
@@ -1376,13 +1376,13 @@
                         <select id="parent-select-pengeluaran" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
                             <input type="text" id="new-sub-pengeluaran" placeholder="Nama sub-kategori (cth: Parkir)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pengeluaran');}">
-                            <button onclick="addSubCategory('pengeluaran')" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button onclick="addSubCategory('pengeluaran')" aria-label="Tambah sub-kategori pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
                     <div id="catform-pengeluaran-parent" class="mb-3 hidden">
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
                             <input type="text" id="new-parent-pengeluaran" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addParentCategory('pengeluaran');}">
-                            <button onclick="addParentCategory('pengeluaran')" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button onclick="addParentCategory('pengeluaran')" aria-label="Tambah kategori utama pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
 
@@ -3579,8 +3579,8 @@ const api = (() => {
                             <span class="truncate">${escapeHtml(item)}</span>
                         </span>
                         <span class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="openAccountModal(${i})" class="w-9 h-9 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-xs"></i></button>
-                            <button onclick="removeSetting('accounts', ${i})" class="w-9 h-9 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-xs"></i></button>
+                            <button onclick="openAccountModal(${i})" aria-label="Ubah akun" class="w-9 h-9 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-xs"></i></button>
+                            <button onclick="removeSetting('accounts', ${i})" aria-label="Hapus akun" class="w-9 h-9 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-xs"></i></button>
                         </span>
                     </li>`).join('');
         }
@@ -3634,7 +3634,7 @@ const api = (() => {
             const wrap = document.getElementById('acc-icon-panel-palette'); if (!wrap) return;
             wrap.innerHTML = accountIconPalette.map(p => {
                 const isSelected = accountIconOverride && accountIconOverride.type === 'icon' && accountIconOverride.value === p.icon && accountIconOverride.bg === p.bg;
-                return `<button type="button" onmousedown="event.preventDefault();" onclick="pickAccountIconPalette('${p.icon}','${p.bg}','${p.color}')" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                return `<button type="button" onmousedown="event.preventDefault();" onclick="pickAccountIconPalette('${p.icon}','${p.bg}','${p.color}')" aria-label="Pilih ikon dan warna ini" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
             }).join('');
         }
 
@@ -3746,12 +3746,12 @@ const api = (() => {
                 const bg = categoryStyleContext.lockedBg, color = categoryStyleContext.lockedColor;
                 wrap.innerHTML = categoryIconPalette.map(p => {
                     const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon;
-                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStyleIconOnly('${p.icon}')" class="aspect-square rounded-xl ${bg} ${color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStyleIconOnly('${p.icon}')" aria-label="Pilih ikon ini" class="aspect-square rounded-xl ${bg} ${color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
                 }).join('');
             } else {
                 wrap.innerHTML = categoryIconPalette.map(p => {
                     const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon && categoryStyleOverride.bg === p.bg;
-                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStylePalette('${p.icon}','${p.bg}','${p.color}')" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStylePalette('${p.icon}','${p.bg}','${p.color}')" aria-label="Pilih ikon dan warna ini" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
                 }).join('');
             }
         }
@@ -4296,21 +4296,21 @@ const api = (() => {
                     const isCustomSub = subIdx !== -1;
                     const subStyle = getCategoryStyle(sub.name, jenisProper);
                     const subIconHtml = categoryIconHtml(subStyle, 'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0', 'text-[8px]');
-                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}','${jsStr(parentName)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[8px]"></i></button>`;
+                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}','${jsStr(parentName)}')" aria-label="Ubah ikon sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[8px]"></i></button>`;
                     if (isCustomSub) {
                         return `<span class="inline-flex items-center gap-1 bg-white ring-1 ring-slate-200 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-600 m-0.5" id="sub-${type}-${slug}-${subIdx}">
                             ${subIconHtml}
                             ${escapeHtml(sub.name)}
                             ${styleBtnHtml}
-                            <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[8px]"></i></button>
-                            <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
+                            <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" aria-label="Ubah nama sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[8px]"></i></button>
+                            <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
                         </span>`;
                     }
                     return `<span class="inline-flex items-center gap-1 bg-slate-50 ring-1 ring-slate-100 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-500 m-0.5">
                         ${subIconHtml}
                         ${escapeHtml(sub.name)}
                         ${styleBtnHtml}
-                        <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
+                        <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
                     </span>`;
                 }).join('');
                 if (!subsHtml) subsHtml = `<span class="text-[10px] text-slate-300 italic px-1">Belum ada sub-kategori</span>`;
@@ -4324,8 +4324,8 @@ const api = (() => {
                                 ${isCustomParent ? `<span class="ml-1.5 text-[8px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">custom</span>` : ''}
                             </div>
                             <div class="flex items-center gap-1 flex-shrink-0">
-                                <button onclick="event.stopPropagation(); openCategoryStyleModal('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
-                                ${parentName !== 'Lain-lain' ? `<button onclick="event.stopPropagation(); removeParentCategory('${type}','${jsStr(parentName)}')" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center" title="Hapus kategori"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
+                                <button onclick="event.stopPropagation(); openCategoryStyleModal('${type}','${jsStr(parentName)}')" aria-label="Ubah ikon kategori" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
+                                ${parentName !== 'Lain-lain' ? `<button onclick="event.stopPropagation(); removeParentCategory('${type}','${jsStr(parentName)}')" aria-label="Hapus kategori utama" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center" title="Hapus kategori"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
                                 <i id="icon-tree-${type}-${idx}" class="fas fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
                             </div>
                         </div>
@@ -4363,7 +4363,7 @@ const api = (() => {
                 <span class="inline-flex items-center gap-1 bg-white ring-2 ${theme.focusRing} rounded-full pl-2 pr-1 py-0.5 text-[10px] font-semibold m-0.5" id="sub-${type}-${slug}-${idx}">
                     <input type="text" id="sub-edit-input-${type}-${slug}-${idx}" value="${escapeHtml(oldVal)}" class="w-20 outline-none bg-transparent text-[10px]"
                         onkeydown="if(event.key==='Enter'){saveEditSub('${type}','${jsStr(parentName)}',${idx});} if(event.key==='Escape'){renderCategoryTree('${type}');}">
-                    <button onclick="saveEditSub('${type}','${jsStr(parentName)}',${idx})" class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-check text-[8px]"></i></button>
+                    <button onclick="saveEditSub('${type}','${jsStr(parentName)}',${idx})" aria-label="Simpan nama sub-kategori" class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-check text-[8px]"></i></button>
                 </span>`;
             const inp = document.getElementById(`sub-edit-input-${type}-${slug}-${idx}`); inp.focus(); inp.select();
         }
@@ -5586,8 +5586,8 @@ const api = (() => {
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
                                     <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(row.jumlah)}</span>
-                                    <button onclick="editDataForm('${row.id}')" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
-                                    <button onclick="hapusData('${row.id}')" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                                    <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
+                                    <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
                             </div>`;
                     }).join('');
@@ -7006,8 +7006,8 @@ const api = (() => {
                             </div>
                         </div>
                         <div class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="openGoalModal(true,'${g.id}')" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
-                            <button onclick="removeGoal('${g.id}')" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
+                            <button onclick="openGoalModal(true,'${g.id}')" aria-label="Ubah tujuan" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
+                            <button onclick="removeGoal('${g.id}')" aria-label="Hapus tujuan" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
                         </div>
                     </div>
                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
@@ -7184,8 +7184,8 @@ const api = (() => {
                             </div>
                         </div>
                         <div class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="openDebtModal(true,'${d.id}')" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
-                            <button onclick="removeDebt('${d.id}')" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
+                            <button onclick="openDebtModal(true,'${d.id}')" aria-label="Ubah utang" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
+                            <button onclick="removeDebt('${d.id}')" aria-label="Hapus utang" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
                         </div>
                     </div>
                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
@@ -7841,8 +7841,8 @@ const api = (() => {
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
                                     <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(row.jumlah)}</span>
-                                    <button onclick="editDataForm('${row.id}')" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
-                                    <button onclick="hapusData('${row.id}')" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                                    <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
+                                    <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
                             </div>`;
                     }).join('');
