@@ -824,18 +824,42 @@
                 </div>
                 
                 <!-- Filter Option -->
-                <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3">
+                <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 flex-wrap">
                     <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Filter:</div>
-                    <div class="flex items-center gap-2 flex-1 justify-end">
+                    <div class="flex items-center gap-2 flex-1 justify-end flex-wrap">
                         <select id="txTimeFilterType" onchange="toggleTxTimeFilter()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 font-bold">
                             <option value="last30" selected>30 Hari Terakhir</option>
                             <option value="custom">Bulan & Tahun</option>
+                            <option value="range">Rentang Tanggal</option>
                         </select>
                         <div id="txMonthYearContainer" class="hidden">
                             <input type="month" id="txFilterMonthYear" onchange="filterTransactions()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 cursor-pointer">
                         </div>
+                        <div id="txDateRangeContainer" class="hidden items-center gap-1.5">
+                            <input type="date" id="txFilterDateFrom" onchange="filterTransactions()" aria-label="Dari tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 cursor-pointer">
+                            <span class="text-slate-300 text-xs">-</span>
+                            <input type="date" id="txFilterDateTo" onchange="filterTransactions()" aria-label="Sampai tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 cursor-pointer">
+                        </div>
+                        <button type="button" onclick="toggleTxAmountFilter()" aria-label="Filter nominal" id="txAmountFilterToggle" class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition flex-shrink-0"><i class="fas fa-sliders text-xs"></i></button>
                     </div>
                 </div>
+            </div>
+
+            <!-- Filter Nominal (tersembunyi, dibuka lewat ikon slider di atas) -->
+            <div id="txAmountFilterPanel" class="hidden bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 mb-6 -mt-2 flex items-center gap-3 flex-wrap">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nominal:</span>
+                <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 overflow-hidden">
+                    <span class="pl-2 text-slate-400 text-xs">Rp</span>
+                    <input type="text" id="txFilterAmountMinDisplay" placeholder="Dari" oninput="formatInputRibuan(this, 'txFilterAmountMin'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
+                    <input type="hidden" id="txFilterAmountMin">
+                </div>
+                <span class="text-slate-300 text-xs">-</span>
+                <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 overflow-hidden">
+                    <span class="pl-2 text-slate-400 text-xs">Rp</span>
+                    <input type="text" id="txFilterAmountMaxDisplay" placeholder="Sampai" oninput="formatInputRibuan(this, 'txFilterAmountMax'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
+                    <input type="hidden" id="txFilterAmountMax">
+                </div>
+                <button type="button" onclick="clearTxAmountFilter()" class="text-[11px] font-semibold text-slate-400 hover:text-rose-500 transition ml-auto">Reset</button>
             </div>
 
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -5432,9 +5456,27 @@ const api = (() => {
 
         function toggleTxTimeFilter() {
             const filterType = document.getElementById('txTimeFilterType').value;
-            const container = document.getElementById('txMonthYearContainer');
-            if (filterType === 'custom') { container.classList.remove('hidden'); container.classList.add('block'); } 
-            else { container.classList.remove('block'); container.classList.add('hidden'); }
+            const monthContainer = document.getElementById('txMonthYearContainer');
+            const rangeContainer = document.getElementById('txDateRangeContainer');
+            monthContainer.classList.toggle('hidden', filterType !== 'custom');
+            monthContainer.classList.toggle('block', filterType === 'custom');
+            rangeContainer.classList.toggle('hidden', filterType !== 'range');
+            rangeContainer.classList.toggle('flex', filterType === 'range');
+            filterTransactions();
+        }
+
+        // Filter Lanjutan: rentang nominal (Rp dari - sampai) -- berlaku BERBARENGAN dgn filter
+        // waktu manapun yg aktif (30 hari terakhir / bulan / rentang tanggal), bukan pengganti.
+        function toggleTxAmountFilter() {
+            const panel = document.getElementById('txAmountFilterPanel');
+            panel.classList.toggle('hidden');
+            panel.classList.toggle('flex');
+        }
+        function clearTxAmountFilter() {
+            document.getElementById('txFilterAmountMin').value = '';
+            document.getElementById('txFilterAmountMinDisplay').value = '';
+            document.getElementById('txFilterAmountMax').value = '';
+            document.getElementById('txFilterAmountMaxDisplay').value = '';
             filterTransactions();
         }
 
@@ -5534,6 +5576,63 @@ const api = (() => {
                     
                     for (let i = 1; i <= daysInMonth; i++) { chartLabels.push(String(i)); chartIn.push(inMap[i]); chartOut.push(outMap[i]); }
                 }
+            } else if (timeFilterType === 'range') {
+                const fromVal = document.getElementById('txFilterDateFrom').value;
+                const toVal = document.getElementById('txFilterDateTo').value;
+                if (fromVal || toVal) {
+                    const fromDate = fromVal ? parseTgl(fromVal) : null;
+                    const toDate = toVal ? parseTgl(toVal) : null;
+                    data = data.filter(item => {
+                        const d = parseTgl(item.tanggal);
+                        if (fromDate && d < fromDate) return false;
+                        if (toDate && d > toDate) return false;
+                        return true;
+                    });
+                }
+                if (fromVal && toVal) {
+                    // Rentang bisa berapa saja panjangnya -- kalau <=31 hari, kelompokkan per HARI
+                    // (detail); kalau lebih panjang, per BULAN (biar chart tidak sesak batang).
+                    const fromDate = parseTgl(fromVal), toDate = parseTgl(toVal);
+                    const spanDays = Math.round((toDate - fromDate) / 86400000) + 1;
+                    if (spanDays > 0 && spanDays <= 31) {
+                        let inMap = {}, outMap = {};
+                        for (let i = 0; i < spanDays; i++) { const d = new Date(fromDate); d.setDate(d.getDate() + i); const key = toDateStr(d); inMap[key] = 0; outMap[key] = 0; }
+                        data.forEach(d => {
+                            if (!d.tanggal) return; const dStr = toDateStr(parseTgl(d.tanggal));
+                            if (inMap[dStr] !== undefined) { if (d.jenis === 'Pemasukan') inMap[dStr] += txIdrAmount(d); if (d.jenis === 'Pengeluaran') outMap[dStr] += txIdrAmount(d); }
+                        });
+                        const keys = Object.keys(inMap);
+                        chartLabels = keys.map(k => parseTgl(k).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
+                        chartIn = keys.map(k => inMap[k]); chartOut = keys.map(k => outMap[k]);
+                    } else if (spanDays > 0) {
+                        let inMap = {}, outMap = {}, order = [];
+                        let cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+                        const endCursor = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+                        while (cursor <= endCursor) { const key = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0'); order.push(key); inMap[key] = 0; outMap[key] = 0; cursor.setMonth(cursor.getMonth() + 1); }
+                        data.forEach(d => {
+                            if (!d.tanggal) return; const dd = parseTgl(d.tanggal); const key = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0');
+                            if (inMap[key] !== undefined) { if (d.jenis === 'Pemasukan') inMap[key] += txIdrAmount(d); if (d.jenis === 'Pengeluaran') outMap[key] += txIdrAmount(d); }
+                        });
+                        chartLabels = order.map(k => { const [y, m] = k.split('-'); return new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }); });
+                        chartIn = order.map(k => inMap[k]); chartOut = order.map(k => outMap[k]);
+                    }
+                }
+            }
+
+            // Filter Lanjutan: rentang nominal -- berlaku BERBARENGAN dgn filter waktu manapun yg
+            // aktif di atas (orthogonal, bukan menggantikan). Dicek longgar (elemennya mungkin belum
+            // sempat dirender di beberapa alur pemanggilan awal).
+            const amountMinEl = document.getElementById('txFilterAmountMin');
+            const amountMaxEl = document.getElementById('txFilterAmountMax');
+            const amountMin = amountMinEl && amountMinEl.value ? Number(amountMinEl.value) : null;
+            const amountMax = amountMaxEl && amountMaxEl.value ? Number(amountMaxEl.value) : null;
+            if (amountMin != null || amountMax != null) {
+                data = data.filter(item => {
+                    const amt = txIdrAmount(item);
+                    if (amountMin != null && amt < amountMin) return false;
+                    if (amountMax != null && amt > amountMax) return false;
+                    return true;
+                });
             }
 
             const tbody = document.getElementById('table-body');
