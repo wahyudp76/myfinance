@@ -1296,6 +1296,27 @@
                     </div>
                 </div>
 
+                <!-- BACKUP & RESTORE -->
+                <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                    <div class="flex items-center mb-4">
+                        <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center mr-3 flex-shrink-0 text-xl"><i class="fas fa-cloud-arrow-down"></i></div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-slate-800 text-sm leading-tight">Backup & Restore</h4>
+                            <p class="text-[11px] text-slate-400">Ekspor/impor semua data kamu</p>
+                        </div>
+                    </div>
+                    <div class="mt-auto space-y-2">
+                        <button onclick="exportFullBackup()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            <i class="fas fa-download"></i> Ekspor Semua Data
+                        </button>
+                        <button onclick="document.getElementById('backupFileInput').click()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            <i class="fas fa-upload"></i> Impor dari File
+                        </button>
+                        <input type="file" id="backupFileInput" accept=".json,application/json" class="hidden" onchange="handleBackupFileSelect(event)">
+                        <p class="text-[10px] text-slate-400 leading-relaxed pt-1">Pengaturan (akun/kategori/tujuan/utang) akan <b>ditimpa</b> saat impor. Transaksi/aset/berulang akan <b>ditambahkan</b>, bukan menimpa.</p>
+                    </div>
+                </div>
+
                 <!-- TAMPILAN (Tema Terang/Gelap/Sistem) -->
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
@@ -3572,6 +3593,101 @@ const api = (() => {
                 showSuccessToast('WhatsApp berhasil diputuskan.');
                 renderWhatsappLinkStatus();
             });
+        }
+
+        // ========================== BACKUP & RESTORE ==========================
+        // Ekspor: satu file JSON berisi SEMUA data (pengaturan + transaksi + aset + berulang) --
+        // murni baca dari state yg sudah ada di memori (appSettings/globalData/globalAssets/
+        // globalRecurring), tanpa fetch tambahan.
+        function exportFullBackup() {
+            const backup = {
+                app: 'MyFinance',
+                backup_version: 1,
+                exported_at: new Date().toISOString(),
+                settings: appSettings,
+                transactions: globalData,
+                assets: globalAssets,
+                recurring: globalRecurring,
+            };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `myfinance-backup-${todayDateStr()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showSuccessToast('Backup berhasil diunduh.');
+        }
+
+        function handleBackupFileSelect(event) {
+            const file = event.target.files[0];
+            event.target.value = ''; // supaya file yg sama bisa dipilih lagi kalau perlu diulang
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let backup;
+                try { backup = JSON.parse(e.target.result); }
+                catch (err) { showErrorToast('Gagal membaca file -- pastikan file JSON backup yang benar.'); return; }
+                if (!backup || backup.app !== 'MyFinance' || !backup.settings) {
+                    showErrorToast('File ini bukan file backup MyFinance yang valid.');
+                    return;
+                }
+                confirmAndRestoreBackup(backup);
+            };
+            reader.readAsText(file);
+        }
+
+        function confirmAndRestoreBackup(backup) {
+            const txCount = (backup.transactions || []).length;
+            const assetCount = (backup.assets || []).length;
+            const recurCount = (backup.recurring || []).length;
+            showConfirm(
+                `File ini berisi pengaturan (akun/kategori/tujuan/utang), ${txCount} transaksi, ${assetCount} aset, dan ${recurCount} transaksi berulang.\n\nPengaturan akan MENIMPA yang sekarang. Transaksi/aset/berulang akan DITAMBAHKAN (bukan menimpa) -- kalau file ini pernah diimpor sebelumnya, datanya bisa dobel. Lanjutkan?`,
+                () => restoreBackup(backup)
+            );
+        }
+
+        async function restoreBackup(backup) {
+            showLoading(true);
+            try {
+                const user_id = await currentUserId();
+                if (!user_id) { showErrorToast('Sesi login sudah berakhir, coba login ulang.'); return; }
+
+                // 1) Pengaturan: TIMPA penuh, lalu backfill field baru yg mungkin belum ada
+                //    di backup lama (mis. backup dari sebelum fitur Tujuan Keuangan ada).
+                appSettings = Object.assign({}, backup.settings);
+                ensureSettingsShape();
+                await persistSettings();
+
+                // 2) Transaksi/aset/berulang: TAMBAH baris baru (bulk insert), bukan timpa --
+                //    id lama & user_id lama dibuang, diganti id baru (auto) & user_id akun ini,
+                //    supaya restore ke akun BERBEDA pun aman (tidak nabrak/klaim data user lain).
+                if (backup.transactions && backup.transactions.length > 0) {
+                    const rows = backup.transactions.map(({ id, user_id: _uid, ...rest }) => ({ ...rest, user_id }));
+                    const { error } = await supabaseClient.from('transactions').insert(rows);
+                    if (error) throw error;
+                }
+                if (backup.assets && backup.assets.length > 0) {
+                    const rows = backup.assets.map(({ id, user_id: _uid, ...rest }) => ({ ...rest, user_id }));
+                    const { error } = await supabaseClient.from('assets').insert(rows);
+                    if (error) throw error;
+                }
+                if (backup.recurring && backup.recurring.length > 0) {
+                    const rows = backup.recurring.map(({ id, user_id: _uid, ...rest }) => ({ ...rest, user_id }));
+                    const { error } = await supabaseClient.from('recurring_transactions').insert(rows);
+                    if (error) throw error;
+                }
+
+                showSuccessToast('Restore berhasil! Memuat ulang data...');
+                loadData();
+            } catch (e) {
+                console.error('Restore backup gagal:', e);
+                showErrorToast('Gagal restore data. Coba lagi, atau cek Console browser (F12) buat detail errornya.');
+            } finally {
+                showLoading(false);
+            }
         }
 
         function persistSettings() {
