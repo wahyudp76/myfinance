@@ -492,13 +492,13 @@
 
                 <form id="authForm" class="space-y-4">
                     <div>
-                        <label class="text-xs font-semibold text-slate-500 mb-1.5 block">Email</label>
+                        <label for="authEmail" class="text-xs font-semibold text-slate-500 mb-1.5 block">Email</label>
                         <input type="email" id="authEmail" required autocomplete="email"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800/10 focus:border-slate-400"
                             placeholder="nama@email.com">
                     </div>
                     <div>
-                        <label class="text-xs font-semibold text-slate-500 mb-1.5 block">Password</label>
+                        <label for="authPassword" class="text-xs font-semibold text-slate-500 mb-1.5 block">Password</label>
                         <input type="password" id="authPassword" required autocomplete="current-password" minlength="6"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800/10 focus:border-slate-400"
                             placeholder="Minimal 6 karakter">
@@ -876,7 +876,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm flex-1 md:flex-initial">
-                        <label class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
+                        <label for="budgetFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
                         <input type="month" id="budgetFilterMonth" onchange="changeBudgetMonth()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent w-full">
                     </div>
                     <button onclick="openBudgetModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 flex-shrink-0"><i class="fas fa-sliders"></i> <span>Atur Budget</span></button>
@@ -950,7 +950,7 @@
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Visualisasi data keuangan Anda</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm">
-                    <label class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
+                    <label for="reportFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
                     <input type="month" id="reportFilterMonth" onchange="renderReportTab()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent">
                 </div>
             </header>
@@ -1648,11 +1648,11 @@
                     
                     <div class="space-y-3 md:space-y-4">
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Tanggal</label>
+                            <label for="tanggal" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Tanggal</label>
                             <input type="date" id="tanggal" required class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm font-bold">
                         </div>
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah</label>
+                            <label for="jumlah_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-[#151928] transition overflow-hidden">
                                 <span id="jumlah-currency-prefix" class="pl-3 md:pl-4 text-slate-400 font-bold text-sm md:text-base">Rp</span>
                                 <input type="text" id="jumlah_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'jumlah')">
@@ -1660,14 +1660,14 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-akun">Akun Sumber</label>
+                            <label for="akun" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-akun">Akun Sumber</label>
                             <select id="akun" required onchange="handleAccountChangeForCurrency()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm font-bold"></select>
                             <p id="akun-currency-hint" class="hidden text-[10px] text-indigo-500 font-semibold mt-1"></p>
                         </div>
                         
                         <!-- CUSTOM CATEGORY SELECTOR UI -->
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-kategori">Kategori</label>
+                            <label for="kategori" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-kategori">Kategori</label>
                             <input type="hidden" id="kategori" required>
                             <div onclick="openCategorySelector()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl ring-1 ring-slate-200 hover:ring-2 hover:ring-[#151928] transition cursor-pointer flex items-center justify-between">
                                 <div id="selected-category-display" class="flex items-center text-xs md:text-sm text-slate-400">
@@ -1679,7 +1679,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Keterangan (Opsional)</label>
+                            <label for="keterangan" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Keterangan (Opsional)</label>
                             <input type="text" id="keterangan" placeholder="Contoh: Makan siang, Gaji..." oninput="handleKeteranganInputForSuggestion()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm">
                             <button type="button" id="category-suggestion-chip" onclick="applyCategorySuggestion()" class="hidden mt-1.5 text-[10px] md:text-xs font-bold text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 items-center gap-1.5 transition"><i class="fas fa-wand-magic-sparkles"></i><span id="category-suggestion-text"></span></button>
                         </div>
@@ -1707,12 +1707,12 @@
                 <form id="formAsset" onsubmit="submitAsset(event)">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Aset / Emisi</label>
+                            <label for="aset_nama" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Aset / Emisi</label>
                             <input type="text" id="aset_nama" required placeholder="Contoh: BBCA, Sucorinvest MM, Antam" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                         </div>
                         
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Kategori Instrumen</label>
+                            <label for="aset_kategori" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Kategori Instrumen</label>
                             <select id="aset_kategori" required onchange="toggleAssetAutoUpdateSection()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
                                 <option value="Saham">Saham</option>
                                 <option value="Reksadana">Reksadana</option>
@@ -1726,7 +1726,7 @@
                         </div>
                         
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Platform / Sekuritas</label>
+                            <label for="aset_platform" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Platform / Sekuritas</label>
                             <input type="text" id="aset_platform" required placeholder="Contoh: Bibit, Ajaib, Indodax, dll" autocomplete="off" oninput="searchAssetBankSuggestions(this.value)" onfocus="searchAssetBankSuggestions(this.value)" onblur="setTimeout(()=>document.getElementById('asset-platform-suggestions').classList.add('hidden'), 200)" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                             <div id="asset-platform-suggestions" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl ring-1 ring-slate-100 max-h-48 overflow-y-auto p-1.5"></div>
                         </div>
@@ -1734,18 +1734,18 @@
                         <div id="aset-auto-update-section" class="hidden space-y-3 bg-indigo-50/50 rounded-xl p-3 ring-1 ring-indigo-100">
                             <p id="aset-auto-update-desc" class="text-[10px] md:text-[11px] text-indigo-500 font-semibold leading-relaxed"><i class="fas fa-bolt mr-1"></i>Opsional -- isi dua kolom ini supaya nilai aset ini bisa di-refresh otomatis dari harga pasar terkini (sumber: CoinGecko).</p>
                             <div>
-                                <label id="aset-simbol-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">ID CoinGecko</label>
+                                <label for="aset_simbol" id="aset-simbol-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">ID CoinGecko</label>
                                 <input type="text" id="aset_simbol" placeholder="Contoh: bitcoin, ethereum, solana" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                                 <p id="aset-simbol-hint" class="text-[10px] text-slate-400 mt-1">Lihat ID-nya di URL halaman koin tsb di coingecko.com (bagian paling akhir)</p>
                             </div>
                             <div>
-                                <label id="aset-jumlah-unit-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Koin Dimiliki</label>
+                                <label for="aset_jumlah_unit" id="aset-jumlah-unit-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Koin Dimiliki</label>
                                 <input type="text" id="aset_jumlah_unit" placeholder="Contoh: 0.05" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                             </div>
                         </div>
 
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Modal Diinvestasikan</label>
+                            <label for="aset_modal_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Modal Diinvestasikan</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="aset_modal_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'aset_modal')">
@@ -1754,7 +1754,7 @@
                         </div>
 
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nilai Saat Ini (Current Value)</label>
+                            <label for="aset_nilai_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nilai Saat Ini (Current Value)</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="aset_nilai_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'aset_nilai')">
@@ -1784,11 +1784,11 @@
                 <form id="formGoal" onsubmit="submitGoalForm(event)">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Tujuan</label>
+                            <label for="goal_nama" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Tujuan</label>
                             <input type="text" id="goal_nama" required placeholder="Contoh: Liburan ke Bali, DP Rumah, Dana Darurat" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                         </div>
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Dana</label>
+                            <label for="goal_target_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Dana</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="goal_target_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_target')">
@@ -1796,7 +1796,7 @@
                             </div>
                         </div>
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sudah Terkumpul (opsional)</label>
+                            <label for="goal_terkumpul_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sudah Terkumpul (opsional)</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="goal_terkumpul_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_terkumpul')">
@@ -1804,7 +1804,7 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Tanggal (opsional)</label>
+                            <label for="goal_deadline" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Tanggal (opsional)</label>
                             <input type="date" id="goal_deadline" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
                         </div>
                         <div>
@@ -1835,7 +1835,7 @@
             </div>
             <div class="p-5">
                 <form id="formGoalContribute" onsubmit="submitGoalContribute(event)">
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Setoran</label>
+                    <label for="goal_contribute_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Setoran</label>
                     <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden mb-4">
                         <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                         <input type="text" id="goal_contribute_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_contribute_amount')">
@@ -1858,11 +1858,11 @@
                 <form id="formDebt" onsubmit="submitDebtForm(event)">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Utang/Cicilan</label>
+                            <label for="debt_nama" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Utang/Cicilan</label>
                             <input type="text" id="debt_nama" required placeholder="Contoh: Cicilan Motor, Kartu Kredit BCA" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-rose-400 outline-none transition text-xs md:text-sm font-semibold">
                         </div>
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Total Utang Awal</label>
+                            <label for="debt_total_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Total Utang Awal</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="debt_total_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_total'); syncDebtRemainingDefault();">
@@ -1870,7 +1870,7 @@
                             </div>
                         </div>
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sisa Utang Sekarang</label>
+                            <label for="debt_sisa_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sisa Utang Sekarang</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="debt_sisa_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_sisa')">
@@ -1878,7 +1878,7 @@
                             </div>
                         </div>
                         <div class="relative">
-                            <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Cicilan per Bulan (opsional)</label>
+                            <label for="debt_cicilan_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Cicilan per Bulan (opsional)</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                                 <input type="text" id="debt_cicilan_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_cicilan')">
@@ -1914,7 +1914,7 @@
             </div>
             <div class="p-5">
                 <form id="formDebtPay" onsubmit="submitDebtPay(event)">
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Pembayaran</label>
+                    <label for="debt_pay_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Pembayaran</label>
                     <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden mb-4">
                         <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
                         <input type="text" id="debt_pay_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_pay_amount')">
@@ -1995,7 +1995,7 @@
                 <div class="flex items-center gap-3">
                     <div id="acc-modal-preview" class="w-14 h-14 rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden"></div>
                     <div class="flex-1 min-w-0 relative">
-                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Akun</label>
+                        <label for="acc-modal-name" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Akun</label>
                         <input type="text" id="acc-modal-name" placeholder="Cari BCA, GoPay, Bibit, Ajaib..." autocomplete="off"
                             class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold"
                             oninput="searchAccountModalSuggestions(this.value); refreshAccountIconPreview();" onfocus="searchAccountModalSuggestions(this.value)"
@@ -2008,7 +2008,7 @@
 
                 <!-- Mata Uang (fitur Growth "Multi-currency") -->
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mata Uang Akun</label>
+                    <label for="acc-modal-currency" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mata Uang Akun</label>
                     <input type="text" id="acc-modal-currency" maxlength="3" placeholder="IDR" autocomplete="off" oninput="this.value = this.value.toUpperCase()"
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold uppercase">
                     <p class="text-[10px] text-slate-400 mt-1">Kosongkan/isi "IDR" kalau akun ini Rupiah biasa. Isi kode 3 huruf (mis. USD, SGD, EUR) kalau akun/rekening luar negeri -- transaksi di akun ini otomatis dikonversi ke Rupiah pakai kurs terkini untuk total gabungan.</p>
@@ -2039,7 +2039,7 @@
 
                 <!-- Saldo Awal -->
                 <div id="acc-modal-saldo-wrap">
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Saldo Awal (Opsional)</label>
+                    <label for="acc-modal-saldo-display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Saldo Awal (Opsional)</label>
                     <div class="flex items-center bg-white rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-blue-400 transition overflow-hidden">
                         <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm md:text-base">Rp</span>
                         <input type="text" id="acc-modal-saldo-display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'acc-modal-saldo')">
@@ -2141,19 +2141,19 @@
                 </div>
 
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Lengkap</label>
+                    <label for="profile-modal-name" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Lengkap</label>
                     <input type="text" id="profile-modal-name" placeholder="Nama kamu" autocomplete="name"
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold">
                 </div>
 
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nomor HP / WhatsApp</label>
+                    <label for="profile-modal-phone" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nomor HP / WhatsApp</label>
                     <input type="tel" id="profile-modal-phone" placeholder="0812xxxxxxx" autocomplete="tel"
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold">
                 </div>
 
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Tentang Saya (Opsional)</label>
+                    <label for="profile-modal-bio" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Tentang Saya (Opsional)</label>
                     <textarea id="profile-modal-bio" rows="3" placeholder="Catatan singkat tentang dirimu..."
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm resize-none"></textarea>
                 </div>
@@ -2214,30 +2214,30 @@
                 </div>
 
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah (Rp)</label>
+                    <label for="recurring-jumlah" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah (Rp)</label>
                     <input type="number" id="recurring-jumlah" min="1" step="1" required placeholder="0"
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-sm font-bold">
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Akun</label>
+                        <label for="recurring-akun" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Akun</label>
                         <select id="recurring-akun" required class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold"></select>
                     </div>
                     <div>
-                        <label id="recurring-kategori-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Kategori Pengeluaran</label>
+                        <label for="recurring-kategori" id="recurring-kategori-label" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Kategori Pengeluaran</label>
                         <select id="recurring-kategori" required class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold"></select>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Catatan (Opsional)</label>
+                    <label for="recurring-keterangan" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Catatan (Opsional)</label>
                     <input type="text" id="recurring-keterangan" placeholder="mis. Netflix, Kos, Gaji Bulanan"
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm">
                 </div>
 
                 <div>
-                    <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Frekuensi</label>
+                    <label for="recurring-frequency" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Frekuensi</label>
                     <select id="recurring-frequency" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold">
                         <option value="harian">Harian</option>
                         <option value="mingguan">Mingguan</option>
@@ -2248,11 +2248,11 @@
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mulai Tanggal</label>
+                        <label for="recurring-start-date" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mulai Tanggal</label>
                         <input type="date" id="recurring-start-date" required class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold">
                     </div>
                     <div id="recurring-end-date-wrap" class="hidden">
-                        <label class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Berakhir Tanggal</label>
+                        <label for="recurring-end-date" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Berakhir Tanggal</label>
                         <input type="date" id="recurring-end-date" class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold">
                     </div>
                 </div>
