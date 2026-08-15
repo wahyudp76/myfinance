@@ -221,7 +221,10 @@
             .fc-event { padding: 2px 4px !important; font-size: 0.65rem !important; }
             .fc-daygrid-day-frame { padding: 2px; }
             .fc-header-toolbar { flex-wrap: wrap; gap: 8px; justify-content: space-between; }
-            .content-area { padding-bottom: 110px !important; }
+            /* 130px (naik dari 110px sebelumnya) -- sejak bottom nav mobile jadi "liquid glass"
+               yang MELAYANG (ada jarak env(safe-area)+12px dari tepi, bukan nempel rata bawah lagi),
+               total ruang yg ditempatinya dari tepi layar sedikit lebih tinggi drpd sebelumnya. */
+            .content-area { padding-bottom: 130px !important; }
         }
 
 
@@ -239,24 +242,50 @@
            sedikit terpotong di HP saat address bar browser sedang tampil. 100vh dipertahankan lebih
            dulu sebagai fallback untuk browser lama yang belum kenal 100dvh. */
         #appShell { height: 100vh; height: 100dvh; }
-        /* BUG: class "pb-safe" dipakai di navbar bawah (mobile) untuk kasih jarak aman dari home
-           indicator iPhone (atau gesture bar Android) -- tapi "pb-safe" BUKAN utility Tailwind
-           bawaan (butuh plugin tailwindcss-safe-area yang TIDAK terpasang di sini), jadi sebelum ini
-           class-nya tidak melakukan apa-apa. Navbar bawah pun mepet betul ke tepi layar di HP dengan
-           home indicator, kadang bikin ikon terakhir sulit disentuh / ketutup gesture bar sistem.
-           env(...) = 0 di browser yang tidak kenal properti ini, jadi aman dipakai tanpa @supports.
-           "height" dibuat calc(...) + !important (bukan cuma nambah padding-bottom) supaya bar-nya
-           BERTAMBAH TINGGI, bukan cuma icon di dalamnya ketekan naik/kepotong -- h-16 dari Tailwind
-           menetapkan height:4rem yang FIXED (box-sizing: border-box), jadi kalau cuma nambah
-           padding-bottom tanpa nambah height, ikon+label yang sudah ada bakal makin sempit
-           (bisa kepotong) di ruang yang tersisa, bukannya bar-nya yang bertambah tinggi ke bawah. */
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); height: calc(4rem + env(safe-area-inset-bottom, 0px)) !important; }
-        /* Sama seperti .pb-safe di atas, tapi untuk bagian ATAS layar -- dipakai di top bar mobile.
+        /* Sama seperti dulu dipakai .pb-safe di navbar bawah (sekarang diganti .liquid-glass-nav,
+           lihat di bawah), tapi untuk bagian ATAS layar -- dipakai di top bar mobile.
            apple-mobile-web-app-status-bar-style di sini "black-translucent", artinya kalau app dibuka
            dari ikon Home Screen di iPhone (mode standalone), konten web digambar SAMPAI KE BAWAH status
            bar (jam/baterai/sinyal), bukan di bawahnya -- jadi tanpa padding ini, top bar bisa ketiban/
            ketutup status bar. Tidak berpengaruh saat dibuka lewat browser biasa (env = 0 di sana). */
         .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+
+        /* Bottom nav mobile "liquid glass" -- kaca buram melayang ala iOS terbaru, menggantikan
+           bar solid putih rata-tepi yang lama (yg dulu pakai class .pb-safe, sekarang sudah
+           tidak ada lagi -- posisi & jarak amannya diatur langsung di sini). */
+        .liquid-glass-nav {
+            bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+        }
+        .dark .liquid-glass-nav {
+            background: rgba(15, 23, 42, 0.65);
+            border-color: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.06);
+        }
+        /* "Chip" kaca yang nongol di belakang ikon+label yang lagi aktif -- diatur/dilepas dari JS
+           (lihat switchView()) bareng kelas warna teks yang sudah ada sebelumnya. */
+        .liquid-glass-nav-active {
+            background: rgba(255, 255, 255, 0.55);
+            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+        }
+        .dark .liquid-glass-nav-active {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+        /* Fallback utk browser lama yang belum kenal backdrop-filter -- tanpa ini nav-nya keliatan
+           "kaca tanpa warna" (nyaris tembus pandang penuh, teks susah kebaca di atas konten yg ikut
+           keliatan menumpuk). @supports not () jarang cocok di semua browser modern, jadi baliknya
+           dicek dari ADA-nya properti ini didukung; kalau tidak, opacity background dinaikkan jadi
+           hampir solid supaya tetap kebaca. */
+        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+            .liquid-glass-nav { background: rgba(255, 255, 255, 0.97); }
+            .dark .liquid-glass-nav { background: rgba(15, 23, 42, 0.97); }
+        }
+
         .tab-btn.active { background: #151928; color: #fff; }
         .tab-btn { color: #64748b; }
 
@@ -551,7 +580,7 @@
 
     <!-- Tombol Kembali ke Atas (muncul otomatis setelah scroll ke bawah) -->
     <button id="scrollToTopBtn" onclick="scrollActiveViewToTop()" aria-label="Kembali ke atas"
-        class="hidden fixed bottom-20 md:bottom-6 right-4 md:right-6 z-30 w-11 h-11 rounded-full bg-white text-slate-500 shadow-lg border border-slate-100 items-center justify-center hover:bg-slate-50 hover:text-[#151928] transition-all active:scale-90">
+        class="hidden fixed bottom-28 md:bottom-6 right-4 md:right-6 z-30 w-11 h-11 rounded-full bg-white text-slate-500 shadow-lg border border-slate-100 items-center justify-center hover:bg-slate-50 hover:text-[#151928] transition-all active:scale-90">
         <i class="fas fa-arrow-up text-sm"></i>
     </button>
 
@@ -623,16 +652,16 @@
     </aside>
 
     <!-- Bottom Navigation Bar (Mobile) -->
-    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 flex items-center justify-around h-16 pb-safe z-40 shadow-[0_-8px_30px_rgb(0,0,0,0.06)] rounded-t-2xl">
-        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-1 w-12 transition-all"><i class="fas fa-layer-group text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Beranda</span></button>
-        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-1 w-12 transition-all"><i class="fas fa-bullseye text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Budget</span></button>
+    <div class="md:hidden liquid-glass-nav fixed left-4 right-4 flex items-center justify-around py-2 z-40 rounded-[28px]">
+        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-1.5 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-layer-group text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Beranda</span></button>
+        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-1.5 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-bullseye text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Budget</span></button>
         <div class="relative -top-5 flex flex-col items-center justify-center z-50">
             <button id="fabMobileCatat" onclick="openModal()" aria-label="Catat Transaksi Baru" class="w-14 h-14 bg-gradient-to-tr from-[#151928] to-[#2e3754] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/30 hover:scale-110 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-90 transition-all duration-200 border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
             <span class="text-[9px] mt-1 font-bold text-[#151928] tracking-tight">Catat</span>
         </div>
-        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-1 w-12 transition-all"><i class="fas fa-chart-simple text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Analisis</span></button>
+        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-1.5 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-chart-simple text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Analisis</span></button>
         <!-- Diubah dari Kalender menjadi Aset sesuai permintaan -->
-        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-1 w-12 transition-all"><i class="fas fa-gem text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Aset</span></button>
+        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-1.5 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-gem text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Aset</span></button>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -3299,7 +3328,7 @@ const api = (() => {
             ['dashboard', 'transaksi', 'budget', 'laporan', 'aset', 'kalender', 'akun-detail', 'kategori-detail', 'pengaturan'].forEach(v => {
                 let el = document.getElementById('view-' + v); if(el) { el.classList.add('hidden'); el.classList.remove('block'); }
                 let nav = document.getElementById('nav-' + v); if(nav) { nav.classList.remove('menu-active'); nav.classList.add('menu-inactive'); }
-                let mobNav = document.getElementById('mobile-nav-' + v); if(mobNav) { mobNav.classList.remove('text-[#151928]', 'font-bold'); mobNav.classList.add('text-slate-400'); }
+                let mobNav = document.getElementById('mobile-nav-' + v); if(mobNav) { mobNav.classList.remove('text-[#151928]', 'font-bold', 'liquid-glass-nav-active'); mobNav.classList.add('text-slate-400'); }
             });
             document.getElementById('view-' + viewName).classList.remove('hidden'); document.getElementById('view-' + viewName).classList.add('block');
             
@@ -3308,7 +3337,7 @@ const api = (() => {
             if (viewName === 'kategori-detail') activeNavId = 'laporan';
             
             let navActive = document.getElementById('nav-' + activeNavId); if(navActive) { navActive.classList.add('menu-active'); navActive.classList.remove('menu-inactive'); }
-            let mobActive = document.getElementById('mobile-nav-' + activeNavId); if(mobActive) { mobActive.classList.remove('text-slate-400'); mobActive.classList.add('text-[#151928]', 'font-bold'); }
+            let mobActive = document.getElementById('mobile-nav-' + activeNavId); if(mobActive) { mobActive.classList.remove('text-slate-400'); mobActive.classList.add('text-[#151928]', 'font-bold', 'liquid-glass-nav-active'); }
 
             if(viewName === 'dashboard') { processDataForUI(globalData); } 
             else if(viewName === 'laporan') { renderReportTab(); requestMonthlySummary(false); } 
