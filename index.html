@@ -847,7 +847,7 @@
             <!-- Search and Filter Bar -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <!-- Search Input -->
-                <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center relative">
+                <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center relative focus-within:ring-2 focus-within:ring-indigo-400 transition">
                     <span class="text-slate-400 pl-2 pr-3"><i class="fas fa-search"></i></span>
                     <input type="text" id="txSearchInput" oninput="debouncedFilterTransactions()" placeholder="Cari kategori, keterangan, atau akun..." class="w-full bg-transparent border-none outline-none text-xs md:text-sm text-slate-700">
                 </div>
@@ -856,18 +856,18 @@
                 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 flex-wrap">
                     <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Filter:</div>
                     <div class="flex items-center gap-2 flex-1 justify-end flex-wrap">
-                        <select id="txTimeFilterType" onchange="toggleTxTimeFilter()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 font-bold">
+                        <select id="txTimeFilterType" onchange="toggleTxTimeFilter()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
                             <option value="last30" selected>30 Hari Terakhir</option>
                             <option value="custom">Bulan & Tahun</option>
                             <option value="range">Rentang Tanggal</option>
                         </select>
                         <div id="txMonthYearContainer" class="hidden">
-                            <input type="month" id="txFilterMonthYear" onchange="filterTransactions()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 cursor-pointer">
+                            <input type="month" id="txFilterMonthYear" onchange="filterTransactions()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                         </div>
                         <div id="txDateRangeContainer" class="hidden items-center gap-1.5">
-                            <input type="date" id="txFilterDateFrom" onchange="filterTransactions()" aria-label="Dari tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 cursor-pointer">
+                            <input type="date" id="txFilterDateFrom" onchange="filterTransactions()" aria-label="Dari tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                             <span class="text-slate-300 text-xs">-</span>
-                            <input type="date" id="txFilterDateTo" onchange="filterTransactions()" aria-label="Sampai tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 cursor-pointer">
+                            <input type="date" id="txFilterDateTo" onchange="filterTransactions()" aria-label="Sampai tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                         </div>
                         <button type="button" onclick="toggleTxAmountFilter()" aria-label="Filter nominal" id="txAmountFilterToggle" class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition flex-shrink-0"><i class="fas fa-sliders text-xs"></i></button>
                     </div>
@@ -877,13 +877,13 @@
             <!-- Filter Nominal (tersembunyi, dibuka lewat ikon slider di atas) -->
             <div id="txAmountFilterPanel" class="hidden bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 mb-6 -mt-2 flex items-center gap-3 flex-wrap">
                 <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nominal:</span>
-                <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 overflow-hidden">
+                <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                     <span class="pl-2 text-slate-400 text-xs">Rp</span>
                     <input type="text" id="txFilterAmountMinDisplay" placeholder="Dari" oninput="formatInputRibuan(this, 'txFilterAmountMin'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
                     <input type="hidden" id="txFilterAmountMin">
                 </div>
                 <span class="text-slate-300 text-xs">-</span>
-                <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 overflow-hidden">
+                <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                     <span class="pl-2 text-slate-400 text-xs">Rp</span>
                     <input type="text" id="txFilterAmountMaxDisplay" placeholder="Sampai" oninput="formatInputRibuan(this, 'txFilterAmountMax'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
                     <input type="hidden" id="txFilterAmountMax">
@@ -904,7 +904,7 @@
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Kelola batas pengeluaran kategori dan sub-kategori secara real-time 🎯</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm flex-1 md:flex-initial">
+                    <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm flex-1 md:flex-initial focus-within:ring-2 focus-within:ring-indigo-400 transition">
                         <label for="budgetFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
                         <input type="month" id="budgetFilterMonth" onchange="changeBudgetMonth()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent w-full">
                     </div>
@@ -978,7 +978,7 @@
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Laporan Analisis</h2>
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Visualisasi data keuangan Anda</p>
                 </div>
-                <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm">
+                <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 transition">
                     <label for="reportFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
                     <input type="month" id="reportFilterMonth" onchange="renderReportTab()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent">
                 </div>
@@ -1415,7 +1415,7 @@
                         <button onclick="setCatFormMode('pemasukan','parent')" id="catmode-pemasukan-parent" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Kategori Baru</button>
                     </div>
                     <div id="catform-pemasukan-sub" class="mb-3 space-y-1.5">
-                        <select id="parent-select-pemasukan" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 text-xs font-semibold outline-none text-slate-600"></select>
+                        <select id="parent-select-pemasukan" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
                             <input type="text" id="new-sub-pemasukan" placeholder="Nama sub-kategori (cth: Uang Jajan)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pemasukan');}">
                             <button onclick="addSubCategory('pemasukan')" aria-label="Tambah sub-kategori pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
@@ -1447,7 +1447,7 @@
                         <button onclick="setCatFormMode('pengeluaran','parent')" id="catmode-pengeluaran-parent" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Kategori Baru</button>
                     </div>
                     <div id="catform-pengeluaran-sub" class="mb-3 space-y-1.5">
-                        <select id="parent-select-pengeluaran" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 text-xs font-semibold outline-none text-slate-600"></select>
+                        <select id="parent-select-pengeluaran" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
                             <input type="text" id="new-sub-pengeluaran" placeholder="Nama sub-kategori (cth: Parkir)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pengeluaran');}">
                             <button onclick="addSubCategory('pengeluaran')" aria-label="Tambah sub-kategori pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
@@ -1553,7 +1553,7 @@
             <!-- Filter Rentang Grafik -->
             <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 mb-6 md:mb-8">
                 <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Rentang Grafik:</div>
-                <select id="accountDetailPeriod" onchange="renderAccountDetailCharts()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 font-bold">
+                <select id="accountDetailPeriod" onchange="renderAccountDetailCharts()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
                     <option value="30">30 Hari Terakhir</option>
                     <option value="90">3 Bulan Terakhir</option>
                     <option value="180" selected>6 Bulan Terakhir</option>
