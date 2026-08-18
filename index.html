@@ -3122,25 +3122,79 @@ const api = (() => {
             { icon: 'fa-cash-register', bg: 'bg-rose-100', color: 'text-rose-500' }
         ];
 
-        // Palet ikon+warna untuk kustomisasi kategori Pengeluaran/Pemasukan (Pengaturan > Kategori)
+        // Palet ikon+warna untuk kustomisasi kategori Pengeluaran/Pemasukan (Pengaturan > Kategori).
+        // Dipakai bareng utk kategori UTAMA (icon+bg+color) maupun SUB-kategori (cuma bentuk icon-nya,
+        // warna dikunci ikut kategori utama -- lihat renderCategoryStylePalette()). Warna yg dipakai
+        // di sini SENGAJA cuma dari 18 warna yg sudah py aturan dark-mode (lihat .dark [class*=...]
+        // di <style>), jadi kombinasi apa pun otomatis kebaca benar di kedua tema tanpa perlu nambah
+        // CSS baru lagi.
         const categoryIconPalette = [
+            // -- Makanan & Minuman --
             { icon: 'fa-utensils', bg: 'bg-orange-100', color: 'text-orange-500' },
+            { icon: 'fa-mug-hot', bg: 'bg-orange-100', color: 'text-orange-600' },
+            { icon: 'fa-pizza-slice', bg: 'bg-amber-100', color: 'text-amber-600' },
+            { icon: 'fa-burger', bg: 'bg-yellow-100', color: 'text-yellow-600' },
+            { icon: 'fa-wine-glass', bg: 'bg-rose-100', color: 'text-rose-500' },
+            // -- Belanja & Gaya Hidup --
             { icon: 'fa-cart-shopping', bg: 'bg-pink-100', color: 'text-pink-500' },
+            { icon: 'fa-bag-shopping', bg: 'bg-fuchsia-100', color: 'text-fuchsia-500' },
+            { icon: 'fa-shirt', bg: 'bg-purple-100', color: 'text-purple-500' },
+            { icon: 'fa-ring', bg: 'bg-violet-100', color: 'text-violet-500' },
+            { icon: 'fa-glasses', bg: 'bg-slate-200', color: 'text-slate-600' },
+            // -- Transportasi --
             { icon: 'fa-car', bg: 'bg-blue-100', color: 'text-blue-500' },
+            { icon: 'fa-motorcycle', bg: 'bg-sky-100', color: 'text-sky-600' },
+            { icon: 'fa-bus', bg: 'bg-cyan-100', color: 'text-cyan-600' },
+            { icon: 'fa-train', bg: 'bg-indigo-100', color: 'text-indigo-500' },
+            { icon: 'fa-gas-pump', bg: 'bg-amber-100', color: 'text-amber-500' },
+            { icon: 'fa-square-parking', bg: 'bg-blue-100', color: 'text-blue-600' },
+            { icon: 'fa-bicycle', bg: 'bg-teal-100', color: 'text-teal-600' },
+            // -- Rumah & Tagihan --
             { icon: 'fa-house', bg: 'bg-amber-100', color: 'text-amber-600' },
             { icon: 'fa-bolt', bg: 'bg-yellow-100', color: 'text-yellow-600' },
+            { icon: 'fa-droplet', bg: 'bg-sky-100', color: 'text-sky-500' },
+            { icon: 'fa-wifi', bg: 'bg-indigo-100', color: 'text-indigo-500' },
+            { icon: 'fa-couch', bg: 'bg-orange-100', color: 'text-orange-500' },
+            { icon: 'fa-broom', bg: 'bg-teal-100', color: 'text-teal-500' },
+            { icon: 'fa-screwdriver-wrench', bg: 'bg-slate-200', color: 'text-slate-600' },
+            // -- Kesehatan --
             { icon: 'fa-heart-pulse', bg: 'bg-rose-100', color: 'text-rose-500' },
+            { icon: 'fa-pills', bg: 'bg-emerald-100', color: 'text-emerald-500' },
+            { icon: 'fa-stethoscope', bg: 'bg-cyan-100', color: 'text-cyan-600' },
+            { icon: 'fa-tooth', bg: 'bg-sky-100', color: 'text-sky-500' },
+            { icon: 'fa-spa', bg: 'bg-pink-100', color: 'text-pink-500' },
+            // -- Hiburan & Hobi --
             { icon: 'fa-film', bg: 'bg-purple-100', color: 'text-purple-500' },
-            { icon: 'fa-plane', bg: 'bg-sky-100', color: 'text-sky-500' },
-            { icon: 'fa-gift', bg: 'bg-fuchsia-100', color: 'text-fuchsia-500' },
-            { icon: 'fa-graduation-cap', bg: 'bg-indigo-100', color: 'text-indigo-500' },
+            { icon: 'fa-tv', bg: 'bg-violet-100', color: 'text-violet-500' },
+            { icon: 'fa-gamepad', bg: 'bg-indigo-100', color: 'text-indigo-500' },
+            { icon: 'fa-music', bg: 'bg-fuchsia-100', color: 'text-fuchsia-500' },
+            { icon: 'fa-book', bg: 'bg-amber-100', color: 'text-amber-600' },
+            { icon: 'fa-palette', bg: 'bg-rose-100', color: 'text-rose-500' },
+            { icon: 'fa-camera', bg: 'bg-slate-200', color: 'text-slate-600' },
             { icon: 'fa-dumbbell', bg: 'bg-teal-100', color: 'text-teal-600' },
+            { icon: 'fa-futbol', bg: 'bg-lime-100', color: 'text-lime-600' },
+            // -- Keluarga & Anak --
+            { icon: 'fa-graduation-cap', bg: 'bg-indigo-100', color: 'text-indigo-500' },
+            { icon: 'fa-baby', bg: 'bg-pink-100', color: 'text-pink-500' },
+            { icon: 'fa-child', bg: 'bg-cyan-100', color: 'text-cyan-500' },
             { icon: 'fa-paw', bg: 'bg-lime-100', color: 'text-lime-600' },
-            { icon: 'fa-mobile-screen', bg: 'bg-cyan-100', color: 'text-cyan-600' },
+            { icon: 'fa-hand-holding-heart', bg: 'bg-rose-100', color: 'text-rose-500' },
+            // -- Pekerjaan & Keuangan --
             { icon: 'fa-briefcase', bg: 'bg-slate-200', color: 'text-slate-600' },
+            { icon: 'fa-mobile-screen', bg: 'bg-cyan-100', color: 'text-cyan-600' },
             { icon: 'fa-coins', bg: 'bg-emerald-100', color: 'text-emerald-600' },
             { icon: 'fa-chart-line', bg: 'bg-green-100', color: 'text-green-600' },
-            { icon: 'fa-mug-hot', bg: 'bg-orange-100', color: 'text-orange-600' },
+            { icon: 'fa-piggy-bank', bg: 'bg-amber-100', color: 'text-amber-500' },
+            { icon: 'fa-sack-dollar', bg: 'bg-emerald-100', color: 'text-emerald-500' },
+            { icon: 'fa-hand-holding-dollar', bg: 'bg-teal-100', color: 'text-teal-600' },
+            { icon: 'fa-file-invoice-dollar', bg: 'bg-blue-100', color: 'text-blue-500' },
+            { icon: 'fa-shield-halved', bg: 'bg-indigo-100', color: 'text-indigo-600' },
+            { icon: 'fa-landmark', bg: 'bg-slate-200', color: 'text-slate-600' },
+            // -- Liburan & Lainnya --
+            { icon: 'fa-plane', bg: 'bg-sky-100', color: 'text-sky-500' },
+            { icon: 'fa-suitcase-rolling', bg: 'bg-orange-100', color: 'text-orange-500' },
+            { icon: 'fa-gift', bg: 'bg-fuchsia-100', color: 'text-fuchsia-500' },
+            { icon: 'fa-cake-candles', bg: 'bg-pink-100', color: 'text-pink-500' },
             { icon: 'fa-star', bg: 'bg-violet-100', color: 'text-violet-500' }
         ];
 
