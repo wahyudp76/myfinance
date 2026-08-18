@@ -1582,12 +1582,24 @@
 
             <!-- Chart: Distribusi Kategori -->
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6 md:mb-8">
-                <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
                     <div>
                         <h4 class="text-sm font-bold text-slate-800">Distribusi Pengeluaran per Kategori</h4>
-                        <p class="text-xs text-slate-400 mt-0.5">Ke mana saja uang dari akun ini dibelanjakan (sesuai rentang grafik)</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Ke mana saja uang dari akun ini dibelanjakan</p>
                     </div>
                     <span id="accountCatChart-total" class="text-sm md:text-base font-extrabold text-slate-800 flex-shrink-0 pl-3"></span>
+                </div>
+                <div class="px-4 md:px-5 pt-3 flex items-center gap-2 flex-wrap">
+                    <select id="accountCatFilterType" onchange="toggleAccountCatFilter()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400">
+                        <option value="sync" selected>Sesuai Rentang Grafik</option>
+                        <option value="this_month">Bulan Ini</option>
+                        <option value="last_month">Bulan Lalu</option>
+                        <option value="this_year">Tahun Ini</option>
+                        <option value="last_year">Tahun Lalu</option>
+                        <option value="custom">Pilih Bulan Tertentu</option>
+                        <option value="all">Semua Waktu</option>
+                    </select>
+                    <input type="month" id="accountCatFilterMonth" onchange="renderAccountDetailCharts()" class="hidden bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                 </div>
                 <div class="p-4 md:p-6">
                     <div class="flex items-center gap-4 md:gap-6">
@@ -8182,6 +8194,20 @@ const api = (() => {
             });
         }
 
+        function toggleAccountCatFilter() {
+            const filterType = document.getElementById('accountCatFilterType').value;
+            const monthInput = document.getElementById('accountCatFilterMonth');
+            monthInput.classList.toggle('hidden', filterType !== 'custom');
+            // Begitu pindah ke "Pilih Bulan Tertentu" tapi belum pernah pilih apa-apa, langsung isi
+            // bulan berjalan sbg default -- supaya tidak sempat nampilin "semua waktu" yg membingungkan
+            // sebelum user sempat pilih sendiri.
+            if (filterType === 'custom' && !monthInput.value) {
+                const n = new Date();
+                monthInput.value = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+            }
+            renderAccountDetailCharts();
+        }
+
         function renderAccountDetailCharts() {
             if (!currentAccountDetail) return;
             const accName = currentAccountDetail;
@@ -8345,11 +8371,37 @@ const api = (() => {
                 });
             }
 
-            // Distribusi kategori pengeluaran dalam rentang yang dipilih
+            // Distribusi kategori pengeluaran -- filter INDEPENDEN dari "Rentang Grafik" di atas
+            // (opsi "sync" ikut cutoff yang sama; selain itu pakai rentang kalender sendiri: bulan/
+            // tahun ini/lalu, atau bulan tertentu yang dipilih).
+            const catFilterType = document.getElementById('accountCatFilterType') ? document.getElementById('accountCatFilterType').value : 'sync';
+            let catStart = null, catEnd = null; // null = tanpa batas (sisi itu)
+            if (catFilterType === 'sync') {
+                catStart = cutoff;
+            } else if (catFilterType === 'this_month') {
+                catStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            } else if (catFilterType === 'last_month') {
+                catStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                catEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+            } else if (catFilterType === 'this_year') {
+                catStart = new Date(now.getFullYear(), 0, 1);
+            } else if (catFilterType === 'last_year') {
+                catStart = new Date(now.getFullYear() - 1, 0, 1);
+                catEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+            } else if (catFilterType === 'custom') {
+                const monthVal = document.getElementById('accountCatFilterMonth').value; // "YYYY-MM"
+                if (monthVal) {
+                    const [cy, cm] = monthVal.split('-').map(Number);
+                    catStart = new Date(cy, cm - 1, 1);
+                    catEnd = new Date(cy, cm, 0, 23, 59, 59, 999);
+                }
+            } // 'all' -> catStart & catEnd tetap null (tanpa batas)
+
             let catMap = {};
             fullSeries.forEach(p => {
                 if (p.raw.jenis === 'Pengeluaran' && p.raw.akun === accName) {
-                    if (cutoff && p.date < cutoff) return;
+                    if (catStart && p.date < catStart) return;
+                    if (catEnd && p.date > catEnd) return;
                     let style = getCategoryStyle(p.raw.kategori, 'Pengeluaran');
                     let pName = style.parentName || p.raw.kategori;
                     catMap[pName] = (catMap[pName] || 0) + Number(p.raw.jumlah);
