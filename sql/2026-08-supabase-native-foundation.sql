@@ -5,9 +5,6 @@
 
 begin;
 
--- ---------------------------------------------------------------------------
--- 1. Currency-aware transaction columns
--- ---------------------------------------------------------------------------
 alter table public.transactions add column if not exists mata_uang text;
 alter table public.transactions add column if not exists kurs numeric;
 alter table public.transactions add column if not exists jumlah_idr numeric;
@@ -36,9 +33,6 @@ alter table public.transactions drop constraint if exists transfer_target_idr_no
 alter table public.transactions add constraint transfer_target_idr_nonnegative
   check (transfer_jumlah_tujuan_idr is null or transfer_jumlah_tujuan_idr >= 0);
 
--- ---------------------------------------------------------------------------
--- 2. Atomic cross-currency transfer
--- ---------------------------------------------------------------------------
 create or replace function public.create_transfer_transaction(
     p_tanggal date,
     p_jumlah numeric,
@@ -84,13 +78,11 @@ begin
   return v_row;
 end;
 $$;
+grant execute on function public.create_transfer_transaction(date, numeric, text, text, text, text, numeric, numeric, text) to authenticated;
 
--- ---------------------------------------------------------------------------
--- 3. Atomic monthly budget replacement
--- ---------------------------------------------------------------------------
 create or replace function public.replace_month_budgets(
-  p_bulan text,
-  p_budgets jsonb
+    p_bulan text,
+    p_budgets jsonb
 )
 returns integer
 language plpgsql
@@ -117,6 +109,7 @@ begin
   return v_count;
 end;
 $$;
+grant execute on function public.replace_month_budgets(text, jsonb) to authenticated;
 
 commit;
 
