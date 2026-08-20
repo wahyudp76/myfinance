@@ -46,7 +46,9 @@ alter table public.transactions
     add constraint transfer_target_idr_nonnegative
     check (transfer_jumlah_tujuan_idr is null or transfer_jumlah_tujuan_idr >= 0);
 
--- Atomic transfer writer. The caller supplies rate snapshots for both currencies.
+-- Atomic transfer writer. The caller explicitly supplies the target currency
+-- and rate snapshot; do not infer currency from settings JSON because older
+-- settings rows may not contain a stable account_currencies map.
 -- Currency rates are expressed as IDR per one unit of that currency; IDR = 1.
 -- Target amount = source amount * source IDR rate / target IDR rate.
 -- Existing RLS on transactions remains authoritative because this is SECURITY INVOKER.
@@ -56,6 +58,7 @@ create or replace function public.create_transfer_transaction(
     p_akun_sumber text,
     p_akun_tujuan text,
     p_mata_uang_sumber text,
+    p_mata_uang_tujuan text,
     p_kurs_sumber numeric,
     p_kurs_tujuan numeric,
     p_keterangan text default null
@@ -69,7 +72,6 @@ declare
     v_row public.transactions;
     v_target_amount numeric;
     v_source_idr numeric;
-    v_target_currency text;
 begin
     if auth.uid() is null then
         raise exception 'Authentication required';
@@ -86,18 +88,12 @@ begin
     if p_akun_sumber = p_akun_tujuan then
         raise exception 'Akun sumber dan tujuan harus berbeda';
     end if;
-    if nullif(trim(p_mata_uang_sumber), '') is null then
-        raise exception 'Mata uang sumber wajib diisi';
+    if nullif(trim(p_mata_uang_sumber), '') is null or nullif(trim(p_mata_uang_tujuan), '') is null then
+        raise exception 'Mata uang sumber dan tujuan wajib diisi';
     end if;
     if p_kurs_sumber is null or p_kurs_sumber <= 0 or p_kurs_tujuan is null or p_kurs_tujuan <= 0 then
         raise exception 'Kurs sumber dan tujuan harus lebih besar dari nol';
     end if;
-
-    -- Target currency is resolved from the user's account settings JSON.
-    select coalesce(data->'account_currencies'->>p_akun_tujuan, 'IDR')
-      into v_target_currency
-    from public.settings
-    where user_id = auth.uid();
 
     v_source_idr := p_jumlah * p_kurs_sumber;
     v_target_amount := v_source_idr / p_kurs_tujuan;
@@ -110,7 +106,7 @@ begin
     ) values (
         auth.uid(), 'Transfer', p_tanggal, p_jumlah, p_akun_sumber, p_akun_tujuan,
         p_keterangan, p_mata_uang_sumber, p_kurs_sumber, v_source_idr,
-        v_target_amount, v_target_currency, p_kurs_tujuan, v_source_idr
+        v_target_amount, p_mata_uang_tujuan, p_kurs_tujuan, v_source_idr
     )
     returning * into v_row;
 
@@ -121,9 +117,10 @@ $$;
 commit;
 
 -- IMPORTANT APPLICATION NOTES
--- 1. The frontend must fetch/supply the target account currency and its current
---    IDR rate before calling this RPC.
--- 2. For same-currency transfers, target amount equals source amount.
+-- 1. The frontend must resolve both account currencies and supply current IDR
+--    rate snapshots before calling this RPC.
+-- 2. For same-currency transfers, source and target rates are equal, so the
+--    target amount equals the source amount.
 -- 3. Existing historical Transfer rows remain compatible: when the new target
 --    fields are NULL, the UI may continue using jumlah for the target leg.
 -- 4. The dashboard/account-balance reducer must use transfer_jumlah_tujuan for
