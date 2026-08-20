@@ -1,20 +1,15 @@
 -- MYFINANCE — RELIABILITY HARDENING (2026-08)
 --
 -- This migration is intentionally additive and does not alter existing rows.
--- Run it in Supabase SQL Editor only after the application changes in this branch
+-- Run in Supabase SQL Editor only after the application changes in this branch
 -- are reviewed and deployed together.
 --
 -- Goals:
 -- 1. Make recurring transactions idempotent at the database level.
--- 2. Prevent authenticated clients from directly changing their AI rate-limit row.
--- 3. Provide transactional RPCs for safe recurring and budget writes.
--- 4. Add basic validation for monetary conversion fields.
---
--- IMPORTANT:
--- The current browser implementation still needs to call the recurring RPC below
--- for the idempotency guarantee to be active for newly generated recurring rows.
--- The budget RPC likewise needs the browser save path to call it before the
--- delete-then-insert implementation can be removed.
+-- 2. Provide transactional RPCs for safe recurring and budget writes.
+-- 3. Add basic validation for monetary conversion fields.
+-- 4. Prepare AI rate-limit hardening without breaking the currently deployed
+--    Edge Function.
 
 begin;
 
@@ -141,7 +136,6 @@ begin
         raise exception 'budgets must be a JSON object';
     end if;
 
-    -- RLS applies to both DELETE and INSERT because the function is SECURITY INVOKER.
     delete from public.budgets
     where user_id = auth.uid()
       and bulan = p_bulan;
@@ -164,17 +158,20 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- 4. AI RATE LIMIT MUST NOT BE USER-WRITABLE
+-- 4. AI RATE LIMIT — DEFERRED
 -- -----------------------------------------------------------------------------
--- The previous policy allowed a logged-in browser to modify its own rate-limit
--- row, which could let a malicious client reset the timestamp and bypass the
--- intended application-level throttle. Server-side Edge Functions using the
--- service-role key can still read/write this table because service-role bypasses
--- RLS.
-
-drop policy if exists "Users manage own rate limit row" on public.rate_limits;
-
--- No authenticated CRUD policy is intentionally recreated here.
+-- DO NOT remove the existing authenticated-user rate_limits policy yet.
+-- The currently deployed Edge Function (index.ts) reads AND writes this table
+-- through a user-scoped Supabase client. Removing the policy before that Edge
+-- Function is changed to use a privileged server-side client would break the
+-- AI chat rate limiter.
+--
+-- After the Edge Function has been hardened, run the following separately:
+--
+-- drop policy if exists "Users manage own rate limit row" on public.rate_limits;
+--
+-- The hardened Edge Function should verify the user's JWT with the user-scoped
+-- client, but perform the rate-limit read/write using a service-role client.
 
 -- -----------------------------------------------------------------------------
 -- 5. TRANSACTION VALIDATION
@@ -202,8 +199,7 @@ commit;
 --    the RPC succeeds.
 -- 2. Update saveBudgetsCloudRemote() to call public.replace_month_budgets()
 --    instead of DELETE + INSERT from the browser.
--- 3. Verify the analyze-finance Edge Function performs rate-limit writes using
---    a privileged server context before removing the client-side rate-limit
---    policy in production.
+-- 3. Harden the Edge Function's rate-limit writes with a privileged server-side
+--    client, then remove the client-writable rate_limits policy separately.
 -- 4. Run the duplicate recurring diagnostic above before the unique index if
 --    historical recurring rows already exist.
