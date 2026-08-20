@@ -1,17 +1,20 @@
 -- MYFINANCE — RELIABILITY HARDENING (2026-08)
 --
 -- This migration is intentionally additive and does not alter existing rows.
--- Run it in Supabase SQL Editor after reviewing the notes below.
+-- Run it in Supabase SQL Editor only after the application changes in this branch
+-- are reviewed and deployed together.
 --
 -- Goals:
 -- 1. Make recurring transactions idempotent at the database level.
 -- 2. Prevent authenticated clients from directly changing their AI rate-limit row.
--- 3. Provide transactional RPCs for future client-side adoption of safe writes.
+-- 3. Provide transactional RPCs for safe recurring and budget writes.
+-- 4. Add basic validation for monetary conversion fields.
 --
 -- IMPORTANT:
 -- The current browser implementation still needs to call the recurring RPC below
 -- for the idempotency guarantee to be active for newly generated recurring rows.
---
+-- The budget RPC likewise needs the browser save path to call it before the
+-- delete-then-insert implementation can be removed.
 
 begin;
 
@@ -47,11 +50,11 @@ create unique index if not exists transactions_recurring_idempotency_idx
     where recurring_id is not null and recurring_due_date is not null;
 
 -- -----------------------------------------------------------------------------
--- 2. SAFE SERVER-SIDE RECURRING INSERT
+-- 2. SAFE RECURRING INSERT
 -- -----------------------------------------------------------------------------
--- This function is SECURITY INVOKER: RLS remains authoritative. The caller can
--- only insert a transaction for auth.uid(). ON CONFLICT makes repeated browser
--- retries safe instead of creating duplicate money movements.
+-- SECURITY INVOKER keeps the existing transactions RLS authoritative.
+-- ON CONFLICT makes repeated browser retries safe instead of creating duplicate
+-- money movements.
 
 create or replace function public.create_recurring_transaction(
     p_recurring_id uuid,
@@ -94,7 +97,6 @@ begin
     do nothing
     returning * into v_row;
 
-    -- If this invocation is a retry, return the already-existing row.
     if v_row.id is null then
         select * into v_row
         from public.transactions
@@ -109,24 +111,74 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- 3. AI RATE LIMIT MUST NOT BE USER-WRITABLE
+-- 3. ATOMIC BUDGET REPLACEMENT
 -- -----------------------------------------------------------------------------
--- The old policy allowed a logged-in browser to update its own rate-limit row.
--- That means a malicious client could reset last_ai_chat_at and bypass the
--- intended application-level throttle. Edge Functions using the service-role
--- key can still read/write this table because service-role bypasses RLS.
+-- The old client path does DELETE all rows for a month, then INSERT the new set.
+-- If the insert fails after the delete succeeds, the month can be left empty.
+-- This RPC wraps the replacement in one database transaction.
+--
+-- Input JSON shape:
+-- { "Makanan": 1500000, "Transportasi": 500000 }
+
+create or replace function public.replace_month_budgets(
+    p_bulan text,
+    p_budgets jsonb
+)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+    v_key text;
+    v_value numeric;
+begin
+    if p_bulan is null or p_bulan !~ '^\d{4}-\d{2}$' then
+        raise exception 'bulan must use YYYY-MM format';
+    end if;
+
+    if p_budgets is null or jsonb_typeof(p_budgets) <> 'object' then
+        raise exception 'budgets must be a JSON object';
+    end if;
+
+    -- RLS applies to both DELETE and INSERT because the function is SECURITY INVOKER.
+    delete from public.budgets
+    where user_id = auth.uid()
+      and bulan = p_bulan;
+
+    for v_key, v_value in
+        select key, value::numeric
+        from jsonb_each_text(p_budgets)
+    loop
+        if trim(v_key) = '' then
+            raise exception 'kategori budget tidak boleh kosong';
+        end if;
+        if v_value is null or v_value <= 0 then
+            continue;
+        end if;
+
+        insert into public.budgets (user_id, bulan, kategori, jumlah)
+        values (auth.uid(), p_bulan, v_key, v_value);
+    end loop;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- 4. AI RATE LIMIT MUST NOT BE USER-WRITABLE
+-- -----------------------------------------------------------------------------
+-- The previous policy allowed a logged-in browser to modify its own rate-limit
+-- row, which could let a malicious client reset the timestamp and bypass the
+-- intended application-level throttle. Server-side Edge Functions using the
+-- service-role key can still read/write this table because service-role bypasses
+-- RLS.
 
 drop policy if exists "Users manage own rate limit row" on public.rate_limits;
 
 -- No authenticated CRUD policy is intentionally recreated here.
--- The table remains protected by RLS; server-side code must perform rate-limit
--- reads/writes with a privileged server context.
 
 -- -----------------------------------------------------------------------------
--- 4. TRANSACTION VALIDATION (ADDITIVE)
+-- 5. TRANSACTION VALIDATION
 -- -----------------------------------------------------------------------------
--- Prevent impossible monetary values while retaining compatibility with legacy
--- records that may have NULL currency metadata.
 
 alter table public.transactions
     drop constraint if exists transactions_jumlah_idr_nonnegative;
@@ -144,8 +196,14 @@ alter table public.transactions
 
 commit;
 
--- NEXT APPLICATION STEP
--- Update processDueRecurring() so that generated rows are inserted through
--- public.create_recurring_transaction() and only advance next_due_date after
--- the RPC succeeds. This migration intentionally does not modify the 650KB
--- monolithic index.html automatically.
+-- NEXT APPLICATION STEPS
+-- 1. Update processDueRecurring() so generated rows call
+--    public.create_recurring_transaction() and only advance next_due_date after
+--    the RPC succeeds.
+-- 2. Update saveBudgetsCloudRemote() to call public.replace_month_budgets()
+--    instead of DELETE + INSERT from the browser.
+-- 3. Verify the analyze-finance Edge Function performs rate-limit writes using
+--    a privileged server context before removing the client-side rate-limit
+--    policy in production.
+-- 4. Run the duplicate recurring diagnostic above before the unique index if
+--    historical recurring rows already exist.
