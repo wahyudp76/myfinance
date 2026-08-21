@@ -11,28 +11,38 @@ if (!email || !password) {
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
+const transactionResponses = [];
 
 try {
-  await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60000 });
+  page.on("response", async (response) => {
+    try {
+      const url = response.url();
+      if (!url.includes("/rest/v1/transactions")) return;
+      if (response.request().method() !== "GET") return;
+      if (response.status() !== 200) return;
+      const body = await response.json();
+      if (Array.isArray(body)) transactionResponses.push(body);
+    } catch {
+      // Ignore non-JSON/aborted responses; the final assertion handles absence.
+    }
+  });
 
-  // This harness deliberately does not submit financial mutations.
-  // The login selectors must be adapted to the production UI if they change.
+  await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60000 });
   const emailInput = page.locator('input[type="email"]').first();
   const passwordInput = page.locator('input[type="password"]').first();
   await emailInput.fill(email);
   await passwordInput.fill(password);
   await passwordInput.press("Enter");
 
-  await page.waitForTimeout(2000);
+  // Allow the production bootstrap/loadData path to complete.
+  await page.waitForTimeout(5000);
 
-  const result = await page.evaluate(async () => {
-    if (typeof window.__MYFINANCE_PARITY_READ__ !== "function") {
-      throw new Error("Production parity read bridge is not installed");
-    }
-    return window.__MYFINANCE_PARITY_READ__();
-  });
+  const rows = transactionResponses.flat();
+  if (!rows.length) {
+    throw new Error("Production transaction read was not observed. Legacy path may not have bootstrapped, or the API transport changed.");
+  }
 
-  process.stdout.write(JSON.stringify(result));
+  process.stdout.write(JSON.stringify({ rows, observedRequests: transactionResponses.length }));
 } finally {
   await browser.close();
 }
