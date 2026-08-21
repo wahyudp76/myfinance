@@ -26,6 +26,18 @@ const legacyFixture = [
     kurs: null,
     jumlah_idr: null,
   },
+  {
+    id: "t-usd",
+    jenis: "pengeluaran",
+    tanggal: "2026-08-18",
+    jumlah: "10.5",
+    akun: "Card",
+    kategori: "Travel",
+    keterangan: "USD purchase",
+    mata_uang: "USD",
+    kurs: "16000",
+    jumlah_idr: "168000",
+  },
 ];
 
 const nativeFixture = [
@@ -53,10 +65,41 @@ const nativeFixture = [
     kurs: null,
     jumlah_idr: null,
   },
+  {
+    id: "t-usd",
+    jenis: "pengeluaran",
+    tanggal: "2026-08-18",
+    jumlah: 10.5,
+    akun: "Card",
+    kategori: "Travel",
+    keterangan: "USD purchase",
+    mata_uang: "USD",
+    kurs: 16000,
+    jumlah_idr: 168000,
+  },
 ];
 
-const result = compareTransactionLists(legacyFixture, nativeFixture);
-assert.equal(result.equal, true, JSON.stringify(result, null, 2));
-assert.equal(result.legacyCount, result.nativeCount);
+const equalResult = compareTransactionLists(legacyFixture, nativeFixture);
+assert.equal(equalResult.equal, true, JSON.stringify(equalResult, null, 2));
+assert.equal(equalResult.legacyCount, 3);
+assert.equal(equalResult.nativeCount, 3);
+assert.deepEqual(equalResult.diagnostics, {
+  missingInNative: [],
+  missingInLegacy: [],
+  fieldMismatches: [],
+});
 
-console.log("Transaction read parity: PASS");
+const changedNative = nativeFixture.map((row) =>
+  row.id === "t-usd" ? { ...row, kurs: 15500 } : row
+);
+const mismatchResult = compareTransactionLists(legacyFixture, changedNative);
+assert.equal(mismatchResult.equal, false);
+assert.deepEqual(mismatchResult.diagnostics.fieldMismatches, [
+  { id: "t-usd", field: "kurs" },
+]);
+
+const missingNative = nativeFixture.filter((row) => row.id !== "t-1");
+const missingResult = compareTransactionLists(legacyFixture, missingNative);
+assert.deepEqual(missingResult.diagnostics.missingInNative, ["t-1"]);
+
+console.log("Transaction parity fixture coverage: PASS");
