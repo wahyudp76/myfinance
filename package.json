@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:parity": "node --test tests/parity/**/*.test.js"
+    "test:parity": "node --test tests/parity/*.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0"
   }
 }
