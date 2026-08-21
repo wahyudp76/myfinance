@@ -10,6 +10,12 @@ on:
       - main
       - 'refactor/**'
   workflow_dispatch:
+    inputs:
+      run_live_data_rich_parity:
+        description: "Run the opt-in live data-rich parity test"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -64,3 +70,25 @@ jobs:
       - name: Remove parity data
         if: always()
         run: rm -f -- "$LEGACY_TRANSACTION_ROWS_FILE"
+
+  live-data-rich:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_live_data_rich_parity == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run opt-in live data-rich parity
+        env:
+          RUN_LIVE_DATA_RICH_PARITY: "true"
+        run: node tests/parity/live-data-rich-parity.mjs
