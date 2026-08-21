@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - 'refactor/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,6 +24,7 @@ env:
 jobs:
   parity:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,7 +36,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
@@ -46,11 +48,20 @@ jobs:
         run: npm run test:legacy-read
 
       - name: Validate legacy observation
-        run: node -e 'const fs=require("fs"); const rows=JSON.parse(fs.readFileSync(process.env.LEGACY_TRANSACTION_ROWS_FILE,"utf8")); if(!Array.isArray(rows)) throw new Error("Legacy observation is not an array"); console.log(`Legacy observation: ${rows.length} rows`);'
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = process.env.LEGACY_TRANSACTION_ROWS_FILE;
+          if (!fs.existsSync(path)) throw new Error(`Missing ${path}`);
+          const rows = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (!Array.isArray(rows)) throw new Error('Legacy observation is not an array');
+          if (rows.length === 0) throw new Error('Legacy observation is empty');
+          console.log(`Legacy observation: ${rows.length} rows`);
+          NODE
 
       - name: Run final live transaction parity
         run: node tests/parity/compare-live-transactions.mjs
 
       - name: Remove parity data
         if: always()
-        run: rm -f "$LEGACY_TRANSACTION_ROWS_FILE"
+        run: rm -f -- "$LEGACY_TRANSACTION_ROWS_FILE"
