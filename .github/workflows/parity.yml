@@ -42,7 +42,14 @@ jobs:
         run: npm run test:parity
 
       - name: Observe production legacy transaction read
-        run: npm run test:legacy-read
+        id: legacy_read
+        run: |
+          npm run test:legacy-read > legacy-rows.json
+          node -e 'const fs=require("fs"); JSON.parse(fs.readFileSync("legacy-rows.json","utf8")); console.log("Legacy observation JSON: valid")'
 
-      - name: Run live transaction parity
-        run: node tests/parity/transactions-live.test.js
+      - name: Run final live transaction parity
+        env:
+          LEGACY_TRANSACTION_ROWS_JSON: ${{ steps.legacy_read.outputs.rows }}
+        run: |
+          export LEGACY_TRANSACTION_ROWS_JSON="$(cat legacy-rows.json)"
+          node tests/parity/compare-live-transactions.mjs
