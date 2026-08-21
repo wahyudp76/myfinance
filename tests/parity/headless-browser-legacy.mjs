@@ -1,12 +1,13 @@
 import { chromium } from "playwright";
+import fs from "node:fs/promises";
 
 const baseUrl = process.env.MYFINANCE_APP_URL || "https://wahyudp76.github.io/myfinance/";
 const email = process.env.PARITY_TEST_EMAIL;
 const password = process.env.PARITY_TEST_PASSWORD;
+const outputPath = process.env.LEGACY_TRANSACTION_ROWS_FILE || "legacy-rows.json";
 
 if (!email || !password) {
-  console.log("Headless legacy parity: SKIPPED (test credentials not configured)");
-  process.exit(0);
+  throw new Error("PARITY_TEST_EMAIL and PARITY_TEST_PASSWORD are required for live legacy parity.");
 }
 
 const browser = await chromium.launch({ headless: true });
@@ -40,7 +41,8 @@ try {
     throw new Error("Production transaction read was not observed. Legacy path may not have bootstrapped, or the API transport changed.");
   }
 
-  process.stdout.write(JSON.stringify(rows));
+  await fs.writeFile(outputPath, JSON.stringify(rows), "utf8");
+  console.log(`Legacy observation written: ${rows.length} rows`);
 } finally {
   await browser.close();
 }
