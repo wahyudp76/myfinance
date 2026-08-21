@@ -21,15 +21,54 @@ function comparableRows(rows) {
   })));
 }
 
+function rowKey(row) {
+  return JSON.stringify(row);
+}
+
 export function compareTransactionLists(legacyRows, nativeRows) {
-  const legacy = JSON.stringify(comparableRows(legacyRows));
-  const native = JSON.stringify(comparableRows(nativeRows));
+  const legacyComparable = comparableRows(legacyRows);
+  const nativeComparable = comparableRows(nativeRows);
+  const legacy = JSON.stringify(legacyComparable);
+  const native = JSON.stringify(nativeComparable);
+
   return {
     equal: legacy === native,
     legacyCount: legacyRows?.length ?? 0,
     nativeCount: nativeRows?.length ?? 0,
     legacy,
     native,
+    diagnostics: buildDiagnostics(legacyComparable, nativeComparable),
+  };
+}
+
+function buildDiagnostics(legacyRows, nativeRows) {
+  const nativeById = new Map(nativeRows.map((row) => [String(row.id), row]));
+  const legacyById = new Map(legacyRows.map((row) => [String(row.id), row]));
+  const missingInNative = [];
+  const missingInLegacy = [];
+  const fieldMismatches = [];
+
+  for (const [id, legacy] of legacyById) {
+    const native = nativeById.get(id);
+    if (!native) {
+      missingInNative.push(id);
+      continue;
+    }
+    for (const field of ["jenis", "tanggal", "jumlah", "akun", "kategori", "keterangan", "mata_uang", "kurs", "jumlah_idr"]) {
+      if (rowKey(legacy[field]) !== rowKey(native[field])) {
+        fieldMismatches.push({ id, field });
+      }
+    }
+  }
+
+  for (const id of nativeById.keys()) {
+    if (!legacyById.has(id)) missingInLegacy.push(id);
+  }
+
+  return {
+    missingInNative,
+    missingInLegacy,
+    fieldMismatches,
   };
 }
 
