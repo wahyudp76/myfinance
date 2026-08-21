@@ -23,7 +23,7 @@ try {
       const body = await response.json();
       if (Array.isArray(body)) transactionResponses.push(body);
     } catch {
-      // Ignore non-JSON/aborted responses; the final assertion handles absence.
+      // Ignore non-JSON/aborted responses; final assertion handles absence.
     }
   });
 
@@ -31,10 +31,7 @@ try {
   const emailInput = page.locator('input[type="email"]').first();
   const passwordInput = page.locator('input[type="password"]').first();
   await emailInput.fill(email);
-  await passwordInput.fill(password);
   await passwordInput.press("Enter");
-
-  // Allow the production bootstrap/loadData path to complete.
   await page.waitForTimeout(5000);
 
   const rows = transactionResponses.flat();
@@ -42,7 +39,7 @@ try {
     throw new Error("Production transaction read was not observed. Legacy path may not have bootstrapped, or the API transport changed.");
   }
 
-  process.stdout.write(JSON.stringify({ rows, observedRequests: transactionResponses.length }));
+  process.stdout.write(JSON.stringify(rows));
 } finally {
   await browser.close();
 }
