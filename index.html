@@ -3318,12 +3318,6 @@ const api = (() => {
         }
 
         // ========================== UTILITIES ==========================
-        function toggleSidebar() {
-            const s = document.getElementById('sidebar');
-            if(!s) return;
-            s.classList.toggle('hidden');
-        }
-
         function setDateHeader() {
             document.getElementById('currentDate').innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             document.getElementById('tanggal').valueAsDate = new Date();
@@ -3635,6 +3629,14 @@ const api = (() => {
         // GANTI dengan nomor WhatsApp device Fonnte kamu sendiri (format 62xxx, tanpa +/spasi)
         // -- cuma dipakai buat ditampilkan sbg instruksi ke user, tidak mempengaruhi logika.
         const WHATSAPP_BOT_NUMBER = '628XXXXXXXXXX';
+        // BUG FIX: sebelumnya nomor placeholder di atas ditampilkan APA ADANYA ke user kalau
+        // developer lupa menggantinya -- user diminta kirim kode LINK ke nomor yang sebenarnya
+        // tidak ada, jadi kode SELALU kadaluarsa tanpa penjelasan (bot tidak pernah menerimanya).
+        // Sekarang dicek dulu: kalau masih placeholder, tampilkan peringatan jelas alih-alih
+        // nomor palsu, supaya masalahnya langsung ketahuan alih-alih terlihat seperti bug lain.
+        function isWhatsappBotNumberConfigured() {
+            return /^\d{8,15}$/.test(WHATSAPP_BOT_NUMBER);
+        }
 
         async function renderWhatsappLinkStatus() {
             const container = document.getElementById('whatsapp-link-status');
@@ -3668,11 +3670,28 @@ const api = (() => {
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
                 const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: userData.user.id, code });
                 if (error) { showErrorToast('Gagal membuat kode. Coba lagi.'); return; }
+
+                if (!isWhatsappBotNumberConfigured()) {
+                    // Developer belum mengganti WHATSAPP_BOT_NUMBER dari placeholder -- kode di atas
+                    // TETAP tersimpan (jadi tidak salah data), tapi user diberi tahu jujur bahwa
+                    // fitur ini belum siap, bukan diminta kirim pesan ke nomor yang tidak ada.
+                    container.innerHTML = `
+                        <div class="bg-amber-50 rounded-xl p-3 text-center border border-amber-200">
+                            <p class="text-[11px] font-bold text-amber-700 mb-1"><i class="fas fa-triangle-exclamation mr-1"></i>Bot WhatsApp belum dikonfigurasi</p>
+                            <p class="text-[10px] text-amber-600 leading-relaxed">Developer perlu mengganti <code class="bg-amber-100 px-1 rounded">WHATSAPP_BOT_NUMBER</code> di index.html dengan nomor WhatsApp device Fonnte yang sebenarnya sebelum fitur ini bisa dipakai.</p>
+                        </div>`;
+                    return;
+                }
+
+                // wa.me menerima pesan pre-filled lewat parameter ?text= -- user tinggal tap
+                // "Kirim" di WhatsApp, tidak perlu ngetik/copy-paste manual kode LINK-nya sendiri.
+                const waLink = `https://wa.me/${WHATSAPP_BOT_NUMBER}?text=${encodeURIComponent('LINK ' + code)}`;
                 container.innerHTML = `
                     <div class="bg-slate-50 rounded-xl p-3 text-center">
                         <p class="text-[10px] text-slate-400 mb-1">Kirim pesan ini ke WhatsApp bot (${escapeHtml(WHATSAPP_BOT_NUMBER)}):</p>
                         <p class="text-base font-mono font-extrabold text-slate-800 mb-1 tracking-wide">LINK ${code}</p>
                         <p class="text-[10px] text-slate-400 mb-2">Kode berlaku 10 menit.</p>
+                        <a href="${waLink}" target="_blank" rel="noopener" class="inline-block w-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold py-2 rounded-lg transition mb-2"><i class="fab fa-whatsapp mr-1.5"></i>Buka WhatsApp & Kirim Otomatis</a>
                         <button onclick="renderWhatsappLinkStatus()" class="text-[11px] font-semibold text-indigo-500 hover:text-indigo-600">Sudah kirim? Cek status</button>
                     </div>`;
             } catch (e) {
@@ -6514,15 +6533,6 @@ const api = (() => {
                         <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">Fitur ini butuh Edge Function <code class="bg-slate-200 px-1 rounded">analyze-finance</code> di-deploy dan API key Gemini diset di Supabase. Lihat panduan di README.md bagian "Rekomendasi AI".</p>
                         ${detailHtml}
                     </div>
-                </div>`;
-        }
-
-        function renderAiInsightError() {
-            const container = document.getElementById('ai-insights-container'); if (!container) return;
-            container.innerHTML = `
-                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-triangle-exclamation text-sm"></i></div>
-                    <p class="text-xs md:text-sm text-slate-500">Gagal memuat rekomendasi AI. Coba klik tombol refresh di atas.</p>
                 </div>`;
         }
 

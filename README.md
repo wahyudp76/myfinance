@@ -1,4 +1,4 @@
-# MyFinance Dashboard — Full Supabase New Edition (1 File)
+# MyFinance Dashboard — Full Supabase Edition (1 File)
 
 Versi ini digabung kembali jadi **satu file `index.html` utuh** (HTML + CSS +
 JS jadi satu, tidak ada lagi `login.html`/`css/style.css`/`js/*.js` terpisah),
@@ -17,8 +17,12 @@ myfinance-app/
 ├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
 ├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
 ├── _headers               # Header keamanan (khusus hosting Netlify)
-├── sql/
-│   └── schema.sql        # SQL lengkap: 6 tabel + Row Level Security
+├── schema.sql             # SQL lengkap & TERBARU: 7 tabel + Row Level Security -- SATU-SATUNYA
+│                            file schema yang dipakai, jalankan ini (BUKAN sql/schema.sql yang
+│                            sudah dihapus karena isinya versi lama/basi -- lihat bagian 12)
+├── migration_whatsapp.sql # Migrasi tambahan: integrasi bot WhatsApp (opsional, lihat bagian 12)
+├── sql/                   # Migrasi TAMBAHAN yang menyusul schema.sql di atas (opsional, lihat
+│                            bagian 12 -- BUKAN pengganti schema.sql)
 └── README.md
 ```
 
@@ -41,18 +45,26 @@ JavaScript (tanpa reload halaman) — bukan dua file HTML terpisah lagi.
 
 1. Buka project Supabase kamu di https://app.supabase.com.
 2. Masuk ke menu **SQL Editor** → **New query**.
-3. Copy-paste **seluruh isi file `sql/schema.sql`** lalu klik **Run**.
-   Ini membuat 6 tabel berikut, semuanya dengan Row Level Security (RLS)
+3. Copy-paste **seluruh isi file `schema.sql`** (di folder root repo, BUKAN
+   `sql/schema.sql`) lalu klik **Run**.
+   Ini membuat 7 tabel berikut, semuanya dengan Row Level Security (RLS)
    aktif — jadi tiap user cuma bisa lihat & ubah datanya sendiri:
-   - `transactions` — transaksi
+   - `transactions` — transaksi, termasuk kolom multi-currency (`mata_uang`,
+     `kurs`, `jumlah_idr`)
    - `budgets` — anggaran per kategori per bulan
-   - `assets` — portofolio aset/investasi, **+ riwayat performa** (kolom `value_history`)
+   - `assets` — portofolio aset/investasi, **+ riwayat performa** (kolom
+     `value_history`) **+ kolom refresh harga otomatis** (`simbol`,
+     `jumlah_unit`, `sumber_harga`)
    - `settings` — daftar akun & kategori kustom, **+ data profil (nama,
      no. HP, bio)** (1 baris per user)
    - `custom_icons` — ikon/logo kustom per akun, **+ foto profil** (1 baris
      tersendiri per user, memakai key khusus)
    - `recurring_transactions` — template **Transaksi Berulang** (langganan,
      gaji, cicilan, tagihan rutin)
+   - `rate_limits` — jeda antar panggilan **Tanya AI** per user (mencegah spam)
+
+   Butuh fitur bot WhatsApp juga? Lanjutkan dengan menjalankan
+   `migration_whatsapp.sql` sesudahnya (lihat bagian 12).
 4. Cek menu **Authentication → Providers**, pastikan **Email** aktif
    (biasanya sudah default aktif).
 5. (Opsional, buat testing lebih cepat) Di **Authentication → Settings**,
@@ -397,8 +409,8 @@ miliknya sendiri, walau key-nya identik.
 ## 10. Kalau ada error saat login/memuat data
 
 - **"Gagal memuat data dari cloud"** → cek koneksi internet, dan pastikan
-  `sql/schema.sql` sudah dijalankan lengkap (kelima tabelnya) di project
-  Supabase kamu.
+  `schema.sql` (di folder root, bukan `sql/schema.sql`) sudah dijalankan
+  lengkap (ketujuh tabelnya) di project Supabase kamu.
 - **"Email atau password salah"** → pastikan sudah mendaftar dulu lewat tab
   **Daftar**.
 - **"Sesi login tidak ditemukan"** saat menyimpan sesuatu → sesi kamu
@@ -469,4 +481,52 @@ Mau analisis lebih dalam? Ganti ke model "Pro" terbaru -- cek daftar
 model aktif di https://ai.google.dev/gemini-api/docs/models. Ganti
 nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
 `GEMINI_MODEL`), lalu deploy ulang (langkah 5).
+
+## 12. Setup Bot WhatsApp (opsional) & catatan konsolidasi repo
+
+**`sql/schema.sql` sudah tidak dipakai lagi (basi/duplikat)** -- sempat ada
+dua file schema yang isinya berbeda (`schema.sql` di root vs `sql/schema.sql`),
+dan yang di folder `sql/` KETINGGALAN kolom multi-currency, kolom refresh
+harga otomatis aset, dan tabel `rate_limits`. Kalau kamu sebelumnya sempat
+menjalankan `sql/schema.sql` (bukan yang di root), jalankan ulang
+**`schema.sql` (root)** sekarang juga -- aman, semua perintahnya pakai
+"if not exists" jadi tidak akan menghapus data yang sudah ada, cuma
+melengkapi kolom/tabel yang mungkin belum ada. Kalau kamu mengelola repo
+ini di Git, disarankan hapus file `sql/schema.sql` supaya tidak ada lagi
+2 sumber kebenaran yang bisa berbeda isi seperti ini. Untuk alasan sama,
+`readme.md` (huruf kecil) juga sebaiknya dihapus -- `README.md` (file ini)
+adalah versi yang aktif dipakai/dirawat.
+
+**Migrasi lanjutan yang SUDAH ada file SQL-nya tapi BELUM dijalankan ke
+database** (ditulis, direview, tapi sengaja belum di-apply -- lihat catatan
+di masing-masing file):
+- `sql/migration_reliability_hardening_2026-08.sql` -- bikin pencatatan
+  Transaksi Berulang anti-duplikat di level database, dan mengganti
+  penyimpanan Budget dari "hapus semua lalu insert ulang" (bisa membuat
+  budget sebulan kosong total kalau langkah insert-nya gagal di tengah
+  jalan) jadi satu operasi atomik.
+- `sql/migration_transfer_currency_2026-08.sql` -- Transfer antar akun
+  beda mata uang, dicatat sebagai satu operasi atomik dengan kurs kedua
+  sisi (sumber & tujuan) disimpan sebagai snapshot.
+
+Kedua file itu **aman & additive** (tidak mengubah/menghapus data yang
+sudah ada), TAPI baru benar-benar berguna kalau kode `index.html` juga
+diperbarui untuk memanggil fungsi (RPC) barunya -- lihat komentar
+"NEXT APPLICATION STEPS" / "IMPORTANT APPLICATION NOTES" di masing-masing
+file untuk detail bagian kode yang perlu diubah.
+
+**Untuk fitur Bot WhatsApp** (catat transaksi lewat chat WhatsApp):
+1. Jalankan `migration_whatsapp.sql` di SQL Editor (aman, 2 tabel baru saja).
+2. Deploy Edge Function `whatsapp-webhook` (`supabase functions deploy whatsapp-webhook`).
+3. Set secrets: `FONNTE_TOKEN`, `WHATSAPP_WEBHOOK_SECRET` (lihat komentar di
+   awal file `whatsapp-webhook.ts` untuk detail lengkap tiap secret).
+4. Daftarkan URL Edge Function itu sebagai webhook di dashboard Fonnte
+   (Device kamu → Webhook URL), dengan `?token=<WHATSAPP_WEBHOOK_SECRET>`
+   di belakangnya.
+5. **PENTING, sering terlewat**: buka `index.html`, cari konstanta
+   `WHATSAPP_BOT_NUMBER` (di bagian "BOT WHATSAPP (Fonnte)"), lalu ganti
+   nilai placeholder `'628XXXXXXXXXX'` dengan nomor WhatsApp device Fonnte
+   kamu yang sebenarnya. Kalau langkah ini terlewat, halaman Pengaturan
+   akan otomatis menampilkan peringatan "Bot WhatsApp belum dikonfigurasi"
+   alih-alih meminta user mengirim kode ke nomor yang tidak ada.
 
