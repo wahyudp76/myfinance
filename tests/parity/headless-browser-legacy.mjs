@@ -56,6 +56,9 @@ try {
   // Allow the SPA to finish auth/bootstrap and any paginated transaction reads.
   await page.waitForTimeout(10000);
 
+  // An observed successful GET returning [] is a valid read. It means the
+  // authenticated account currently has no transaction rows. Do not confuse
+  // that with the absence of a transaction request altogether.
   if (!transactionResponses.length) {
     const apiPaths = [...observedApiPaths].slice(0, 20).join(", ") || "none";
     const errors = pageErrors.slice(0, 5).join(" | ") || "none";
@@ -69,7 +72,7 @@ try {
 
   const rows = transactionResponses.flat();
   await fs.writeFile(outputPath, JSON.stringify(rows), "utf8");
-  console.log(`Legacy observation written: ${rows.length} rows`);
+  console.log(`Legacy observation written: ${rows.length} rows from ${transactionResponses.length} transaction response(s)`);
 } finally {
   await browser.close();
 }
