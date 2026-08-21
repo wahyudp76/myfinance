@@ -35,8 +35,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
       - name: Run fixture parity tests
         run: npm run test:parity
+
+      - name: Observe production legacy transaction read
+        run: npm run test:legacy-read
 
       - name: Run live transaction parity
         run: node tests/parity/transactions-live.test.js
