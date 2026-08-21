@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { createTransactionService } from "../../src/services/transactions.js";
 import { compareTransactionLists } from "../../src/services/parity/transactions.js";
@@ -20,25 +21,24 @@ const { error: authError } = await nativeClient.auth.signInWithPassword({
 if (authError) throw authError;
 
 const native = createTransactionService(nativeClient);
-const legacyJson = process.env.LEGACY_TRANSACTION_ROWS_JSON;
-if (!legacyJson) {
-  throw new Error("LEGACY_TRANSACTION_ROWS_JSON is required for final comparison");
-}
-
-const legacyRows = JSON.parse(legacyJson);
+const legacyPath = process.env.LEGACY_TRANSACTION_ROWS_FILE || "legacy-rows.json";
+const legacyRows = JSON.parse(await fs.readFile(legacyPath, "utf8"));
 const nativeRows = await native.list();
 const result = compareTransactionLists(legacyRows, nativeRows);
 
-if (!result.equal) {
-  console.error("Transaction read parity: FAIL");
-  console.error(JSON.stringify({
-    legacyCount: result.legacyCount,
-    nativeCount: result.nativeCount,
-    legacy: result.legacy,
-    native: result.native,
-  }, null, 2));
-  process.exit(1);
-}
+try {
+  if (!result.equal) {
+    console.error("Transaction read parity: FAIL");
+    console.error(JSON.stringify({
+      legacyCount: result.legacyCount,
+      nativeCount: result.nativeCount,
+    }, null, 2));
+    process.exitCode = 1;
+    return;
+  }
 
-assert.equal(result.legacyCount, result.nativeCount);
-console.log(`Transaction read parity: PASS (${result.nativeCount} rows)`);
+  assert.equal(result.legacyCount, result.nativeCount);
+  console.log(`Transaction read parity: PASS (${result.nativeCount} rows)`);
+} finally {
+  await nativeClient.auth.signOut();
+}
