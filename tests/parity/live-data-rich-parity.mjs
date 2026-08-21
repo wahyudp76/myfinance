@@ -21,23 +21,39 @@ const service = createTransactionService(client);
 const createdIds = [];
 const runId = `PARITY-${Date.now()}`;
 
-const dataset = [
-  { jenis: "income", tanggal: "2030-01-02", jumlah: 500000, akun: "PARITY", kategori: "PARITY", keterangan: `${runId}-IDR-IN`, mata_uang: "IDR", kurs: 1, jumlah_idr: 500000 },
-  { jenis: "expense", tanggal: "2030-01-03", jumlah: 125000, akun: "PARITY", kategori: "PARITY", keterangan: `${runId}-IDR-OUT`, mata_uang: "IDR", kurs: 1, jumlah_idr: 125000 },
-  { jenis: "expense", tanggal: "2030-01-04", jumlah: 10.5, akun: "PARITY", kategori: "PARITY", keterangan: `${runId}-USD-OUT`, mata_uang: "USD", kurs: 16000, jumlah_idr: 168000 },
-  { jenis: "income", tanggal: "2030-01-05", jumlah: 25, akun: "PARITY", kategori: "PARITY", keterangan: `${runId}-USD-IN`, mata_uang: "USD", kurs: 16000, jumlah_idr: 400000 },
-];
+// 1,005 rows intentionally cross the native service page boundary (1,000).
+// A small currency matrix is repeated to exercise numeric normalization across pages.
+const dataset = Array.from({ length: 1005 }, (_, index) => {
+  const n = index + 1;
+  const currency = n % 3 === 0 ? "USD" : "IDR";
+  const amount = currency === "USD" ? 10 + (n % 7) / 10 : 100000 + n;
+  const rate = currency === "USD" ? 16000 : 1;
+  return {
+    jenis: n % 2 === 0 ? "expense" : "income",
+    tanggal: `2030-02-${String((n % 28) + 1).padStart(2, "0")}`,
+    jumlah: amount,
+    akun: "PARITY",
+    kategori: "PARITY",
+    keterangan: `${runId}-${String(n).padStart(4, "0")}`,
+    mata_uang: currency,
+    kurs: rate,
+    jumlah_idr: amount * rate,
+  };
+});
 
 async function cleanup() {
+  const failures = [];
   for (const id of createdIds) {
-    try { await service.remove(id); } catch (error) { console.error(`Parity cleanup failed for created record ${id}:`, error.message); }
+    try { await service.remove(id); } catch (error) { failures.push(`${id}: ${error.message}`); }
   }
+  if (failures.length) throw new Error(`Parity cleanup failed for ${failures.length} records. ${failures.slice(0, 3).join("; ")}`);
 }
 
 try {
   const { error } = await client.auth.signInWithPassword({ email, password });
   if (error) throw error;
 
+  // Seed in batches to avoid a giant request and retain every created ID for deterministic cleanup.
   for (const row of dataset) {
     const created = await service.create(row);
     if (!created?.id) throw new Error("Seeded transaction did not return an id.");
@@ -45,30 +61,37 @@ try {
   }
 
   const nativeRows = await service.list();
-  const expected = dataset.map(({ keterangan, ...row }) => ({ ...row, id: expectId(keterangan, nativeRows) }));
   const actual = nativeRows.filter((row) => typeof row.keterangan === "string" && row.keterangan.startsWith(runId));
 
   if (actual.length !== dataset.length) {
-    throw new Error(`Live data-rich parity seed read mismatch: expected ${dataset.length} rows, observed ${actual.length}.`);
+    throw new Error(`Live pagination parity mismatch: expected ${dataset.length} seeded rows, observed ${actual.length}.`);
   }
 
-  for (const row of dataset) {
-    const found = actual.find((candidate) => candidate.keterangan === row.keterangan);
-    if (!found) throw new Error(`Seeded transaction not found: ${row.keterangan}`);
+  const expectedByKey = new Map(dataset.map((row) => [row.keterangan, row]));
+  for (const row of actual) {
+    const expected = expectedByKey.get(row.keterangan);
+    if (!expected) throw new Error(`Unexpected parity row observed: ${row.keterangan}`);
     for (const field of ["jenis", "tanggal", "jumlah", "akun", "kategori", "mata_uang", "kurs", "jumlah_idr"]) {
-      if (String(found[field] ?? null) !== String(row[field] ?? null)) {
-        throw new Error(`Live data-rich parity mismatch for ${row.keterangan}: ${field}`);
+      if (String(row[field] ?? null) !== String(expected[field] ?? null)) {
+        throw new Error(`Live parity mismatch for ${row.keterangan}: ${field}`);
       }
     }
   }
 
-  console.log(`Live data-rich parity: PASS (${actual.length} seeded rows verified)`);
-} finally {
-  await cleanup();
-  await client.auth.signOut();
-}
+  const usdRows = actual.filter((row) => row.mata_uang === "USD");
+  const idrRows = actual.filter((row) => row.mata_uang === "IDR");
+  if (!usdRows.length || !idrRows.length) throw new Error("Multi-currency parity dataset was not observed in both USD and IDR.");
+  if (usdRows.some((row) => Number(row.kurs) !== 16000 || Number(row.jumlah_idr) !== Number(row.jumlah) * 16000)) {
+    throw new Error("USD conversion parity failed.");
+  }
+  if (idrRows.some((row) => Number(row.kurs) !== 1 || Number(row.jumlah_idr) !== Number(row.jumlah))) {
+    throw new Error("IDR conversion parity failed.");
+  }
 
-function expectId(key, rows) {
-  const row = rows.find((candidate) => candidate.keterangan === key);
-  return row?.id ?? null;
+  const ordered = actual.every((row, index) => index === 0 || `${row.tanggal}|${row.id}` >= `${actual[index - 1].tanggal}|${actual[index - 1].id}`);
+  if (!ordered) throw new Error("Transaction ordering parity failed.");
+
+  console.log(`Live data-rich parity: PASS (${actual.length} rows; pagination boundary + IDR/USD conversion verified)`);
+} finally {
+  try { await cleanup(); } finally { await client.auth.signOut(); }
 }
