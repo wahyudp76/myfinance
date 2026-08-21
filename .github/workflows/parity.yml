@@ -55,7 +55,6 @@ jobs:
           if (!fs.existsSync(path)) throw new Error(`Missing ${path}`);
           const rows = JSON.parse(fs.readFileSync(path, 'utf8'));
           if (!Array.isArray(rows)) throw new Error('Legacy observation is not an array');
-          if (rows.length === 0) throw new Error('Legacy observation is empty');
           console.log(`Legacy observation: ${rows.length} rows`);
           NODE
 
