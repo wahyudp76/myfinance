@@ -48,19 +48,24 @@ export function createTransactionService(client) {
 
     async create(data) {
       const user_id = await getCurrentUserId(supabase);
-      const { error } = await supabase.from("transactions").insert({
-        user_id,
-        jenis: data.jenis,
-        tanggal: data.tanggal,
-        jumlah: data.jumlah,
-        akun: data.akun,
-        kategori: data.kategori,
-        keterangan: data.keterangan,
-        mata_uang: data.mata_uang || null,
-        kurs: data.kurs || 1,
-        jumlah_idr: data.jumlah_idr != null ? data.jumlah_idr : data.jumlah,
-      });
+      const { data: inserted, error } = await supabase
+        .from("transactions")
+        .insert({
+          user_id,
+          jenis: data.jenis,
+          tanggal: data.tanggal,
+          jumlah: data.jumlah,
+          akun: data.akun,
+          kategori: data.kategori,
+          keterangan: data.keterangan,
+          mata_uang: data.mata_uang || null,
+          kurs: data.kurs || 1,
+          jumlah_idr: data.jumlah_idr != null ? data.jumlah_idr : data.jumlah,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+      return inserted;
     },
 
     async update(id, data) {
