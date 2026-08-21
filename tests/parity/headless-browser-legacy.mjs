@@ -11,36 +11,63 @@ if (!email || !password) {
 }
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage();
+const context = await browser.newContext();
+const page = await context.newPage();
 const transactionResponses = [];
+const observedApiPaths = new Set();
+const pageErrors = [];
+
+page.on("pageerror", (error) => pageErrors.push(error.message));
+page.on("response", async (response) => {
+  try {
+    const url = new URL(response.url());
+    if (!url.pathname.includes("/rest/v1/")) return;
+
+    observedApiPaths.add(url.pathname);
+    if (!url.pathname.endsWith("/transactions")) return;
+    if (response.request().method() !== "GET") return;
+    if (response.status() !== 200) return;
+
+    const body = await response.json();
+    if (Array.isArray(body)) transactionResponses.push(body);
+  } catch {
+    // Ignore non-JSON/aborted responses; the final assertion reports the absence.
+  }
+});
 
 try {
-  page.on("response", async (response) => {
-    try {
-      const url = response.url();
-      if (!url.includes("/rest/v1/transactions")) return;
-      if (response.request().method() !== "GET") return;
-      if (response.status() !== 200) return;
-      const body = await response.json();
-      if (Array.isArray(body)) transactionResponses.push(body);
-    } catch {
-      // Ignore non-JSON/aborted responses; final assertion handles absence.
-    }
-  });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
 
-  await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60000 });
   const emailInput = page.locator('input[type="email"]').first();
   const passwordInput = page.locator('input[type="password"]').first();
+  await emailInput.waitFor({ state: "visible", timeout: 30000 });
+  await passwordInput.waitFor({ state: "visible", timeout: 30000 });
+
   await emailInput.fill(email);
   await passwordInput.fill(password);
-  await passwordInput.press("Enter");
-  await page.waitForTimeout(5000);
 
-  const rows = transactionResponses.flat();
-  if (!rows.length) {
-    throw new Error("Production transaction read was not observed. Legacy path may not have bootstrapped, or the API transport changed.");
+  const submit = page.locator('button[type="submit"], input[type="submit"]').first();
+  if (await submit.count()) {
+    await submit.click();
+  } else {
+    await passwordInput.press("Enter");
   }
 
+  // Allow the SPA to finish auth/bootstrap and any paginated transaction reads.
+  await page.waitForTimeout(10000);
+
+  if (!transactionResponses.length) {
+    const apiPaths = [...observedApiPaths].slice(0, 20).join(", ") || "none";
+    const errors = pageErrors.slice(0, 5).join(" | ") || "none";
+    throw new Error(
+      `Production transaction read was not observed. ` +
+      `Observed REST paths: ${apiPaths}. Page errors: ${errors}. ` +
+      `The production transport may have changed, login/bootstrap may have failed, ` +
+      `or transactions may now be loaded through a non-REST path.`
+    );
+  }
+
+  const rows = transactionResponses.flat();
   await fs.writeFile(outputPath, JSON.stringify(rows), "utf8");
   console.log(`Legacy observation written: ${rows.length} rows`);
 } finally {
