@@ -10,35 +10,39 @@ const required = (name) => {
   return value;
 };
 
-const nativeClient = createClient(required("SUPABASE_URL"), required("SUPABASE_ANON_KEY"), {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+async function main() {
+  const nativeClient = createClient(required("SUPABASE_URL"), required("SUPABASE_ANON_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-const { error: authError } = await nativeClient.auth.signInWithPassword({
-  email: required("PARITY_TEST_EMAIL"),
-  password: required("PARITY_TEST_PASSWORD"),
-});
-if (authError) throw authError;
+  try {
+    const { error: authError } = await nativeClient.auth.signInWithPassword({
+      email: required("PARITY_TEST_EMAIL"),
+      password: required("PARITY_TEST_PASSWORD"),
+    });
+    if (authError) throw authError;
 
-const native = createTransactionService(nativeClient);
-const legacyPath = process.env.LEGACY_TRANSACTION_ROWS_FILE || "legacy-rows.json";
-const legacyRows = JSON.parse(await fs.readFile(legacyPath, "utf8"));
-const nativeRows = await native.list();
-const result = compareTransactionLists(legacyRows, nativeRows);
+    const native = createTransactionService(nativeClient);
+    const legacyPath = process.env.LEGACY_TRANSACTION_ROWS_FILE || "legacy-rows.json";
+    const legacyRows = JSON.parse(await fs.readFile(legacyPath, "utf8"));
+    const nativeRows = await native.list();
+    const result = compareTransactionLists(legacyRows, nativeRows);
 
-try {
-  if (!result.equal) {
-    console.error("Transaction read parity: FAIL");
-    console.error(JSON.stringify({
-      legacyCount: result.legacyCount,
-      nativeCount: result.nativeCount,
-    }, null, 2));
-    process.exitCode = 1;
-    return;
+    if (!result.equal) {
+      console.error("Transaction read parity: FAIL");
+      console.error(JSON.stringify({
+        legacyCount: result.legacyCount,
+        nativeCount: result.nativeCount,
+      }, null, 2));
+      process.exitCode = 1;
+      return;
+    }
+
+    assert.equal(result.legacyCount, result.nativeCount);
+    console.log(`Transaction read parity: PASS (${result.nativeCount} rows)`);
+  } finally {
+    await nativeClient.auth.signOut();
   }
-
-  assert.equal(result.legacyCount, result.nativeCount);
-  console.log(`Transaction read parity: PASS (${result.nativeCount} rows)`);
-} finally {
-  await nativeClient.auth.signOut();
 }
+
+await main();
