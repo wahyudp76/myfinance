@@ -4391,13 +4391,38 @@ const api = (() => {
                     const canvas = document.createElement('canvas');
                     canvas.width = w; canvas.height = h;
                     const ctx = canvas.getContext('2d');
-                    // Isi putih dulu -- PNG dengan transparansi kalau langsung dikonversi ke JPEG
-                    // (yang tidak mendukung transparansi) area transparannya jadi HITAM, bukan putih.
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, w, h);
+                    // Gambar dulu ke canvas yang MASIH transparan (tanpa fill warna apa pun) supaya
+                    // kita bisa mendeteksi apakah sumbernya punya area transparan (mis. logo PNG yang
+                    // background-nya sudah dihapus).
                     ctx.drawImage(img, 0, 0, w, h);
-                    try { resolve(canvas.toDataURL('image/jpeg', quality)); }
-                    catch (err) { reject(err); }
+
+                    let hasTransparency = false;
+                    try {
+                        const { data } = ctx.getImageData(0, 0, w, h);
+                        for (let i = 3; i < data.length; i += 4) {
+                            if (data[i] < 255) { hasTransparency = true; break; }
+                        }
+                    } catch (err) {
+                        // getImageData bisa gagal kalau canvas "tainted" (mis. isu CORS). Kalau begitu
+                        // anggap tidak transparan supaya tetap fallback ke alur lama (JPEG).
+                        hasTransparency = false;
+                    }
+
+                    if (hasTransparency) {
+                        // PENTING: kalau sumbernya punya area transparan, JANGAN dikonversi ke JPEG.
+                        // JPEG tidak punya alpha channel, jadi tiap pixel semi-transparan di tepi logo
+                        // (hasil anti-aliasing saat background dihapus) akan "dicampur" dengan warna
+                        // fill di belakangnya dan muncul sebagai pinggiran putih/pudar di sekeliling
+                        // logo. Ekspor sebagai PNG supaya transparansi -- termasuk di tepi -- tetap
+                        // terjaga persis seperti aslinya.
+                        try { resolve(canvas.toDataURL('image/png')); }
+                        catch (err) { reject(err); }
+                    } else {
+                        // Tidak ada transparansi sama sekali (mis. hasil foto/JPEG) -- aman dan lebih
+                        // hemat ukuran file kalau dikompres sebagai JPEG.
+                        try { resolve(canvas.toDataURL('image/jpeg', quality)); }
+                        catch (err) { reject(err); }
+                    }
                 };
                 img.onerror = function () { reject(new Error('Gagal memuat gambar')); };
                 img.src = dataUrl;
