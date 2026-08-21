@@ -31,6 +31,7 @@ try {
   const emailInput = page.locator('input[type="email"]').first();
   const passwordInput = page.locator('input[type="password"]').first();
   await emailInput.fill(email);
+  await passwordInput.fill(password);
   await passwordInput.press("Enter");
   await page.waitForTimeout(5000);
 
