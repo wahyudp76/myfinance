@@ -18,6 +18,7 @@ env:
   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
   PARITY_TEST_EMAIL: ${{ secrets.PARITY_TEST_EMAIL }}
   PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}
+  LEGACY_TRANSACTION_ROWS_FILE: legacy-rows.json
 
 jobs:
   parity:
@@ -42,16 +43,14 @@ jobs:
         run: npm run test:parity
 
       - name: Observe production legacy transaction read
-        run: npm run test:legacy-read > legacy-rows.json
+        run: npm run test:legacy-read
 
       - name: Validate legacy observation
-        run: node -e 'const fs=require("fs"); const rows=JSON.parse(fs.readFileSync("legacy-rows.json","utf8")); if(!Array.isArray(rows)) throw new Error("Legacy observation is not an array"); console.log(`Legacy observation: ${rows.length} rows`);'
+        run: node -e 'const fs=require("fs"); const rows=JSON.parse(fs.readFileSync(process.env.LEGACY_TRANSACTION_ROWS_FILE,"utf8")); if(!Array.isArray(rows)) throw new Error("Legacy observation is not an array"); console.log(`Legacy observation: ${rows.length} rows`);'
 
       - name: Run final live transaction parity
-        env:
-          LEGACY_TRANSACTION_ROWS_FILE: legacy-rows.json
         run: node tests/parity/compare-live-transactions.mjs
 
       - name: Remove parity data
         if: always()
-        run: rm -f legacy-rows.json
+        run: rm -f "$LEGACY_TRANSACTION_ROWS_FILE"
