@@ -1,4 +1,4 @@
-# MyFinance Dashboard — Full Supabase Edition (1 File)
+# MyFinance Dashboard — Full Supabase New Edition (1 File)
 
 Versi ini digabung kembali jadi **satu file `index.html` utuh** (HTML + CSS +
 JS jadi satu, tidak ada lagi `login.html`/`css/style.css`/`js/*.js` terpisah),
