@@ -59,8 +59,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- FullCalendar -->
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <!-- FullCalendar: SENGAJA TIDAK dimuat di sini -- lihat loadFullCalendarLib() di bawah.
+         Library ini (~280KB) cuma dipakai di tab Kalender; dimuat lazy (disisipkan lewat DOM
+         secara dinamis) hanya saat tab itu pertama kali dibuka, supaya parsing/eksekusinya tidak
+         membebani load pertama untuk user yang belum tentu pernah buka tab Kalender dalam sesi
+         itu. sw.js tetap precache URL-nya (lihat PRECACHE_URLS) jadi begitu dibutuhkan, biasanya
+         sudah ada di cache (nyaris instan), cuma parse/eksekusinya yang ditunda. -->
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- ====================================================================
@@ -2606,6 +2610,30 @@ const api = (() => {
         if (error) throw error;
     }
 
+    // BUG FIX (reliability hardening): dipakai KHUSUS oleh processDueRecurring() -- beda dari
+    // addTransactionRemote() biasa, ini lewat RPC create_recurring_transaction() yang idempoten
+    // di level DATABASE (bukan cuma di client) via unique index (user_id, recurring_id,
+    // recurring_due_date). Kenapa penting: kalau processDueRecurring() sempat kepanggil 2x nyaris
+    // bersamaan (mis. app dibuka di 2 tab, atau retry setelah timeout padahal request pertama
+    // sebenarnya sudah sukses di server), versi lama bisa mencatat transaksi berulang yang SAMA
+    // dua kali (uang "berlipat ganda" di laporan). RPC ini menjamin 1 template + 1 tanggal jatuh
+    // tempo = maksimal 1 baris transaksi, walau dipanggil berkali-kali.
+    async function createRecurringTransactionRemote(data) {
+        const { error } = await supabaseClient.rpc('create_recurring_transaction', {
+            p_recurring_id: data.recurring_id,
+            p_due_date: data.due_date,
+            p_jenis: data.jenis,
+            p_jumlah: Number(data.jumlah),
+            p_akun: data.akun,
+            p_kategori: data.kategori,
+            p_keterangan: data.keterangan || null,
+            p_mata_uang: data.mata_uang || null,
+            p_kurs: data.kurs || null,
+            p_jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null
+        });
+        if (error) throw error;
+    }
+
     // ---------------- BUDGET (tabel: budgets, 1 baris per kategori per bulan) ----------------
     async function getBudgetsRemote(bulan) {
         const { data, error } = await supabaseClient
@@ -2619,20 +2647,17 @@ const api = (() => {
     }
 
     async function saveBudgetsCloudRemote(bulan, budgetsMap) {
-        const user_id = await currentUserId();
-        // Semantik "replace": hapus dulu seluruh budget bulan ini, baru insert ulang
-        // sesuai isian form saat ini — sama persis seperti perilaku versi sebelumnya.
-        const { error: delErr } = await supabaseClient.from('budgets').delete().eq('bulan', bulan);
-        if (delErr) throw delErr;
-
-        const rows = Object.keys(budgetsMap || {})
-            .filter(kategori => Number(budgetsMap[kategori]) > 0)
-            .map(kategori => ({ user_id, bulan, kategori, jumlah: Number(budgetsMap[kategori]) }));
-
-        if (rows.length > 0) {
-            const { error: insErr } = await supabaseClient.from('budgets').insert(rows);
-            if (insErr) throw insErr;
-        }
+        // BUG FIX (reliability hardening): sebelumnya di sini DELETE semua budget bulan ini dulu,
+        // baru INSERT ulang sebagai 2 operasi terpisah dari browser -- kalau step INSERT gagal
+        // di tengah jalan (mis. koneksi putus) SETELAH step DELETE berhasil, budget sebulan penuh
+        // bisa hilang tanpa jejak. RPC replace_month_budgets() membungkus keduanya jadi SATU
+        // transaksi database (atomik): kalau ada yang gagal, semuanya dibatalkan (rollback),
+        // budget lama tetap utuh -- tidak ada kondisi "budget kosong di tengah jalan".
+        const { error } = await supabaseClient.rpc('replace_month_budgets', {
+            p_bulan: bulan,
+            p_budgets: budgetsMap || {}
+        });
+        if (error) throw error;
         return { status: 'success' };
     }
 
@@ -2852,6 +2877,7 @@ const api = (() => {
         deleteCustomIcon: (name) => deleteCustomIconRemote(name),
         getCustomIcons: () => getCustomIconsRemote(),
         addTransaction: (data) => addTransactionRemote(data),
+        createRecurringTransaction: (data) => createRecurringTransactionRemote(data),
         editTransaction: (id, data) => editTransactionRemote(id, data),
         deleteTransaction: (id) => deleteTransactionRemote(id),
         addAsset: (data) => addAssetRemote(data),
@@ -5474,8 +5500,14 @@ const api = (() => {
                 while (dueDate <= todayStr && countThis < MAX_CATCHUP) {
                     if (item.end_date && dueDate > item.end_date) break;
                     try {
-                        await apiCall('addTransaction', {
-                            jenis: item.jenis, tanggal: dueDate, jumlah: item.jumlah,
+                        // BUG FIX (reliability hardening): dulu pakai apiCall('addTransaction', ...)
+                        // biasa -- kalau proses ini sempat berjalan 2x nyaris bersamaan (2 tab, atau
+                        // retry pasca-timeout), transaksi berulang yang sama bisa tercatat DOBEL.
+                        // createRecurringTransaction() dijamin idempoten di level database: 1
+                        // template + 1 tanggal jatuh tempo = maksimal 1 transaksi, walau baris ini
+                        // ke-trigger berkali-kali.
+                        await apiCall('createRecurringTransaction', {
+                            recurring_id: item.id, due_date: dueDate, jenis: item.jenis, jumlah: item.jumlah,
                             akun: item.akun, kategori: item.kategori,
                             keterangan: (item.keterangan ? item.keterangan + ' ' : '') + '(otomatis berulang)'
                         });
@@ -8662,7 +8694,34 @@ const api = (() => {
             if(elIn) animateRupiah(elIn, mIn); if(elOut) animateRupiah(elOut, mOut);
         }
 
-        function renderCalendar(data) {
+        // Lazy-load FullCalendar (~280KB) lewat penyisipan elemen script secara dinamis, HANYA saat
+        // pertama kali dibutuhkan (dipanggil dari renderCalendar() di bawah) -- lihat catatan di
+        // <head> soal kenapa TIDAK dimuat via tag script statis lagi. Promise-nya di-cache di
+        // _fullCalendarLoadPromise supaya kalau renderCalendar() sempat terpanggil berkali-kali
+        // sebelum load pertama selesai (mis. race antara showView('kalender') & resize handler),
+        // elemen script-nya cuma disisipkan SEKALI.
+        let _fullCalendarLoadPromise = null;
+        function loadFullCalendarLib() {
+            if (window.FullCalendar) return Promise.resolve();
+            if (_fullCalendarLoadPromise) return _fullCalendarLoadPromise;
+            _fullCalendarLoadPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js';
+                script.onload = () => resolve();
+                script.onerror = () => { _fullCalendarLoadPromise = null; reject(new Error('Gagal memuat FullCalendar dari CDN.')); };
+                document.head.appendChild(script);
+            });
+            return _fullCalendarLoadPromise;
+        }
+
+        async function renderCalendar(data) {
+            try {
+                await loadFullCalendarLib();
+            } catch (e) {
+                console.error(e);
+                showErrorToast('Gagal memuat komponen kalender. Cek koneksi internet lalu coba lagi.');
+                return;
+            }
             let eventsMap = {};
             data.forEach(d => {
                 let dateStr = d.tanggal.split('T')[0]; let amt = txIdrAmount(d);

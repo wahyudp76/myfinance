@@ -497,23 +497,18 @@ ini di Git, disarankan hapus file `sql/schema.sql` supaya tidak ada lagi
 `readme.md` (huruf kecil) juga sebaiknya dihapus -- `README.md` (file ini)
 adalah versi yang aktif dipakai/dirawat.
 
-**Migrasi lanjutan yang SUDAH ada file SQL-nya tapi BELUM dijalankan ke
-database** (ditulis, direview, tapi sengaja belum di-apply -- lihat catatan
-di masing-masing file):
-- `sql/migration_reliability_hardening_2026-08.sql` -- bikin pencatatan
-  Transaksi Berulang anti-duplikat di level database, dan mengganti
-  penyimpanan Budget dari "hapus semua lalu insert ulang" (bisa membuat
-  budget sebulan kosong total kalau langkah insert-nya gagal di tengah
-  jalan) jadi satu operasi atomik.
-- `sql/migration_transfer_currency_2026-08.sql` -- Transfer antar akun
-  beda mata uang, dicatat sebagai satu operasi atomik dengan kurs kedua
-  sisi (sumber & tujuan) disimpan sebagai snapshot.
-
-Kedua file itu **aman & additive** (tidak mengubah/menghapus data yang
-sudah ada), TAPI baru benar-benar berguna kalau kode `index.html` juga
-diperbarui untuk memanggil fungsi (RPC) barunya -- lihat komentar
-"NEXT APPLICATION STEPS" / "IMPORTANT APPLICATION NOTES" di masing-masing
-file untuk detail bagian kode yang perlu diubah.
+**Migrasi lanjutan — status per 22 Agustus 2026:**
+- ✅ **`sql/migration_reliability_hardening_2026-08.sql`** — **SUDAH diterapkan** ke database
+  production, dan `index.html` **sudah** memanggil RPC barunya
+  (`create_recurring_transaction` & `replace_month_budgets`). Transaksi Berulang sekarang
+  anti-duplikat di level database, dan penyimpanan Budget sudah atomik (tidak ada lagi
+  kondisi "budget sebulan kosong" kalau koneksi putus di tengah simpan).
+- ⏸️ **`sql/migration_transfer_currency_2026-08.sql`** — **belum diterapkan** (sengaja
+  ditahan). File ini menambahkan RPC `create_transfer_transaction` untuk Transfer antar akun
+  beda mata uang, TAPI mengaktifkannya dengan benar butuh field UI baru di form transaksi +
+  penyesuaian logika hitung saldo akun di banyak tempat di `index.html` — scope kerja
+  tersendiri, bukan sekadar jalankan SQL. Jalankan file ini HANYA bersamaan dengan update
+  kode client yang sepadan (lihat komentar "IMPORTANT APPLICATION NOTES" di dalam filenya).
 
 **Untuk fitur Bot WhatsApp** (catat transaksi lewat chat WhatsApp):
 1. Jalankan `migration_whatsapp.sql` di SQL Editor (aman, 2 tabel baru saja).
