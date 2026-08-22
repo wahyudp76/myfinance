@@ -151,9 +151,41 @@ FullCalendar (~280KB) sebelumnya dimuat via `<script src>` statis di `<head>`, i
 - **Ukuran ikon PWA** (`icons/*.png`) sudah wajar (44KB utk 512×512, total 88KB semua ukuran) — tidak perlu dikompres ulang.
 - **Chart.js TIDAK di-lazy-load** (beda dari FullCalendar) — sengaja dibiarkan dimuat statis karena tab Dashboard (yang langsung memakai Chart.js) adalah tampilan default saat app dibuka; me-lazy-load-nya justru akan MEMPERLAMBAT tampilan pertama, bukan mempercepat.
 
-### 7.4 Temuan baru, SENGAJA belum diimplementasikan: pagination daftar transaksi
-`filterTransactions()` merender **seluruh** transaksi yang cocok filter ke DOM sekaligus (dikelompokkan per tanggal, digabung jadi satu string `innerHTML`) — tidak ada pagination/virtualisasi. Saat ini datanya kecil (67 transaksi total di seluruh user), jadi **belum ada dampak nyata apa pun** ke performa. Tapi karena app ini secara desain mendukung riwayat multi-tahun (grafik tren, laporan bulanan, dst), ini berpotensi jadi masalah nyata kalau suatu saat seorang user sudah mencatat ribuan transaksi (misal setelah 2-3 tahun pemakaian aktif harian) — setiap kali mengetik di kolom pencarian atau pindah bulan, browser harus membangun ulang ribuan node DOM sekaligus.
+### 7.4 Update: pagination daftar transaksi — sudah diimplementasikan
+Sebelumnya di §7.4 saya sengaja menahan ini karena butuh keputusan desain. Sekarang sudah diterapkan dengan pendekatan paling rendah risiko: render awal dibatasi 150 transaksi (`TX_LIST_PAGE_SIZE`), grup per-tanggal TIDAK PERNAH terpotong di tengah (jadi "Total bersih hari itu" tetap akurat), tombol "Muat lebih banyak" muncul kalau masih ada sisa, dan limit otomatis reset ke halaman pertama setiap kali kriteria filter benar-benar berubah (tapi tidak reset kalau `filterTransactions()` cuma terpanggil ulang karena alasan lain, mis. abis tambah/edit 1 transaksi). `lastFilteredTransactions` (dipakai fitur Export CSV) tetap diisi **seluruh** data yang cocok filter, tidak ikut dipotong.
 
-**Kenapa belum saya kerjakan sekarang:** ini fitur UX baru (bukan sekadar tweak), perlu keputusan desain (misal: "muat 150 transaksi terbaru dulu, tombol 'muat lagi' di bawah" vs infinite scroll vs pindah ke server-side pagination lewat query Supabase langsung) dan menyentuh salah satu bagian kode yang paling sering dipakai di seluruh app. Saya lebih pilih tidak terburu-buru mengubah ini tanpa data user yang nyata menunjukkan sudah dibutuhkan, mengikuti prinsip sama seperti alasan saya menahan fitur transfer lintas mata uang (§4.4).
+---
 
-**Rekomendasi konkret:** kalau suatu saat jumlah transaksi seorang user tembus ~500–1000 baris, ini layak dikerjakan. Paling sederhana & rendah risiko: cap render awal ke 100-150 transaksi terbaru + tombol "Muat lebih banyak" di bawah daftar (variabel `lastFilteredTransactions` yang dipakai fitur Export CSV tetap berisi SEMUA data yang cocok filter, tidak ikut dibatasi — jadi export tidak akan pernah kepotong).
+## 8. Fitur Transfer Lintas Mata Uang (22 Agustus 2026) — SELESAI
+
+Item terakhir yang sebelumnya sengaja ditahan (§4.4/§6/§7 pembuka) sudah diimplementasikan penuh dan diterapkan langsung ke production (database + `index.html`).
+
+### 8.1 Database
+`sql/migration_transfer_currency_2026-08.sql` diterapkan ke project Supabase live:
+- 4 kolom baru di `transactions`: `transfer_jumlah_tujuan`, `transfer_mata_uang_tujuan`, `transfer_kurs_tujuan`, `transfer_jumlah_tujuan_idr` (semuanya nullable — baris lama tidak terpengaruh).
+- Constraint `transfer_jumlah_tujuan > 0` dan `transfer_kurs_tujuan > 0` (kalau diisi).
+- RPC `create_transfer_transaction(p_tanggal, p_jumlah, p_akun_sumber, p_akun_tujuan, p_mata_uang_sumber, p_mata_uang_tujuan, p_kurs_sumber, p_kurs_tujuan, p_keterangan)` — 1 INSERT atomik, menghitung nominal sisi tujuan lewat `jumlah × kurs_sumber ÷ kurs_tujuan`, plus validasi akun sumber ≠ akun tujuan dan jumlah > 0.
+
+**Diuji langsung ke database** (dibungkus transaksi yang di-rollback, tidak menyentuh data asli):
+- Transfer 100 USD (kurs 15.000) → akun EUR (kurs 16.000) → hasil **93,75 EUR** tepat sesuai perhitungan manual.
+- Transfer IDR→IDR (kasus mayoritas, kurs 1:1) → nominal sisi tujuan persis sama dengan sisi sumber, seperti perilaku lama (backward compatible).
+- Percobaan akun sumber = akun tujuan → **ditolak** oleh RPC sesuai desain.
+- Security & Performance Advisor dicek ulang setelahnya — bersih, tidak ada warning baru.
+
+### 8.2 Kode client (`index.html`)
+- `fetchTransactions()` — SELECT list ditambah 4 kolom baru, dikonversi ke Number saat fetch.
+- `transferTargetAmount(row)` — helper baru: nominal yang **diterima akun tujuan** (fallback ke `row.jumlah` untuk transfer historis pra-fitur ini).
+- Form transaksi: akun tujuan Transfer sekarang punya resolusi kurs otomatis sendiri (`handleTransferDestAccountChangeForCurrency`, `currentTxMataUangTujuan`/`currentTxKursTujuan`, hint UI `transfer-dest-currency-hint`) — mirror persis dari pola yang sudah ada untuk akun sumber, termasuk perilaku "tidak fetch ulang kurs saat form edit dibuka, pakai kurs historis" yang sama.
+- `submitForm()`: Transfer BARU selalu lewat RPC `create_transfer_transaction` (bukan cuma saat lintas mata uang — RPC ini juga menangani kasus sama-mata-uang dengan benar, jadi SEMUA transfer baru otomatis dapat manfaat atomik). Edit transfer lama tetap lewat jalur update biasa, tapi field sisi tujuan dihitung dengan **rumus persis sama** seperti RPC-nya.
+- **4 titik perhitungan/tampilan saldo diperbaiki** untuk memakai `transferTargetAmount()` alih-alih asal menyamakan nominal sisi sumber:
+  1. Dashboard — saldo per akun (`processDataForUI`)
+  2. `openAccountDetail()` — saldo & breakdown transfer masuk/keluar
+  3. Daftar transaksi di Detail Akun — total bersih per hari & nominal per baris
+  4. `buildAccountSeries()` — grafik saldo berjalan
+- Sempat menambahkan helper `transferTargetAmountIdr()` untuk kemungkinan agregat lintas-akun dalam IDR, tapi ternyata tidak ada fitur yang butuh itu saat ini (tidak ada "total saldo gabungan semua akun" di app ini) — dihapus lagi mengikuti prinsip dead-code yang sama seperti temuan §2.2/§2.3.
+- Semua perubahan sudah dicek sintaksnya (5 blok `<script>`, tidak ada error baru dibanding baseline sebelum sesi ini).
+
+### 8.3 Yang SENGAJA di luar cakupan (bukan bug, batasan yang diketahui)
+- **Transaksi Berulang bertipe Transfer** belum mendukung lintas mata uang — tabel `recurring_transactions` belum punya kolom mata uang/kurs. Hanya Transfer manual/langsung yang didukung penuh saat ini. Kalau dibutuhkan, ini scope kerja tersendiri (perlu migrasi tambahan + update `processDueRecurring()`).
+- Kalender (badge jumlah transfer per hari) dan daftar transaksi utama (bukan Detail Akun) tetap menampilkan nominal sisi SUMBER saja sebagai indikator netral "berapa yang berpindah" — ini bukan bug, cuma pilihan tampilan (kedua tempat itu tidak diklaim spesifik ke satu akun tertentu, beda dengan Detail Akun yang harus akurat untuk akun yang sedang dilihat).
+- Saya tidak bisa menjalankan browser sungguhan untuk tes end-to-end (cuma verifikasi sintaks & tes RPC langsung ke database). **Rekomendasi: tes manual alur Transfer lintas mata uang** (buat akun baru dgn mata uang berbeda di Pengaturan, coba transfer antar keduanya, cek saldo di kedua Detail Akun) sebelum benar-benar diandalkan untuk pencatatan rutin.

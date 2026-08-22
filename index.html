@@ -1721,6 +1721,14 @@
                                 </div>
                                 <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
                             </div>
+                            <!-- CUMA muncul kalau jenis=Transfer & akun tujuannya berbeda mata uang dari akun
+                                 sumber -- lihat handleTransferDestAccountChangeForCurrency(). Menampilkan
+                                 estimasi berapa yg akan DITERIMA di akun tujuan (dalam mata uang tujuan),
+                                 dihitung dari nilai IDR sisi sumber dibagi kurs tujuan -- BUKAN cuma
+                                 menyamakan nominal sisi sumber apa adanya (itu penyebab bug lama: transfer
+                                 USD 100 tercatat seolah2 akun tujuan nambah 100 dalam mata uang APAPUN akun
+                                 itu, padahal semestinya dikonversi). -->
+                            <p id="transfer-dest-currency-hint" class="hidden text-[10px] text-indigo-500 font-semibold mt-1"></p>
                         </div>
 
                         <div>
@@ -2566,11 +2574,29 @@ const api = (() => {
         // penting untuk paging yang benar kalau banyak baris berbagi tanggal yang sama persis.
         const data = await fetchAllRows((from, to) => supabaseClient
             .from('transactions')
-            .select('id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr')
+            .select('id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr')
             .order('tanggal', { ascending: false })
             .order('id', { ascending: true })
             .range(from, to));
-        return data.map(row => ({ ...row, jumlah: Number(row.jumlah), jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null }));
+        return data.map(row => ({
+            ...row,
+            jumlah: Number(row.jumlah),
+            jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
+            // Sisi TUJUAN transfer lintas mata uang -- NULL utk transaksi non-Transfer & transfer
+            // historis dari SEBELUM fitur ini ada (lihat transferTargetAmount() utk fallback-nya).
+            transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
+            transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
+            transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null
+        }));
+    }
+
+    // Nilai yang MASUK ke akun tujuan pada transaksi Transfer -- pakai transfer_jumlah_tujuan
+    // (mata uang tujuan) kalau ada (transfer lintas mata uang, dicatat via RPC
+    // create_transfer_transaction), fallback ke `jumlah` (asumsi sama besar dgn sisi sumber) utk
+    // transfer historis dari SEBELUM fitur multi-currency transfer ada -- lihat catatan
+    // "IMPORTANT APPLICATION NOTES" #3 di migration_transfer_currency_2026-08.sql.
+    function transferTargetAmount(row) {
+        return row.transfer_jumlah_tujuan != null ? row.transfer_jumlah_tujuan : row.jumlah;
     }
 
     async function addTransactionRemote(data) {
@@ -2600,7 +2626,14 @@ const api = (() => {
             keterangan: data.keterangan || null,
             mata_uang: data.mata_uang || null,
             kurs: data.kurs || null,
-            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah)
+            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah),
+            // Sisi TUJUAN transfer -- cuma diisi submitForm() saat edit transaksi jenis Transfer;
+            // utk tipe transaksi lain nilainya undefined, yang berarti kolom ini di-set null di DB
+            // (memang seharusnya null utk transaksi non-Transfer).
+            transfer_jumlah_tujuan: data.transfer_jumlah_tujuan != null ? Number(data.transfer_jumlah_tujuan) : null,
+            transfer_mata_uang_tujuan: data.transfer_mata_uang_tujuan || null,
+            transfer_kurs_tujuan: data.transfer_kurs_tujuan != null ? Number(data.transfer_kurs_tujuan) : null,
+            transfer_jumlah_tujuan_idr: data.transfer_jumlah_tujuan_idr != null ? Number(data.transfer_jumlah_tujuan_idr) : null
         }).eq('id', id);
         if (error) throw error;
     }
@@ -2630,6 +2663,24 @@ const api = (() => {
             p_mata_uang: data.mata_uang || null,
             p_kurs: data.kurs || null,
             p_jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null
+        });
+        if (error) throw error;
+    }
+
+    // Transfer antar akun -- termasuk lintas mata uang -- dicatat lewat RPC ini (BUKAN insert
+    // langsung) supaya snapshot kurs kedua sisi (sumber & tujuan) dan konversi nominalnya
+    // dihitung SEKALI secara konsisten di database, bukan diduplikasi logikanya di client.
+    async function createTransferTransactionRemote(data) {
+        const { error } = await supabaseClient.rpc('create_transfer_transaction', {
+            p_tanggal: data.tanggal,
+            p_jumlah: Number(data.jumlah),
+            p_akun_sumber: data.akun_sumber,
+            p_akun_tujuan: data.akun_tujuan,
+            p_mata_uang_sumber: data.mata_uang_sumber || null,
+            p_mata_uang_tujuan: data.mata_uang_tujuan || null,
+            p_kurs_sumber: data.kurs_sumber || 1,
+            p_kurs_tujuan: data.kurs_tujuan || 1,
+            p_keterangan: data.keterangan || null
         });
         if (error) throw error;
     }
@@ -2878,6 +2929,7 @@ const api = (() => {
         getCustomIcons: () => getCustomIconsRemote(),
         addTransaction: (data) => addTransactionRemote(data),
         createRecurringTransaction: (data) => createRecurringTransactionRemote(data),
+        createTransferTransaction: (data) => createTransferTransactionRemote(data),
         editTransaction: (id, data) => editTransactionRemote(id, data),
         deleteTransaction: (id) => deleteTransactionRemote(id),
         addAsset: (data) => addAssetRemote(data),
@@ -4731,6 +4783,10 @@ const api = (() => {
             
             document.getElementById('kategori').value = '';
             document.getElementById('selected-category-display').innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>Pilih Kategori`;
+            // Akun tujuan ikut direset di atas -> state kurs tujuannya juga harus ikut direset,
+            // supaya tidak ada sisa kurs dari akun tujuan pilihan SEBELUMNYA yang nyangkut.
+            currentTxMataUangTujuan = null; currentTxKursTujuan = 1;
+            updateTransferDestCurrencyHintUI(currentTxMataUang, null, 1);
             
             let labelKat = document.getElementById('label-kategori');
             if (activeFormType === 'Pengeluaran') { labelKat.innerText = "Kategori Pengeluaran"; } 
@@ -4741,6 +4797,11 @@ const api = (() => {
         // ========================== MULTI-CURRENCY (akun & transaksi) ==========================
         let currentTxMataUang = null; // null = IDR (default/mayoritas akun)
         let currentTxKurs = 1;
+        // Sisi TUJUAN -- CUMA relevan kalau jenis transaksi = Transfer & akun tujuannya beda mata
+        // uang dari akun sumber. Diisi oleh handleTransferDestAccountChangeForCurrency() saat user
+        // memilih akun tujuan transfer lewat selector kategori (lihat selectCategoryItem()).
+        let currentTxMataUangTujuan = null;
+        let currentTxKursTujuan = 1;
 
         function getAccountCurrency(akun) {
             return (appSettings.account_currencies && appSettings.account_currencies[akun]) || 'IDR';
@@ -4774,6 +4835,42 @@ const api = (() => {
             }).withFailureHandler(() => {
                 currentTxMataUang = cur; currentTxKurs = null; // ditandai null -> submitForm() akan menolak submit sampai berhasil
                 updateCurrencyHintUI(cur, null, null, false, true);
+            }).getExchangeRate(cur);
+        }
+
+        // Sisi TUJUAN dari handleAccountChangeForCurrency() -- dipanggil dari selectCategoryItem()
+        // saat jenis=Transfer & user memilih akun tujuan. TIDAK dipanggil saat form edit dibuka
+        // (setCategoryUIFromValue() dipisah khusus utk itu, sama seperti pola akun sumber) supaya
+        // kurs HISTORIS transaksi lama tidak tertimpa kurs hari ini secara diam2.
+        function updateTransferDestCurrencyHintUI(mataUangSumber, mataUangTujuan, kursTujuan, loading, error) {
+            const hint = document.getElementById('transfer-dest-currency-hint');
+            if (!hint) return;
+            // Cuma tampil kalau BENAR2 lintas mata uang (tujuan beda dari sumber) -- transfer antar
+            // akun yang sama2 IDR (mayoritas kasus) atau sama2 mata uang tujuan == sumber tidak perlu
+            // hint tambahan apa pun, jumlahnya otomatis sama persis di kedua sisi.
+            const sumberEfektif = mataUangSumber || 'IDR';
+            const tujuanEfektif = mataUangTujuan || 'IDR';
+            if (sumberEfektif === tujuanEfektif) { hint.classList.add('hidden'); return; }
+            hint.classList.remove('hidden');
+            if (loading) { hint.innerText = `Mengambil kurs ${tujuanEfektif}...`; return; }
+            if (error || !kursTujuan) { hint.innerText = `Gagal ambil kurs ${tujuanEfektif}. Coba pilih ulang akun tujuannya.`; return; }
+            hint.innerText = `Akun tujuan pakai ${tujuanEfektif} -- jumlah otomatis dikonversi saat disimpan.`;
+        }
+
+        function handleTransferDestAccountChangeForCurrency(destAccountName) {
+            const cur = getAccountCurrency(destAccountName);
+            if (cur === 'IDR') {
+                currentTxMataUangTujuan = null; currentTxKursTujuan = 1;
+                updateTransferDestCurrencyHintUI(currentTxMataUang, null, 1);
+                return;
+            }
+            updateTransferDestCurrencyHintUI(currentTxMataUang, cur, null, true);
+            api.run.withSuccessHandler((hasil) => {
+                currentTxMataUangTujuan = cur; currentTxKursTujuan = hasil.rate;
+                updateTransferDestCurrencyHintUI(currentTxMataUang, cur, hasil.rate, false);
+            }).withFailureHandler(() => {
+                currentTxMataUangTujuan = cur; currentTxKursTujuan = null; // null -> submitForm() menolak submit sampai berhasil
+                updateTransferDestCurrencyHintUI(currentTxMataUang, cur, null, false, true);
             }).getExchangeRate(cur);
         }
 
@@ -4913,7 +5010,23 @@ const api = (() => {
         }
 
         let currentlyExpandedAcc = null;
-        let lastFilteredTransactions = []; // hasil filter/pencarian terakhir di tabel Transaksi, dipakai oleh exportTransactionsCsv()
+        let lastFilteredTransactions = []; // hasil filter/pencarian terakhir di tabel Transaksi -- SEMUA baris yang cocok filter (TIDAK dipotong pagination), dipakai oleh exportTransactionsCsv()
+
+        // PERFORMANCE: daftar transaksi tidak lagi merender SEMUA hasil filter ke DOM sekaligus --
+        // dibatasi TX_LIST_PAGE_SIZE per halaman, dengan tombol "Muat lebih banyak" kalau masih ada
+        // sisa. Saat ini (~ratusan transaksi/user) belum terasa dampaknya, tapi mencegah masalah nyata
+        // begitu riwayat seorang user sudah menumpuk ribuan baris (app ini didesain utk histori
+        // multi-tahun). _txListLastFilterSignature dipakai supaya limit otomatis reset ke halaman
+        // pertama setiap kali KRITERIA filter benar2 berubah (pencarian baru, ganti bulan, dst) --
+        // tapi TETAP di limit yang sudah di-"muat lebih banyak" kalau filter-nya sama persis (mis.
+        // dipanggil ulang cuma krn tambah/edit/hapus transaksi lain, bukan krn user ganti filter).
+        const TX_LIST_PAGE_SIZE = 150;
+        let _txListVisibleLimit = TX_LIST_PAGE_SIZE;
+        let _txListLastFilterSignature = null;
+        function loadMoreTransactions() {
+            _txListVisibleLimit += TX_LIST_PAGE_SIZE;
+            filterTransactions();
+        }
         let globalRecurring = []; // daftar template transaksi berulang milik user
         let _recurringProcessed = false; // biar processDueRecurring() cuma benar-benar jalan sekali per sesi login
         function toggleAccordion(id) {
@@ -4937,6 +5050,10 @@ const api = (() => {
             let displayUi = document.getElementById('selected-category-display');
             if (type === 'Transfer') {
                 displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(name)}</div><span class="font-bold text-slate-800">${escapeHtml(name)}</span>`;
+                // User AKTIF memilih akun tujuan (baik transaksi baru maupun ganti akun tujuan selagi
+                // edit) -- beda dari setCategoryUIFromValue() yg dipanggil saat form edit PERTAMA kali
+                // dibuka (harus pakai kurs historis, bukan fetch ulang).
+                handleTransferDestAccountChangeForCurrency(name);
             } else {
                 // BUG FIX: sebelumnya icon/bg/color dioper langsung dari HTML (lihat renderCategoryTabs())
                 // dan bisa jadi stale/tidak sinkron dengan kustomisasi Pengaturan atau gambar upload.
@@ -5112,6 +5229,17 @@ const api = (() => {
             // buka-tutup form edit tanpa mengubah apapun tidak diam2 mengubah nilai jumlah_idr lama.
             if (item.mata_uang) { currentTxMataUang = item.mata_uang; currentTxKurs = item.kurs || 1; updateCurrencyHintUI(item.mata_uang, item.kurs, null, false); }
             else { currentTxMataUang = null; currentTxKurs = 1; updateCurrencyHintUI(null, 1); }
+            // Sama seperti di atas tapi sisi TUJUAN -- cuma relevan utk Transfer lintas mata uang.
+            // Transfer historis dari SEBELUM fitur ini ada punya transfer_mata_uang_tujuan = null,
+            // yang berarti "dianggap sama seperti mata uang sumber" (lihat transferTargetAmount()).
+            if (item.jenis === 'Transfer' && item.transfer_mata_uang_tujuan) {
+                currentTxMataUangTujuan = item.transfer_mata_uang_tujuan;
+                currentTxKursTujuan = item.transfer_kurs_tujuan || 1;
+                updateTransferDestCurrencyHintUI(item.mata_uang, item.transfer_mata_uang_tujuan, item.transfer_kurs_tujuan, false);
+            } else {
+                currentTxMataUangTujuan = null; currentTxKursTujuan = 1;
+                updateTransferDestCurrencyHintUI(item.mata_uang, null, 1);
+            }
             openModal(true);
         }
 
@@ -5122,12 +5250,18 @@ const api = (() => {
             if(!catVal) { alert("Silakan pilih kategori/tujuan transfer!"); return; }
             if(!form.checkValidity()) { form.reportValidity(); return; }
             if (currentTxMataUang && !currentTxKurs) { showErrorToast('Kurs untuk akun ini belum berhasil diambil. Coba pilih ulang akunnya dulu.'); return; }
-            
+            const jenisVal = document.querySelector('input[name="jenis"]:checked').value;
+            // Transfer lintas mata uang: kurs akun TUJUAN juga wajib sudah berhasil diambil, sama
+            // seperti validasi kurs akun sumber di atas.
+            if (jenisVal === 'Transfer' && currentTxMataUangTujuan && !currentTxKursTujuan) {
+                showErrorToast('Kurs untuk akun tujuan belum berhasil diambil. Coba pilih ulang akun tujuannya.'); return;
+            }
+
             showLoading(true);
             const wasEdit = !!currentEditId; // simpan sebelum async, karena currentEditId bisa berubah setelahnya
             const jumlahNum = Number(document.getElementById('jumlah').value);
             const data = {
-                jenis: document.querySelector('input[name="jenis"]:checked').value, tanggal: document.getElementById('tanggal').value,
+                jenis: jenisVal, tanggal: document.getElementById('tanggal').value,
                 jumlah: document.getElementById('jumlah').value, akun: document.getElementById('akun').value, kategori: catVal, keterangan: document.getElementById('keterangan').value,
                 // mata_uang/kurs null = akun IDR biasa (mayoritas transaksi) -> jumlah_idr = jumlah apa adanya.
                 mata_uang: currentTxMataUang, kurs: currentTxMataUang ? currentTxKurs : 1,
@@ -5143,6 +5277,36 @@ const api = (() => {
                 refreshTransactionsOnly(() => { if (budgetBefore) notifyIfBudgetThresholdCrossed(catVal, budgetBefore); });
                 showSuccessToast(wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.');
             };
+
+            if (jenisVal === 'Transfer' && !wasEdit) {
+                // TRANSFER BARU -- selalu lewat RPC create_transfer_transaction(), bukan cuma saat
+                // lintas mata uang. RPC ini menangani kasus sama-mata-uang dgn benar juga (kurs
+                // sumber == kurs tujuan -> jumlah tujuan = jumlah sumber persis), sekalian dapat
+                // manfaat "1 operasi atomik" utk SEMUA transfer baru.
+                api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).createTransferTransaction({
+                    tanggal: data.tanggal, jumlah: jumlahNum, akun_sumber: data.akun, akun_tujuan: catVal,
+                    mata_uang_sumber: currentTxMataUang, mata_uang_tujuan: currentTxMataUangTujuan,
+                    kurs_sumber: currentTxMataUang ? currentTxKurs : 1,
+                    kurs_tujuan: currentTxMataUangTujuan ? currentTxKursTujuan : 1,
+                    keterangan: data.keterangan || null
+                });
+                return;
+            }
+
+            if (jenisVal === 'Transfer' && wasEdit) {
+                // EDIT transfer yang sudah ada -- tetap lewat UPDATE biasa (RPC di atas khusus utk
+                // INSERT baru), tapi field sisi tujuan dihitung dgn RUMUS YANG SAMA PERSIS seperti
+                // RPC create_transfer_transaction(), supaya baris hasil edit tetap konsisten dengan
+                // baris yang dibuat lewat RPC.
+                const kursSumberEfektif = currentTxMataUang ? currentTxKurs : 1;
+                const kursTujuanEfektif = currentTxMataUangTujuan ? currentTxKursTujuan : 1;
+                const sourceIdr = jumlahNum * kursSumberEfektif;
+                data.transfer_jumlah_tujuan = sourceIdr / kursTujuanEfektif;
+                data.transfer_mata_uang_tujuan = currentTxMataUangTujuan;
+                data.transfer_kurs_tujuan = currentTxMataUangTujuan ? currentTxKursTujuan : null;
+                data.transfer_jumlah_tujuan_idr = sourceIdr;
+            }
+
             if(currentEditId) { api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).editTransaction(currentEditId, data); } 
             else { api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).addTransaction(data); }
         }
@@ -5922,6 +6086,22 @@ const api = (() => {
                 });
             }
 
+            // Reset pagination ("Muat lebih banyak") ke halaman pertama HANYA kalau kriteria filter
+            // benar-benar berubah sejak render terakhir -- supaya user yang sudah expand daftarnya
+            // tidak balik ke halaman pertama cuma gara2 filterTransactions() terpanggil ulang karena
+            // alasan lain (mis. setelah tambah/edit/hapus 1 transaksi).
+            const filterSignature = JSON.stringify([
+                searchQuery, timeFilterType,
+                document.getElementById('txFilterMonthYear')?.value,
+                document.getElementById('txFilterDateFrom')?.value,
+                document.getElementById('txFilterDateTo')?.value,
+                amountMin, amountMax
+            ]);
+            if (filterSignature !== _txListLastFilterSignature) {
+                _txListVisibleLimit = TX_LIST_PAGE_SIZE;
+                _txListLastFilterSignature = filterSignature;
+            }
+
             const tbody = document.getElementById('table-body');
             let sortedData = [...data].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
             lastFilteredTransactions = sortedData;
@@ -5939,7 +6119,26 @@ const api = (() => {
                     groups.get(key).push(row);
                 });
 
-                tbody.innerHTML = Array.from(groups.entries()).map(([dateKey, rows]) => {
+                // Batasi grup tanggal yang dirender ke DOM sampai TOTAL barisnya mencapai
+                // _txListVisibleLimit -- SELALU menyertakan satu grup tanggal secara UTUH (tidak
+                // pernah memotong di tengah hari), supaya "Total bersih hari itu" yang dihitung dari
+                // rows per grup (di bawah) tetap akurat, bukan cuma sebagian transaksi hari itu.
+                const allGroupEntries = Array.from(groups.entries());
+                let visibleGroupEntries = allGroupEntries;
+                let sisaTransaksi = 0;
+                if (sortedData.length > _txListVisibleLimit) {
+                    let running = 0, cutIndex = allGroupEntries.length;
+                    for (let i = 0; i < allGroupEntries.length; i++) {
+                        running += allGroupEntries[i][1].length;
+                        if (running >= _txListVisibleLimit) { cutIndex = i + 1; break; }
+                    }
+                    if (cutIndex < allGroupEntries.length) {
+                        visibleGroupEntries = allGroupEntries.slice(0, cutIndex);
+                        sisaTransaksi = sortedData.length - running;
+                    }
+                }
+
+                tbody.innerHTML = visibleGroupEntries.map(([dateKey, rows]) => {
                     const d = parseTgl(dateKey);
                     const dow = d.getDay(); // 0=Minggu ... 6=Sabtu
                     const badgeClass = dow === 0 ? 'bg-rose-500 text-white' : (dow === 6 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500');
@@ -5991,6 +6190,15 @@ const api = (() => {
                             <div class="divide-y divide-slate-50">${rowsHtml}</div>
                         </div>`;
                 }).join('');
+
+                if (sisaTransaksi > 0) {
+                    tbody.innerHTML += `
+                        <div class="p-4 text-center">
+                            <button onclick="loadMoreTransactions()" class="text-xs md:text-sm font-bold text-indigo-500 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition px-4 py-2 rounded-xl">
+                                Muat ${Math.min(sisaTransaksi, TX_LIST_PAGE_SIZE)} transaksi lainnya (${sisaTransaksi} tersisa)
+                            </button>
+                        </div>`;
+                }
             }
 
             if(charts.txTrend) charts.txTrend.destroy();
@@ -6119,7 +6327,14 @@ const api = (() => {
 
                 if(d.jenis === 'Pemasukan') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] += amt; totalIn += amtIdr; } 
                 else if(d.jenis === 'Pengeluaran') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt; totalOut += amtIdr; } 
-                else if (d.jenis === 'Transfer') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt; if(accBalances[d.kategori] !== undefined) accBalances[d.kategori] += amt; }
+                else if (d.jenis === 'Transfer') {
+                    if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt;
+                    // BUG FIX (multi-currency transfer): akun tujuan mendapat transferTargetAmount(d)
+                    // (nominal DALAM MATA UANG AKUN TUJUAN, sudah dikonversi kalau beda mata uang dari
+                    // akun sumber) -- bukan `amt` (nominal sisi SUMBER) yang cuma benar kalau kedua
+                    // akun kebetulan sama mata uangnya.
+                    if(accBalances[d.kategori] !== undefined) accBalances[d.kategori] += transferTargetAmount(d);
+                }
 
                 let isCurMonth = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
                 if(isCurMonth) {
@@ -8116,7 +8331,10 @@ const api = (() => {
                 else if (d.jenis === 'Pengeluaran' && d.akun === accName) totalOut += amt;
                 else if (d.jenis === 'Transfer') {
                     if (d.akun === accName) transferOut += amt;
-                    if (d.kategori === accName) transferIn += amt;
+                    // BUG FIX (multi-currency transfer): akun ini sbg TUJUAN menerima
+                    // transferTargetAmount(d) (nominal dlm mata uang akun INI SENDIRI), bukan `amt`
+                    // (nominal sisi sumber, yg mata uangnya bisa beda dari akun ini).
+                    if (d.kategori === accName) transferIn += transferTargetAmount(d);
                 }
             });
             let balance = totalIn - totalOut - transferOut + transferIn;
@@ -8189,7 +8407,11 @@ const api = (() => {
                         const isTransferOut = row.jenis === 'Transfer' && row.akun === accName;
                         const isTransferIn = row.jenis === 'Transfer' && row.kategori === accName;
                         const isInflow = row.jenis === 'Pemasukan' || isTransferIn;
-                        netTotal += (isInflow ? 1 : -1) * Number(row.jumlah);
+                        // BUG FIX (multi-currency transfer): transfer MASUK ke akun ini pakai
+                        // transferTargetAmount() (nominal dlm mata uang akun ini sendiri), bukan
+                        // row.jumlah (nominal sisi sumber, mata uangnya bisa beda).
+                        const nominalUntukAkunIni = isTransferIn ? transferTargetAmount(row) : Number(row.jumlah);
+                        netTotal += (isInflow ? 1 : -1) * nominalUntukAkunIni;
                     });
                     const netColor = netTotal > 0 ? 'text-emerald-500' : (netTotal < 0 ? 'text-rose-500' : 'text-slate-400');
                     const netPrefix = netTotal > 0 ? '+' : (netTotal < 0 ? '-' : '');
@@ -8217,7 +8439,7 @@ const api = (() => {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
-                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(row.jumlah)}</span>
+                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(isTransferIn ? transferTargetAmount(row) : row.jumlah)}</span>
                                     <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
                                     <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
@@ -8255,7 +8477,9 @@ const api = (() => {
                 else if (d.jenis === 'Pengeluaran' && d.akun === accName) { running -= amt; outAmt = amt; }
                 else if (d.jenis === 'Transfer') {
                     if (d.akun === accName) { running -= amt; outAmt = amt; }
-                    if (d.kategori === accName) { running += amt; inAmt = amt; }
+                    // BUG FIX (multi-currency transfer): akun ini sbg TUJUAN menerima
+                    // transferTargetAmount(d) (nominal dlm mata uang akun ini sendiri), bukan `amt`.
+                    if (d.kategori === accName) { const amtTujuan = transferTargetAmount(d); running += amtTujuan; inAmt = amtTujuan; }
                 }
                 return { raw: d, date: parseTgl(d.tanggal), balance: running, in: inAmt, out: outAmt };
             });
