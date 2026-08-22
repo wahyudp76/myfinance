@@ -1,0 +1,39 @@
+name: Live Isolation Parity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+  PARITY_TEST_EMAIL: ${{ secrets.PARITY_TEST_EMAIL }}
+  PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}
+  PARITY_ISOLATION_EMAIL: ${{ secrets.PARITY_ISOLATION_EMAIL }}
+  PARITY_ISOLATION_PASSWORD: ${{ secrets.PARITY_ISOLATION_PASSWORD }}
+
+jobs:
+  live-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout parity branch
+        uses: actions/checkout@v5
+        with:
+          ref: refactor/supabase-native-foundation
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run cross-user transaction isolation parity
+        env:
+          RUN_LIVE_ISOLATION_PARITY: "true"
+        run: node tests/parity/live-isolation-parity.mjs
