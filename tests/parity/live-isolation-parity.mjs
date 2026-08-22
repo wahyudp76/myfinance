@@ -23,16 +23,22 @@ try {
   result = await other.auth.signInWithPassword({ email: process.env.PARITY_ISOLATION_EMAIL, password: process.env.PARITY_ISOLATION_PASSWORD });
   if (result.error) throw result.error;
 
+  // Reuse a known-valid transaction shape so the security test does not guess
+  // database CHECK constraint values for `jenis` or other schema-controlled fields.
+  const existingRows = await ownerService.list();
+  const template = existingRows.find((row) => row?.id != null);
+  if (!template) throw new Error("Isolation parity requires at least one existing transaction for the parity account.");
+
   const created = await ownerService.create({
-    jenis: "expense",
-    tanggal: "2030-03-01",
-    jumlah: 12345,
-    akun: "PARITY",
-    kategori: "PARITY",
+    jenis: template.jenis,
+    tanggal: template.tanggal,
+    jumlah: template.jumlah,
+    akun: template.akun,
+    kategori: template.kategori,
     keterangan: marker,
-    mata_uang: "IDR",
-    kurs: 1,
-    jumlah_idr: 12345,
+    mata_uang: template.mata_uang,
+    kurs: template.kurs,
+    jumlah_idr: template.jumlah_idr,
   });
   if (!created?.id) throw new Error("Isolation parity seed did not return an id.");
   createdIds.push(created.id);
@@ -44,16 +50,30 @@ try {
 
   let updateBlocked = false;
   try {
-    await otherService.update(created.id, { jenis: "income", tanggal: "2030-03-01", jumlah: 99999, akun: "PARITY", kategori: "PARITY", keterangan: marker, mata_uang: "IDR", kurs: 1, jumlah_idr: 99999 });
-    updateBlocked = !(await ownerService.list()).some((row) => row.id === created.id && Number(row.jumlah) === 99999);
-  } catch { updateBlocked = true; }
+    await otherService.update(created.id, {
+      jenis: template.jenis,
+      tanggal: template.tanggal,
+      jumlah: Number(template.jumlah) + 1,
+      akun: template.akun,
+      kategori: template.kategori,
+      keterangan: marker,
+      mata_uang: template.mata_uang,
+      kurs: template.kurs,
+      jumlah_idr: template.jumlah_idr,
+    });
+    updateBlocked = !(await ownerService.list()).some((row) => row.id === created.id && Number(row.jumlah) === Number(template.jumlah) + 1);
+  } catch {
+    updateBlocked = true;
+  }
   if (!updateBlocked) throw new Error("Isolation failure: another authenticated user changed the transaction.");
 
   let deleteBlocked = false;
   try {
     await otherService.remove(created.id);
     deleteBlocked = (await ownerService.list()).some((row) => row.id === created.id);
-  } catch { deleteBlocked = true; }
+  } catch {
+    deleteBlocked = true;
+  }
   if (!deleteBlocked) throw new Error("Isolation failure: another authenticated user deleted the transaction.");
 
   console.log("Live isolation parity: PASS (cross-user read/update/delete blocked)");
