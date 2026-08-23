@@ -188,4 +188,31 @@ Item terakhir yang sebelumnya sengaja ditahan (§4.4/§6/§7 pembuka) sudah diim
 ### 8.3 Yang SENGAJA di luar cakupan (bukan bug, batasan yang diketahui)
 - **Transaksi Berulang bertipe Transfer** belum mendukung lintas mata uang — tabel `recurring_transactions` belum punya kolom mata uang/kurs. Hanya Transfer manual/langsung yang didukung penuh saat ini. Kalau dibutuhkan, ini scope kerja tersendiri (perlu migrasi tambahan + update `processDueRecurring()`).
 - Kalender (badge jumlah transfer per hari) dan daftar transaksi utama (bukan Detail Akun) tetap menampilkan nominal sisi SUMBER saja sebagai indikator netral "berapa yang berpindah" — ini bukan bug, cuma pilihan tampilan (kedua tempat itu tidak diklaim spesifik ke satu akun tertentu, beda dengan Detail Akun yang harus akurat untuk akun yang sedang dilihat).
-- Saya tidak bisa menjalankan browser sungguhan untuk tes end-to-end (cuma verifikasi sintaks & tes RPC langsung ke database). **Rekomendasi: tes manual alur Transfer lintas mata uang** (buat akun baru dgn mata uang berbeda di Pengaturan, coba transfer antar keduanya, cek saldo di kedua Detail Akun) sebelum benar-benar diandalkan untuk pencatatan rutin.
+- Saya tidak bisa menjalankan browser sungguhan untuk tes end-to-end (cuma verifikasi sintaks & tes RPC langsung ke database). ~~**Rekomendasi: tes manual alur Transfer lintas mata uang**~~ **Update §9: fitur ini sempat DOWN di production karena bug scoping — sudah diperbaiki, lihat di bawah.**
+
+---
+
+## 9. Insiden Production: `ReferenceError: transferTargetAmount is not defined` — DITEMUKAN & DIPERBAIKI
+
+Setelah `index.html` §8 di-deploy, user melaporkan app gagal total memuat data ("gagal memuat data dari cloud"). Root cause ditemukan lewat Console browser (bukan tebakan) dan diperbaiki dalam sesi yang sama.
+
+### 9.1 Root cause
+`transferTargetAmount()` (helper baru di §8.2) sengaja ditulis sebagai fungsi murni tanpa dependency ke state internal, tapi **tidak sengaja didefinisikan di dalam closure privat IIFE `const api = (() => {...})()`** (baris ~2544-2962), padahal dipanggil dari `processDataForUI()`, `openAccountDetail()`, dan `buildAccountSeries()` yang semuanya ada **di luar** closure itu. Ini murni bug *scoping* JavaScript, bukan error sintaks — makanya lolos dari semua pengecekan `node --check` sebelumnya (yang cuma memvalidasi tata bahasa, bukan keterjangkauan nama variabel dari titik pemanggilannya). Error baru muncul saat `processDataForUI()` benar-benar dieksekusi di browser.
+
+### 9.2 Perbaikan
+1. `transferTargetAmount()` dipindah ke scope global.
+2. Saat menelusuri pola bug yang sama, ditemukan **bug identik yang SUDAH ADA SEBELUM sesi audit ini dimulai**: `currentUserId()` (dipakai fitur **Restore Backup**, fungsi `restoreBackup()`) punya masalah scoping yang sama persis — privat di dalam IIFE `api`, dipanggil dari luar. Kemungkinan besar fitur Restore Backup sudah lama rusak diam-diam tanpa disadari. Ikut diperbaiki (dipindah ke scope global, tepat sebelum IIFE `api` dimulai, supaya tetap bisa diakses dari dalam closure lewat lexical scoping maupun dari luar).
+3. **Verifikasi pasca-perbaikan** dengan metode yang jauh lebih ketat dari sebelumnya:
+   - Ekstraksi blok `<script>` yang akurat pakai HTML parser standar Python (`html.parser`), bukan regex kasar — regex sebelumnya terbukti bisa salah baca komentar HTML yang kebetulan memuat teks "<script>" secara harfiah.
+   - `node --check` pada tiap blok hasil ekstraksi akurat → 0 error.
+   - **Analisis AST menyeluruh** (pakai `acorn`/`acorn-walk`, bukan cuma regex): kumpulkan SEMUA identifier yang dipanggil sbg fungsi (`CallExpression`) di seluruh blok script utama, cocokkan dengan SEMUA deklarasi (`function`/`var`/`let`/`const`/parameter/destructuring) di file yang sama + daftar global browser yang sah (window, document, Chart, dst) → 0 kandidat referensi tak terdeklarasi.
+   - Scan khusus pola IIFE: cari SEMUA fungsi privat di dalam closure `api`, cek apakah ada yang dipanggil langsung (bukan lewat `api.run.xxx`) dari luar closure-nya → setelah perbaikan, 0 ditemukan.
+4. Dicek juga: apakah 3 blok `<script>` lain di file (config Tailwind, dsb) ikut mereferensikan 2 fungsi yang baru dipindah → tidak, aman.
+
+### 9.3 Verifikasi data live pasca-insiden
+- Tidak ada sisa data uji tertinggal di database dari sesi testing RPC sebelumnya.
+- 3 transaksi Transfer asli (pra-migrasi) dicek manual: `transfer_jumlah_tujuan` dkk kolom baru semuanya `null` sesuai ekspektasi (data lama, belum lewat RPC baru) — `transferTargetAmount()` akan fallback ke `jumlah` untuk baris-baris ini, sama seperti perilaku sebelum fitur multi-currency transfer ada. Tidak ada data yang rusak/korup akibat insiden ini.
+- User mengonfirmasi app berjalan lancar setelah `index.html` hasil perbaikan di-deploy.
+
+### 9.4 Pelajaran untuk audit ke depan
+Pengecekan sintaks (`node --check`/`new Function()`) TIDAK CUKUP untuk kode yang memakai pola module/IIFE seperti file ini — keduanya cuma memvalidasi tata bahasa, bukan keterjangkauan scope. Sejak insiden ini, setiap penambahan fungsi baru di `index.html` diverifikasi juga dengan scan "apakah fungsi ini didefinisikan di scope yang sama dgn semua titik pemanggilannya", bukan cuma dicek sintaksnya valid.
