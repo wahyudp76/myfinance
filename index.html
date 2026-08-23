@@ -2541,13 +2541,17 @@ const auth = {
 // js/supabase-client.js dimuat lebih dulu.
 // ==========================================================================
 
-const api = (() => {
+// BUG FIX: currentUserId() sengaja ditaruh di scope GLOBAL (SEBELUM IIFE `api` di bawah), bukan
+// di dalamnya -- supaya bisa diakses baik dari dalam IIFE (lewat closure, dipakai banyak fungsi
+// *Remote() di bawah) MAUPUN dari luar (dipakai restoreBackup() utk fitur Restore Backup, yang
+// sebelumnya ReferenceError krn fungsi ini dulu privat di dalam IIFE).
+async function currentUserId() {
+    const { data, error } = await supabaseClient.auth.getUser();
+    if (error || !data.user) throw new Error('Sesi login tidak ditemukan. Silakan login ulang.');
+    return data.user.id;
+}
 
-    async function currentUserId() {
-        const { data, error } = await supabaseClient.auth.getUser();
-        if (error || !data.user) throw new Error('Sesi login tidak ditemukan. Silakan login ulang.');
-        return data.user.id;
-    }
+const api = (() => {
 
     // ---------------- TRANSAKSI (tabel: transactions) ----------------
     // PostgREST (di balik layar Supabase) membatasi maksimal ~1000 baris per response secara default,
@@ -2588,15 +2592,6 @@ const api = (() => {
             transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
             transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null
         }));
-    }
-
-    // Nilai yang MASUK ke akun tujuan pada transaksi Transfer -- pakai transfer_jumlah_tujuan
-    // (mata uang tujuan) kalau ada (transfer lintas mata uang, dicatat via RPC
-    // create_transfer_transaction), fallback ke `jumlah` (asumsi sama besar dgn sisi sumber) utk
-    // transfer historis dari SEBELUM fitur multi-currency transfer ada -- lihat catatan
-    // "IMPORTANT APPLICATION NOTES" #3 di migration_transfer_currency_2026-08.sql.
-    function transferTargetAmount(row) {
-        return row.transfer_jumlah_tujuan != null ? row.transfer_jumlah_tujuan : row.jumlah;
     }
 
     async function addTransactionRemote(data) {
@@ -4803,6 +4798,17 @@ const api = (() => {
         let currentTxMataUangTujuan = null;
         let currentTxKursTujuan = 1;
 
+        // Nilai yang MASUK ke akun tujuan pada transaksi Transfer -- pakai transfer_jumlah_tujuan
+        // (nominal dlm mata uang akun TUJUAN, sudah dikonversi) kalau ada (transfer lintas mata uang,
+        // dicatat via RPC create_transfer_transaction), fallback ke `jumlah` (asumsi sama besar dgn
+        // sisi sumber) utk transfer historis dari SEBELUM fitur multi-currency transfer ada -- lihat
+        // catatan "IMPORTANT APPLICATION NOTES" #3 di migration_transfer_currency_2026-08.sql.
+        // HARUS di scope GLOBAL (bukan di dalam IIFE `api`) krn dipanggil dari processDataForUI(),
+        // openAccountDetail(), dan buildAccountSeries() yang semuanya di luar closure itu.
+        function transferTargetAmount(row) {
+            return row.transfer_jumlah_tujuan != null ? row.transfer_jumlah_tujuan : row.jumlah;
+        }
+
         function getAccountCurrency(akun) {
             return (appSettings.account_currencies && appSettings.account_currencies[akun]) || 'IDR';
         }
@@ -5944,14 +5950,22 @@ const api = (() => {
                 showInfoToast('Tidak ada transaksi untuk diekspor pada filter saat ini.');
                 return;
             }
-            const header = ['Tanggal', 'Jenis', 'Kategori', 'Akun', 'Keterangan', 'Jumlah'];
+            // BUG FIX: sebelumnya cuma ada 1 kolom "Jumlah" -- untuk Transfer lintas mata uang ini
+            // menyesatkan kalau dipakai rekonsiliasi akun TUJUAN (nominal yg tampil adalah sisi
+            // SUMBER, mata uangnya bisa beda). Sekarang ditambah kolom "Mata Uang" (sisi sumber,
+            // berlaku juga utk Pemasukan/Pengeluaran akun asing) dan "Jumlah Diterima (Tujuan)" +
+            // "Mata Uang Tujuan" (KHUSUS Transfer, kosong utk jenis lain).
+            const header = ['Tanggal', 'Jenis', 'Kategori', 'Akun', 'Keterangan', 'Jumlah', 'Mata Uang', 'Jumlah Diterima (Tujuan)', 'Mata Uang Tujuan'];
             const rows = lastFilteredTransactions.map(row => [
                 row.tanggal ? toDateStr(parseTgl(row.tanggal)) : '',
                 row.jenis || '',
                 row.kategori || '',
                 row.akun || '',
                 row.keterangan || '',
-                row.jumlah || 0
+                row.jumlah || 0,
+                row.mata_uang || 'IDR',
+                row.jenis === 'Transfer' ? transferTargetAmount(row) : '',
+                row.jenis === 'Transfer' ? (row.transfer_mata_uang_tujuan || 'IDR') : ''
             ]);
             // \uFEFF (BOM UTF-8) di depan supaya Excel/Google Sheets langsung mengenali karakter
             // Indonesia (é, ñ, dsb di keterangan) dengan benar, bukan tampil sebagai karakter aneh.
