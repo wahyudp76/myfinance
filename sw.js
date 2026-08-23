@@ -73,6 +73,13 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
+  // Abaikan skema selain http/https -- bisa muncul kalau ada browser extension yang
+  // menyisipkan resource (font, script, dst) ke halaman lewat chrome-extension://. Cache API
+  // browser cuma dukung http/https, jadi cache.put() di bawah akan throw (Uncaught TypeError)
+  // kalau dibiarkan lolos sampai ke situ -- request itu sendiri bukan urusan app ini sama
+  // sekali, jadi paling aman dibiarkan lewat apa adanya tanpa campur tangan service worker.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   // Jangan PERNAH campur tangan panggilan ke Supabase (data selalu harus fresh/real-time,
   // dan sebagian bisa berupa auth/session yg tidak boleh ke-cache).
   if (url.hostname.endsWith('.supabase.co')) return;
