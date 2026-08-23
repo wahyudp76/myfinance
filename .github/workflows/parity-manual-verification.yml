@@ -2,22 +2,6 @@ name: Parity Manual Verification
 
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref to verify"
-        required: true
-        default: "refactor/supabase-native-foundation"
-        type: string
-      run_live_data_rich:
-        description: "Run the opt-in 1005-row live data-rich parity test"
-        required: true
-        default: true
-        type: boolean
-      run_live_isolation:
-        description: "Run the opt-in cross-user isolation parity test"
-        required: true
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -36,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout requested ref
+      - name: Checkout refactor branch
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref }}
+          ref: refactor/supabase-native-foundation
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -78,15 +62,14 @@ jobs:
         run: rm -f -- "$LEGACY_TRANSACTION_ROWS_FILE"
 
   live-data-rich:
-    if: inputs.run_live_data_rich == true
     needs: parity
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout requested ref
+      - name: Checkout refactor branch
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref }}
+          ref: refactor/supabase-native-foundation
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -102,15 +85,14 @@ jobs:
         run: node tests/parity/live-data-rich-parity.mjs
 
   live-isolation:
-    if: inputs.run_live_isolation == true
     needs: parity
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout requested ref
+      - name: Checkout refactor branch
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref }}
+          ref: refactor/supabase-native-foundation
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
