@@ -1,0 +1,126 @@
+name: Parity Manual Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to verify"
+        required: true
+        default: "refactor/supabase-native-foundation"
+        type: string
+      run_live_data_rich:
+        description: "Run the opt-in 1005-row live data-rich parity test"
+        required: true
+        default: true
+        type: boolean
+      run_live_isolation:
+        description: "Run the opt-in cross-user isolation parity test"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+  PARITY_TEST_EMAIL: ${{ secrets.PARITY_TEST_EMAIL }}
+  PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}
+  PARITY_ISOLATION_EMAIL: ${{ secrets.PARITY_ISOLATION_EMAIL }}
+  PARITY_ISOLATION_PASSWORD: ${{ secrets.PARITY_ISOLATION_PASSWORD }}
+  LEGACY_TRANSACTION_ROWS_FILE: legacy-rows.json
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run fixture parity tests
+        run: npm run test:parity
+
+      - name: Observe production legacy transaction read
+        run: npm run test:legacy-read
+
+      - name: Validate legacy observation
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = process.env.LEGACY_TRANSACTION_ROWS_FILE;
+          if (!fs.existsSync(path)) throw new Error(`Missing ${path}`);
+          const rows = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (!Array.isArray(rows)) throw new Error('Legacy observation is not an array');
+          console.log(`Legacy observation: ${rows.length} rows`);
+          NODE
+
+      - name: Run final live transaction parity
+        run: node tests/parity/compare-live-transactions.mjs
+
+      - name: Remove legacy observation
+        if: always()
+        run: rm -f -- "$LEGACY_TRANSACTION_ROWS_FILE"
+
+  live-data-rich:
+    if: inputs.run_live_data_rich == true
+    needs: parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run live data-rich parity
+        env:
+          RUN_LIVE_DATA_RICH_PARITY: "true"
+        run: node tests/parity/live-data-rich-parity.mjs
+
+  live-isolation:
+    if: inputs.run_live_isolation == true
+    needs: parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run cross-user isolation parity
+        env:
+          RUN_LIVE_ISOLATION_PARITY: "true"
+        run: node tests/parity/live-isolation-parity.mjs
