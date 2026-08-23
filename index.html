@@ -65,8 +65,46 @@
          membebani load pertama untuk user yang belum tentu pernah buka tab Kalender dalam sesi
          itu. sw.js tetap precache URL-nya (lihat PRECACHE_URLS) jadi begitu dibutuhkan, biasanya
          sudah ada di cache (nyaris instan), cuma parse/eksekusinya yang ditunda. -->
-    <!-- Supabase JS Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- ==========================================================================
+         AUTH MODULE BRIDGE (Phase 3 -- lihat docs/supabase-native-migration-plan.md)
+         ==========================================================================
+         Supabase client + operasi auth (signIn/signUp/signOut/session) sekarang SATU
+         sumber kebenaran: src/auth/* (dipakai juga oleh tests/parity/*) -- bukan lagi
+         ditulis manual di dalam <script> gabungan di bawah seperti sebelumnya.
+
+         src/auth/* pakai ES import/export, sedangkan <script> gabungan di bawah SENGAJA
+         TETAP "classic" (bukan type="module") -- app ini punya 200+ atribut onclick=/
+         onchange= langsung di HTML yang memanggil fungsi lewat scope GLOBAL (window),
+         dan itu TIDAK berlaku untuk isi <script type="module"> (top-level binding di
+         situ tidak otomatis jadi properti window). Mengonversi SELURUH app jadi module
+         berarti menulis ulang 200+ pemanggilan itu sekaligus -- perubahan besar & berisiko
+         yang di luar cakupan langkah Auth ini (rencananya: domain lain menyusul satu per
+         satu, lihat docs/architecture-modernization-plan.md Phase 4). Untuk sekarang,
+         modul ini dijembatani ke window.__myfinanceAuth.
+
+         Promise di bawah SENGAJA di script classic TERPISAH, SEBELUM <script type="module">:
+         <script type="module"> selalu dieksekusi "deferred" (baru jalan setelah SELURUH
+         dokumen selesai di-parse) -- yaitu BELAKANGAN dari <script> gabungan di body (yang
+         posisinya di akhir <body>, dieksekusi blocking begitu parser sampai di situ, nyaris
+         di akhir dokumen). Tanpa jembatan Promise+event ini, script gabungan bisa saja
+         mencoba memakai window.__myfinanceAuth SEBELUM modul-nya selesai dieksekusi. -->
+    <script>
+        window.__myfinanceAuthReady = new Promise((resolve) => {
+            window.addEventListener('myfinance:auth-ready', () => resolve(window.__myfinanceAuth), { once: true });
+        });
+    </script>
+    <script type="module">
+        import {
+            initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
+            onAuthStateChange, requireUser,
+        } from './src/auth/index.js';
+
+        window.__myfinanceAuth = {
+            initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
+            onAuthStateChange, requireUser,
+        };
+        window.dispatchEvent(new Event('myfinance:auth-ready'));
+    </script>
     <!-- ====================================================================
          CSS APLIKASI -- file ini sengaja digabung jadi SATU FILE HTML utuh
          (sebelumnya terpisah: login.html + index.html + css/style.css +
@@ -2425,30 +2463,44 @@ setTimeout(function () { showFallbackError('Waktu tunggu habis (12 detik) -- kem
 // ==========================================================================
 // KONEKSI SUPABASE
 // ==========================================================================
-// File ini HARUS dimuat setelah <script src=".../@supabase/supabase-js@2">
-// karena kita memakai window.supabase.createClient(...) dari library itu.
+// Client dibuat lewat modul src/auth/ (lihat <script type="module"> di <head>,
+// bagian "AUTH MODULE BRIDGE"), bukan lagi window.supabase.createClient()
+// langsung -- window.supabase (global dari CDN classic) sudah tidak dimuat
+// sama sekali di versi ini.
 //
 // Catatan keamanan: SUPABASE_ANON_KEY di bawah ini AMAN untuk ditaruh di
 // kode sisi client (browser) — ini bukan kunci rahasia. Yang menjaga data
 // tiap user tetap privat adalah Row Level Security (RLS) yang diaktifkan
-// lewat sql/schema.sql, BUKAN kerahasiaan key ini. Jangan pernah menaruh
+// lewat schema.sql, BUKAN kerahasiaan key ini. Jangan pernah menaruh
 // "service_role key" di sisi client, hanya "anon public key" seperti ini.
 // ==========================================================================
 
 const SUPABASE_URL = 'https://uxfngmxghupdlwoeoxgh.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4Zm5nbXhnaHVwZGx3b2VveGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NzUwMDAsImV4cCI6MjEwMDA1MTAwMH0.0ICtfkrGwajHnpWFoTFNGC7OpMxVSvEeyJTyEAhjvqw';
 
-// Nama "supabaseClient" sengaja dipakai (bukan "supabase") supaya tidak
-// bentrok dengan variabel global "supabase" milik library itu sendiri.
-if (typeof window.supabase === 'undefined') {
-    // Ini kondisi paling sering bikin stuck di "Memeriksa sesi login": library
-    // Supabase dari CDN (cdn.jsdelivr.net) gagal dimuat sama sekali -- biasanya
-    // karena koneksi internet, ad-blocker/extension, atau firewall jaringan
-    // yang memblokir domain itu.
-    showFallbackError('Pustaka Supabase (dari cdn.jsdelivr.net) gagal dimuat. Cek koneksi internet, matikan ad-blocker/VPN sebentar, atau coba jaringan lain.');
-    throw new Error('window.supabase tidak tersedia -- CDN @supabase/supabase-js gagal dimuat.');
+// Diisi oleh initSupabaseClient() di bawah -- SELALU sebelum dipakai, karena bootstrapAuth()
+// (di bagian AUTH & BOOTSTRAP, dekat akhir file ini) meng-await fungsi itu sebagai langkah
+// PERTAMA sebelum baris lain yang menyentuh supabaseClient/authModule sempat jalan.
+let supabaseClient;
+let authModule; // { initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut, onAuthStateChange, requireUser } -- lihat src/auth/index.js
+
+async function initSupabaseClient() {
+    // window.__myfinanceAuthReady sudah pasti ada di titik ini (dibuat oleh <script> classic
+    // di <head>, SEBELUM <script type="module"> apa pun -- lihat komentar "AUTH MODULE BRIDGE").
+    // Timeout 8 detik di sini SENGAJA lebih cepat dari jaring pengaman generik 12 detik di atas
+    // (baris showFallbackError(... 'Waktu tunggu habis (12 detik)' ...)), supaya kalau
+    // penyebabnya SPESIFIK modul auth gagal dimuat, pesan errornya juga lebih spesifik --
+    // bukan cuma pesan umum yang menyebut "salah satu library CDN".
+    authModule = await Promise.race([
+        window.__myfinanceAuthReady,
+        new Promise((_, reject) => setTimeout(
+            () => reject(new Error('Modul auth (src/auth/*, lewat jsdelivr +esm) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.')),
+            8000
+        )),
+    ]);
+    supabaseClient = authModule.initAuthClient({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+    return authModule;
 }
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================================================
 // AUTENTIKASI (Supabase Auth)
@@ -2473,9 +2525,7 @@ const auth = {
      * @returns {Promise<{user, session}>}
      */
     async signIn(email, password) {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        return data;
+        return await authModule.signIn(email, password);
     },
 
     /**
@@ -2483,9 +2533,7 @@ const auth = {
      * @returns {Promise<{user, session}>}
      */
     async signUp(email, password) {
-        const { data, error } = await supabaseClient.auth.signUp({ email, password });
-        if (error) throw error;
-        return data;
+        return await authModule.signUp(email, password);
     },
 
     /**
@@ -2494,16 +2542,29 @@ const auth = {
      * semua jalur logout (tombol manual, sesi kedaluwarsa, dll) konsisten.
      */
     async signOut() {
-        await supabaseClient.auth.signOut();
+        try {
+            await authModule.signOut();
+        } catch (error) {
+            // signOut() SENGAJA "fire and forget" -- dipanggil dari tombol logout tanpa
+            // await/catch (lihat initStaticUIListeners()). Transisi ke layar login tetap
+            // terjadi lewat listener SIGNED_OUT di bootstrapAuth() apa pun hasil panggilan
+            // ini, jadi error di sini cukup dicatat, BUKAN dilempar ulang -- kalau dilempar,
+            // itu jadi unhandledrejection dan salah memicu layar "Gagal memuat aplikasi"
+            // padahal logout-nya sendiri sebenarnya sudah beres di sisi client.
+            console.warn('signOut() bermasalah (diabaikan, lihat komentar di atas):', error);
+        }
     },
 
     /**
      * Ambil session yang sedang aktif (null kalau belum login).
      */
     async getSession() {
-        const { data, error } = await supabaseClient.auth.getSession();
-        if (error) { console.warn('Gagal mengambil session:', error); return null; }
-        return data.session;
+        try {
+            return await authModule.getSession();
+        } catch (error) {
+            console.warn('Gagal mengambil session:', error);
+            return null;
+        }
     },
 
     /**
@@ -2546,9 +2607,9 @@ const auth = {
 // *Remote() di bawah) MAUPUN dari luar (dipakai restoreBackup() utk fitur Restore Backup, yang
 // sebelumnya ReferenceError krn fungsi ini dulu privat di dalam IIFE).
 async function currentUserId() {
-    const { data, error } = await supabaseClient.auth.getUser();
-    if (error || !data.user) throw new Error('Sesi login tidak ditemukan. Silakan login ulang.');
-    return data.user.id;
+    const user = await authModule.getCurrentUser().catch(() => null);
+    if (!user) throw new Error('Sesi login tidak ditemukan. Silakan login ulang.');
+    return user.id;
 }
 
 const api = (() => {
@@ -3715,9 +3776,9 @@ const api = (() => {
             const container = document.getElementById('whatsapp-link-status');
             if (!container) return;
             try {
-                const { data: userData, error: userErr } = await supabaseClient.auth.getUser();
-                if (userErr || !userData.user) return;
-                const { data } = await supabaseClient.from('whatsapp_links').select('whatsapp_number, linked_at').eq('user_id', userData.user.id).maybeSingle();
+                const user = await authModule.getCurrentUser().catch(() => null);
+                if (!user) return;
+                const { data } = await supabaseClient.from('whatsapp_links').select('whatsapp_number, linked_at').eq('user_id', user.id).maybeSingle();
                 if (data) {
                     container.innerHTML = `
                         <div class="bg-emerald-50 rounded-xl p-3 flex items-center justify-between gap-2">
@@ -3738,10 +3799,10 @@ const api = (() => {
         async function generateWhatsappLinkCode() {
             const container = document.getElementById('whatsapp-link-status');
             try {
-                const { data: userData, error: userErr } = await supabaseClient.auth.getUser();
-                if (userErr || !userData.user) { showErrorToast('Sesi login tidak ditemukan.'); return; }
+                const user = await authModule.getCurrentUser().catch(() => null);
+                if (!user) { showErrorToast('Sesi login tidak ditemukan.'); return; }
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
-                const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: userData.user.id, code });
+                const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: user.id, code });
                 if (error) { showErrorToast('Gagal membuat kode. Coba lagi.'); return; }
 
                 if (!isWhatsappBotNumberConfigured()) {
@@ -3774,9 +3835,9 @@ const api = (() => {
 
         function unlinkWhatsapp() {
             showConfirm('Putuskan nomor WhatsApp dari akun ini? Kamu bisa hubungkan lagi kapan saja.', async () => {
-                const { data: userData } = await supabaseClient.auth.getUser();
-                if (!userData.user) return;
-                await supabaseClient.from('whatsapp_links').delete().eq('user_id', userData.user.id);
+                const user = await authModule.getCurrentUser().catch(() => null);
+                if (!user) return;
+                await supabaseClient.from('whatsapp_links').delete().eq('user_id', user.id);
                 showSuccessToast('WhatsApp berhasil diputuskan.');
                 renderWhatsappLinkStatus();
             });
@@ -9408,12 +9469,30 @@ const api = (() => {
         let hideAuthMessages, setAuthMode;
 
         (async function bootstrapAuth() {
+            // Langkah PERTAMA, sebelum apa pun lain di fungsi ini -- lihat initSupabaseClient()
+            // di bagian "KONEKSI SUPABASE" di atas. Dibungkus try/catch secara eksplisit (bukan
+            // dibiarkan lempar ke unhandledrejection global) supaya kalau modulnya gagal dimuat,
+            // alur berhenti bersih di sini -- tanpa ini, baris2 di bawah akan melempar error yang
+            // membingungkan ("Cannot read properties of undefined") karena authModule masih kosong.
+            try {
+                await initSupabaseClient();
+            } catch (error) {
+                showFallbackError(error);
+                return;
+            }
+
             initStaticUIListeners();
             initLoginForm();
 
             // Titik terpusat untuk semua jalur logout (tombol manual ATAU sesi kedaluwarsa/dicabut
             // dari perangkat lain) -- supaya perilakunya konsisten di mana pun logout terjadi.
-            supabaseClient.auth.onAuthStateChange((event) => {
+            // SENGAJA tetap cuma bereaksi ke event SIGNED_OUT (persis seperti sebelumnya), BUKAN
+            // pakai createAuthLifecycle() dari src/auth/lifecycle.js -- lifecycle itu memanggil
+            // onAuthenticated di SETIAP event yang punya session (termasuk TOKEN_REFRESHED yang
+            // otomatis terjadi berkala), yang kalau dipakai di sini berarti showAppShell()+initApp()
+            // -- dan seluruh loadData() di dalamnya -- akan terulang tiap token refresh. Itu
+            // perubahan perilaku nyata yang tidak dilakukan diam-diam di langkah Auth ini.
+            authModule.onAuthStateChange(({ event }) => {
                 if (event === 'SIGNED_OUT') {
                     showLoginView();
                 }

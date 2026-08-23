@@ -20,11 +20,16 @@
 //   - Ganti CACHE_VERSION di bawah kalau suatu saat pola caching ini sendiri perlu
 //     diubah -- versi lama otomatis dibersihkan saat versi baru aktif.
 
-const CACHE_VERSION = 'myfinance-v1';
+const CACHE_VERSION = 'myfinance-v2';
 
 // App shell + file vendor CDN yang dipakai index.html -- disimpan ke cache saat
 // service worker pertama kali terpasang, supaya kunjungan berikutnya (termasuk saat
 // offline) tetap bisa langsung tampil tanpa nunggu semuanya didownload ulang.
+//
+// v2: Supabase client sekarang dimuat lewat ES module (src/auth/* + src/services/
+// supabase/client.js -> jsdelivr +esm), bukan lagi <script classic src="...">
+// -- lihat "AUTH MODULE BRIDGE" di index.html. URL classic-nya diganti dengan
+// modul-modul lokal itu + URL +esm yang sekarang benar-benar dipakai.
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -35,7 +40,13 @@ const PRECACHE_URLS = [
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0',
   'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
+  './src/auth/index.js',
+  './src/auth/client.js',
+  './src/auth/session.js',
+  './src/auth/guards.js',
+  './src/auth/lifecycle.js',
+  './src/services/supabase/client.js',
 ];
 
 self.addEventListener('install', (event) => {
