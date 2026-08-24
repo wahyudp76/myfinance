@@ -81,12 +81,12 @@ test("createRecurringTransaction() calls create_recurring_transaction with all 1
   }
 });
 
-test("replaceMonthBudgets() sends p_budgets as a JSON *object* map, not an array", async () => {
+test("replaceMonthBudgets() sends p_budgets as a JSON *object* map, unchanged shape", async () => {
   const client = mockClient();
-  await replaceMonthBudgets(client, "2026-08", [
-    { kategori: "Makan", jumlah: 1500000 },
-    { kategori: "Transport", jumlah: 500000 },
-  ]);
+  await replaceMonthBudgets(client, "2026-08", {
+    Makan: 1500000,
+    Transport: 500000,
+  });
 
   assert.equal(client.calls.length, 1);
   assert.equal(client.calls[0].name, "replace_month_budgets");
@@ -96,4 +96,23 @@ test("replaceMonthBudgets() sends p_budgets as a JSON *object* map, not an array
   // then raise exception 'budgets must be a JSON object'` -- array akan SELALU gagal.
   assert.equal(Array.isArray(params.p_budgets), false, "p_budgets harus object map, RPC menolak array");
   assert.deepEqual(params.p_budgets, { Makan: 1500000, Transport: 500000 });
+});
+
+test("createTransfer() defaults sourceCurrency/destinationCurrency to null (bukan string wajib diisi) -- transfer IDR-ke-IDR biasa (mayoritas transfer di app ini) tidak mengisi field ini sama sekali", async () => {
+  const client = mockClient();
+  await createTransfer(client, {
+    tanggal: "2026-08-23",
+    sourceAmount: 100000,
+    sourceAccount: "Cash",
+    destinationAccount: "Bank BCA",
+    // sourceCurrency/destinationCurrency/rate SENGAJA tidak diisi -- persis kondisi
+    // currentTxMataUang = null (default) di index.html.
+  });
+
+  assert.equal(client.calls.length, 1);
+  const params = client.calls[0].params;
+  assert.equal(params.p_mata_uang_sumber, null);
+  assert.equal(params.p_mata_uang_tujuan, null);
+  assert.equal(params.p_kurs_sumber, 1);
+  assert.equal(params.p_kurs_tujuan, 1);
 });

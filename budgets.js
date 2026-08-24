@@ -10,17 +10,17 @@ function requireClient(client) {
 export async function replaceMonthBudgets(client, month, budgets) {
   const supabase = requireClient(client);
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("Bulan harus berformat YYYY-MM.");
-  if (!Array.isArray(budgets)) throw new Error("Budget harus berupa array.");
+  if (!budgets || typeof budgets !== "object" || Array.isArray(budgets)) {
+    throw new Error("Budget harus berupa object map { kategori: jumlah }.");
+  }
 
   // RPC-nya (lihat replace_month_budgets di database) eksplisit menolak apa pun yang bukan
-  // JSON *object* ("budgets must be a JSON object") -- jadi array of {kategori, jumlah} di atas
-  // dikonversi ke object map { [kategori]: jumlah } di sini, BUKAN dikirim apa adanya.
+  // JSON *object* ("budgets must be a JSON object") -- object map di sini sudah persis bentuk
+  // yang dibutuhkan, jadi cuma perlu divalidasi & angkanya dinormalisasi jadi Number.
   const budgetsMap = {};
-  for (const item of budgets) {
-    const kategori = String(item?.kategori || "").trim();
-    const jumlah = Number(item?.jumlah);
-    if (!kategori) throw new Error("Kategori budget wajib diisi.");
-    if (!Number.isFinite(jumlah) || jumlah < 0) throw new Error("Jumlah budget tidak valid.");
+  for (const [kategori, jumlahRaw] of Object.entries(budgets)) {
+    const jumlah = Number(jumlahRaw);
+    if (!Number.isFinite(jumlah) || jumlah < 0) throw new Error(`Jumlah budget untuk kategori "${kategori}" tidak valid.`);
     budgetsMap[kategori] = jumlah;
   }
 

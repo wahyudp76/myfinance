@@ -2711,37 +2711,35 @@ const api = (() => {
     // dua kali (uang "berlipat ganda" di laporan). RPC ini menjamin 1 template + 1 tanggal jatuh
     // tempo = maksimal 1 baris transaksi, walau dipanggil berkali-kali.
     async function createRecurringTransactionRemote(data) {
-        const { error } = await supabaseClient.rpc('create_recurring_transaction', {
-            p_recurring_id: data.recurring_id,
-            p_due_date: data.due_date,
-            p_jenis: data.jenis,
-            p_jumlah: Number(data.jumlah),
-            p_akun: data.akun,
-            p_kategori: data.kategori,
-            p_keterangan: data.keterangan || null,
-            p_mata_uang: data.mata_uang || null,
-            p_kurs: data.kurs || null,
-            p_jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null
+        await servicesModule.createRecurringTransaction(supabaseClient, {
+            recurringId: data.recurring_id,
+            dueDate: data.due_date,
+            jenis: data.jenis,
+            jumlah: Number(data.jumlah),
+            akun: data.akun,
+            kategori: data.kategori,
+            keterangan: data.keterangan || null,
+            mataUang: data.mata_uang || null,
+            kurs: data.kurs || null,
+            jumlahIdr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null,
         });
-        if (error) throw error;
     }
 
     // Transfer antar akun -- termasuk lintas mata uang -- dicatat lewat RPC ini (BUKAN insert
     // langsung) supaya snapshot kurs kedua sisi (sumber & tujuan) dan konversi nominalnya
     // dihitung SEKALI secara konsisten di database, bukan diduplikasi logikanya di client.
     async function createTransferTransactionRemote(data) {
-        const { error } = await supabaseClient.rpc('create_transfer_transaction', {
-            p_tanggal: data.tanggal,
-            p_jumlah: Number(data.jumlah),
-            p_akun_sumber: data.akun_sumber,
-            p_akun_tujuan: data.akun_tujuan,
-            p_mata_uang_sumber: data.mata_uang_sumber || null,
-            p_mata_uang_tujuan: data.mata_uang_tujuan || null,
-            p_kurs_sumber: data.kurs_sumber || 1,
-            p_kurs_tujuan: data.kurs_tujuan || 1,
-            p_keterangan: data.keterangan || null
+        await servicesModule.createTransfer(supabaseClient, {
+            tanggal: data.tanggal,
+            sourceAmount: Number(data.jumlah),
+            sourceAccount: data.akun_sumber,
+            destinationAccount: data.akun_tujuan,
+            sourceCurrency: data.mata_uang_sumber || null,
+            destinationCurrency: data.mata_uang_tujuan || null,
+            sourceRateIdrPerUnit: data.kurs_sumber || 1,
+            destinationRateIdrPerUnit: data.kurs_tujuan || 1,
+            description: data.keterangan || null,
         });
-        if (error) throw error;
     }
 
     // ---------------- BUDGET (tabel: budgets, 1 baris per kategori per bulan) ----------------
@@ -2763,11 +2761,7 @@ const api = (() => {
         // bisa hilang tanpa jejak. RPC replace_month_budgets() membungkus keduanya jadi SATU
         // transaksi database (atomik): kalau ada yang gagal, semuanya dibatalkan (rollback),
         // budget lama tetap utuh -- tidak ada kondisi "budget kosong di tengah jalan".
-        const { error } = await supabaseClient.rpc('replace_month_budgets', {
-            p_bulan: bulan,
-            p_budgets: budgetsMap || {}
-        });
-        if (error) throw error;
+        await servicesModule.replaceMonthBudgets(supabaseClient, bulan, budgetsMap || {});
         return { status: 'success' };
     }
 

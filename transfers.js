@@ -18,10 +18,13 @@ function requireText(value, name) {
 
 export function buildTransferPreview(input) {
   const sourceAmount = Number(input?.sourceAmount);
-  const sourceCurrency = requireText(input?.sourceCurrency, "Mata uang sumber");
-  const destinationCurrency = requireText(input?.destinationCurrency, "Mata uang tujuan");
-  const sourceRate = Number(input?.sourceRateIdrPerUnit);
-  const destinationRate = Number(input?.destinationRateIdrPerUnit);
+  // null = IDR implisit (konvensi yang sama dipakai di seluruh app -- lihat mata_uang kolom
+  // transaksi biasa juga). Field ini OPSIONAL: mayoritas transfer (akun IDR ke akun IDR) tidak
+  // mengisinya sama sekali (lihat index.html: `let currentTxMataUang = null;` sebagai default).
+  const sourceCurrency = input?.sourceCurrency ? String(input.sourceCurrency).trim() : null;
+  const destinationCurrency = input?.destinationCurrency ? String(input.destinationCurrency).trim() : null;
+  const sourceRate = input?.sourceRateIdrPerUnit != null ? Number(input.sourceRateIdrPerUnit) : 1;
+  const destinationRate = input?.destinationRateIdrPerUnit != null ? Number(input.destinationRateIdrPerUnit) : 1;
 
   const result = convertCurrency({
     sourceAmount,
