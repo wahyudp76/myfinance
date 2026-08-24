@@ -33,7 +33,7 @@ export function createTransactionService(client) {
         supabase,
         (from, to) => supabase
           .from("transactions")
-          .select("id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr")
+          .select("id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr")
           .order("tanggal", { ascending: false })
           .order("id", { ascending: true })
           .range(from, to)
@@ -43,6 +43,11 @@ export function createTransactionService(client) {
         ...row,
         jumlah: Number(row.jumlah),
         jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
+        // Sisi TUJUAN transfer lintas mata uang -- null utk transaksi non-Transfer & transfer
+        // historis dari sebelum fitur ini ada.
+        transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
+        transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
+        transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null,
       }));
     },
 
@@ -82,6 +87,13 @@ export function createTransactionService(client) {
           mata_uang: data.mata_uang || null,
           kurs: data.kurs || 1,
           jumlah_idr: data.jumlah_idr != null ? data.jumlah_idr : data.jumlah,
+          // Sisi TUJUAN transfer -- cuma relevan saat edit transaksi jenis Transfer; untuk tipe
+          // lain nilainya undefined di `data`, artinya kolom ini di-set null (memang seharusnya
+          // null utk transaksi non-Transfer).
+          transfer_jumlah_tujuan: data.transfer_jumlah_tujuan != null ? Number(data.transfer_jumlah_tujuan) : null,
+          transfer_mata_uang_tujuan: data.transfer_mata_uang_tujuan || null,
+          transfer_kurs_tujuan: data.transfer_kurs_tujuan != null ? Number(data.transfer_kurs_tujuan) : null,
+          transfer_jumlah_tujuan_idr: data.transfer_jumlah_tujuan_idr != null ? Number(data.transfer_jumlah_tujuan_idr) : null,
         })
         .eq("id", id)
         .eq("user_id", user_id);

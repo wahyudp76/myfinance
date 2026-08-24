@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "npm run test:parity",
     "test:parity": "node --test tests/parity/*.test.js",
     "test:legacy-read": "node tests/parity/headless-browser-legacy.mjs"
   },

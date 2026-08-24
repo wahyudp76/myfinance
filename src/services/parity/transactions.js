@@ -18,6 +18,10 @@ function comparableRows(rows) {
     mata_uang: row.mata_uang ?? null,
     kurs: row.kurs != null ? Number(row.kurs) : null,
     jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
+    transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
+    transfer_mata_uang_tujuan: row.transfer_mata_uang_tujuan ?? null,
+    transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
+    transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null,
   })));
 }
 
@@ -54,7 +58,7 @@ function buildDiagnostics(legacyRows, nativeRows) {
       missingInNative.push(id);
       continue;
     }
-    for (const field of ["jenis", "tanggal", "jumlah", "akun", "kategori", "keterangan", "mata_uang", "kurs", "jumlah_idr"]) {
+    for (const field of ["jenis", "tanggal", "jumlah", "akun", "kategori", "keterangan", "mata_uang", "kurs", "jumlah_idr", "transfer_jumlah_tujuan", "transfer_mata_uang_tujuan", "transfer_kurs_tujuan", "transfer_jumlah_tujuan_idr"]) {
       if (rowKey(legacy[field]) !== rowKey(native[field])) {
         fieldMismatches.push({ id, field });
       }
