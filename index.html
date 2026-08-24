@@ -108,6 +108,7 @@
         import { createTransfer } from './src/services/supabase/transfers.js';
         import { createRecurringTransaction } from './src/services/supabase/recurring.js';
         import { replaceMonthBudgets } from './src/services/supabase/budgets.js';
+        import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -117,6 +118,11 @@
 
         window.__myfinanceServices = {
             createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets,
+            // planRecurringCatchup & advanceDueDate sebenarnya domain logic murni
+            // (src/domain/recurring.js), bukan service Supabase -- ditumpangkan di bag yang sama
+            // supaya tidak perlu bikin Promise/event loader ES module baru cuma utk 2 fungsi.
+            // Dipakai oleh processDueRecurring() dan proyeksi kalender di bawah.
+            planRecurringCatchup, advanceDueDate,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -5683,29 +5689,10 @@ const api = (() => {
 
         const RECURRING_FREQ_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan', tahunan: 'Tahunan' };
 
-        // Menghitung tanggal jatuh tempo BERIKUTNYA dari satu tanggal, sesuai frekuensinya.
-        // PENTING: setMonth()/setFullYear() bawaan JS diam-diam "meluber" ke bulan berikutnya kalau
-        // tanggal asalnya (29/30/31) tidak ada di bulan/tahun target (mis. 31 Jan + 1 bulan jadi malah
-        // 3 Maret, bukan 28 Feb) -- ini bikin jadwal transaksi berulang bergeser tiap kali melewati
-        // bulan yang lebih pendek. Jadi dicek & dijatuhkan ke hari TERAKHIR bulan/tahun target kalau meluber.
-        function advanceDueDate(dateStr, frequency) {
-            const d = new Date(dateStr + 'T00:00:00');
-            if (frequency === 'harian') { d.setDate(d.getDate() + 1); return toDateStr(d); }
-            if (frequency === 'mingguan') { d.setDate(d.getDate() + 7); return toDateStr(d); }
-            if (frequency === 'bulanan') {
-                const targetMonth = d.getMonth() + 1;
-                d.setMonth(targetMonth);
-                if (d.getMonth() !== (targetMonth % 12)) { d.setDate(0); }
-                return toDateStr(d);
-            }
-            if (frequency === 'tahunan') {
-                const originalMonth = d.getMonth();
-                d.setFullYear(d.getFullYear() + 1);
-                if (d.getMonth() !== originalMonth) { d.setDate(0); }
-                return toDateStr(d);
-            }
-            return toDateStr(d);
-        }
+        // advanceDueDate() & planRecurringCatchup() sekarang hidup di src/domain/recurring.js --
+        // pure function, tanpa DOM/network, jadi bisa di-unit-test langsung (lihat
+        // tests/parity/recurring-domain.test.js). Diakses di sini lewat
+        // servicesModule.planRecurringCatchup (lihat window.__myfinanceServices di head).
 
         // Dipanggil sekali setiap sesi (lihat flag _recurringProcessed) setelah loadData() selesai.
         async function processDueRecurring() {
@@ -5720,13 +5707,27 @@ const api = (() => {
             const MAX_CATCHUP = 36; // jaga-jaga: batas aman per template supaya tidak "meledak" kalau tanggalnya kacau
             let totalCreated = 0;
             const createdLabels = [];
-            let anyFailure = false;
+            let anyFailure = false; // cuma dipakai utk toast ringkasan di akhir, BUKAN utk keputusan per-item
 
             for (const item of dueItems) {
-                let dueDate = item.next_due_date;
+                // Rencana catch-up dihitung SEKALI di depan oleh domain layer yang sudah diuji
+                // (tests/parity/recurring-domain.test.js) -- fungsi ini murni, tidak menyentuh
+                // network. Efek sampingnya (panggil RPC per tanggal) tetap di sini.
+                const { dueDates, nextDueDateAfter, shouldDeactivate } = servicesModule.planRecurringCatchup({
+                    nextDueDate: item.next_due_date,
+                    endDate: item.end_date,
+                    frequency: item.frequency,
+                    todayStr,
+                    maxCatchup: MAX_CATCHUP,
+                });
+
                 let countThis = 0;
-                while (dueDate <= todayStr && countThis < MAX_CATCHUP) {
-                    if (item.end_date && dueDate > item.end_date) break;
+                let itemFailed = false; // BUG FIX: dulu 1 variabel `anyFailure` dipakai bersama semua item,
+                // jadi kalau template A gagal, next_due_date template B yang sebenarnya SUKSES ikut
+                // tidak dimajukan (karena kondisi di bawah membaca anyFailure global yang sudah true).
+                // Sekarang tiap item punya flag sendiri -- kegagalan 1 template tidak lagi menahan
+                // kemajuan jadwal template lain yang berhasil.
+                for (const dueDate of dueDates) {
                     try {
                         // BUG FIX (reliability hardening): dulu pakai apiCall('addTransaction', ...)
                         // biasa -- kalau proses ini sempat berjalan 2x nyaris bersamaan (2 tab, atau
@@ -5742,20 +5743,21 @@ const api = (() => {
                         totalCreated++; countThis++;
                     } catch (e) {
                         console.error('Gagal membuat transaksi berulang otomatis:', e);
+                        itemFailed = true;
                         anyFailure = true;
                         break; // sisa periode yang belum terkejar akan dicoba lagi di sesi berikutnya
                     }
-                    dueDate = advanceDueDate(dueDate, item.frequency);
                 }
                 if (countThis > 0) createdLabels.push(item.keterangan || item.kategori);
 
                 // Majukan jadwal di server -- KECUALI kalau tadi gagal di tengah jalan (biar dicoba lagi,
-                // bukan malah melompati periode yang belum berhasil dicatat).
-                if (countThis > 0 && !anyFailure) {
+                // bukan malah melompati periode yang belum berhasil dicatat). nextDueDateAfter/
+                // shouldDeactivate cuma valid dipakai kalau SEMUA dueDates di atas berhasil, makanya
+                // dijaga oleh !itemFailed.
+                if (countThis > 0 && !itemFailed) {
                     try {
-                        const isEnded = item.end_date && dueDate > item.end_date;
-                        if (isEnded) { await apiCall('setRecurringActive', item.id, false); }
-                        else { await apiCall('advanceRecurringDueDate', item.id, dueDate); }
+                        if (shouldDeactivate) { await apiCall('setRecurringActive', item.id, false); }
+                        else { await apiCall('advanceRecurringDueDate', item.id, nextDueDateAfter); }
                     } catch (e) { console.error('Gagal memperbarui jadwal transaksi berulang:', e); }
                 }
             }
@@ -9053,7 +9055,7 @@ const api = (() => {
                         classNames: ['cal-event-projected'],
                         extendedProps: { isProjected: true, recurringLabel: item.keterangan || item.kategori, frequency: item.frequency }
                     });
-                    dueDate = advanceDueDate(dueDate, item.frequency);
+                    dueDate = servicesModule.advanceDueDate(dueDate, item.frequency);
                     iterations++;
                 }
             });
@@ -9116,7 +9118,7 @@ const api = (() => {
                     while (d && d <= dateStr && i < 60) {
                         if (item.end_date && d > item.end_date) break;
                         if (d === dateStr) { scheduledItems.push(item); break; }
-                        d = advanceDueDate(d, item.frequency);
+                        d = servicesModule.advanceDueDate(d, item.frequency);
                         i++;
                     }
                 });
