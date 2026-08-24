@@ -92,18 +92,33 @@
         window.__myfinanceAuthReady = new Promise((resolve) => {
             window.addEventListener('myfinance:auth-ready', () => resolve(window.__myfinanceAuth), { once: true });
         });
+        // Phase 2 (Transaksi) -- lihat docs/supabase-native-migration-plan.md. Sama persis
+        // polanya dengan __myfinanceAuthReady di atas, dibuat TERPISAH (bukan digabung ke situ)
+        // supaya tidak menyentuh bridge auth yang sudah teruji jalan.
+        window.__myfinanceServicesReady = new Promise((resolve) => {
+            window.addEventListener('myfinance:services-ready', () => resolve(window.__myfinanceServices), { once: true });
+        });
     </script>
     <script type="module">
         import {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
             onAuthStateChange, requireUser,
         } from './src/auth/index.js';
+        import { createTransactionService } from './src/services/transactions.js';
+        import { createTransfer } from './src/services/supabase/transfers.js';
+        import { createRecurringTransaction } from './src/services/supabase/recurring.js';
+        import { replaceMonthBudgets } from './src/services/supabase/budgets.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
             onAuthStateChange, requireUser,
         };
         window.dispatchEvent(new Event('myfinance:auth-ready'));
+
+        window.__myfinanceServices = {
+            createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets,
+        };
+        window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
     <!-- ====================================================================
          CSS APLIKASI -- file ini sengaja digabung jadi SATU FILE HTML utuh
@@ -2483,22 +2498,32 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // PERTAMA sebelum baris lain yang menyentuh supabaseClient/authModule sempat jalan.
 let supabaseClient;
 let authModule; // { initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut, onAuthStateChange, requireUser } -- lihat src/auth/index.js
+let servicesModule; // { createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets } -- lihat src/services/*
+let transactionService; // instance: servicesModule.createTransactionService(supabaseClient), dibuat sekali di initSupabaseClient()
+
+// Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
+// services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
+// pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
+// detik SENGAJA lebih cepat dari jaring pengaman generik 12 detik di atas
+// (baris showFallbackError(... 'Waktu tunggu habis (12 detik)' ...)).
+function withLoadTimeout(promise, message) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), 8000)),
+    ]);
+}
 
 async function initSupabaseClient() {
-    // window.__myfinanceAuthReady sudah pasti ada di titik ini (dibuat oleh <script> classic
-    // di <head>, SEBELUM <script type="module"> apa pun -- lihat komentar "AUTH MODULE BRIDGE").
-    // Timeout 8 detik di sini SENGAJA lebih cepat dari jaring pengaman generik 12 detik di atas
-    // (baris showFallbackError(... 'Waktu tunggu habis (12 detik)' ...)), supaya kalau
-    // penyebabnya SPESIFIK modul auth gagal dimuat, pesan errornya juga lebih spesifik --
-    // bukan cuma pesan umum yang menyebut "salah satu library CDN".
-    authModule = await Promise.race([
-        window.__myfinanceAuthReady,
-        new Promise((_, reject) => setTimeout(
-            () => reject(new Error('Modul auth (src/auth/*, lewat jsdelivr +esm) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.')),
-            8000
-        )),
+    // window.__myfinanceAuthReady & window.__myfinanceServicesReady sudah pasti ada di titik
+    // ini (dibuat oleh <script> classic di <head>, SEBELUM <script type="module"> apa pun --
+    // lihat komentar "AUTH MODULE BRIDGE"). Dimuat paralel (Promise.all), bukan berurutan,
+    // supaya waktu tunggu totalnya tidak dobel kalau keduanya lambat bersamaan.
+    [authModule, servicesModule] = await Promise.all([
+        withLoadTimeout(window.__myfinanceAuthReady, 'Modul auth (src/auth/*, lewat jsdelivr +esm) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.'),
+        withLoadTimeout(window.__myfinanceServicesReady, 'Modul data (src/services/*) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.'),
     ]);
     supabaseClient = authModule.initAuthClient({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+    transactionService = servicesModule.createTransactionService(supabaseClient);
     return authModule;
 }
 
@@ -2635,30 +2660,11 @@ const api = (() => {
     }
 
     async function fetchTransactions() {
-        // .order('id') sebagai tie-breaker kedua supaya urutan antar-halaman deterministik --
-        // penting untuk paging yang benar kalau banyak baris berbagi tanggal yang sama persis.
-        const data = await fetchAllRows((from, to) => supabaseClient
-            .from('transactions')
-            .select('id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr')
-            .order('tanggal', { ascending: false })
-            .order('id', { ascending: true })
-            .range(from, to));
-        return data.map(row => ({
-            ...row,
-            jumlah: Number(row.jumlah),
-            jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
-            // Sisi TUJUAN transfer lintas mata uang -- NULL utk transaksi non-Transfer & transfer
-            // historis dari SEBELUM fitur ini ada (lihat transferTargetAmount() utk fallback-nya).
-            transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
-            transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
-            transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null
-        }));
+        return await transactionService.list();
     }
 
     async function addTransactionRemote(data) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient.from('transactions').insert({
-            user_id,
+        await transactionService.create({
             jenis: data.jenis,
             tanggal: data.tanggal,
             jumlah: Number(data.jumlah),
@@ -2667,13 +2673,12 @@ const api = (() => {
             keterangan: data.keterangan || null,
             mata_uang: data.mata_uang || null,
             kurs: data.kurs || null,
-            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah)
+            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah),
         });
-        if (error) throw error;
     }
 
     async function editTransactionRemote(id, data) {
-        const { error } = await supabaseClient.from('transactions').update({
+        await transactionService.update(id, {
             jenis: data.jenis,
             tanggal: data.tanggal,
             jumlah: Number(data.jumlah),
@@ -2690,13 +2695,11 @@ const api = (() => {
             transfer_mata_uang_tujuan: data.transfer_mata_uang_tujuan || null,
             transfer_kurs_tujuan: data.transfer_kurs_tujuan != null ? Number(data.transfer_kurs_tujuan) : null,
             transfer_jumlah_tujuan_idr: data.transfer_jumlah_tujuan_idr != null ? Number(data.transfer_jumlah_tujuan_idr) : null
-        }).eq('id', id);
-        if (error) throw error;
+        });
     }
 
     async function deleteTransactionRemote(id) {
-        const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
-        if (error) throw error;
+        await transactionService.remove(id);
     }
 
     // BUG FIX (reliability hardening): dipakai KHUSUS oleh processDueRecurring() -- beda dari
