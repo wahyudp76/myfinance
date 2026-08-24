@@ -18,10 +18,13 @@ function requireText(value, name) {
 
 export function buildTransferPreview(input) {
   const sourceAmount = Number(input?.sourceAmount);
-  const sourceCurrency = requireText(input?.sourceCurrency, "Mata uang sumber");
-  const destinationCurrency = requireText(input?.destinationCurrency, "Mata uang tujuan");
-  const sourceRate = Number(input?.sourceRateIdrPerUnit);
-  const destinationRate = Number(input?.destinationRateIdrPerUnit);
+  // null = IDR implisit (konvensi yang sama dipakai di seluruh app -- lihat mata_uang kolom
+  // transaksi biasa juga). Field ini OPSIONAL: mayoritas transfer (akun IDR ke akun IDR) tidak
+  // mengisinya sama sekali (lihat index.html: `let currentTxMataUang = null;` sebagai default).
+  const sourceCurrency = input?.sourceCurrency ? String(input.sourceCurrency).trim() : null;
+  const destinationCurrency = input?.destinationCurrency ? String(input.destinationCurrency).trim() : null;
+  const sourceRate = input?.sourceRateIdrPerUnit != null ? Number(input.sourceRateIdrPerUnit) : 1;
+  const destinationRate = input?.destinationRateIdrPerUnit != null ? Number(input.destinationRateIdrPerUnit) : 1;
 
   const result = convertCurrency({
     sourceAmount,
@@ -48,14 +51,13 @@ export async function createTransfer(client, input) {
   const { data, error } = await supabase.rpc("create_transfer_transaction", {
     p_tanggal: requireText(input.tanggal, "Tanggal"),
     p_jumlah: preview.sourceAmount,
-    p_akun: requireText(input.sourceAccount, "Akun sumber"),
+    p_akun_sumber: requireText(input.sourceAccount, "Akun sumber"),
     p_akun_tujuan: requireText(input.destinationAccount, "Akun tujuan"),
-    p_kategori: requireText(input.category || "Transfer", "Kategori"),
-    p_keterangan: input.description ? String(input.description) : null,
     p_mata_uang_sumber: preview.sourceCurrency,
     p_mata_uang_tujuan: preview.destinationCurrency,
     p_kurs_sumber: preview.sourceRateIdrPerUnit,
     p_kurs_tujuan: preview.destinationRateIdrPerUnit,
+    p_keterangan: input.description ? String(input.description) : null,
   });
 
   if (error) throw error;
