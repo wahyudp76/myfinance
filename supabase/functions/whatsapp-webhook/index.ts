@@ -26,6 +26,25 @@ const WEBHOOK_SECRET = Deno.env.get('WHATSAPP_WEBHOOK_SECRET') ?? '';
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const GEMINI_MODEL = 'gemini-3.6-flash'; // samain dgn yang sudah dipakai di analyze-finance
 
+// Rate limit khusus jalur Gemini (parseWithGemini) -- lihat sql/migration_rate_limiting_2026-08.sql.
+// parseStrictCommand (format cepat "catat ...") TIDAK kena limit ini krn gratis/tanpa panggilan
+// API eksternal -- cuma bahasa natural yang beneran manggil Gemini yang dibatasi.
+const RATE_LIMIT_ACTION = 'whatsapp-gemini-parse';
+const RATE_LIMIT_MAX_CALLS = 30;
+const RATE_LIMIT_WINDOW_MINUTES = 60;
+
+// Perbandingan string BIASA (`===`/`!==`) berhenti di karakter pertama yang beda -- secara teori
+// bisa dipakai penyerang menebak WEBHOOK_SECRET karakter-per-karakter dari selisih waktu respons
+// (timing attack). Risikonya rendah utk endpoint ini (perlu ribuan percobaan presisi lewat
+// internet), tapi perbandingan constant-time ini tanpa dependency tambahan, jadi tidak ada
+// alasan tidak dipasang.
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 type ParsedTx = {
   jenis: 'Pengeluaran' | 'Pemasukan';
   jumlah: number;
@@ -141,7 +160,8 @@ const HELP_TEXT =
 Deno.serve(async (req: Request) => {
   try {
     const url = new URL(req.url);
-    if (url.searchParams.get('token') !== WEBHOOK_SECRET || !WEBHOOK_SECRET) {
+    const providedToken = url.searchParams.get('token') ?? '';
+    if (!WEBHOOK_SECRET || !constantTimeEqual(providedToken, WEBHOOK_SECRET)) {
       return new Response('Unauthorized', { status: 401 });
     }
 
@@ -215,7 +235,22 @@ Deno.serve(async (req: Request) => {
 
     // ---------- Parse pesan: format cepat dulu (gratis, cepat), baru AI kalau tidak cocok ----------
     let parsed = parseStrictCommand(messageText);
-    if (!parsed) parsed = await parseWithGemini(messageText, customCatNames);
+    if (!parsed) {
+      const { data: allowed, error: rateLimitErr } = await supabase.rpc('check_and_consume_rate_limit', {
+        p_user_id: userId,
+        p_action: RATE_LIMIT_ACTION,
+        p_max_calls: RATE_LIMIT_MAX_CALLS,
+        p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
+      });
+      // Fail-open kalau RPC-nya sendiri error (mis. migrasi rate_limits belum diterapkan) --
+      // jangan sampai fitur WhatsApp mati total gara-gara masalah infra rate-limiting yang tidak
+      // ada hubungannya. Kalau RPC berhasil dipanggil dan hasilnya false, itu baru diblokir.
+      if (!rateLimitErr && allowed === false) {
+        await sendReply(sender, `Terlalu banyak pesan bahasa natural dalam ${RATE_LIMIT_WINDOW_MINUTES} menit terakhir. Coba format cepat dulu ya: "catat keluar 25000 Transportasi parkir", atau tunggu sebentar.`);
+        return new Response('OK', { status: 200 });
+      }
+      parsed = await parseWithGemini(messageText, customCatNames);
+    }
 
     if (!parsed) {
       await sendReply(sender, 'Maaf, aku belum paham maksudnya. Coba: "keluar 25000 buat parkir", atau ketik BANTUAN buat panduan format.');
