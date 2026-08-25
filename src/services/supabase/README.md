@@ -9,6 +9,11 @@ The service layer is the only intended database boundary for the new frontend ar
 - `transfers.js`: atomic transfer RPC + currency conversion preview.
 - `recurring.js`: idempotent recurring RPC boundary.
 - `budgets.js`: atomic monthly budget replacement.
+- `settings.js`: get/save akun, kategori kustom, mata uang akun, tujuan keuangan, dan
+  utang/cicilan -- semuanya 1 JSON blob per user (tabel `settings`).
+- `custom-icons.js`: ikon/logo kustom per akun (tabel `custom_icons`).
+- `assets.js`: CRUD portofolio aset/investasi, termasuk kolom refresh harga otomatis
+  (tabel `assets`).
 - `transaction-adapter.js`: compatibility mapping from the existing UI shape.
 
 No service-role credentials belong in this directory. Privileged operations must use Edge Functions or secure database RPCs.

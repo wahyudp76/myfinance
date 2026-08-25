@@ -108,7 +108,11 @@
         import { createTransfer } from './src/services/supabase/transfers.js';
         import { createRecurringTransaction } from './src/services/supabase/recurring.js';
         import { replaceMonthBudgets } from './src/services/supabase/budgets.js';
+        import { getSettings, saveSettings } from './src/services/supabase/settings.js';
+        import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
+        import { listAssets, createAsset, updateAsset, deleteAsset } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
+        import { pruneAccountKeyedMaps } from './src/domain/settings.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -118,11 +122,13 @@
 
         window.__myfinanceServices = {
             createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets,
-            // planRecurringCatchup & advanceDueDate sebenarnya domain logic murni
-            // (src/domain/recurring.js), bukan service Supabase -- ditumpangkan di bag yang sama
-            // supaya tidak perlu bikin Promise/event loader ES module baru cuma utk 2 fungsi.
-            // Dipakai oleh processDueRecurring() dan proyeksi kalender di bawah.
-            planRecurringCatchup, advanceDueDate,
+            getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
+            listAssets, createAsset, updateAsset, deleteAsset,
+            // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
+            // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
+            // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
+            // loader ES module baru cuma utk beberapa fungsi kecil.
+            planRecurringCatchup, advanceDueDate, pruneAccountKeyedMaps,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -2773,94 +2779,44 @@ const api = (() => {
 
     // ---------------- PENGATURAN: akun & kategori (tabel: settings, 1 baris per user) ----------------
     async function getSettingsRemote() {
-        const { data, error } = await supabaseClient
-            .from('settings')
-            .select('data')
-            .maybeSingle();
-        if (error) throw error;
-        return data ? data.data : null; // null = user baru, belum pernah simpan pengaturan
+        return await servicesModule.getSettings(supabaseClient); // null = user baru, belum pernah simpan pengaturan
     }
 
     async function saveSettingsCloudRemote(settingsObj) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient
-            .from('settings')
-            .upsert({ user_id, data: settingsObj, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-        if (error) throw error;
+        await servicesModule.saveSettings(supabaseClient, settingsObj);
         return { status: 'success' };
     }
 
     // ---------------- IKON KUSTOM AKUN (tabel: custom_icons) ----------------
     async function getCustomIconsRemote() {
-        const { data, error } = await supabaseClient.from('custom_icons').select('account_name, icon_data');
-        if (error) throw error;
-        const result = {};
-        (data || []).forEach(row => { result[row.account_name] = row.icon_data; });
-        return result;
+        return await servicesModule.getCustomIcons(supabaseClient);
     }
 
     async function saveCustomIconRemote(accountName, iconObj) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient
-            .from('custom_icons')
-            .upsert({ user_id, account_name: accountName, icon_data: iconObj }, { onConflict: 'user_id,account_name' });
-        if (error) throw error;
+        await servicesModule.saveCustomIcon(supabaseClient, accountName, iconObj);
         return { status: 'success' };
     }
 
     async function deleteCustomIconRemote(accountName) {
-        const { error } = await supabaseClient.from('custom_icons').delete().eq('account_name', accountName);
-        if (error) throw error;
+        await servicesModule.deleteCustomIcon(supabaseClient, accountName);
         return { status: 'success' };
     }
 
     // ---------------- ASET / INVESTASI (tabel: assets) ----------------
     async function fetchAssetsRemote() {
-        const data = await fetchAllRows((from, to) => supabaseClient
-            .from('assets')
-            .select('id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga')
-            .order('terakhir', { ascending: false })
-            .order('id', { ascending: true })
-            .range(from, to));
-        return data.map(row => ({ ...row, modal: Number(row.modal), nilai: Number(row.nilai), value_history: row.value_history || [] }));
+        return await servicesModule.listAssets(supabaseClient);
     }
 
     async function addAssetRemote(data) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient.from('assets').insert({
-            user_id,
-            nama: data.nama,
-            kategori: data.kategori,
-            platform: data.platform || null,
-            modal: Number(data.modal),
-            nilai: Number(data.nilai),
-            value_history: data.value_history || [],
-            simbol: data.simbol || null,
-            jumlah_unit: data.jumlah_unit || null,
-            sumber_harga: data.sumber_harga || null
-        });
-        if (error) throw error;
+        await servicesModule.createAsset(supabaseClient, data);
     }
 
     async function editAssetRemote(id, data) {
-        const { error } = await supabaseClient.from('assets').update({
-            nama: data.nama,
-            kategori: data.kategori,
-            platform: data.platform || null,
-            modal: Number(data.modal),
-            nilai: Number(data.nilai),
-            terakhir: new Date().toISOString(),
-            value_history: data.value_history,
-            simbol: data.simbol || null,
-            jumlah_unit: data.jumlah_unit || null,
-            sumber_harga: data.sumber_harga || null
-        }).eq('id', id);
-        if (error) throw error;
+        await servicesModule.updateAsset(supabaseClient, id, data);
     }
 
     async function deleteAssetRemote(id) {
-        const { error } = await supabaseClient.from('assets').delete().eq('id', id);
-        if (error) throw error;
+        await servicesModule.deleteAsset(supabaseClient, id);
     }
 
     // Manggil Edge Function 'analyze-finance' mode "suggest_category" -- lihat penjelasan mode ini
@@ -3224,6 +3180,12 @@ const api = (() => {
             });
             if (!appSettings.accounts) appSettings.accounts = deepCloneDict(defaultSettings.accounts);
             if (!appSettings.accountIcons) appSettings.accountIcons = {};
+            // NORMALISASI: account_currencies dulu satu-satunya peta ber-key nama akun yang TIDAK
+            // diinisialisasi di sini -- 3 tempat lain yang memakainya (getAccountCurrency,
+            // submitAccountModal, pruneAccountKeyedMaps) semuanya terpaksa jaga-jaga sendiri2 dgn
+            // defensive check `appSettings.account_currencies && ...`. Sekarang satu sumber
+            // kebenaran di sini, sama seperti accountIcons/categoryStyles/dll di atas & bawah ini.
+            if (!appSettings.account_currencies) appSettings.account_currencies = {};
             if (!appSettings.categoryStyles) appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
             ['pengeluaran', 'pemasukan'].forEach(type => { if (!appSettings.categoryStyles[type]) appSettings.categoryStyles[type] = {}; });
             if (!appSettings.hidden_categories) appSettings.hidden_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
@@ -4280,7 +4242,11 @@ const api = (() => {
 
             if (isEdit) {
                 appSettings.accounts[editAccountIndex] = name;
-                if (oldName !== name) delete appSettings.accountIcons[oldName];
+                // pruneAccountKeyedMaps membuang entri lama (accountIcons DAN account_currencies
+                // sekaligus) saat nama akun berubah -- lihat src/domain/settings.js. Sengaja
+                // dipakai juga di removeSetting() (hapus akun) supaya kedua alur ini tidak lagi
+                // punya 2 salinan logic pembersihan yang bisa diam-diam berbeda satu sama lain.
+                if (oldName !== name) servicesModule.pruneAccountKeyedMaps(appSettings, oldName);
             } else {
                 appSettings.accounts.push(name);
             }
@@ -4289,7 +4255,6 @@ const api = (() => {
             // pengecualian non-IDR, konsisten dengan pola accountIcons di atas).
             if (!appSettings.account_currencies) appSettings.account_currencies = {};
             const currencyInput = (document.getElementById('acc-modal-currency').value || '').trim().toUpperCase();
-            if (isEdit && oldName !== name) delete appSettings.account_currencies[oldName];
             if (currencyInput && currencyInput !== 'IDR') { appSettings.account_currencies[name] = currencyInput; }
             else { delete appSettings.account_currencies[name]; }
 
@@ -4335,9 +4300,16 @@ const api = (() => {
                 const removedName = type === 'accounts' ? appSettings[type][i] : null;
                 appSettings[type].splice(i, 1);
                 if (removedName) {
-                    const hadCustomIcon = appSettings.accountIcons && !!appSettings.accountIcons[removedName];
-                    if (appSettings.accountIcons) delete appSettings.accountIcons[removedName];
-                    if (hadCustomIcon) {
+                    // BUG FIX: dulu di sini cuma appSettings.accountIcons yang dibersihkan --
+                    // appSettings.account_currencies untuk nama akun yang dihapus TIDAK ikut
+                    // dibuang. Efeknya: kalau nanti user bikin akun BARU dengan nama PERSIS SAMA
+                    // dengan akun lama yang sudah dihapus (mis. akun lama "Rekening USD" pernah
+                    // di-set currency USD), akun baru itu diam-diam ikut dianggap USD juga oleh
+                    // getAccountCurrency() -- padahal user mengira ini akun IDR biasa. Sekarang
+                    // pakai fungsi yang sama dengan alur rename (submitAccountModal) supaya kedua
+                    // tempat ini tidak lagi bisa divergen satu sama lain.
+                    const hadEntry = servicesModule.pruneAccountKeyedMaps(appSettings, removedName);
+                    if (hadEntry.accountIcons) {
                         api.run.withSuccessHandler(function(){}).withFailureHandler(function() {
                             showErrorToast('Akun terhapus, tapi ikon kustomnya gagal dibersihkan dari cloud.');
                         }).deleteCustomIcon(removedName);

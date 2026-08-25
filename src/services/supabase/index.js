@@ -6,3 +6,6 @@ export * from "../transactions.js";
 export * from "./transfers.js";
 export * from "./recurring.js";
 export * from "./budgets.js";
+export * from "./settings.js";
+export * from "./custom-icons.js";
+export * from "./assets.js";
