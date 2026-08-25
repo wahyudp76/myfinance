@@ -50,6 +50,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+      - name: Run unit tests
+        run: npm run test:unit
       - name: Run fixture parity tests
         run: npm run test:parity
       - name: Observe production legacy transaction read

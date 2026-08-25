@@ -1,6 +1,9 @@
 /**
- * Browser-compatible financial domain primitives.
- * No DOM, Supabase, localStorage or network access.
+ * MyFinance financial-domain primitives.
+ *
+ * Pure functions only: no DOM, Supabase, localStorage or network access.
+ * Keeping these rules isolated makes the financial engine testable before the
+ * monolithic UI is migrated to the Supabase-native service layer.
  */
 
 function assertFinitePositive(value, name) {
@@ -9,6 +12,12 @@ function assertFinitePositive(value, name) {
   }
 }
 
+/**
+ * Convert a source-currency amount into a destination currency.
+ *
+ * Rates are deliberately defined as IDR per one unit of currency, so:
+ * destination = source × sourceRate / destinationRate.
+ */
 export function convertCurrency({ sourceAmount, sourceRate, destinationRate }) {
   assertFinitePositive(sourceAmount, "sourceAmount");
   assertFinitePositive(sourceRate.idrPerUnit, "sourceRate.idrPerUnit");
@@ -26,10 +35,12 @@ export function convertCurrency({ sourceAmount, sourceRate, destinationRate }) {
   };
 }
 
+/** Transfers never contribute to income/expense reporting. */
 export function isCashflowTransaction(kind) {
   return kind === "Pemasukan" || kind === "Pengeluaran";
 }
 
+/** Signed native-account impact for ordinary income/expense transactions. */
 export function accountImpact(kind, amount) {
   assertFinitePositive(amount, "amount");
   if (kind !== "Pemasukan" && kind !== "Pengeluaran") {
@@ -38,6 +49,11 @@ export function accountImpact(kind, amount) {
   return kind === "Pemasukan" ? amount : -amount;
 }
 
+/**
+ * Avoid floating-point residue for values displayed/stored as money.
+ * This does not replace database NUMERIC precision; it is only a UI/domain
+ * boundary helper for normal currency amounts.
+ */
 export function roundMoney(value, decimals = 2) {
   if (!Number.isFinite(value)) throw new Error("Nilai uang tidak valid.");
   const factor = 10 ** decimals;

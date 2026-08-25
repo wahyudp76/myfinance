@@ -10,15 +10,33 @@ login.
 
 ## 1. Struktur folder
 
+> Diagram di bawah ini menggambarkan **apa yang benar-benar dijalankan browser**
+> (tetap 1 file `index.html` utuh -- itu tidak berubah). Branch `refactor/
+> supabase-native-foundation` yang sedang berjalan ini JUGA berisi folder
+> `src/`, `tests/`, `sql/`, `supabase/`, dan `docs/` di sebelahnya untuk
+> pekerjaan migrasi arsitektur yang masih berjalan -- lihat
+> `docs/supabase-native-migration-plan.md` untuk peta lengkapnya. Folder-folder
+> itu belum semuanya di-import oleh `index.html`; jangan bingung kalau branch
+> `main` (produksi) terlihat lebih sederhana dari ini.
+
 ```
 myfinance-app/
-├── index.html        # SATU FILE: halaman login + dashboard + seluruh CSS & JS
-├── manifest.json      # Web App Manifest (buat "Add to Home Screen")
+├── index.html          # SATU FILE: halaman login + dashboard + seluruh CSS & JS
+├── manifest.json       # Web App Manifest (buat "Add to Home Screen")
 ├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
 ├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
 ├── _headers               # Header keamanan (khusus hosting Netlify)
 ├── sql/
-│   └── schema.sql        # SQL lengkap: 6 tabel + Row Level Security
+│   ├── schema.sql              # SQL lengkap: tabel inti + Row Level Security
+│   └── *.sql                    # Migrasi tambahan bertanggal, urut dari nama file
+├── supabase/functions/
+│   ├── scan-receipt/index.ts    # Edge Function: baca struk lewat Gemini vision
+│   └── whatsapp-webhook/index.ts # Edge Function: bot WhatsApp (Fonnte)
+├── src/                          # (khusus branch refactor) modul JS yang diimpor index.html
+├── tests/
+│   ├── unit/                      # Test murni, tanpa network -- selalu jalan (npm run test:unit)
+│   └── parity/                    # Banding legacy vs native, sebagian butuh secret live
+├── docs/                           # Rencana & catatan migrasi arsitektur
 └── README.md
 ```
 
