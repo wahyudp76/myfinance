@@ -14,6 +14,5 @@ The service layer is the only intended database boundary for the new frontend ar
 - `custom-icons.js`: ikon/logo kustom per akun (tabel `custom_icons`).
 - `assets.js`: CRUD portofolio aset/investasi, termasuk kolom refresh harga otomatis
   (tabel `assets`).
-- `transaction-adapter.js`: compatibility mapping from the existing UI shape.
 
 No service-role credentials belong in this directory. Privileged operations must use Edge Functions or secure database RPCs.
