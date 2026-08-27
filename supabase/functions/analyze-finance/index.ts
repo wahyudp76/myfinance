@@ -32,18 +32,19 @@
 //   4. Ambil API key Gemini di https://aistudio.google.com/apikey (biasanya
 //      diawali "AIzaSy..."), lalu simpan sebagai secret:
 //      supabase secrets set GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//   5. supabase functions deploy analyze-finance --no-verify-jwt=false
+//   5. supabase functions deploy analyze-finance
 //
 // Setelah itu section "Rekomendasi AI" (dashboard) dan "Tanya AI" (tab Analisis) berfungsi.
 //
-// CATATAN: function ini live dengan verify_jwt=false di project settings (platform TIDAK
-// menolak request tanpa JWT valid sebelum kode di bawah jalan) -- beda dari scan-receipt/
-// get-exchange-rate/refresh-asset-price yang verify_jwt=true. Cek Authorization header + auth.
-// getUser() di bawah tetap jadi satu-satunya lapis proteksi identitas utk function ini saat ini.
-// Belum diubah di sesi ini supaya tidak berisiko mematahkan fitur yang sedang aktif dipakai
-// (version 33, paling sering di-iterasi dari semua Edge Function) tanpa konfirmasi eksplisit --
-// direkomendasikan disamakan ke verify_jwt=true utk pertahanan berlapis, tapi ini keputusan yang
-// sebaiknya dikonfirmasi dulu, bukan diubah sepihak.
+// CATATAN: function ini sekarang live dengan verify_jwt=true (diaktifkan setelah audit Phase 6
+// -- sebelumnya false). Keempat Edge Function lain di project ini (scan-receipt, get-exchange-
+// rate, refresh-asset-price, whatsapp-webhook) sudah lama verify_jwt=true dan terbukti jalan
+// normal memakai pola panggilan client yang SAMA PERSIS (supabaseClient.functions.invoke(...),
+// yang otomatis menyertakan JWT valid -- baik JWT sesi user maupun anon key -- di header
+// Authorization), jadi flip ini seharusnya tidak mengubah perilaku apa pun utk pemanggilan yang
+// sah. Sekarang platform Supabase MENOLAK request yang authorization header-nya sama sekali
+// bukan JWT valid SEBELUM kode di bawah sempat jalan -- lapis pertahanan tambahan di atas
+// pengecekan auth.getUser() manual yang tetap dipertahankan sebagai lapis kedua.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
