@@ -1,7 +1,9 @@
-# MyFinance Dashboard — Full Supabase New Format Edition (1 File)
+# MyFinance Dashboard — Full Supabase New Format Edition
 
-Versi ini digabung kembali jadi **satu file `index.html` utuh** (HTML + CSS +
-JS jadi satu, tidak ada lagi `login.html`/`css/style.css`/`js/*.js` terpisah),
+Versi ini digabung jadi **`index.html` + `styles.css`** (bukan lagi
+`login.html`/`css/style.css` terpisah versi lama -- CSS dipisah lagi ke
+`styles.css` di Phase 7 refactor, langkah paling aman utk mulai memecah
+struktur yang sebelumnya benar-benar 1 file tunggal),
 dengan Login, dan **seluruh data aplikasi** (Transaksi, Dashboard, Budget,
 Aset, Pengaturan akun & kategori, Profil, Ikon kustom) tersambung penuh ke
 Supabase. **Tidak ada localStorage yang dipakai sebagai database** — semua
@@ -10,9 +12,14 @@ login.
 
 ## 1. Struktur folder
 
-> Diagram di bawah ini menggambarkan **apa yang benar-benar dijalankan browser**
-> (tetap 1 file `index.html` utuh -- itu tidak berubah). Branch `refactor/
-> supabase-native-foundation` yang sedang berjalan ini JUGA berisi folder
+> Diagram di bawah ini menggambarkan **apa yang benar-benar dijalankan browser**.
+> Sejak Phase 7 ("split monolith" -- lihat
+> `docs/supabase-native-migration-plan.md`), CSS sudah dipindah ke `styles.css`
+> terpisah (langkah paling aman: teks murni, tidak ada scope JavaScript yang
+> bisa rusak). `index.html` sekarang berisi markup + SATU blok `<script>`
+> gabungan untuk semua logic -- itu belum dipecah (jauh lebih berisiko, lihat
+> catatan di dalam file-nya sendiri). Branch `refactor/supabase-native-
+> foundation` yang sedang berjalan ini JUGA berisi folder
 > `src/`, `tests/`, `sql/`, `supabase/`, dan `docs/` di sebelahnya untuk
 > pekerjaan migrasi arsitektur yang masih berjalan -- lihat
 > `docs/supabase-native-migration-plan.md` untuk peta lengkapnya. Folder-folder
@@ -21,7 +28,8 @@ login.
 
 ```
 myfinance-app/
-├── index.html          # SATU FILE: halaman login + dashboard + seluruh CSS & JS
+├── index.html          # Markup + SATU blok <script> gabungan (semua logic JS)
+├── styles.css           # Semua gaya visual (dipisah dari index.html di Phase 7)
 ├── manifest.json       # Web App Manifest (buat "Add to Home Screen")
 ├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
 ├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
@@ -40,11 +48,15 @@ myfinance-app/
 └── README.md
 ```
 
-`login.html`, `css/style.css`, dan `js/*.js` sudah tidak ada lagi — semua
-isinya sudah dipindahkan ke dalam `index.html` (bagian `<style>` untuk CSS,
-satu blok `<script>` besar di bagian bawah untuk seluruh logic). Login dan
-Dashboard sekarang adalah dua tampilan di halaman yang sama, ditukar lewat
-JavaScript (tanpa reload halaman) — bukan dua file HTML terpisah lagi.
+`login.html`, `css/style.css` (versi lama), dan `js/*.js` sudah tidak ada lagi
+sejak versi "1 file" — isinya sempat digabung semua ke dalam `index.html`
+(CSS lewat tag `<style>`, satu blok `<script>` besar untuk seluruh logic).
+Sejak Phase 7 refactor, CSS-nya dipisah LAGI jadi `styles.css` (lihat catatan
+di bagian atas struktur folder) — tapi ini beda dari `css/style.css` versi
+lama: yang sekarang cuma memindah lokasi file, isinya persis sama, bukan
+menulis ulang. Login dan Dashboard tetap dua tampilan di halaman yang sama,
+ditukar lewat JavaScript (tanpa reload halaman) — bukan dua file HTML
+terpisah.
 
 > **PERLU AKSI kalau kamu sudah pernah setup Supabase sebelumnya**: versi ini
 > menambah 1 tabel baru (`recurring_transactions`, untuk fitur Transaksi

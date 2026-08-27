@@ -20,7 +20,9 @@
 //   - Ganti CACHE_VERSION di bawah kalau suatu saat pola caching ini sendiri perlu
 //     diubah -- versi lama otomatis dibersihkan saat versi baru aktif.
 
-const CACHE_VERSION = 'myfinance-v2';
+// v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
+// styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
+const CACHE_VERSION = 'myfinance-v3';
 
 // App shell + file vendor CDN yang dipakai index.html -- disimpan ke cache saat
 // service worker pertama kali terpasang, supaya kunjungan berikutnya (termasuk saat
@@ -34,6 +36,7 @@ const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.json',
+  './styles.css',
   'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
