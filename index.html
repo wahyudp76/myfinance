@@ -117,6 +117,7 @@
         import { computeAccountTotals, buildAccountBalanceSeries } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
+        import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -139,6 +140,7 @@
             computeAccountTotals, buildAccountBalanceSeries,
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights,
+            computeGoalProgress, computeDebtProgress,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -7085,14 +7087,12 @@ const api = (() => {
                 return;
             }
             listEl.innerHTML = goals.map(g => {
-                const target = Number(g.target) || 0, terkumpul = Number(g.terkumpul) || 0;
-                const pct = target > 0 ? Math.min(100, Math.round((terkumpul / target) * 100)) : 0;
-                const sisa = Math.max(0, target - terkumpul);
-                const isDone = terkumpul >= target && target > 0;
+                // Progres (persen, sisa, status selesai, sisa hari ke deadline): satu sumber
+                // kebenaran sekarang src/domain/goals-debts.js (computeGoalProgress).
+                const { pct, sisa, isDone, daysUntilDeadline } = servicesModule.computeGoalProgress(g, new Date());
                 let deadlineHtml = '';
-                if (g.deadline) {
-                    const days = Math.ceil((new Date(g.deadline + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
-                    deadlineHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-calendar-days"></i> ${days > 0 ? days + ' hari lagi' : (days === 0 ? 'Hari ini' : 'Lewat tenggat')}</span>`;
+                if (daysUntilDeadline !== null) {
+                    deadlineHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-calendar-days"></i> ${daysUntilDeadline > 0 ? daysUntilDeadline + ' hari lagi' : (daysUntilDeadline === 0 ? 'Hari ini' : 'Lewat tenggat')}</span>`;
                 }
                 return `
                 <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm stagger-item">
@@ -7264,12 +7264,11 @@ const api = (() => {
                 return;
             }
             listEl.innerHTML = debts.map(d => {
-                const total = Number(d.totalUtang) || 0, sisa = Math.max(0, Number(d.sisaUtang) || 0);
-                const paidPct = total > 0 ? Math.min(100, Math.round(((total - sisa) / total) * 100)) : 0;
-                const isLunas = sisa <= 0;
+                // Progres pelunasan (persen, sisa, status lunas, estimasi bulan lagi): satu sumber
+                // kebenaran sekarang src/domain/goals-debts.js (computeDebtProgress).
+                const { paidPct, sisa, isLunas, bulanLagi } = servicesModule.computeDebtProgress(d);
                 let estimasiHtml = '';
-                if (!isLunas && d.cicilanPerBulan > 0) {
-                    const bulanLagi = Math.ceil(sisa / d.cicilanPerBulan);
+                if (bulanLagi !== null) {
                     estimasiHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-hourglass-half"></i> ~${bulanLagi} bulan lagi (estimasi)</span>`;
                 }
                 return `
