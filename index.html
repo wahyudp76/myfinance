@@ -65,390 +65,84 @@
          membebani load pertama untuk user yang belum tentu pernah buka tab Kalender dalam sesi
          itu. sw.js tetap precache URL-nya (lihat PRECACHE_URLS) jadi begitu dibutuhkan, biasanya
          sudah ada di cache (nyaris instan), cuma parse/eksekusinya yang ditunda. -->
-    <!-- Supabase JS Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- ==========================================================================
+         AUTH MODULE BRIDGE (Phase 3 -- lihat docs/supabase-native-migration-plan.md)
+         ==========================================================================
+         Supabase client + operasi auth (signIn/signUp/signOut/session) sekarang SATU
+         sumber kebenaran: src/auth/* (dipakai juga oleh tests/parity/*) -- bukan lagi
+         ditulis manual di dalam <script> gabungan di bawah seperti sebelumnya.
+
+         src/auth/* pakai ES import/export, sedangkan <script> gabungan di bawah SENGAJA
+         TETAP "classic" (bukan type="module") -- app ini punya 200+ atribut onclick=/
+         onchange= langsung di HTML yang memanggil fungsi lewat scope GLOBAL (window),
+         dan itu TIDAK berlaku untuk isi <script type="module"> (top-level binding di
+         situ tidak otomatis jadi properti window). Mengonversi SELURUH app jadi module
+         berarti menulis ulang 200+ pemanggilan itu sekaligus -- perubahan besar & berisiko
+         yang di luar cakupan langkah Auth ini (rencananya: domain lain menyusul satu per
+         satu, lihat docs/architecture-modernization-plan.md Phase 4). Untuk sekarang,
+         modul ini dijembatani ke window.__myfinanceAuth.
+
+         Promise di bawah SENGAJA di script classic TERPISAH, SEBELUM <script type="module">:
+         <script type="module"> selalu dieksekusi "deferred" (baru jalan setelah SELURUH
+         dokumen selesai di-parse) -- yaitu BELAKANGAN dari <script> gabungan di body (yang
+         posisinya di akhir <body>, dieksekusi blocking begitu parser sampai di situ, nyaris
+         di akhir dokumen). Tanpa jembatan Promise+event ini, script gabungan bisa saja
+         mencoba memakai window.__myfinanceAuth SEBELUM modul-nya selesai dieksekusi. -->
+    <script>
+        window.__myfinanceAuthReady = new Promise((resolve) => {
+            window.addEventListener('myfinance:auth-ready', () => resolve(window.__myfinanceAuth), { once: true });
+        });
+        // Phase 2 (Transaksi) -- lihat docs/supabase-native-migration-plan.md. Sama persis
+        // polanya dengan __myfinanceAuthReady di atas, dibuat TERPISAH (bukan digabung ke situ)
+        // supaya tidak menyentuh bridge auth yang sudah teruji jalan.
+        window.__myfinanceServicesReady = new Promise((resolve) => {
+            window.addEventListener('myfinance:services-ready', () => resolve(window.__myfinanceServices), { once: true });
+        });
+    </script>
+    <script type="module">
+        import {
+            initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
+            onAuthStateChange, requireUser,
+        } from './src/auth/index.js';
+        import { createTransactionService } from './src/services/transactions.js';
+        import { createTransfer } from './src/services/supabase/transfers.js';
+        import { createRecurringTransaction } from './src/services/supabase/recurring.js';
+        import { replaceMonthBudgets } from './src/services/supabase/budgets.js';
+        import { getSettings, saveSettings } from './src/services/supabase/settings.js';
+        import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
+        import { listAssets, createAsset, updateAsset, deleteAsset } from './src/services/supabase/assets.js';
+        import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
+        import { pruneAccountKeyedMaps } from './src/domain/settings.js';
+
+        window.__myfinanceAuth = {
+            initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
+            onAuthStateChange, requireUser,
+        };
+        window.dispatchEvent(new Event('myfinance:auth-ready'));
+
+        window.__myfinanceServices = {
+            createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets,
+            getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
+            listAssets, createAsset, updateAsset, deleteAsset,
+            // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
+            // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
+            // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
+            // loader ES module baru cuma utk beberapa fungsi kecil.
+            planRecurringCatchup, advanceDueDate, pruneAccountKeyedMaps,
+        };
+        window.dispatchEvent(new Event('myfinance:services-ready'));
+    </script>
     <!-- ====================================================================
-         CSS APLIKASI -- file ini sengaja digabung jadi SATU FILE HTML utuh
-         (sebelumnya terpisah: login.html + index.html + css/style.css +
-         js/*.js). Semua gaya visual ada di sini, semua logic ada di satu
-         <script> di bagian bawah sebelum </body>.
+         CSS APLIKASI -- dipindah ke styles.css (Phase 7, "split monolith" --
+         lihat docs/supabase-native-migration-plan.md). Sebelumnya digabung
+         inline di sini lewat tag <style>; sekarang file terpisah, dimuat di
+         posisi yang PERSIS SAMA di cascade CSS (tidak mengubah urutan relatif
+         terhadap Tailwind/Font Awesome di atas). Semua LOGIC JavaScript masih
+         satu <script> gabungan di bagian bawah sebelum </body> -- belum
+         dipecah, itu langkah terpisah & jauh lebih berisiko (lihat catatan di
+         situ soal 200+ atribut onclick= yang bergantung pada scope global).
          ==================================================================== -->
-    <style>
-
-        /* ================= BASE & BACKDROP DEKORATIF ================= */
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background: linear-gradient(180deg, #faf9fd 0%, #f5f3fb 45%, #f7f4fa 100%);
-            overflow: hidden;
-            position: relative;
-        }
-        body::before, body::after {
-            content: ""; position: fixed; z-index: -1; border-radius: 50%;
-            filter: blur(90px); pointer-events: none;
-        }
-        body::before { top: -12%; left: -8%; width: 460px; height: 460px; background: radial-gradient(circle, rgba(99,102,241,0.14), transparent 70%); }
-        body::after { bottom: -18%; right: -10%; width: 520px; height: 520px; background: radial-gradient(circle, rgba(219,39,119,0.09), transparent 70%); }
-
-        .content-area { overscroll-behavior-y: contain; }
-        .content-area::-webkit-scrollbar { width: 6px; }
-        .content-area::-webkit-scrollbar-track { background: transparent; }
-        .content-area::-webkit-scrollbar-thumb { background-color: #c9c2e0; border-radius: 10px; }
-        .content-area::-webkit-scrollbar-thumb:hover { background-color: #a89cd6; }
-
-        /* ================= SIDEBAR DESKTOP — panel gradasi gelap premium ================= */
-        #sidebar {
-            background: linear-gradient(165deg, #221c48 0%, #2b2159 45%, #17102b 100%) !important;
-            border-right: 1px solid rgba(255,255,255,0.06) !important;
-            position: relative;
-            overflow: hidden;
-        }
-        #sidebar::before {
-            content: ""; position: absolute; top: -15%; right: -25%; width: 280px; height: 280px;
-            background: radial-gradient(circle, rgba(167,139,250,0.35), transparent 70%);
-            filter: blur(55px); pointer-events: none;
-        }
-        #sidebar::after {
-            content: ""; position: absolute; bottom: -10%; left: -22%; width: 220px; height: 220px;
-            background: radial-gradient(circle, rgba(79,70,229,0.30), transparent 70%);
-            filter: blur(55px); pointer-events: none;
-        }
-        #sidebar h1.text-slate-900 { color: #ffffff !important; }
-        #sidebar p.text-slate-400 { color: rgba(255,255,255,0.42) !important; }
-        #sidebar .border-slate-100 { border-color: rgba(255,255,255,0.08) !important; }
-
-        .menu-active { background: rgba(255,255,255,0.14); color: #ffffff; font-weight: 600; box-shadow: inset 3px 0 0 0 #a78bfa; }
-        .menu-inactive { color: rgba(255,255,255,0.55); }
-        .menu-inactive:hover { background-color: rgba(255,255,255,0.08); color: #ffffff; }
-
-        .account-card, .chart-card { transition: all 0.3s ease; cursor: pointer; }
-        .account-card:hover { transform: translateY(-5px); border-color: #818cf8; box-shadow: 0 10px 20px -3px rgba(99, 102, 241, 0.18); }
-        .chart-card:hover { border-color: #ddd6fe; box-shadow: 0 10px 20px -3px rgba(124, 58, 237, 0.10); }
-
-        /* ================= ANIMASI INTERAKSI & PERPINDAHAN TAMPILAN ================= */
-        /* Efek "spring" (sedikit overshoot lalu balik) khusus utk transform saat ditekan —
-           dipasang pada class active:scale-* yang SUDAH dipakai di banyak tombol, jadi tombol
-           yang sudah ada otomatis terasa lebih hidup tanpa perlu ubah HTML satu-satu. */
-        .active\:scale-90:active, .active\:scale-95:active,
-        .active\:scale-\[0\.97\]:active, .active\:scale-\[0\.98\]:active, .active\:scale-\[0\.99\]:active {
-            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-        }
-        button, .cursor-pointer { transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
-
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes popIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
-        @keyframes softPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.35); } 50% { box-shadow: 0 0 0 10px rgba(99,102,241,0); } }
-
-        /* Konten tab utama fade+slide masuk setiap kali berpindah menu (hidden -> block akan
-           otomatis memicu ulang animasi ini karena display:none menghentikan animasi CSS). */
-        .content-area.view-enter { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
-
-        /* Utility utk item list yang muncul bertahap (stagger) — delay-nya diatur inline per item */
-        .stagger-item { animation: fadeInUp 0.35s ease-out both; }
-        .stagger-row { animation: fadeIn 0.3s ease-out both; }
-
-        /* Tombol aksi utama (FAB "Catat Transaksi") — pulsa lembut beberapa kali saat halaman
-           dimuat sebagai sambutan, lalu berhenti sendiri (tidak mengganggu selama sesi panjang). */
-        #fabMobileCatat, #fabDesktopCatat { animation: softPulse 1.8s ease-in-out 3; }
-
-        /* ================= KARTU KONTEN — bayangan & border lembut bernuansa warna ================= */
-        .bg-white.border-slate-100 {
-            border-color: rgba(124, 58, 237, 0.08) !important;
-            box-shadow: 0 1px 2px rgba(30, 27, 75, 0.03), 0 10px 28px -14px rgba(79, 70, 229, 0.16) !important;
-        }
-
-        /* ================= HERO CARD (Saldo/Ringkasan) — gradasi + pola titik halus ================= */
-        .bg-\[\#171a25\] {
-            background:
-                radial-gradient(circle at 88% 10%, rgba(167,139,250,0.30), transparent 42%),
-                radial-gradient(circle at 6% 96%, rgba(99,102,241,0.20), transparent 45%),
-                radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-                linear-gradient(135deg, #1c1640 0%, #241c4d 55%, #171029 100%) !important;
-            background-size: auto, auto, 16px 16px, auto !important;
-        }
-        #dash-total {
-            background: linear-gradient(90deg, #ffffff 0%, #d8d2ff 100%);
-            -webkit-background-clip: text; background-clip: text; color: transparent;
-        }
-
-        /* ================= WARNA MEREK — tombol, badge, ikon utama ================= */
-        .bg-\[\#151928\] { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important; }
-        .hover\:bg-black:hover { background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%) !important; }
-        .text-\[\#151928\] { color: #4f46e5 !important; }
-        .ring-\[\#151928\] { --tw-ring-color: #4f46e5 !important; }
-        .from-\[\#151928\].to-\[\#2e3754\] { background-image: linear-gradient(to top right, #6366f1, #8b5cf6) !important; }
-
-        /* Accordion transition */
-        .accordion-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; max-height: 0; opacity: 0; overflow: hidden; }
-        .accordion-content.expanded { max-height: 1000px; opacity: 1; }
-        .accordion-icon { transition: transform 0.3s ease; }
-        .accordion-icon.expanded { transform: rotate(180deg); }
-
-        /* CALENDAR MODERN UI */
-        :root {
-            --fc-border-color: #efeaf9;
-            --fc-page-bg-color: #ffffff;
-            --fc-today-bg-color: #f2effb;
-        }
-        .fc-theme-standard .fc-scrollgrid { border: none; }
-        .fc-theme-standard th { background: #faf9fd; border: none !important; border-bottom: 1px solid #efeaf9 !important; padding: 12px 0; font-weight: 700; color: #7b7398; text-transform: uppercase; font-size: 0.75rem; }
-        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--fc-border-color); }
-        .fc-daygrid-day-frame { padding: 4px; }
-        .fc-daygrid-day-number { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 700; color: #2c2840; text-decoration: none !important; padding: 6px 8px !important; margin-bottom: 4px; display: inline-block; border-radius: 8px; transition: 0.2s; }
-        .fc-daygrid-day-number:hover { background: #efeaf9; }
-        .fc-day-today .fc-daygrid-day-number { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white !important; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.35); }
-        .fc-day-today .fc-daygrid-day-number:hover { background: linear-gradient(135deg, #4338ca, #6d28d9); }
-
-        .fc-day-sat .fc-daygrid-day-number, .fc-day-sun .fc-daygrid-day-number { color: #f13d70; }
-        .fc-event { border: none !important; border-radius: 6px !important; padding: 4px 6px !important; font-size: 0.75rem !important; font-weight: 700 !important; cursor: pointer; transition: transform 0.1s; margin-bottom: 3px !important; }
-        .fc-event:hover { transform: scale(1.02); }
-
-        /* Proyeksi tagihan/transaksi berulang yang AKAN datang -- sengaja beda gaya (garis putus2,
-           transparan, ikon repeat) dari transaksi yg sudah benar2 tercatat, spy user tidak salah kira
-           itu transaksi nyata. Lihat renderCalendar(). */
-        .fc-event.cal-event-projected { background: transparent !important; border: 1.5px dashed #a78bfa !important; color: #7c3aed !important; }
-        .cal-event-projected-inner { display: flex; align-items: center; gap: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cal-event-projected-inner i { font-size: 0.6rem; flex-shrink: 0; }
-
-        /* Tint tipis per-sel tanggal berdasarkan arus kas bersih hari itu (heatmap sekilas). */
-        .fc-daygrid-day.cal-day-positive { background: rgba(16, 185, 129, 0.06); }
-        .fc-daygrid-day.cal-day-negative { background: rgba(244, 63, 94, 0.05); }
-
-        .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800; color: #191527; }
-        .fc .fc-button-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed) !important; border-color: transparent !important; text-transform: capitalize; border-radius: 8px !important; padding: 8px 16px !important; font-weight: 600 !important; }
-        .fc .fc-button-primary:hover { background: linear-gradient(135deg, #4338ca, #6d28d9) !important; }
-        .fc .fc-button-primary:disabled { background: #d1cee0 !important; border-color: #d1cee0 !important; }
-
-        @media (max-width: 768px) {
-            .fc .fc-toolbar-title { font-size: 1rem !important; }
-            .fc .fc-button-primary { padding: 6px 12px !important; font-size: 0.75rem !important; }
-            .fc-event { padding: 2px 4px !important; font-size: 0.65rem !important; }
-            .fc-daygrid-day-frame { padding: 2px; }
-            .fc-header-toolbar { flex-wrap: wrap; gap: 8px; justify-content: space-between; }
-            /* 130px (naik dari 110px sebelumnya) -- sejak bottom nav mobile jadi "liquid glass"
-               yang MELAYANG (ada jarak env(safe-area)+12px dari tepi, bukan nempel rata bawah lagi),
-               total ruang yg ditempatinya dari tepi layar sedikit lebih tinggi drpd sebelumnya. */
-            .content-area { padding-bottom: 130px !important; }
-        }
-
-
-        /* ================= LOGIN VIEW ================= */
-        #loginView { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 16px; }
-        /* PENTING: #loginView (selector ID) secara spesifisitas CSS akan selalu menang atas
-           class ".hidden" bawaan Tailwind (selector class biasa), APAPUN urutannya di stylesheet --
-           tanpa baris di bawah ini, classList.add('hidden') di JS tidak akan pernah benar-benar
-           menyembunyikan elemen ini secara visual. */
-        #loginView.hidden { display: none; }
-        /* #appShell dipakai bareng class Tailwind "h-screen" (height:100vh) -- override lewat ID
-           (spesifisitas lebih tinggi dari class biasa, sama seperti trik #loginView.hidden di atas)
-           supaya tinggi shell mengikuti viewport SUNGGUHAN yang terlihat di layar, bukan viewport
-           terbesar yang mungkin (address bar disembunyikan). Tanpa ini, nav bar bawah/konten bisa
-           sedikit terpotong di HP saat address bar browser sedang tampil. 100vh dipertahankan lebih
-           dulu sebagai fallback untuk browser lama yang belum kenal 100dvh. */
-        #appShell { height: 100vh; height: 100dvh; }
-        /* Sama seperti dulu dipakai .pb-safe di navbar bawah (sekarang diganti .liquid-glass-nav,
-           lihat di bawah), tapi untuk bagian ATAS layar -- dipakai di top bar mobile.
-           apple-mobile-web-app-status-bar-style di sini "black-translucent", artinya kalau app dibuka
-           dari ikon Home Screen di iPhone (mode standalone), konten web digambar SAMPAI KE BAWAH status
-           bar (jam/baterai/sinyal), bukan di bawahnya -- jadi tanpa padding ini, top bar bisa ketiban/
-           ketutup status bar. Tidak berpengaruh saat dibuka lewat browser biasa (env = 0 di sana). */
-        .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
-
-        /* Bottom nav mobile "liquid glass" -- kaca buram melayang ala iOS terbaru, menggantikan
-           bar solid putih rata-tepi yang lama (yg dulu pakai class .pb-safe, sekarang sudah
-           tidak ada lagi -- posisi & jarak amannya diatur langsung di sini). */
-        .liquid-glass-nav {
-            bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-            background: rgba(255, 255, 255, 0.72);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.7);
-        }
-        .dark .liquid-glass-nav {
-            background: rgba(15, 23, 42, 0.65);
-            border-color: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.06);
-        }
-        /* "Chip" kaca yang nongol di belakang ikon+label yang lagi aktif -- diatur/dilepas dari JS
-           (lihat switchView()) bareng kelas warna teks yang sudah ada sebelumnya. */
-        .liquid-glass-nav-active {
-            background: rgba(255, 255, 255, 0.55);
-            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8);
-        }
-        .dark .liquid-glass-nav-active {
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
-        }
-        /* Fallback utk browser lama yang belum kenal backdrop-filter -- tanpa ini nav-nya keliatan
-           "kaca tanpa warna" (nyaris tembus pandang penuh, teks susah kebaca di atas konten yg ikut
-           keliatan menumpuk). @supports not () jarang cocok di semua browser modern, jadi baliknya
-           dicek dari ADA-nya properti ini didukung; kalau tidak, opacity background dinaikkan jadi
-           hampir solid supaya tetap kebaca. */
-        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-            .liquid-glass-nav { background: rgba(255, 255, 255, 0.97); }
-            .dark .liquid-glass-nav { background: rgba(15, 23, 42, 0.97); }
-        }
-
-        .tab-btn.active { background: #151928; color: #fff; }
-        .tab-btn { color: #64748b; }
-
-        /* ================= MASKOT KARTUN (Layar Login) ================= */
-        .login-mascot-wrap { position: relative; width: 132px; height: 132px; margin: 0 auto 18px; }
-        .login-mascot-glow {
-            position: absolute; inset: -22px; border-radius: 50%;
-            background: radial-gradient(circle, rgba(124,58,237,0.30), transparent 70%);
-            filter: blur(20px); pointer-events: none;
-        }
-        .login-mascot-svg {
-            position: relative; width: 100%; height: 100%;
-            animation: mascotFloat 3.6s ease-in-out infinite;
-            filter: drop-shadow(0 12px 16px rgba(79,70,229,0.30));
-        }
-        @keyframes mascotFloat {
-            0%, 100% { transform: translateY(0) rotate(-1.5deg); }
-            50% { transform: translateY(-8px) rotate(1.5deg); }
-        }
-        .login-sparkle { animation: sparkleTwinkle 2.2s ease-in-out infinite; transform-origin: center; }
-        .login-sparkle.delay1 { animation-delay: 0.5s; }
-        .login-sparkle.delay2 { animation-delay: 1.1s; }
-        @keyframes sparkleTwinkle {
-            0%, 100% { opacity: 0.35; transform: scale(0.8); }
-            50% { opacity: 1; transform: scale(1.15); }
-        }
-
-        /* ================= AVATAR PROFIL (Pengaturan) ================= */
-        .profile-avatar-frame { border-radius: 9999px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; flex-shrink: 0; }
-        .profile-avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
-
-        /* ============================================================
-           TEMA GELAP (Dark Mode)
-           ============================================================
-           Pendekatan: override lewat SELECTOR CLASS (".dark .bg-white" dst),
-           bukan menambah class "dark:" ke setiap elemen satu-satu. Alasannya:
-           - Nol perubahan di ribuan atribut class= yang sudah ada di seluruh
-             halaman -- jauh lebih kecil risiko merusak sesuatu yang sudah
-             teruji, dibanding mengedit tiap elemen manual.
-           - Selector gabungan class (".dark .bg-white") otomatis punya
-             spesifisitas lebih tinggi dari utility Tailwind polos (".bg-white"),
-             jadi menang tanpa perlu !important di sini.
-           Warna brand (gradient ungu-indigo, tombol dompet gelap #151928, dsb)
-           SENGAJA tidak diubah -- itu identitas visual yang tetap sama di
-           kedua tema, bukan bagian dari skema warna terang/gelap netral.
-           ============================================================ */
-
-        /* -- Latar (background) -- */
-        .dark .bg-white { background-color: #1e293b; }             /* kartu, modal, dsb -> slate-800 */
-        .dark .ring-offset-1 { --tw-ring-offset-color: #1e293b; }  /* ring pemilih ikon/warna (mis. Tujuan Keuangan) -- biar offset-nya ikut gelap, bukan celah putih terang */
-        .dark .bg-slate-50 { background-color: #0f172a; }           /* latar halaman -> slate-900 (paling gelap) */
-        .dark .bg-slate-100 { background-color: #334155; }          /* elemen sedikit terangkat/hover -> slate-700 */
-        /* BUG FIX: aturan di atas cuma cocok utk class PERSIS "bg-slate-50"/"bg-slate-100" --
-           Tailwind's opacity-modifier ("bg-slate-50/70", "bg-indigo-50/50", dst, dipakai di header
-           modal/accordion/kartu mini) menghasilkan NAMA CLASS BEDA (mis. "bg-slate-50\/70" sbg
-           string literal), jadi tidak ke-cover sama sekali oleh selector class biasa -- kartu2 itu
-           tetap terang di dark mode. Dipakai selector [class*="..."] (substring match, bukan exact
-           match) supaya SEMUA varian opacity ke-cover sekaligus, termasuk yg mungkin ditambahkan
-           nanti, tanpa perlu daftar satu-satu tiap angka opacity yang dipakai.
-           Sengaja TIDAK termasuk bg-slate-900 (dipakai utk overlay backdrop modal -- itu memang
-           harus tetap gelap di kedua tema, bukan bug). */
-        .dark [class*="bg-slate-50/"] { background-color: #0f172a; }
-        .dark [class*="bg-slate-100/"] { background-color: #334155; }
-        .dark [class*="bg-rose-50/"], .dark [class*="bg-rose-100/"] { background-color: rgba(244,63,94,0.16); }
-        .dark [class*="bg-emerald-50/"], .dark [class*="bg-emerald-100/"] { background-color: rgba(16,185,129,0.16); }
-        .dark [class*="bg-indigo-50/"], .dark [class*="bg-indigo-100/"] { background-color: rgba(99,102,241,0.18); }
-        .dark .bg-slate-200 { background-color: #475569; }          /* -> slate-600 */
-        .dark .bg-slate-300 { background-color: #64748b; }          /* drag-handle modal mobile -> slate-500 */
-
-        /* -- Teks -- */
-        .dark .text-slate-300 { color: #475569; }   /* ikon "nyaris tak terlihat" (edit/hapus) -> tetap redup di gelap */
-        .dark .text-slate-400 { color: #64748b; }
-        .dark .text-slate-500 { color: #94a3b8; }
-        .dark .text-slate-600 { color: #cbd5e1; }
-        .dark .text-slate-700 { color: #e2e8f0; }
-        .dark .text-slate-800 { color: #f1f5f9; }
-        .dark .text-slate-900 { color: #f8fafc; }
-
-        /* -- Border, ring, divide -- */
-        .dark .border-slate-50 { border-color: #1e293b; }
-        .dark .border-slate-100 { border-color: #334155; }
-        .dark .border-slate-200 { border-color: #475569; }
-        .dark .border-slate-300 { border-color: #64748b; }
-        .dark .ring-slate-100 { --tw-ring-color: #334155; }
-        .dark .ring-slate-200 { --tw-ring-color: #475569; }
-        .dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #334155; }
-
-        /* -- Warna aksen (badge status, ikon kategori/akun kustom, dsb) --
-           Sebelum ini CUMA abu-abu (bg-white/slate/text-slate) yang di-remap utk dark mode.
-           Palet 18 ikon+warna kategori (lihat categoryIconPalette dkk) & badge status
-           ("Aman"/"Waspada"/"Over Budget") pakai warna pastel Tailwind (mis. bg-rose-100
-           text-rose-600) yang TIDAK ke-cover sama sekali -- efeknya badge/ikon itu tetap
-           terang mencolok nempel di atas latar gelap, bukannya menyatu dgn tema.
-           Pola: background jadi versi transparan redup dari warna itu (menyatu dgn latar
-           gelap), teks jadi versi lebih terang (shade 400) supaya kontras tetap terjaga. */
-        .dark .bg-rose-50, .dark .bg-rose-100 { background-color: rgba(244,63,94,0.16); }
-        .dark .text-rose-500, .dark .text-rose-600 { color: #fb7185; }
-        .dark .bg-emerald-50, .dark .bg-emerald-100 { background-color: rgba(16,185,129,0.16); }
-        .dark .text-emerald-500, .dark .text-emerald-600 { color: #34d399; }
-        .dark .bg-amber-50, .dark .bg-amber-100 { background-color: rgba(245,158,11,0.16); }
-        .dark .text-amber-500, .dark .text-amber-600 { color: #fbbf24; }
-        .dark .bg-indigo-50, .dark .bg-indigo-100 { background-color: rgba(99,102,241,0.18); }
-        .dark .text-indigo-500, .dark .text-indigo-600 { color: #818cf8; }
-        .dark .bg-blue-50, .dark .bg-blue-100 { background-color: rgba(59,130,246,0.18); }
-        .dark .text-blue-500, .dark .text-blue-600 { color: #60a5fa; }
-        .dark .bg-violet-50, .dark .bg-violet-100 { background-color: rgba(139,92,246,0.18); }
-        .dark .text-violet-500, .dark .text-violet-600 { color: #a78bfa; }
-        .dark .bg-purple-50, .dark .bg-purple-100 { background-color: rgba(168,85,247,0.18); }
-        .dark .text-purple-500, .dark .text-purple-600 { color: #c084fc; }
-        .dark .bg-teal-50, .dark .bg-teal-100 { background-color: rgba(20,184,166,0.16); }
-        .dark .text-teal-500, .dark .text-teal-600 { color: #2dd4bf; }
-        .dark .bg-cyan-50, .dark .bg-cyan-100 { background-color: rgba(6,182,212,0.16); }
-        .dark .text-cyan-500, .dark .text-cyan-600 { color: #22d3ee; }
-        .dark .bg-orange-50, .dark .bg-orange-100 { background-color: rgba(249,115,22,0.16); }
-        .dark .text-orange-500, .dark .text-orange-600 { color: #fb923c; }
-        .dark .bg-pink-50, .dark .bg-pink-100 { background-color: rgba(236,72,153,0.16); }
-        .dark .text-pink-500, .dark .text-pink-600 { color: #f472b6; }
-        .dark .bg-lime-50, .dark .bg-lime-100 { background-color: rgba(132,204,22,0.16); }
-        .dark .text-lime-500, .dark .text-lime-600 { color: #a3e635; }
-        .dark .bg-yellow-50, .dark .bg-yellow-100 { background-color: rgba(234,179,8,0.16); }
-        .dark .text-yellow-500, .dark .text-yellow-600 { color: #facc15; }
-        .dark .bg-sky-50, .dark .bg-sky-100 { background-color: rgba(14,165,233,0.16); }
-        .dark .text-sky-500, .dark .text-sky-600 { color: #38bdf8; }
-        .dark .bg-fuchsia-50, .dark .bg-fuchsia-100 { background-color: rgba(217,70,239,0.16); }
-        .dark .text-fuchsia-500, .dark .text-fuchsia-600 { color: #e879f9; }
-        .dark .bg-green-50, .dark .bg-green-100 { background-color: rgba(34,197,94,0.16); }
-        .dark .text-green-500, .dark .text-green-600 { color: #4ade80; }
-        .dark .bg-red-50, .dark .bg-red-100 { background-color: rgba(239,68,68,0.16); }
-        .dark .text-red-500, .dark .text-red-600 { color: #f87171; }
-
-        /* -- Placeholder teks di input/textarea -- */
-        .dark input::placeholder, .dark textarea::placeholder { color: #64748b; opacity: 1; }
-
-        /* -- Scrollbar kustom -- */
-        .dark .content-area::-webkit-scrollbar-thumb { background-color: #475569; }
-        .dark .content-area::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
-
-        /* -- Layar Login -- */
-        .dark #loginView { background: #0f172a; }
-        .dark .tab-btn { color: #94a3b8; }
-        .dark .profile-avatar-frame { background: #334155; }
-
-        /* -- FullCalendar -- */
-        .dark .fc-theme-standard th { background: #1e293b; border-bottom-color: #334155 !important; color: #94a3b8; }
-        .dark .fc-theme-standard td, .dark .fc-theme-standard th { border-color: #334155; }
-        .dark .fc-daygrid-day-number { color: #e2e8f0; }
-        .dark .fc-daygrid-day-number:hover { background: #334155; }
-        .dark .fc-day-today { background: rgba(99, 102, 241, 0.12) !important; }
-        .dark .fc-toolbar-title { color: #f1f5f9; }
-        .dark .fc-daygrid-day.fc-day-other .fc-daygrid-day-number { opacity: 0.35; }
-        .dark .fc-event.cal-event-projected { border-color: #8b5cf6 !important; color: #c4b5fd !important; }
-        .dark .fc-daygrid-day.cal-day-positive { background: rgba(16, 185, 129, 0.1); }
-        .dark .fc-daygrid-day.cal-day-negative { background: rgba(244, 63, 94, 0.09); }
-
-        /* -- Tombol pilihan tema (Pengaturan) -- */
-        .theme-btn { border: 1.5px solid transparent; }
-        .theme-btn.theme-btn-active { border-color: #4f46e5; background: rgba(79, 70, 229, 0.08); }
-        .dark .theme-btn.theme-btn-active { background: rgba(129, 140, 248, 0.15); }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body class="text-slate-800">
 
@@ -2425,30 +2119,54 @@ setTimeout(function () { showFallbackError('Waktu tunggu habis (12 detik) -- kem
 // ==========================================================================
 // KONEKSI SUPABASE
 // ==========================================================================
-// File ini HARUS dimuat setelah <script src=".../@supabase/supabase-js@2">
-// karena kita memakai window.supabase.createClient(...) dari library itu.
+// Client dibuat lewat modul src/auth/ (lihat <script type="module"> di <head>,
+// bagian "AUTH MODULE BRIDGE"), bukan lagi window.supabase.createClient()
+// langsung -- window.supabase (global dari CDN classic) sudah tidak dimuat
+// sama sekali di versi ini.
 //
 // Catatan keamanan: SUPABASE_ANON_KEY di bawah ini AMAN untuk ditaruh di
 // kode sisi client (browser) — ini bukan kunci rahasia. Yang menjaga data
 // tiap user tetap privat adalah Row Level Security (RLS) yang diaktifkan
-// lewat sql/schema.sql, BUKAN kerahasiaan key ini. Jangan pernah menaruh
+// lewat schema.sql, BUKAN kerahasiaan key ini. Jangan pernah menaruh
 // "service_role key" di sisi client, hanya "anon public key" seperti ini.
 // ==========================================================================
 
 const SUPABASE_URL = 'https://uxfngmxghupdlwoeoxgh.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4Zm5nbXhnaHVwZGx3b2VveGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NzUwMDAsImV4cCI6MjEwMDA1MTAwMH0.0ICtfkrGwajHnpWFoTFNGC7OpMxVSvEeyJTyEAhjvqw';
 
-// Nama "supabaseClient" sengaja dipakai (bukan "supabase") supaya tidak
-// bentrok dengan variabel global "supabase" milik library itu sendiri.
-if (typeof window.supabase === 'undefined') {
-    // Ini kondisi paling sering bikin stuck di "Memeriksa sesi login": library
-    // Supabase dari CDN (cdn.jsdelivr.net) gagal dimuat sama sekali -- biasanya
-    // karena koneksi internet, ad-blocker/extension, atau firewall jaringan
-    // yang memblokir domain itu.
-    showFallbackError('Pustaka Supabase (dari cdn.jsdelivr.net) gagal dimuat. Cek koneksi internet, matikan ad-blocker/VPN sebentar, atau coba jaringan lain.');
-    throw new Error('window.supabase tidak tersedia -- CDN @supabase/supabase-js gagal dimuat.');
+// Diisi oleh initSupabaseClient() di bawah -- SELALU sebelum dipakai, karena bootstrapAuth()
+// (di bagian AUTH & BOOTSTRAP, dekat akhir file ini) meng-await fungsi itu sebagai langkah
+// PERTAMA sebelum baris lain yang menyentuh supabaseClient/authModule sempat jalan.
+let supabaseClient;
+let authModule; // { initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut, onAuthStateChange, requireUser } -- lihat src/auth/index.js
+let servicesModule; // { createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets } -- lihat src/services/*
+let transactionService; // instance: servicesModule.createTransactionService(supabaseClient), dibuat sekali di initSupabaseClient()
+
+// Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
+// services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
+// pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
+// detik SENGAJA lebih cepat dari jaring pengaman generik 12 detik di atas
+// (baris showFallbackError(... 'Waktu tunggu habis (12 detik)' ...)).
+function withLoadTimeout(promise, message) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), 8000)),
+    ]);
 }
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function initSupabaseClient() {
+    // window.__myfinanceAuthReady & window.__myfinanceServicesReady sudah pasti ada di titik
+    // ini (dibuat oleh <script> classic di <head>, SEBELUM <script type="module"> apa pun --
+    // lihat komentar "AUTH MODULE BRIDGE"). Dimuat paralel (Promise.all), bukan berurutan,
+    // supaya waktu tunggu totalnya tidak dobel kalau keduanya lambat bersamaan.
+    [authModule, servicesModule] = await Promise.all([
+        withLoadTimeout(window.__myfinanceAuthReady, 'Modul auth (src/auth/*, lewat jsdelivr +esm) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.'),
+        withLoadTimeout(window.__myfinanceServicesReady, 'Modul data (src/services/*) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.'),
+    ]);
+    supabaseClient = authModule.initAuthClient({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+    transactionService = servicesModule.createTransactionService(supabaseClient);
+    return authModule;
+}
 
 // ==========================================================================
 // AUTENTIKASI (Supabase Auth)
@@ -2473,9 +2191,7 @@ const auth = {
      * @returns {Promise<{user, session}>}
      */
     async signIn(email, password) {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        return data;
+        return await authModule.signIn(email, password);
     },
 
     /**
@@ -2483,9 +2199,7 @@ const auth = {
      * @returns {Promise<{user, session}>}
      */
     async signUp(email, password) {
-        const { data, error } = await supabaseClient.auth.signUp({ email, password });
-        if (error) throw error;
-        return data;
+        return await authModule.signUp(email, password);
     },
 
     /**
@@ -2494,16 +2208,29 @@ const auth = {
      * semua jalur logout (tombol manual, sesi kedaluwarsa, dll) konsisten.
      */
     async signOut() {
-        await supabaseClient.auth.signOut();
+        try {
+            await authModule.signOut();
+        } catch (error) {
+            // signOut() SENGAJA "fire and forget" -- dipanggil dari tombol logout tanpa
+            // await/catch (lihat initStaticUIListeners()). Transisi ke layar login tetap
+            // terjadi lewat listener SIGNED_OUT di bootstrapAuth() apa pun hasil panggilan
+            // ini, jadi error di sini cukup dicatat, BUKAN dilempar ulang -- kalau dilempar,
+            // itu jadi unhandledrejection dan salah memicu layar "Gagal memuat aplikasi"
+            // padahal logout-nya sendiri sebenarnya sudah beres di sisi client.
+            console.warn('signOut() bermasalah (diabaikan, lihat komentar di atas):', error);
+        }
     },
 
     /**
      * Ambil session yang sedang aktif (null kalau belum login).
      */
     async getSession() {
-        const { data, error } = await supabaseClient.auth.getSession();
-        if (error) { console.warn('Gagal mengambil session:', error); return null; }
-        return data.session;
+        try {
+            return await authModule.getSession();
+        } catch (error) {
+            console.warn('Gagal mengambil session:', error);
+            return null;
+        }
     },
 
     /**
@@ -2546,9 +2273,9 @@ const auth = {
 // *Remote() di bawah) MAUPUN dari luar (dipakai restoreBackup() utk fitur Restore Backup, yang
 // sebelumnya ReferenceError krn fungsi ini dulu privat di dalam IIFE).
 async function currentUserId() {
-    const { data, error } = await supabaseClient.auth.getUser();
-    if (error || !data.user) throw new Error('Sesi login tidak ditemukan. Silakan login ulang.');
-    return data.user.id;
+    const user = await authModule.getCurrentUser().catch(() => null);
+    if (!user) throw new Error('Sesi login tidak ditemukan. Silakan login ulang.');
+    return user.id;
 }
 
 const api = (() => {
@@ -2574,30 +2301,11 @@ const api = (() => {
     }
 
     async function fetchTransactions() {
-        // .order('id') sebagai tie-breaker kedua supaya urutan antar-halaman deterministik --
-        // penting untuk paging yang benar kalau banyak baris berbagi tanggal yang sama persis.
-        const data = await fetchAllRows((from, to) => supabaseClient
-            .from('transactions')
-            .select('id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr')
-            .order('tanggal', { ascending: false })
-            .order('id', { ascending: true })
-            .range(from, to));
-        return data.map(row => ({
-            ...row,
-            jumlah: Number(row.jumlah),
-            jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
-            // Sisi TUJUAN transfer lintas mata uang -- NULL utk transaksi non-Transfer & transfer
-            // historis dari SEBELUM fitur ini ada (lihat transferTargetAmount() utk fallback-nya).
-            transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
-            transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
-            transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null
-        }));
+        return await transactionService.list();
     }
 
     async function addTransactionRemote(data) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient.from('transactions').insert({
-            user_id,
+        await transactionService.create({
             jenis: data.jenis,
             tanggal: data.tanggal,
             jumlah: Number(data.jumlah),
@@ -2606,13 +2314,12 @@ const api = (() => {
             keterangan: data.keterangan || null,
             mata_uang: data.mata_uang || null,
             kurs: data.kurs || null,
-            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah)
+            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah),
         });
-        if (error) throw error;
     }
 
     async function editTransactionRemote(id, data) {
-        const { error } = await supabaseClient.from('transactions').update({
+        await transactionService.update(id, {
             jenis: data.jenis,
             tanggal: data.tanggal,
             jumlah: Number(data.jumlah),
@@ -2629,13 +2336,11 @@ const api = (() => {
             transfer_mata_uang_tujuan: data.transfer_mata_uang_tujuan || null,
             transfer_kurs_tujuan: data.transfer_kurs_tujuan != null ? Number(data.transfer_kurs_tujuan) : null,
             transfer_jumlah_tujuan_idr: data.transfer_jumlah_tujuan_idr != null ? Number(data.transfer_jumlah_tujuan_idr) : null
-        }).eq('id', id);
-        if (error) throw error;
+        });
     }
 
     async function deleteTransactionRemote(id) {
-        const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
-        if (error) throw error;
+        await transactionService.remove(id);
     }
 
     // BUG FIX (reliability hardening): dipakai KHUSUS oleh processDueRecurring() -- beda dari
@@ -2647,37 +2352,35 @@ const api = (() => {
     // dua kali (uang "berlipat ganda" di laporan). RPC ini menjamin 1 template + 1 tanggal jatuh
     // tempo = maksimal 1 baris transaksi, walau dipanggil berkali-kali.
     async function createRecurringTransactionRemote(data) {
-        const { error } = await supabaseClient.rpc('create_recurring_transaction', {
-            p_recurring_id: data.recurring_id,
-            p_due_date: data.due_date,
-            p_jenis: data.jenis,
-            p_jumlah: Number(data.jumlah),
-            p_akun: data.akun,
-            p_kategori: data.kategori,
-            p_keterangan: data.keterangan || null,
-            p_mata_uang: data.mata_uang || null,
-            p_kurs: data.kurs || null,
-            p_jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null
+        await servicesModule.createRecurringTransaction(supabaseClient, {
+            recurringId: data.recurring_id,
+            dueDate: data.due_date,
+            jenis: data.jenis,
+            jumlah: Number(data.jumlah),
+            akun: data.akun,
+            kategori: data.kategori,
+            keterangan: data.keterangan || null,
+            mataUang: data.mata_uang || null,
+            kurs: data.kurs || null,
+            jumlahIdr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null,
         });
-        if (error) throw error;
     }
 
     // Transfer antar akun -- termasuk lintas mata uang -- dicatat lewat RPC ini (BUKAN insert
     // langsung) supaya snapshot kurs kedua sisi (sumber & tujuan) dan konversi nominalnya
     // dihitung SEKALI secara konsisten di database, bukan diduplikasi logikanya di client.
     async function createTransferTransactionRemote(data) {
-        const { error } = await supabaseClient.rpc('create_transfer_transaction', {
-            p_tanggal: data.tanggal,
-            p_jumlah: Number(data.jumlah),
-            p_akun_sumber: data.akun_sumber,
-            p_akun_tujuan: data.akun_tujuan,
-            p_mata_uang_sumber: data.mata_uang_sumber || null,
-            p_mata_uang_tujuan: data.mata_uang_tujuan || null,
-            p_kurs_sumber: data.kurs_sumber || 1,
-            p_kurs_tujuan: data.kurs_tujuan || 1,
-            p_keterangan: data.keterangan || null
+        await servicesModule.createTransfer(supabaseClient, {
+            tanggal: data.tanggal,
+            sourceAmount: Number(data.jumlah),
+            sourceAccount: data.akun_sumber,
+            destinationAccount: data.akun_tujuan,
+            sourceCurrency: data.mata_uang_sumber || null,
+            destinationCurrency: data.mata_uang_tujuan || null,
+            sourceRateIdrPerUnit: data.kurs_sumber || 1,
+            destinationRateIdrPerUnit: data.kurs_tujuan || 1,
+            description: data.keterangan || null,
         });
-        if (error) throw error;
     }
 
     // ---------------- BUDGET (tabel: budgets, 1 baris per kategori per bulan) ----------------
@@ -2699,104 +2402,50 @@ const api = (() => {
         // bisa hilang tanpa jejak. RPC replace_month_budgets() membungkus keduanya jadi SATU
         // transaksi database (atomik): kalau ada yang gagal, semuanya dibatalkan (rollback),
         // budget lama tetap utuh -- tidak ada kondisi "budget kosong di tengah jalan".
-        const { error } = await supabaseClient.rpc('replace_month_budgets', {
-            p_bulan: bulan,
-            p_budgets: budgetsMap || {}
-        });
-        if (error) throw error;
+        await servicesModule.replaceMonthBudgets(supabaseClient, bulan, budgetsMap || {});
         return { status: 'success' };
     }
 
     // ---------------- PENGATURAN: akun & kategori (tabel: settings, 1 baris per user) ----------------
     async function getSettingsRemote() {
-        const { data, error } = await supabaseClient
-            .from('settings')
-            .select('data')
-            .maybeSingle();
-        if (error) throw error;
-        return data ? data.data : null; // null = user baru, belum pernah simpan pengaturan
+        return await servicesModule.getSettings(supabaseClient); // null = user baru, belum pernah simpan pengaturan
     }
 
     async function saveSettingsCloudRemote(settingsObj) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient
-            .from('settings')
-            .upsert({ user_id, data: settingsObj, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-        if (error) throw error;
+        await servicesModule.saveSettings(supabaseClient, settingsObj);
         return { status: 'success' };
     }
 
     // ---------------- IKON KUSTOM AKUN (tabel: custom_icons) ----------------
     async function getCustomIconsRemote() {
-        const { data, error } = await supabaseClient.from('custom_icons').select('account_name, icon_data');
-        if (error) throw error;
-        const result = {};
-        (data || []).forEach(row => { result[row.account_name] = row.icon_data; });
-        return result;
+        return await servicesModule.getCustomIcons(supabaseClient);
     }
 
     async function saveCustomIconRemote(accountName, iconObj) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient
-            .from('custom_icons')
-            .upsert({ user_id, account_name: accountName, icon_data: iconObj }, { onConflict: 'user_id,account_name' });
-        if (error) throw error;
+        await servicesModule.saveCustomIcon(supabaseClient, accountName, iconObj);
         return { status: 'success' };
     }
 
     async function deleteCustomIconRemote(accountName) {
-        const { error } = await supabaseClient.from('custom_icons').delete().eq('account_name', accountName);
-        if (error) throw error;
+        await servicesModule.deleteCustomIcon(supabaseClient, accountName);
         return { status: 'success' };
     }
 
     // ---------------- ASET / INVESTASI (tabel: assets) ----------------
     async function fetchAssetsRemote() {
-        const data = await fetchAllRows((from, to) => supabaseClient
-            .from('assets')
-            .select('id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga')
-            .order('terakhir', { ascending: false })
-            .order('id', { ascending: true })
-            .range(from, to));
-        return data.map(row => ({ ...row, modal: Number(row.modal), nilai: Number(row.nilai), value_history: row.value_history || [] }));
+        return await servicesModule.listAssets(supabaseClient);
     }
 
     async function addAssetRemote(data) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient.from('assets').insert({
-            user_id,
-            nama: data.nama,
-            kategori: data.kategori,
-            platform: data.platform || null,
-            modal: Number(data.modal),
-            nilai: Number(data.nilai),
-            value_history: data.value_history || [],
-            simbol: data.simbol || null,
-            jumlah_unit: data.jumlah_unit || null,
-            sumber_harga: data.sumber_harga || null
-        });
-        if (error) throw error;
+        await servicesModule.createAsset(supabaseClient, data);
     }
 
     async function editAssetRemote(id, data) {
-        const { error } = await supabaseClient.from('assets').update({
-            nama: data.nama,
-            kategori: data.kategori,
-            platform: data.platform || null,
-            modal: Number(data.modal),
-            nilai: Number(data.nilai),
-            terakhir: new Date().toISOString(),
-            value_history: data.value_history,
-            simbol: data.simbol || null,
-            jumlah_unit: data.jumlah_unit || null,
-            sumber_harga: data.sumber_harga || null
-        }).eq('id', id);
-        if (error) throw error;
+        await servicesModule.updateAsset(supabaseClient, id, data);
     }
 
     async function deleteAssetRemote(id) {
-        const { error } = await supabaseClient.from('assets').delete().eq('id', id);
-        if (error) throw error;
+        await servicesModule.deleteAsset(supabaseClient, id);
     }
 
     // Manggil Edge Function 'analyze-finance' mode "suggest_category" -- lihat penjelasan mode ini
@@ -3160,6 +2809,12 @@ const api = (() => {
             });
             if (!appSettings.accounts) appSettings.accounts = deepCloneDict(defaultSettings.accounts);
             if (!appSettings.accountIcons) appSettings.accountIcons = {};
+            // NORMALISASI: account_currencies dulu satu-satunya peta ber-key nama akun yang TIDAK
+            // diinisialisasi di sini -- 3 tempat lain yang memakainya (getAccountCurrency,
+            // submitAccountModal, pruneAccountKeyedMaps) semuanya terpaksa jaga-jaga sendiri2 dgn
+            // defensive check `appSettings.account_currencies && ...`. Sekarang satu sumber
+            // kebenaran di sini, sama seperti accountIcons/categoryStyles/dll di atas & bawah ini.
+            if (!appSettings.account_currencies) appSettings.account_currencies = {};
             if (!appSettings.categoryStyles) appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
             ['pengeluaran', 'pemasukan'].forEach(type => { if (!appSettings.categoryStyles[type]) appSettings.categoryStyles[type] = {}; });
             if (!appSettings.hidden_categories) appSettings.hidden_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
@@ -3715,9 +3370,9 @@ const api = (() => {
             const container = document.getElementById('whatsapp-link-status');
             if (!container) return;
             try {
-                const { data: userData, error: userErr } = await supabaseClient.auth.getUser();
-                if (userErr || !userData.user) return;
-                const { data } = await supabaseClient.from('whatsapp_links').select('whatsapp_number, linked_at').eq('user_id', userData.user.id).maybeSingle();
+                const user = await authModule.getCurrentUser().catch(() => null);
+                if (!user) return;
+                const { data } = await supabaseClient.from('whatsapp_links').select('whatsapp_number, linked_at').eq('user_id', user.id).maybeSingle();
                 if (data) {
                     container.innerHTML = `
                         <div class="bg-emerald-50 rounded-xl p-3 flex items-center justify-between gap-2">
@@ -3738,10 +3393,10 @@ const api = (() => {
         async function generateWhatsappLinkCode() {
             const container = document.getElementById('whatsapp-link-status');
             try {
-                const { data: userData, error: userErr } = await supabaseClient.auth.getUser();
-                if (userErr || !userData.user) { showErrorToast('Sesi login tidak ditemukan.'); return; }
+                const user = await authModule.getCurrentUser().catch(() => null);
+                if (!user) { showErrorToast('Sesi login tidak ditemukan.'); return; }
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
-                const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: userData.user.id, code });
+                const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: user.id, code });
                 if (error) { showErrorToast('Gagal membuat kode. Coba lagi.'); return; }
 
                 if (!isWhatsappBotNumberConfigured()) {
@@ -3774,9 +3429,9 @@ const api = (() => {
 
         function unlinkWhatsapp() {
             showConfirm('Putuskan nomor WhatsApp dari akun ini? Kamu bisa hubungkan lagi kapan saja.', async () => {
-                const { data: userData } = await supabaseClient.auth.getUser();
-                if (!userData.user) return;
-                await supabaseClient.from('whatsapp_links').delete().eq('user_id', userData.user.id);
+                const user = await authModule.getCurrentUser().catch(() => null);
+                if (!user) return;
+                await supabaseClient.from('whatsapp_links').delete().eq('user_id', user.id);
                 showSuccessToast('WhatsApp berhasil diputuskan.');
                 renderWhatsappLinkStatus();
             });
@@ -4216,7 +3871,11 @@ const api = (() => {
 
             if (isEdit) {
                 appSettings.accounts[editAccountIndex] = name;
-                if (oldName !== name) delete appSettings.accountIcons[oldName];
+                // pruneAccountKeyedMaps membuang entri lama (accountIcons DAN account_currencies
+                // sekaligus) saat nama akun berubah -- lihat src/domain/settings.js. Sengaja
+                // dipakai juga di removeSetting() (hapus akun) supaya kedua alur ini tidak lagi
+                // punya 2 salinan logic pembersihan yang bisa diam-diam berbeda satu sama lain.
+                if (oldName !== name) servicesModule.pruneAccountKeyedMaps(appSettings, oldName);
             } else {
                 appSettings.accounts.push(name);
             }
@@ -4225,7 +3884,6 @@ const api = (() => {
             // pengecualian non-IDR, konsisten dengan pola accountIcons di atas).
             if (!appSettings.account_currencies) appSettings.account_currencies = {};
             const currencyInput = (document.getElementById('acc-modal-currency').value || '').trim().toUpperCase();
-            if (isEdit && oldName !== name) delete appSettings.account_currencies[oldName];
             if (currencyInput && currencyInput !== 'IDR') { appSettings.account_currencies[name] = currencyInput; }
             else { delete appSettings.account_currencies[name]; }
 
@@ -4271,9 +3929,16 @@ const api = (() => {
                 const removedName = type === 'accounts' ? appSettings[type][i] : null;
                 appSettings[type].splice(i, 1);
                 if (removedName) {
-                    const hadCustomIcon = appSettings.accountIcons && !!appSettings.accountIcons[removedName];
-                    if (appSettings.accountIcons) delete appSettings.accountIcons[removedName];
-                    if (hadCustomIcon) {
+                    // BUG FIX: dulu di sini cuma appSettings.accountIcons yang dibersihkan --
+                    // appSettings.account_currencies untuk nama akun yang dihapus TIDAK ikut
+                    // dibuang. Efeknya: kalau nanti user bikin akun BARU dengan nama PERSIS SAMA
+                    // dengan akun lama yang sudah dihapus (mis. akun lama "Rekening USD" pernah
+                    // di-set currency USD), akun baru itu diam-diam ikut dianggap USD juga oleh
+                    // getAccountCurrency() -- padahal user mengira ini akun IDR biasa. Sekarang
+                    // pakai fungsi yang sama dengan alur rename (submitAccountModal) supaya kedua
+                    // tempat ini tidak lagi bisa divergen satu sama lain.
+                    const hadEntry = servicesModule.pruneAccountKeyedMaps(appSettings, removedName);
+                    if (hadEntry.accountIcons) {
                         api.run.withSuccessHandler(function(){}).withFailureHandler(function() {
                             showErrorToast('Akun terhapus, tapi ikon kustomnya gagal dibersihkan dari cloud.');
                         }).deleteCustomIcon(removedName);
@@ -5625,29 +5290,10 @@ const api = (() => {
 
         const RECURRING_FREQ_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan', tahunan: 'Tahunan' };
 
-        // Menghitung tanggal jatuh tempo BERIKUTNYA dari satu tanggal, sesuai frekuensinya.
-        // PENTING: setMonth()/setFullYear() bawaan JS diam-diam "meluber" ke bulan berikutnya kalau
-        // tanggal asalnya (29/30/31) tidak ada di bulan/tahun target (mis. 31 Jan + 1 bulan jadi malah
-        // 3 Maret, bukan 28 Feb) -- ini bikin jadwal transaksi berulang bergeser tiap kali melewati
-        // bulan yang lebih pendek. Jadi dicek & dijatuhkan ke hari TERAKHIR bulan/tahun target kalau meluber.
-        function advanceDueDate(dateStr, frequency) {
-            const d = new Date(dateStr + 'T00:00:00');
-            if (frequency === 'harian') { d.setDate(d.getDate() + 1); return toDateStr(d); }
-            if (frequency === 'mingguan') { d.setDate(d.getDate() + 7); return toDateStr(d); }
-            if (frequency === 'bulanan') {
-                const targetMonth = d.getMonth() + 1;
-                d.setMonth(targetMonth);
-                if (d.getMonth() !== (targetMonth % 12)) { d.setDate(0); }
-                return toDateStr(d);
-            }
-            if (frequency === 'tahunan') {
-                const originalMonth = d.getMonth();
-                d.setFullYear(d.getFullYear() + 1);
-                if (d.getMonth() !== originalMonth) { d.setDate(0); }
-                return toDateStr(d);
-            }
-            return toDateStr(d);
-        }
+        // advanceDueDate() & planRecurringCatchup() sekarang hidup di src/domain/recurring.js --
+        // pure function, tanpa DOM/network, jadi bisa di-unit-test langsung (lihat
+        // tests/parity/recurring-domain.test.js). Diakses di sini lewat
+        // servicesModule.planRecurringCatchup (lihat window.__myfinanceServices di head).
 
         // Dipanggil sekali setiap sesi (lihat flag _recurringProcessed) setelah loadData() selesai.
         async function processDueRecurring() {
@@ -5662,13 +5308,27 @@ const api = (() => {
             const MAX_CATCHUP = 36; // jaga-jaga: batas aman per template supaya tidak "meledak" kalau tanggalnya kacau
             let totalCreated = 0;
             const createdLabels = [];
-            let anyFailure = false;
+            let anyFailure = false; // cuma dipakai utk toast ringkasan di akhir, BUKAN utk keputusan per-item
 
             for (const item of dueItems) {
-                let dueDate = item.next_due_date;
+                // Rencana catch-up dihitung SEKALI di depan oleh domain layer yang sudah diuji
+                // (tests/parity/recurring-domain.test.js) -- fungsi ini murni, tidak menyentuh
+                // network. Efek sampingnya (panggil RPC per tanggal) tetap di sini.
+                const { dueDates, nextDueDateAfter, shouldDeactivate } = servicesModule.planRecurringCatchup({
+                    nextDueDate: item.next_due_date,
+                    endDate: item.end_date,
+                    frequency: item.frequency,
+                    todayStr,
+                    maxCatchup: MAX_CATCHUP,
+                });
+
                 let countThis = 0;
-                while (dueDate <= todayStr && countThis < MAX_CATCHUP) {
-                    if (item.end_date && dueDate > item.end_date) break;
+                let itemFailed = false; // BUG FIX: dulu 1 variabel `anyFailure` dipakai bersama semua item,
+                // jadi kalau template A gagal, next_due_date template B yang sebenarnya SUKSES ikut
+                // tidak dimajukan (karena kondisi di bawah membaca anyFailure global yang sudah true).
+                // Sekarang tiap item punya flag sendiri -- kegagalan 1 template tidak lagi menahan
+                // kemajuan jadwal template lain yang berhasil.
+                for (const dueDate of dueDates) {
                     try {
                         // BUG FIX (reliability hardening): dulu pakai apiCall('addTransaction', ...)
                         // biasa -- kalau proses ini sempat berjalan 2x nyaris bersamaan (2 tab, atau
@@ -5684,20 +5344,21 @@ const api = (() => {
                         totalCreated++; countThis++;
                     } catch (e) {
                         console.error('Gagal membuat transaksi berulang otomatis:', e);
+                        itemFailed = true;
                         anyFailure = true;
                         break; // sisa periode yang belum terkejar akan dicoba lagi di sesi berikutnya
                     }
-                    dueDate = advanceDueDate(dueDate, item.frequency);
                 }
                 if (countThis > 0) createdLabels.push(item.keterangan || item.kategori);
 
                 // Majukan jadwal di server -- KECUALI kalau tadi gagal di tengah jalan (biar dicoba lagi,
-                // bukan malah melompati periode yang belum berhasil dicatat).
-                if (countThis > 0 && !anyFailure) {
+                // bukan malah melompati periode yang belum berhasil dicatat). nextDueDateAfter/
+                // shouldDeactivate cuma valid dipakai kalau SEMUA dueDates di atas berhasil, makanya
+                // dijaga oleh !itemFailed.
+                if (countThis > 0 && !itemFailed) {
                     try {
-                        const isEnded = item.end_date && dueDate > item.end_date;
-                        if (isEnded) { await apiCall('setRecurringActive', item.id, false); }
-                        else { await apiCall('advanceRecurringDueDate', item.id, dueDate); }
+                        if (shouldDeactivate) { await apiCall('setRecurringActive', item.id, false); }
+                        else { await apiCall('advanceRecurringDueDate', item.id, nextDueDateAfter); }
                     } catch (e) { console.error('Gagal memperbarui jadwal transaksi berulang:', e); }
                 }
             }
@@ -8995,7 +8656,7 @@ const api = (() => {
                         classNames: ['cal-event-projected'],
                         extendedProps: { isProjected: true, recurringLabel: item.keterangan || item.kategori, frequency: item.frequency }
                     });
-                    dueDate = advanceDueDate(dueDate, item.frequency);
+                    dueDate = servicesModule.advanceDueDate(dueDate, item.frequency);
                     iterations++;
                 }
             });
@@ -9058,7 +8719,7 @@ const api = (() => {
                     while (d && d <= dateStr && i < 60) {
                         if (item.end_date && d > item.end_date) break;
                         if (d === dateStr) { scheduledItems.push(item); break; }
-                        d = advanceDueDate(d, item.frequency);
+                        d = servicesModule.advanceDueDate(d, item.frequency);
                         i++;
                     }
                 });
@@ -9408,12 +9069,30 @@ const api = (() => {
         let hideAuthMessages, setAuthMode;
 
         (async function bootstrapAuth() {
+            // Langkah PERTAMA, sebelum apa pun lain di fungsi ini -- lihat initSupabaseClient()
+            // di bagian "KONEKSI SUPABASE" di atas. Dibungkus try/catch secara eksplisit (bukan
+            // dibiarkan lempar ke unhandledrejection global) supaya kalau modulnya gagal dimuat,
+            // alur berhenti bersih di sini -- tanpa ini, baris2 di bawah akan melempar error yang
+            // membingungkan ("Cannot read properties of undefined") karena authModule masih kosong.
+            try {
+                await initSupabaseClient();
+            } catch (error) {
+                showFallbackError(error);
+                return;
+            }
+
             initStaticUIListeners();
             initLoginForm();
 
             // Titik terpusat untuk semua jalur logout (tombol manual ATAU sesi kedaluwarsa/dicabut
             // dari perangkat lain) -- supaya perilakunya konsisten di mana pun logout terjadi.
-            supabaseClient.auth.onAuthStateChange((event) => {
+            // SENGAJA tetap cuma bereaksi ke event SIGNED_OUT (persis seperti sebelumnya), BUKAN
+            // pakai createAuthLifecycle() dari src/auth/lifecycle.js -- lifecycle itu memanggil
+            // onAuthenticated di SETIAP event yang punya session (termasuk TOKEN_REFRESHED yang
+            // otomatis terjadi berkala), yang kalau dipakai di sini berarti showAppShell()+initApp()
+            // -- dan seluruh loadData() di dalamnya -- akan terulang tiap token refresh. Itu
+            // perubahan perilaku nyata yang tidak dilakukan diam-diam di langkah Auth ini.
+            authModule.onAuthStateChange(({ event }) => {
                 if (event === 'SIGNED_OUT') {
                     showLoginView();
                 }

@@ -1,0 +1,78 @@
+import { chromium } from "playwright";
+import fs from "node:fs/promises";
+
+const baseUrl = process.env.MYFINANCE_APP_URL || "https://wahyudp76.github.io/myfinance/";
+const email = process.env.PARITY_TEST_EMAIL;
+const password = process.env.PARITY_TEST_PASSWORD;
+const outputPath = process.env.LEGACY_TRANSACTION_ROWS_FILE || "legacy-rows.json";
+
+if (!email || !password) {
+  throw new Error("PARITY_TEST_EMAIL and PARITY_TEST_PASSWORD are required for live legacy parity.");
+}
+
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext();
+const page = await context.newPage();
+const transactionResponses = [];
+const observedApiPaths = new Set();
+const pageErrors = [];
+
+page.on("pageerror", (error) => pageErrors.push(error.message));
+page.on("response", async (response) => {
+  try {
+    const url = new URL(response.url());
+    if (!url.pathname.includes("/rest/v1/")) return;
+
+    observedApiPaths.add(url.pathname);
+    if (!url.pathname.endsWith("/transactions")) return;
+    if (response.request().method() !== "GET") return;
+    if (response.status() !== 200) return;
+
+    const body = await response.json();
+    if (Array.isArray(body)) transactionResponses.push(body);
+  } catch {
+    // Ignore non-JSON/aborted responses; the final assertion reports the absence.
+  }
+});
+
+try {
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+  const emailInput = page.locator('input[type="email"]').first();
+  const passwordInput = page.locator('input[type="password"]').first();
+  await emailInput.waitFor({ state: "visible", timeout: 30000 });
+  await passwordInput.waitFor({ state: "visible", timeout: 30000 });
+
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
+
+  const submit = page.locator('button[type="submit"], input[type="submit"]').first();
+  if (await submit.count()) {
+    await submit.click();
+  } else {
+    await passwordInput.press("Enter");
+  }
+
+  // Allow the SPA to finish auth/bootstrap and any paginated transaction reads.
+  await page.waitForTimeout(10000);
+
+  // An observed successful GET returning [] is a valid read. It means the
+  // authenticated account currently has no transaction rows. Do not confuse
+  // that with the absence of a transaction request altogether.
+  if (!transactionResponses.length) {
+    const apiPaths = [...observedApiPaths].slice(0, 20).join(", ") || "none";
+    const errors = pageErrors.slice(0, 5).join(" | ") || "none";
+    throw new Error(
+      `Production transaction read was not observed. ` +
+      `Observed REST paths: ${apiPaths}. Page errors: ${errors}. ` +
+      `The production transport may have changed, login/bootstrap may have failed, ` +
+      `or transactions may now be loaded through a non-REST path.`
+    );
+  }
+
+  const rows = transactionResponses.flat();
+  await fs.writeFile(outputPath, JSON.stringify(rows), "utf8");
+  console.log(`Legacy observation written: ${rows.length} rows from ${transactionResponses.length} transaction response(s)`);
+} finally {
+  await browser.close();
+}

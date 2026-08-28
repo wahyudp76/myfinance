@@ -20,22 +20,36 @@
 //   - Ganti CACHE_VERSION di bawah kalau suatu saat pola caching ini sendiri perlu
 //     diubah -- versi lama otomatis dibersihkan saat versi baru aktif.
 
-const CACHE_VERSION = 'myfinance-v1';
+// v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
+// styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
+const CACHE_VERSION = 'myfinance-v3';
 
 // App shell + file vendor CDN yang dipakai index.html -- disimpan ke cache saat
 // service worker pertama kali terpasang, supaya kunjungan berikutnya (termasuk saat
 // offline) tetap bisa langsung tampil tanpa nunggu semuanya didownload ulang.
+//
+// v2: Supabase client sekarang dimuat lewat ES module (src/auth/* + src/services/
+// supabase/client.js -> jsdelivr +esm), bukan lagi <script classic src="...">
+// -- lihat "AUTH MODULE BRIDGE" di index.html. URL classic-nya diganti dengan
+// modul-modul lokal itu + URL +esm yang sekarang benar-benar dipakai.
 const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.json',
+  './styles.css',
   'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0',
   'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
+  './src/auth/index.js',
+  './src/auth/client.js',
+  './src/auth/session.js',
+  './src/auth/guards.js',
+  './src/auth/lifecycle.js',
+  './src/services/supabase/client.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -61,6 +75,13 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return; // POST/PUT/dst (mis. ke Supabase) dibiarkan lewat apa adanya
 
   const url = new URL(req.url);
+
+  // Abaikan skema selain http/https -- bisa muncul kalau ada browser extension yang
+  // menyisipkan resource (font, script, dst) ke halaman lewat chrome-extension://. Cache API
+  // browser cuma dukung http/https, jadi cache.put() di bawah akan throw (Uncaught TypeError)
+  // kalau dibiarkan lolos sampai ke situ -- request itu sendiri bukan urusan app ini sama
+  // sekali, jadi paling aman dibiarkan lewat apa adanya tanpa campur tangan service worker.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
   // Jangan PERNAH campur tangan panggilan ke Supabase (data selalu harus fresh/real-time,
   // dan sebagian bisa berupa auth/session yg tidak boleh ke-cache).

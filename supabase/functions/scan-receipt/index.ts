@@ -27,6 +27,14 @@ const GEMINI_ENDPOINT =
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
+// Rate limit -- lihat sql/migration_rate_limiting_2026-08.sql. Foto struk lewat vision API jauh
+// lebih mahal daripada panggilan teks biasa (analyze-finance), jadi limitnya sengaja lebih
+// ketat. Sebelum ini ditambahkan, TIDAK ADA pembatasan apa pun di function ini -- guard
+// `scanInFlight`-style di index.html cuma mencegah double-klik di 1 tab, gampang dilewati.
+const RATE_LIMIT_ACTION = "scan-receipt";
+const RATE_LIMIT_MAX_CALLS = 20;
+const RATE_LIMIT_WINDOW_MINUTES = 60;
+
 // Batas ukuran base64 gambar yang diterima (~6MB) -- client SEHARUSNYA sudah mengompres ke jauh
 // di bawah ini (lihat compressImageDataUrl di index.html, maks 1600px & JPEG 85%), ini cuma jaga2
 // di sisi server supaya tidak ada payload raksasa yang lolos & bikin boros kuota Gemini.
@@ -70,6 +78,22 @@ Deno.serve(async (req: Request) => {
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) {
       return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    const { data: allowed, error: rateLimitErr } = await supabase.rpc("check_and_consume_rate_limit", {
+      p_user_id: userData.user.id,
+      p_action: RATE_LIMIT_ACTION,
+      p_max_calls: RATE_LIMIT_MAX_CALLS,
+      p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
+    });
+    // Gagal MEMERIKSA limit (mis. migrasi belum diterapkan, RPC belum ada) sengaja tidak
+    // memblokir user -- lebih aman fail-open di sini daripada fitur mati total gara-gara
+    // masalah infra rate-limiting yang tidak ada hubungannya dgn baca struk itu sendiri.
+    // Kalau BERHASIL diperiksa dan hasilnya false, itu baru benar-benar diblokir.
+    if (!rateLimitErr && allowed === false) {
+      return jsonResponse({
+        error: `Terlalu banyak scan struk dalam ${RATE_LIMIT_WINDOW_MINUTES} menit terakhir. Coba lagi sebentar lagi.`,
+      }, 429);
     }
 
     const body = await req.json();

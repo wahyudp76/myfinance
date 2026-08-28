@@ -1,7 +1,9 @@
-# MyFinance Dashboard — Full Supabase Edition (1 File)
+# MyFinance Dashboard — Full Supabase New Format Edition
 
-Versi ini digabung kembali jadi **satu file `index.html` utuh** (HTML + CSS +
-JS jadi satu, tidak ada lagi `login.html`/`css/style.css`/`js/*.js` terpisah),
+Versi ini digabung jadi **`index.html` + `styles.css`** (bukan lagi
+`login.html`/`css/style.css` terpisah versi lama -- CSS dipisah lagi ke
+`styles.css` di Phase 7 refactor, langkah paling aman utk mulai memecah
+struktur yang sebelumnya benar-benar 1 file tunggal),
 dengan Login, dan **seluruh data aplikasi** (Transaksi, Dashboard, Budget,
 Aset, Pengaturan akun & kategori, Profil, Ikon kustom) tersambung penuh ke
 Supabase. **Tidak ada localStorage yang dipakai sebagai database** — semua
@@ -10,27 +12,51 @@ login.
 
 ## 1. Struktur folder
 
+> Diagram di bawah ini menggambarkan **apa yang benar-benar dijalankan browser**.
+> Sejak Phase 7 ("split monolith" -- lihat
+> `docs/supabase-native-migration-plan.md`), CSS sudah dipindah ke `styles.css`
+> terpisah (langkah paling aman: teks murni, tidak ada scope JavaScript yang
+> bisa rusak). `index.html` sekarang berisi markup + SATU blok `<script>`
+> gabungan untuk semua logic -- itu belum dipecah (jauh lebih berisiko, lihat
+> catatan di dalam file-nya sendiri). Branch `refactor/supabase-native-
+> foundation` yang sedang berjalan ini JUGA berisi folder
+> `src/`, `tests/`, `sql/`, `supabase/`, dan `docs/` di sebelahnya untuk
+> pekerjaan migrasi arsitektur yang masih berjalan -- lihat
+> `docs/supabase-native-migration-plan.md` untuk peta lengkapnya. Folder-folder
+> itu belum semuanya di-import oleh `index.html`; jangan bingung kalau branch
+> `main` (produksi) terlihat lebih sederhana dari ini.
+
 ```
 myfinance-app/
-├── index.html        # SATU FILE: halaman login + dashboard + seluruh CSS & JS
-├── manifest.json      # Web App Manifest (buat "Add to Home Screen")
+├── index.html          # Markup + SATU blok <script> gabungan (semua logic JS)
+├── styles.css           # Semua gaya visual (dipisah dari index.html di Phase 7)
+├── manifest.json       # Web App Manifest (buat "Add to Home Screen")
 ├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
 ├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
 ├── _headers               # Header keamanan (khusus hosting Netlify)
-├── schema.sql             # SQL lengkap & TERBARU: 7 tabel + Row Level Security -- SATU-SATUNYA
-│                            file schema yang dipakai, jalankan ini (BUKAN sql/schema.sql yang
-│                            sudah dihapus karena isinya versi lama/basi -- lihat bagian 12)
-├── migration_whatsapp.sql # Migrasi tambahan: integrasi bot WhatsApp (opsional, lihat bagian 12)
-├── sql/                   # Migrasi TAMBAHAN yang menyusul schema.sql di atas (opsional, lihat
-│                            bagian 12 -- BUKAN pengganti schema.sql)
+├── sql/
+│   ├── schema.sql              # SQL lengkap: tabel inti + Row Level Security
+│   └── *.sql                    # Migrasi tambahan bertanggal, urut dari nama file
+├── supabase/functions/
+│   ├── scan-receipt/index.ts    # Edge Function: baca struk lewat Gemini vision
+│   └── whatsapp-webhook/index.ts # Edge Function: bot WhatsApp (Fonnte)
+├── src/                          # (khusus branch refactor) modul JS yang diimpor index.html
+├── tests/
+│   ├── unit/                      # Test murni, tanpa network -- selalu jalan (npm run test:unit)
+│   └── parity/                    # Banding legacy vs native, sebagian butuh secret live
+├── docs/                           # Rencana & catatan migrasi arsitektur
 └── README.md
 ```
 
-`login.html`, `css/style.css`, dan `js/*.js` sudah tidak ada lagi — semua
-isinya sudah dipindahkan ke dalam `index.html` (bagian `<style>` untuk CSS,
-satu blok `<script>` besar di bagian bawah untuk seluruh logic). Login dan
-Dashboard sekarang adalah dua tampilan di halaman yang sama, ditukar lewat
-JavaScript (tanpa reload halaman) — bukan dua file HTML terpisah lagi.
+`login.html`, `css/style.css` (versi lama), dan `js/*.js` sudah tidak ada lagi
+sejak versi "1 file" — isinya sempat digabung semua ke dalam `index.html`
+(CSS lewat tag `<style>`, satu blok `<script>` besar untuk seluruh logic).
+Sejak Phase 7 refactor, CSS-nya dipisah LAGI jadi `styles.css` (lihat catatan
+di bagian atas struktur folder) — tapi ini beda dari `css/style.css` versi
+lama: yang sekarang cuma memindah lokasi file, isinya persis sama, bukan
+menulis ulang. Login dan Dashboard tetap dua tampilan di halaman yang sama,
+ditukar lewat JavaScript (tanpa reload halaman) — bukan dua file HTML
+terpisah.
 
 > **PERLU AKSI kalau kamu sudah pernah setup Supabase sebelumnya**: versi ini
 > menambah 1 tabel baru (`recurring_transactions`, untuk fitur Transaksi
@@ -45,8 +71,7 @@ JavaScript (tanpa reload halaman) — bukan dua file HTML terpisah lagi.
 
 1. Buka project Supabase kamu di https://app.supabase.com.
 2. Masuk ke menu **SQL Editor** → **New query**.
-3. Copy-paste **seluruh isi file `schema.sql`** (di folder root repo, BUKAN
-   `sql/schema.sql`) lalu klik **Run**.
+3. Copy-paste **seluruh isi file `sql/schema.sql`** lalu klik **Run**.
    Ini membuat 7 tabel berikut, semuanya dengan Row Level Security (RLS)
    aktif — jadi tiap user cuma bisa lihat & ubah datanya sendiri:
    - `transactions` — transaksi, termasuk kolom multi-currency (`mata_uang`,
@@ -54,17 +79,18 @@ JavaScript (tanpa reload halaman) — bukan dua file HTML terpisah lagi.
    - `budgets` — anggaran per kategori per bulan
    - `assets` — portofolio aset/investasi, **+ riwayat performa** (kolom
      `value_history`) **+ kolom refresh harga otomatis** (`simbol`,
-     `jumlah_unit`, `sumber_harga`)
+     `jumlah_unit`, `sumber_harga`, lihat `sql/migration_asset_price_columns_2026-08.sql`)
    - `settings` — daftar akun & kategori kustom, **+ data profil (nama,
      no. HP, bio)** (1 baris per user)
    - `custom_icons` — ikon/logo kustom per akun, **+ foto profil** (1 baris
      tersendiri per user, memakai key khusus)
    - `recurring_transactions` — template **Transaksi Berulang** (langganan,
      gaji, cicilan, tagihan rutin)
-   - `rate_limits` — jeda antar panggilan **Tanya AI** per user (mencegah spam)
+   - `api_rate_limits` — pembatas jumlah panggilan fitur AI per user per jam
+     (lihat `sql/migration_rate_limiting_2026-08.sql`)
 
    Butuh fitur bot WhatsApp juga? Lanjutkan dengan menjalankan
-   `migration_whatsapp.sql` sesudahnya (lihat bagian 12).
+   `sql/migration_whatsapp.sql` sesudahnya (lihat bagian 12).
 4. Cek menu **Authentication → Providers**, pastikan **Email** aktif
    (biasanya sudah default aktif).
 5. (Opsional, buat testing lebih cepat) Di **Authentication → Settings**,
@@ -409,8 +435,8 @@ miliknya sendiri, walau key-nya identik.
 ## 10. Kalau ada error saat login/memuat data
 
 - **"Gagal memuat data dari cloud"** → cek koneksi internet, dan pastikan
-  `schema.sql` (di folder root, bukan `sql/schema.sql`) sudah dijalankan
-  lengkap (ketujuh tabelnya) di project Supabase kamu.
+  `sql/schema.sql` sudah dijalankan lengkap (ketujuh tabelnya) di project
+  Supabase kamu.
 - **"Email atau password salah"** → pastikan sudah mendaftar dulu lewat tab
   **Daftar**.
 - **"Sesi login tidak ditemukan"** saat menyimpan sesuatu → sesi kamu
@@ -482,48 +508,36 @@ model aktif di https://ai.google.dev/gemini-api/docs/models. Ganti
 nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
 `GEMINI_MODEL`), lalu deploy ulang (langkah 5).
 
-## 12. Setup Bot WhatsApp (opsional) & catatan konsolidasi repo
+## 12. Setup Bot WhatsApp (opsional) & status migrasi
 
-**`sql/schema.sql` sudah tidak dipakai lagi (basi/duplikat)** -- sempat ada
-dua file schema yang isinya berbeda (`schema.sql` di root vs `sql/schema.sql`),
-dan yang di folder `sql/` KETINGGALAN kolom multi-currency, kolom refresh
-harga otomatis aset, dan tabel `rate_limits`. Kalau kamu sebelumnya sempat
-menjalankan `sql/schema.sql` (bukan yang di root), jalankan ulang
-**`schema.sql` (root)** sekarang juga -- aman, semua perintahnya pakai
-"if not exists" jadi tidak akan menghapus data yang sudah ada, cuma
-melengkapi kolom/tabel yang mungkin belum ada. Kalau kamu mengelola repo
-ini di Git, disarankan hapus file `sql/schema.sql` supaya tidak ada lagi
-2 sumber kebenaran yang bisa berbeda isi seperti ini. Untuk alasan sama,
-`readme.md` (huruf kecil) juga sebaiknya dihapus -- `README.md` (file ini)
-adalah versi yang aktif dipakai/dirawat.
-
-**Migrasi lanjutan — status per 22 Agustus 2026:**
+**Migrasi lanjutan — status per 25 Agustus 2026:**
 - ✅ **`sql/migration_reliability_hardening_2026-08.sql`** — **SUDAH diterapkan** ke database
   production, dan `index.html` **sudah** memanggil RPC barunya
   (`create_recurring_transaction` & `replace_month_budgets`). Transaksi Berulang sekarang
   anti-duplikat di level database, dan penyimpanan Budget sudah atomik (tidak ada lagi
   kondisi "budget sebulan kosong" kalau koneksi putus di tengah simpan).
 - ✅ **`sql/migration_transfer_currency_2026-08.sql`** — **SUDAH diterapkan** ke database
-  production (22 Agustus 2026), dan `index.html` **sudah** memanggil RPC barunya
+  production, dan `index.html` **sudah** memanggil RPC barunya
   (`create_transfer_transaction`). Transfer antar akun beda mata uang sekarang dicatat
   sebagai satu operasi atomik, dengan kurs kedua sisi (sumber & tujuan) disimpan sebagai
-  snapshot saat transaksi dibuat. Form Catat Transaksi otomatis mengambil kurs akun tujuan
-  begitu dipilih (mirip pola yang sudah ada untuk akun sumber), dan seluruh titik
-  perhitungan saldo (Dashboard, Detail Akun, grafik saldo berjalan) sudah diperbarui untuk
-  memakai nominal SISI TUJUAN yang sudah terkonversi, bukan menyamakan nominal sisi sumber
-  apa adanya seperti sebelumnya.
+  snapshot saat transaksi dibuat.
   **Catatan:** transaksi Transfer LAMA (sebelum fitur ini ada) tetap kompatibel -- kolom
-  barunya `null` untuk baris lama, dan kode otomatis fallback menganggap kedua sisi
-  memakai mata uang yang sama seperti sebelumnya (lihat `transferTargetAmount()`).
+  barunya `null` untuk baris lama.
   Template **Transaksi Berulang** bertipe Transfer BELUM mendukung lintas mata uang
   (tabel `recurring_transactions` belum punya kolom mata uang) -- baru transaksi Transfer
   langsung/manual yang didukung penuh saat ini.
+- ✅ **`sql/migration_asset_price_columns_2026-08.sql`** — **SUDAH diterapkan**. Kolom
+  refresh-harga-otomatis (`simbol`, `jumlah_unit`, `sumber_harga`) di tabel `assets`.
+- ✅ **`sql/migration_rate_limiting_2026-08.sql`** — **SUDAH diterapkan**. Tabel
+  `api_rate_limits` + RPC `check_and_consume_rate_limit()`, dipakai Edge Function
+  `analyze-finance`, `scan-receipt`, `get-exchange-rate`, dan `refresh-asset-price` untuk
+  membatasi pemakaian AI/API eksternal per user per jam.
 
 **Untuk fitur Bot WhatsApp** (catat transaksi lewat chat WhatsApp):
-1. Jalankan `migration_whatsapp.sql` di SQL Editor (aman, 2 tabel baru saja).
+1. Jalankan `sql/migration_whatsapp.sql` di SQL Editor (aman, 2 tabel baru saja).
 2. Deploy Edge Function `whatsapp-webhook` (`supabase functions deploy whatsapp-webhook`).
 3. Set secrets: `FONNTE_TOKEN`, `WHATSAPP_WEBHOOK_SECRET` (lihat komentar di
-   awal file `whatsapp-webhook.ts` untuk detail lengkap tiap secret).
+   awal file `supabase/functions/whatsapp-webhook/index.ts` untuk detail lengkap tiap secret).
 4. Daftarkan URL Edge Function itu sebagai webhook di dashboard Fonnte
    (Device kamu → Webhook URL), dengan `?token=<WHATSAPP_WEBHOOK_SECRET>`
    di belakangnya.
