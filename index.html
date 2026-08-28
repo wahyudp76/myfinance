@@ -113,6 +113,7 @@
         import { listAssets, createAsset, updateAsset, deleteAsset } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
+        import { aggregateDashboardData } from './src/domain/dashboard.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -129,6 +130,9 @@
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, pruneAccountKeyedMaps,
+            // aggregateDashboardData: domain logic murni juga (src/domain/dashboard.js), sama
+            // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
+            aggregateDashboardData,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -5964,78 +5968,24 @@ const api = (() => {
 
         // ========================== DASHBOARD ==========================
         function processDataForUI(data) {
-            let now = new Date(); let totalIn = 0, totalOut = 0, monthIn = 0, monthOut = 0;
-            
-            let accBalances = {}; 
-            appSettings.accounts.forEach(acc => accBalances[acc] = 0);
-            
-            let monthlyMap = {};
-            let prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            let prevMonthIn = 0, prevMonthOut = 0;
-            let monthTxCount = 0;
-            let monthCatOutMap = {};
-            // Total pengeluaran per kategori (PARENT), diakumulasi utk 3 bulan SEBELUM bulan ini --
-            // dipakai computeFinancialInsights() utk bandingkan pengeluaran bulan ini vs rata-rata
-            // 3 bulan terakhir per kategori (deteksi "kategori X naik signifikan").
-            let catOut3MoMap = {};
-            const monthKeyOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-            const prior3MonthKeys = [1, 2, 3].map(i => monthKeyOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
-            const padZero = n => String(n).padStart(2, '0');
-            const localKey = d => `${d.getFullYear()}-${padZero(d.getMonth()+1)}-${padZero(d.getDate())}`;
-            let last7Map = {}; let last7Order = [];
-            for (let i = 6; i >= 0; i--) {
-                let d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-                let key = localKey(d);
-                last7Map[key] = { in: 0, out: 0, dateObj: d };
-                last7Order.push(key);
-            }
-
-            data.forEach(d => {
-                let date = parseTgl(d.tanggal); let amt = Number(d.jumlah);
-                // amt = NATIVE (mata uang akun itu sendiri) -- dipakai HANYA utk saldo per-akun di
-                // bawah (2 baris ini), karena saldo 1 akun ya dalam mata uang akun itu sendiri.
-                // amtIdr = versi IDR (lihat txIdrAmount() -- fallback ke amt kalau transaksi lama
-                // belum punya jumlah_idr, otomatis berarti IDR) -- dipakai utk SEMUA total gabungan
-                // lintas akun/kategori di bawahnya (itu sebabnya variabelnya beda).
-                let amtIdr = txIdrAmount(d);
-                let monthLabel = date.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
-
-                if(d.jenis === 'Pemasukan') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] += amt; totalIn += amtIdr; } 
-                else if(d.jenis === 'Pengeluaran') { if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt; totalOut += amtIdr; } 
-                else if (d.jenis === 'Transfer') {
-                    if(accBalances[d.akun] !== undefined) accBalances[d.akun] -= amt;
-                    // BUG FIX (multi-currency transfer): akun tujuan mendapat transferTargetAmount(d)
-                    // (nominal DALAM MATA UANG AKUN TUJUAN, sudah dikonversi kalau beda mata uang dari
-                    // akun sumber) -- bukan `amt` (nominal sisi SUMBER) yang cuma benar kalau kedua
-                    // akun kebetulan sama mata uangnya.
-                    if(accBalances[d.kategori] !== undefined) accBalances[d.kategori] += transferTargetAmount(d);
-                }
-
-                let isCurMonth = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-                if(isCurMonth) {
-                    if(d.jenis === 'Pemasukan') monthIn += amtIdr;
-                    if(d.jenis === 'Pengeluaran') { 
-                        monthOut += amtIdr; 
-                        let parentStyle = getCategoryStyle(d.kategori, 'Pengeluaran');
-                        let parentName = parentStyle.parentName || 'Lain-lain';
-                        monthCatOutMap[parentName] = (monthCatOutMap[parentName] || 0) + amtIdr; 
-                    }
-                    if(d.jenis !== 'Transfer') monthTxCount++;
-                }
-                if(date.getMonth() === prevMonthDate.getMonth() && date.getFullYear() === prevMonthDate.getFullYear()) {
-                    if(d.jenis === 'Pemasukan') prevMonthIn += amtIdr;
-                    if(d.jenis === 'Pengeluaran') prevMonthOut += amtIdr;
-                }
-                if (d.jenis === 'Pengeluaran' && prior3MonthKeys.includes(monthKeyOf(date))) {
-                    let parentStyle = getCategoryStyle(d.kategori, 'Pengeluaran');
-                    let parentName = parentStyle.parentName || 'Lain-lain';
-                    catOut3MoMap[parentName] = (catOut3MoMap[parentName] || 0) + amtIdr;
-                }
-                let dKey = localKey(date);
-                if(last7Map[dKey]) { if(d.jenis === 'Pemasukan') last7Map[dKey].in += amtIdr; if(d.jenis === 'Pengeluaran') last7Map[dKey].out += amtIdr; }
-
-                if(!monthlyMap[monthLabel]) monthlyMap[monthLabel] = { in: 0, out: 0 };
-                if(d.jenis === 'Pemasukan') monthlyMap[monthLabel].in += amtIdr; if(d.jenis === 'Pengeluaran') monthlyMap[monthLabel].out += amtIdr;
+            // Kalkulasi (saldo per akun, total masuk/keluar, breakdown kategori, dll) sekarang
+            // satu sumber kebenaran: src/domain/dashboard.js (dipakai juga oleh
+            // tests/unit/dashboard-domain.test.js) -- bukan lagi ditulis manual di sini seperti
+            // sebelumnya. Lihat komentar "AUTH MODULE BRIDGE" di <head> soal kenapa lewat
+            // servicesModule, bukan import langsung (200+ onclick= butuh scope global, lihat
+            // docs/architecture-modernization-plan.md Phase 4).
+            const now = new Date();
+            const {
+                accBalances, totalIn, totalOut, monthIn, monthOut,
+                prevMonthIn, prevMonthOut, monthTxCount,
+                monthCatOutMap, catOut3MoMap, last7Map, last7Order, monthlyMap,
+            } = servicesModule.aggregateDashboardData(data, {
+                accounts: appSettings.accounts,
+                now,
+                txIdrAmount,
+                transferTargetAmount,
+                parseTgl,
+                categorizeExpenseParent: (kategori) => getCategoryStyle(kategori, 'Pengeluaran').parentName,
             });
 
             animateRupiah(document.getElementById('dash-total'), totalIn - totalOut, true);
