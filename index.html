@@ -114,6 +114,7 @@
         import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
+        import { computeAccountTotals, buildAccountBalanceSeries } from './src/domain/accounts.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -133,6 +134,7 @@
             // aggregateDashboardData: domain logic murni juga (src/domain/dashboard.js), sama
             // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
             aggregateDashboardData,
+            computeAccountTotals, buildAccountBalanceSeries,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -7947,22 +7949,10 @@ const api = (() => {
             document.getElementById('detail-account-name').innerText = accName;
             document.getElementById('detail-account-logo').innerHTML = getAccountLogo(accName);
 
-            let relatedTx = globalData.filter(d => d.tanggal && (d.akun === accName || (d.jenis === 'Transfer' && d.kategori === accName)));
-
-            let totalIn = 0, totalOut = 0, transferIn = 0, transferOut = 0;
-            relatedTx.forEach(d => {
-                let amt = Number(d.jumlah) || 0;
-                if (d.jenis === 'Pemasukan' && d.akun === accName) totalIn += amt;
-                else if (d.jenis === 'Pengeluaran' && d.akun === accName) totalOut += amt;
-                else if (d.jenis === 'Transfer') {
-                    if (d.akun === accName) transferOut += amt;
-                    // BUG FIX (multi-currency transfer): akun ini sbg TUJUAN menerima
-                    // transferTargetAmount(d) (nominal dlm mata uang akun INI SENDIRI), bukan `amt`
-                    // (nominal sisi sumber, yg mata uangnya bisa beda dari akun ini).
-                    if (d.kategori === accName) transferIn += transferTargetAmount(d);
-                }
-            });
-            let balance = totalIn - totalOut - transferOut + transferIn;
+            // Total masuk/keluar/transfer & saldo akun ini: satu sumber kebenaran sekarang
+            // src/domain/accounts.js (dipakai juga oleh tests/unit/accounts-domain.test.js).
+            let { relatedTx, totalIn, totalOut, transferIn, transferOut, balance } =
+                servicesModule.computeAccountTotals(globalData, accName, { transferTargetAmount });
 
             const balEl = document.getElementById('detail-account-balance');
             balEl.innerText = nominalHidden ? 'Rp ••••••' : (balance < 0 ? '-Rp ' : 'Rp ') + formatRp(Math.abs(balance));
@@ -8091,24 +8081,8 @@ const api = (() => {
             switchView('akun-detail');
         }
 
-        function buildAccountSeries(accName) {
-            let tx = globalData.filter(d => d.tanggal && (d.akun === accName || (d.jenis === 'Transfer' && d.kategori === accName)));
-            tx.sort((a, b) => parseTgl(a.tanggal) - parseTgl(b.tanggal));
-            let running = 0;
-            return tx.map(d => {
-                let amt = Number(d.jumlah) || 0;
-                let inAmt = 0, outAmt = 0;
-                if (d.jenis === 'Pemasukan' && d.akun === accName) { running += amt; inAmt = amt; }
-                else if (d.jenis === 'Pengeluaran' && d.akun === accName) { running -= amt; outAmt = amt; }
-                else if (d.jenis === 'Transfer') {
-                    if (d.akun === accName) { running -= amt; outAmt = amt; }
-                    // BUG FIX (multi-currency transfer): akun ini sbg TUJUAN menerima
-                    // transferTargetAmount(d) (nominal dlm mata uang akun ini sendiri), bukan `amt`.
-                    if (d.kategori === accName) { const amtTujuan = transferTargetAmount(d); running += amtTujuan; inAmt = amtTujuan; }
-                }
-                return { raw: d, date: parseTgl(d.tanggal), balance: running, in: inAmt, out: outAmt };
-            });
-        }
+        // buildAccountSeries() lama sudah dipindah ke src/domain/accounts.js
+        // (buildAccountBalanceSeries) -- lihat pemanggilannya di renderAccountDetailCharts().
 
         function toggleAccountCatFilter() {
             const filterType = document.getElementById('accountCatFilterType').value;
@@ -8129,7 +8103,7 @@ const api = (() => {
             const accName = currentAccountDetail;
             const periodSelect = document.getElementById('accountDetailPeriod');
             const periodVal = periodSelect ? periodSelect.value : '180';
-            const fullSeries = buildAccountSeries(accName);
+            const fullSeries = servicesModule.buildAccountBalanceSeries(globalData, accName, { transferTargetAmount, parseTgl });
             const now = new Date();
 
             let cutoff = null;
