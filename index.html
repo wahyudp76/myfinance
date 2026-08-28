@@ -116,6 +116,7 @@
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
+        import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -137,6 +138,7 @@
             aggregateDashboardData,
             computeAccountTotals, buildAccountBalanceSeries,
             summarizeAssets, computeNetWorth,
+            computeFinancialHealthScore, computeFinancialInsights,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -6161,46 +6163,13 @@ const api = (() => {
         // bulan ini, komponen "Kepatuhan Anggaran" di-skip & sisanya di-rescale ke /100 -- supaya
         // orang yang belum pasang budget tidak otomatis dapat skor jelek gara2 "melanggar" budget
         // yang bahkan belum dia buat).
-        function computeFinancialHealthScore(ctx) {
-            const components = [];
-
-            // 1. Tingkat menabung bulan ini (maks 40) -- target acuan 20% dari pemasukan = skor penuh.
-            if (ctx.monthIn > 0) {
-                const savingsRate = (ctx.monthIn - ctx.monthOut) / ctx.monthIn;
-                components.push({ label: 'Tingkat Menabung', score: Math.max(0, Math.min(40, (savingsRate / 0.20) * 40)), max: 40 });
-            }
-
-            // 2. Kepatuhan anggaran (maks 25) -- % kategori yg pengeluarannya masih <= budget-nya.
-            const budgetCats = Object.keys(currentMonthBudgetsCache || {}).filter(c => Number(currentMonthBudgetsCache[c]) > 0);
-            if (budgetCats.length > 0) {
-                const withinBudget = budgetCats.filter(c => (ctx.monthCatOutMap[c] || 0) <= Number(currentMonthBudgetsCache[c])).length;
-                components.push({ label: 'Kepatuhan Anggaran', score: (withinBudget / budgetCats.length) * 25, max: 25 });
-            }
-
-            // 3. Konsistensi bulanan (maks 20) -- dari beberapa bulan terakhir yg ada datanya, berapa
-            //    persen yang net-nya positif (pemasukan >= pengeluaran).
-            if (ctx.monthlyMap) {
-                const labels = Object.keys(ctx.monthlyMap).slice(-6);
-                if (labels.length > 0) {
-                    const positiveMonths = labels.filter(l => (ctx.monthlyMap[l].in - ctx.monthlyMap[l].out) >= 0).length;
-                    components.push({ label: 'Konsistensi Bulanan', score: (positiveMonths / labels.length) * 20, max: 20 });
-                }
-            }
-
-            // 4. Aktivitas pencatatan (maks 15) -- kebiasaan mencatat transaksi cukup rutin bulan ini
-            //    (acuan: 15 transaksi/bulan = skor penuh, ~1 transaksi tiap 2 hari).
-            components.push({ label: 'Aktivitas Pencatatan', score: Math.max(0, Math.min(15, (ctx.monthTxCount / 15) * 15)), max: 15 });
-
-            const totalScore = components.reduce((s, c) => s + c.score, 0);
-            const totalMax = components.reduce((s, c) => s + c.max, 0);
-            const finalScore = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
-            return { finalScore, components };
-        }
+        // computeFinancialHealthScore() lama sudah dipindah ke src/domain/insights.js -- lihat
+        // pemanggilannya di renderHealthScore().
 
         function renderHealthScore(ctx) {
             const numEl = document.getElementById('health-score-number');
             if (!numEl) return;
-            const { finalScore, components } = computeFinancialHealthScore(ctx);
+            const { finalScore, components } = servicesModule.computeFinancialHealthScore(ctx, { currentMonthBudgets: currentMonthBudgetsCache });
             const barEl = document.getElementById('health-score-bar');
             const labelEl = document.getElementById('health-score-label');
             const breakdownEl = document.getElementById('health-score-breakdown');
@@ -6222,91 +6191,14 @@ const api = (() => {
             }).join('');
         }
 
-        function computeFinancialInsights(ctx) {
-            const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount } = ctx;
-            const insights = [];
-            const dayOfMonth = now.getDate();
-            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-            const pctMonthElapsed = dayOfMonth / daysInMonth;
-
-            // 1. Peringatan anggaran -- kategori dengan progres pemakaian anggaran paling jauh
-            //    melewati progres bulan berjalan (prioritas tertinggi, paling actionable).
-            let worstBudget = null;
-            Object.keys(currentMonthBudgetsCache).forEach(cat => {
-                const budget = Number(currentMonthBudgetsCache[cat]); if (!budget) return;
-                const spent = monthCatOutMap[cat] || 0;
-                const pctUsed = spent / budget;
-                if (pctUsed >= 0.5 && pctUsed > pctMonthElapsed + 0.15) {
-                    if (!worstBudget || pctUsed > worstBudget.pctUsed) worstBudget = { cat, budget, spent, pctUsed };
-                }
-            });
-            if (worstBudget) {
-                const over = worstBudget.pctUsed >= 1;
-                insights.push({
-                    icon: over ? 'fa-circle-exclamation' : 'fa-triangle-exclamation',
-                    bg: over ? 'bg-rose-100' : 'bg-amber-100', color: over ? 'text-rose-600' : 'text-amber-600',
-                    title: over ? 'Anggaran Terlampaui' : 'Anggaran Mulai Menipis',
-                    message: `Anggaran "${worstBudget.cat}" sudah terpakai ${(worstBudget.pctUsed*100).toFixed(0)}% (Rp ${formatRp(worstBudget.spent)} dari Rp ${formatRp(worstBudget.budget)}), padahal baru ${(pctMonthElapsed*100).toFixed(0)}% bulan berjalan.`
-                });
-            }
-
-            // 2. Kategori pengeluaran naik signifikan vs rata-rata 3 bulan terakhir.
-            let bestSpike = null;
-            Object.keys(monthCatOutMap).forEach(cat => {
-                const avg3mo = (catOut3MoMap[cat] || 0) / 3;
-                const cur = monthCatOutMap[cat];
-                if (avg3mo > 0 && cur > avg3mo * 1.3 && (cur - avg3mo) > 20000) {
-                    const pctUp = (cur / avg3mo - 1) * 100;
-                    if (!bestSpike || pctUp > bestSpike.pctUp) bestSpike = { cat, avg3mo, cur, pctUp };
-                }
-            });
-            if (bestSpike) {
-                insights.push({
-                    icon: 'fa-chart-line', bg: 'bg-orange-100', color: 'text-orange-600',
-                    title: 'Pengeluaran Kategori Naik',
-                    message: `Pengeluaran "${bestSpike.cat}" bulan ini Rp ${formatRp(bestSpike.cur)}, naik ${bestSpike.pctUp.toFixed(0)}% dari rata-rata 3 bulan terakhir (Rp ${formatRp(Math.round(bestSpike.avg3mo))}).`
-                });
-            }
-
-            // 3. Tingkat menabung bulan ini vs bulan lalu.
-            if (monthIn > 0) {
-                const rateThis = (monthIn - monthOut) / monthIn * 100;
-                if (prevMonthIn > 0) {
-                    const rateLast = (prevMonthIn - prevMonthOut) / prevMonthIn * 100;
-                    const diff = rateThis - rateLast;
-                    if (Math.abs(diff) >= 5) {
-                        insights.push({
-                            icon: diff >= 0 ? 'fa-piggy-bank' : 'fa-arrow-trend-down',
-                            bg: diff >= 0 ? 'bg-emerald-100' : 'bg-rose-100', color: diff >= 0 ? 'text-emerald-600' : 'text-rose-600',
-                            title: 'Tingkat Menabung',
-                            message: `Kamu menabung ${rateThis.toFixed(0)}% dari pemasukan bulan ini, ${diff >= 0 ? 'naik' : 'turun'} ${Math.abs(diff).toFixed(0)} poin dibanding bulan lalu (${rateLast.toFixed(0)}%).`
-                        });
-                    }
-                }
-            }
-
-            // 4. Proyeksi pengeluaran akhir bulan berdasar rata-rata harian sejauh ini (perlu minimal
-            //    3 hari data & masih ada sisa hari berjalan, biar tidak proyeksi hal yang sudah pasti).
-            if (dayOfMonth >= 3 && dayOfMonth < daysInMonth && monthOut > 0) {
-                const avgDaily = monthOut / dayOfMonth;
-                const projected = avgDaily * daysInMonth;
-                if (projected > monthOut * 1.05) {
-                    insights.push({
-                        icon: 'fa-magnifying-glass-chart', bg: 'bg-violet-100', color: 'text-violet-600',
-                        title: 'Proyeksi Akhir Bulan',
-                        message: `Dengan laju pengeluaran saat ini (~Rp ${formatShortVal(avgDaily)}/hari), total pengeluaran bulan ini diperkirakan mencapai Rp ${formatShortVal(projected)} kalau berlanjut sampai akhir bulan.`
-                    });
-                }
-            }
-
-            return insights.slice(0, 4);
-        }
+        // computeFinancialInsights() lama sudah dipindah ke src/domain/insights.js -- lihat
+        // pemanggilannya di renderInsights().
 
         let lastInsightsCtx = null;
         function renderInsights(ctx) {
             lastInsightsCtx = ctx;
             const container = document.getElementById('insights-container'); if (!container) return;
-            const insights = computeFinancialInsights(ctx);
+            const insights = servicesModule.computeFinancialInsights(ctx, { currentMonthBudgets: currentMonthBudgetsCache, formatRp, formatShortVal });
 
             if (insights.length === 0) {
                 container.innerHTML = `
