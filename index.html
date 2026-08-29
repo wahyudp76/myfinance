@@ -114,7 +114,7 @@
         import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
-        import { computeAccountTotals, buildAccountBalanceSeries } from './src/domain/accounts.js';
+        import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
@@ -140,6 +140,7 @@
             // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
             aggregateDashboardData,
             computeAccountTotals, buildAccountBalanceSeries,
+            computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet,
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights,
             computeGoalProgress, computeDebtProgress,
@@ -7764,21 +7765,14 @@ const api = (() => {
             let totalFlow = totalIn + totalOut + transferIn + transferOut;
             document.getElementById('detail-account-avg').innerText = 'Rp ' + formatShortVal(txCount ? totalFlow / txCount : 0);
 
-            // Kategori pengeluaran terbesar (all time) untuk akun ini
-            let catTotals = {};
-            relatedTx.forEach(d => {
-                if (d.jenis === 'Pengeluaran' && d.akun === accName) {
-                    let style = getCategoryStyle(d.kategori, 'Pengeluaran');
-                    let pName = style.parentName || d.kategori;
-                    catTotals[pName] = (catTotals[pName] || 0) + Number(d.jumlah);
-                }
-            });
-            let topCatEntry = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0];
+            // Kategori pengeluaran terbesar (all time) untuk akun ini: satu sumber kebenaran
+            // sekarang src/domain/accounts.js (dipakai juga oleh tests/unit/accounts-domain.test.js).
+            const { top: topCatEntry } = servicesModule.aggregateAccountExpenseByCategory(relatedTx, accName, { getCategoryStyle, parseTgl });
             const topCatWrap = document.getElementById('detail-account-top-cat-wrap');
             if (topCatEntry) {
-                let style = getCategoryStyle(topCatEntry[0], 'Pengeluaran');
+                let style = getCategoryStyle(topCatEntry.label, 'Pengeluaran');
                 topCatWrap.innerHTML = `${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm')}
-                    <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry[0]}</p></div>`;
+                    <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry.label}</p></div>`;
             } else {
                 topCatWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400 flex-shrink-0"><i class="fas fa-inbox text-xs md:text-sm"></i></div>
                     <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-400">Belum ada</p></div>`;
@@ -7812,18 +7806,9 @@ const api = (() => {
 
                     // Total bersih hari itu KHUSUS untuk akun ini (masuk dikurangi keluar), supaya
                     // warnanya mencerminkan efek bersihnya terhadap saldo akun -- bukan sekadar
-                    // jumlah pengeluaran seperti tabel biasa.
-                    let netTotal = 0;
-                    rows.forEach(row => {
-                        const isTransferOut = row.jenis === 'Transfer' && row.akun === accName;
-                        const isTransferIn = row.jenis === 'Transfer' && row.kategori === accName;
-                        const isInflow = row.jenis === 'Pemasukan' || isTransferIn;
-                        // BUG FIX (multi-currency transfer): transfer MASUK ke akun ini pakai
-                        // transferTargetAmount() (nominal dlm mata uang akun ini sendiri), bukan
-                        // row.jumlah (nominal sisi sumber, mata uangnya bisa beda).
-                        const nominalUntukAkunIni = isTransferIn ? transferTargetAmount(row) : Number(row.jumlah);
-                        netTotal += (isInflow ? 1 : -1) * nominalUntukAkunIni;
-                    });
+                    // jumlah pengeluaran seperti tabel biasa. Satu sumber kebenaran sekarang
+                    // src/domain/accounts.js (computeAccountGroupNet).
+                    const netTotal = servicesModule.computeAccountGroupNet(rows, accName, { transferTargetAmount });
                     const netColor = netTotal > 0 ? 'text-emerald-500' : (netTotal < 0 ? 'text-rose-500' : 'text-slate-400');
                     const netPrefix = netTotal > 0 ? '+' : (netTotal < 0 ? '-' : '');
 
@@ -7902,66 +7887,11 @@ const api = (() => {
             const fullSeries = servicesModule.buildAccountBalanceSeries(globalData, accName, { transferTargetAmount, parseTgl });
             const now = new Date();
 
-            let cutoff = null;
-            if (periodVal !== 'all') {
-                cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - Number(periodVal));
-            }
-
-            let startBalance = 0;
-            if (cutoff) {
-                let before = fullSeries.filter(p => p.date < cutoff);
-                startBalance = before.length ? before[before.length - 1].balance : 0;
-            }
-
-            let rangeStartDate = cutoff || (fullSeries.length ? fullSeries[0].date : now);
-            if (rangeStartDate > now) rangeStartDate = new Date(now);
-
-            let totalDaysSpan = Math.max(1, Math.ceil((now - rangeStartDate) / 86400000));
-            let granularity = totalDaysSpan <= 62 ? 'day' : (totalDaysSpan <= 400 ? 'week' : 'month');
-
-            let buckets = [];
-            let cursor = granularity === 'month'
-                ? new Date(rangeStartDate.getFullYear(), rangeStartDate.getMonth(), 1)
-                : new Date(rangeStartDate.getFullYear(), rangeStartDate.getMonth(), rangeStartDate.getDate());
-
-            let safety = 0;
-            while (cursor <= now && safety < 800) {
-                safety++;
-                let bucketEnd, label;
-                if (granularity === 'day') {
-                    bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 23, 59, 59, 999);
-                    label = cursor.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-                    buckets.push({ start: new Date(cursor), end: bucketEnd, label });
-                    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
-                } else if (granularity === 'week') {
-                    bucketEnd = new Date(cursor); bucketEnd.setDate(bucketEnd.getDate() + 6); bucketEnd.setHours(23, 59, 59, 999);
-                    label = cursor.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-                    buckets.push({ start: new Date(cursor), end: bucketEnd, label });
-                    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7);
-                } else {
-                    bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
-                    label = cursor.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
-                    buckets.push({ start: new Date(cursor), end: bucketEnd, label });
-                    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-                }
-            }
-
-            let bucketLabels = [], balanceData = [], cashInData = [], cashOutData = [];
-            let runningLastBalance = startBalance;
-            buckets.forEach(b => {
-                let pointsInBucket = fullSeries.filter(p => p.date >= b.start && p.date <= b.end);
-                let sumIn = pointsInBucket.reduce((s, p) => s + p.in, 0);
-                let sumOut = pointsInBucket.reduce((s, p) => s + p.out, 0);
-                if (pointsInBucket.length) runningLastBalance = pointsInBucket[pointsInBucket.length - 1].balance;
-                bucketLabels.push(b.label);
-                balanceData.push(runningLastBalance);
-                cashInData.push(sumIn);
-                cashOutData.push(sumOut);
-            });
-
-            let balanceLabels = bucketLabels.slice();
-            let balanceChartData = balanceData.slice();
-            if (cutoff) { balanceLabels.unshift('Awal'); balanceChartData.unshift(startBalance); }
+            // Granularitas bucket (hari/minggu/bulan) & agregasi Saldo/Arus-Kas: satu sumber
+            // kebenaran sekarang src/domain/accounts.js (dipakai juga oleh
+            // tests/unit/accounts-domain.test.js).
+            const { cutoff, bucketLabels, cashInData, cashOutData, balanceLabels, balanceChartData } =
+                servicesModule.computeAccountChartSeries(fullSeries, periodVal, { now });
 
             if (charts.accBalance) charts.accBalance.destroy();
             if (document.getElementById('accountBalanceChart')) {
@@ -8061,39 +7991,11 @@ const api = (() => {
             // (opsi "sync" ikut cutoff yang sama; selain itu pakai rentang kalender sendiri: bulan/
             // tahun ini/lalu, atau bulan tertentu yang dipilih).
             const catFilterType = document.getElementById('accountCatFilterType') ? document.getElementById('accountCatFilterType').value : 'sync';
-            let catStart = null, catEnd = null; // null = tanpa batas (sisi itu)
-            if (catFilterType === 'sync') {
-                catStart = cutoff;
-            } else if (catFilterType === 'this_month') {
-                catStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            } else if (catFilterType === 'last_month') {
-                catStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                catEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-            } else if (catFilterType === 'this_year') {
-                catStart = new Date(now.getFullYear(), 0, 1);
-            } else if (catFilterType === 'last_year') {
-                catStart = new Date(now.getFullYear() - 1, 0, 1);
-                catEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
-            } else if (catFilterType === 'custom') {
-                const monthVal = document.getElementById('accountCatFilterMonth').value; // "YYYY-MM"
-                if (monthVal) {
-                    const [cy, cm] = monthVal.split('-').map(Number);
-                    catStart = new Date(cy, cm - 1, 1);
-                    catEnd = new Date(cy, cm, 0, 23, 59, 59, 999);
-                }
-            } // 'all' -> catStart & catEnd tetap null (tanpa batas)
-
-            let catMap = {};
-            fullSeries.forEach(p => {
-                if (p.raw.jenis === 'Pengeluaran' && p.raw.akun === accName) {
-                    if (catStart && p.date < catStart) return;
-                    if (catEnd && p.date > catEnd) return;
-                    let style = getCategoryStyle(p.raw.kategori, 'Pengeluaran');
-                    let pName = style.parentName || p.raw.kategori;
-                    catMap[pName] = (catMap[pName] || 0) + Number(p.raw.jumlah);
-                }
-            });
-            let catEntries = Object.keys(catMap).map(k => ({ label: k, val: catMap[k] })).sort((a, b) => b.val - a.val);
+            const customMonthStr = catFilterType === 'custom' ? document.getElementById('accountCatFilterMonth').value : null; // "YYYY-MM"
+            // Resolusi filter kalender & agregasi kategori: satu sumber kebenaran sekarang
+            // src/domain/accounts.js (dipakai juga oleh tests/unit/accounts-domain.test.js).
+            const { start: catStart, end: catEnd } = servicesModule.resolveAccountCategoryDateRange(catFilterType, { now, syncCutoff: cutoff, customMonthStr });
+            const { entries: catEntries } = servicesModule.aggregateAccountExpenseByCategory(globalData, accName, { getCategoryStyle, parseTgl, start: catStart, end: catEnd });
             let hasCatData = catEntries.length > 0;
 
             if (charts.accCat) charts.accCat.destroy();
