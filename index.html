@@ -111,7 +111,7 @@
         import { getSettings, saveSettings } from './src/services/supabase/settings.js';
         import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
         import { listAssets, createAsset, updateAsset, deleteAsset } from './src/services/supabase/assets.js';
-        import { advanceDueDate, planRecurringCatchup } from './src/domain/recurring.js';
+        import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet } from './src/domain/accounts.js';
@@ -135,7 +135,7 @@
             // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
             // loader ES module baru cuma utk beberapa fungsi kecil.
-            planRecurringCatchup, advanceDueDate, pruneAccountKeyedMaps,
+            planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
             // aggregateDashboardData: domain logic murni juga (src/domain/dashboard.js), sama
             // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
             aggregateDashboardData,
@@ -5396,17 +5396,15 @@ const api = (() => {
         function renderRecurringSummary() {
             const el = document.getElementById('recurring-summary-text');
             if (!el) return;
-            const active = (globalRecurring || []).filter(r => r.active);
-            if (active.length === 0) { el.textContent = 'Belum ada transaksi berulang'; el.className = 'text-[10px] text-slate-400'; return; }
-            // Tambahan: kalau ada yang jatuh tempo hari ini/terlewat, tonjolkan di ringkasan dashboard
-            // ini juga -- supaya kelihatan tanpa perlu buka modal "Kelola" dulu.
-            const todayStr = todayDateStr();
-            const overdueCount = active.filter(r => r.next_due_date <= todayStr).length;
+            // Satu sumber kebenaran sekarang src/domain/recurring.js (dipakai juga oleh
+            // tests/unit/recurring-domain.test.js). Pemetaan ke teks/warna tetap di sini.
+            const { activeCount, overdueCount } = servicesModule.summarizeRecurringStatus(globalRecurring, todayDateStr());
+            if (activeCount === 0) { el.textContent = 'Belum ada transaksi berulang'; el.className = 'text-[10px] text-slate-400'; return; }
             if (overdueCount > 0) {
                 el.textContent = `${overdueCount} jatuh tempo hari ini/terlewat`;
                 el.className = 'text-[10px] text-rose-500 font-bold';
             } else {
-                el.textContent = `${active.length} aktif`;
+                el.textContent = `${activeCount} aktif`;
                 el.className = 'text-[10px] text-slate-400';
             }
         }
@@ -5439,16 +5437,15 @@ const api = (() => {
                 const sign = item.jenis === 'Pengeluaran' ? '-' : (item.jenis === 'Pemasukan' ? '+' : '');
                 // Tambahan: penanda visual seberapa dekat jatuh tempo -- sebelumnya tanggal "Berikutnya"
                 // cuma teks abu-abu polos, jadi user harus baca satu-satu buat tau mana yang perlu
-                // disiapkan dananya duluan. Cuma dihitung utk item yang masih aktif (yg dijeda tidak
-                // relevan buat diburu-buru). Transaksinya sendiri tetap otomatis tercatat begitu jatuh
+                // disiapkan dananya duluan. Transaksinya sendiri tetap otomatis tercatat begitu jatuh
                 // tempo lewat processDueRecurring() -- ini murni bantu user lihat sekilas, bukan pengganti itu.
-                const daysLeft = Math.round((new Date(item.next_due_date + 'T00:00:00') - new Date(todayStr0 + 'T00:00:00')) / 86400000);
+                // Klasifikasi (level 'overdue'/'today'/'soon') satu sumber kebenaran sekarang
+                // src/domain/recurring.js (classifyRecurringDueBadge); teks/warna badge tetap di sini.
+                const { daysLeft, level: dueLevel } = servicesModule.classifyRecurringDueBadge(item.next_due_date, item.active, todayStr0);
                 let dueBadge = '';
-                if (item.active) {
-                    if (daysLeft < 0) dueBadge = `<span class="text-rose-500 font-bold">&middot; Terlewat ${Math.abs(daysLeft)} hari</span>`;
-                    else if (daysLeft === 0) dueBadge = `<span class="text-rose-500 font-bold">&middot; Jatuh tempo hari ini</span>`;
-                    else if (daysLeft <= 3) dueBadge = `<span class="text-amber-500 font-bold">&middot; ${daysLeft} hari lagi</span>`;
-                }
+                if (dueLevel === 'overdue') dueBadge = `<span class="text-rose-500 font-bold">&middot; Terlewat ${Math.abs(daysLeft)} hari</span>`;
+                else if (dueLevel === 'today') dueBadge = `<span class="text-rose-500 font-bold">&middot; Jatuh tempo hari ini</span>`;
+                else if (dueLevel === 'soon') dueBadge = `<span class="text-amber-500 font-bold">&middot; ${daysLeft} hari lagi</span>`;
                 return `
                 <div class="flex items-center bg-white border border-slate-100 rounded-2xl p-3 mb-2 ${item.active ? '' : 'opacity-50'}">
                     ${categoryIconHtml(style, 'w-10 h-10 rounded-xl flex items-center justify-center mr-3 flex-shrink-0')}

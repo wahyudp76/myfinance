@@ -67,3 +67,43 @@ export function planRecurringCatchup({ nextDueDate, endDate, frequency, todayStr
     shouldDeactivate: Boolean(endDate && dueDate > endDate),
   };
 }
+
+/**
+ * Ringkasan status transaksi berulang utk badge kecil di Dashboard
+ * ("recurring-summary-text") -- jumlah yang aktif & berapa di antaranya
+ * yang sudah jatuh tempo hari ini/terlewat. Extracted dari
+ * renderRecurringSummary() di index.html. Pemetaan ke teks/warna tampilan
+ * TETAP di index.html (presentation layer).
+ *
+ * @param {Array<{active: boolean, next_due_date: string}>} recurring - semua template (globalRecurring).
+ * @param {string} todayStr - tanggal hari ini (YYYY-MM-DD).
+ * @returns {{ activeCount: number, overdueCount: number }}
+ */
+export function summarizeRecurringStatus(recurring, todayStr) {
+  const active = (recurring || []).filter((r) => r.active);
+  const overdueCount = active.filter((r) => r.next_due_date <= todayStr).length;
+  return { activeCount: active.length, overdueCount };
+}
+
+/**
+ * Klasifikasi seberapa dekat 1 template recurring ke jatuh temponya, utk
+ * badge visual di modal "Kelola Transaksi Berulang" -- HANYA dihitung utk
+ * template yang masih aktif (yang dijeda tidak relevan diburu-buru), sesuai
+ * kode asli. Extracted dari renderRecurringListModal() di index.html.
+ *
+ * @param {string} nextDueDate - next_due_date template (YYYY-MM-DD).
+ * @param {boolean} active
+ * @param {string} todayStr - tanggal hari ini (YYYY-MM-DD).
+ * @returns {{ daysLeft: number, level: 'overdue'|'today'|'soon'|null }} -
+ *   `level` null kalau template tidak aktif ATAU jatuh temponya masih >3 hari lagi.
+ */
+export function classifyRecurringDueBadge(nextDueDate, active, todayStr) {
+  const daysLeft = Math.round((new Date(nextDueDate + "T00:00:00") - new Date(todayStr + "T00:00:00")) / 86400000);
+  let level = null;
+  if (active) {
+    if (daysLeft < 0) level = "overdue";
+    else if (daysLeft === 0) level = "today";
+    else if (daysLeft <= 3) level = "soon";
+  }
+  return { daysLeft, level };
+}

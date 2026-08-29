@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { advanceDueDate, planRecurringCatchup } from "../../src/domain/recurring.js";
+import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from "../../src/domain/recurring.js";
 
 // ---------------------------------------------------------------------------
 // advanceDueDate()
@@ -120,4 +120,62 @@ test("planRecurringCatchup: tanpa end_date tidak pernah shouldDeactivate walau c
   });
   assert.deepEqual(plan.dueDates, ["2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01"]);
   assert.equal(plan.shouldDeactivate, false);
+});
+
+// ---------------------------------------------------------------------------
+// summarizeRecurringStatus()
+// ---------------------------------------------------------------------------
+
+test("summarizeRecurringStatus: menghitung yang aktif & yang sudah jatuh tempo/terlewat", () => {
+  const result = summarizeRecurringStatus([
+    { active: true, next_due_date: "2026-08-20" }, // terlewat
+    { active: true, next_due_date: "2026-08-24" }, // hari ini
+    { active: true, next_due_date: "2026-09-01" }, // belum jatuh tempo
+    { active: false, next_due_date: "2026-08-01" }, // nonaktif -- tidak dihitung sama sekali
+  ], "2026-08-24");
+
+  assert.equal(result.activeCount, 3);
+  assert.equal(result.overdueCount, 2);
+});
+
+test("summarizeRecurringStatus: tidak ada yang aktif -> activeCount & overdueCount 0", () => {
+  const result = summarizeRecurringStatus([{ active: false, next_due_date: "2020-01-01" }], "2026-08-24");
+  assert.deepEqual(result, { activeCount: 0, overdueCount: 0 });
+});
+
+test("summarizeRecurringStatus: list kosong/null tidak error", () => {
+  assert.deepEqual(summarizeRecurringStatus([], "2026-08-24"), { activeCount: 0, overdueCount: 0 });
+  assert.deepEqual(summarizeRecurringStatus(null, "2026-08-24"), { activeCount: 0, overdueCount: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// classifyRecurringDueBadge()
+// ---------------------------------------------------------------------------
+
+test("classifyRecurringDueBadge: sudah terlewat -> level 'overdue', daysLeft negatif", () => {
+  const result = classifyRecurringDueBadge("2026-08-20", true, "2026-08-24");
+  assert.equal(result.level, "overdue");
+  assert.equal(result.daysLeft, -4);
+});
+
+test("classifyRecurringDueBadge: jatuh tempo TEPAT hari ini -> level 'today', daysLeft 0", () => {
+  const result = classifyRecurringDueBadge("2026-08-24", true, "2026-08-24");
+  assert.equal(result.level, "today");
+  assert.equal(result.daysLeft, 0);
+});
+
+test("classifyRecurringDueBadge: 1-3 hari lagi -> level 'soon'", () => {
+  assert.equal(classifyRecurringDueBadge("2026-08-25", true, "2026-08-24").level, "soon"); // 1 hari
+  assert.equal(classifyRecurringDueBadge("2026-08-27", true, "2026-08-24").level, "soon"); // 3 hari
+});
+
+test("classifyRecurringDueBadge: lebih dari 3 hari lagi -> level null (tidak ditonjolkan)", () => {
+  const result = classifyRecurringDueBadge("2026-08-28", true, "2026-08-24");
+  assert.equal(result.level, null);
+  assert.equal(result.daysLeft, 4);
+});
+
+test("classifyRecurringDueBadge: template NONAKTIF -> level selalu null walau sudah terlewat jauh", () => {
+  const result = classifyRecurringDueBadge("2020-01-01", false, "2026-08-24");
+  assert.equal(result.level, null);
 });
