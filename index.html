@@ -119,6 +119,7 @@
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
+        import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
 
         window.__myfinanceAuth = {
@@ -145,6 +146,7 @@
             computeFinancialHealthScore, computeFinancialInsights,
             computeGoalProgress, computeDebtProgress,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
+            computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
@@ -8201,15 +8203,11 @@ const api = (() => {
 
         // ========================== KALENDER & POPUP DETAIL TANGGAL ==========================
         function updateCalendarSummary(viewStart, viewEnd) {
-            let midDate = new Date((viewStart.getTime() + viewEnd.getTime()) / 2);
-            let month = midDate.getMonth(); let year = midDate.getFullYear();
-            let mIn = 0; let mOut = 0;
-            globalData.forEach(d => {
-                let dDate = parseTgl(d.tanggal);
-                if (dDate.getMonth() === month && dDate.getFullYear() === year) { if(d.jenis === 'Pemasukan') mIn += txIdrAmount(d); if(d.jenis === 'Pengeluaran') mOut += txIdrAmount(d); }
-            });
+            // Satu sumber kebenaran sekarang src/domain/calendar.js (dipakai juga oleh
+            // tests/unit/calendar-domain.test.js).
+            const { totalIn, totalOut } = servicesModule.computeCalendarMonthSummary(globalData, viewStart, viewEnd, { parseTgl, txIdrAmount });
             let elIn = document.getElementById('cal-in'); let elOut = document.getElementById('cal-out');
-            if(elIn) animateRupiah(elIn, mIn); if(elOut) animateRupiah(elOut, mOut);
+            if(elIn) animateRupiah(elIn, totalIn); if(elOut) animateRupiah(elOut, totalOut);
         }
 
         // Lazy-load FullCalendar (~280KB) lewat penyisipan elemen script secara dinamis, HANYA saat
@@ -8240,14 +8238,9 @@ const api = (() => {
                 showErrorToast('Gagal memuat komponen kalender. Cek koneksi internet lalu coba lagi.');
                 return;
             }
-            let eventsMap = {};
-            data.forEach(d => {
-                let dateStr = d.tanggal.split('T')[0]; let amt = txIdrAmount(d);
-                if(!eventsMap[dateStr]) eventsMap[dateStr] = { in: 0, out: 0, transfer: 0 };
-                if(d.jenis === 'Pemasukan') eventsMap[dateStr].in += amt; 
-                if(d.jenis === 'Pengeluaran') eventsMap[dateStr].out += amt;
-                if(d.jenis === 'Transfer') eventsMap[dateStr].transfer += amt;
-            });
+            // Agregasi harian & proyeksi jatuh tempo recurring: satu sumber kebenaran sekarang
+            // src/domain/calendar.js (dipakai juga oleh tests/unit/calendar-domain.test.js).
+            let eventsMap = servicesModule.buildDailyCashflowMap(data, { txIdrAmount });
             let calendarEvents = [];
             Object.keys(eventsMap).forEach(date => {
                 if(eventsMap[date].in > 0) calendarEvents.push({ title: '+' + formatShortVal(eventsMap[date].in), start: date, backgroundColor: '#d1fae5', textColor: '#059669' });
@@ -8265,19 +8258,15 @@ const api = (() => {
             const projectionCeiling = new Date(); projectionCeiling.setFullYear(projectionCeiling.getFullYear() + 2);
             const projectionCeilingStr = toDateStr(projectionCeiling);
             (globalRecurring || []).filter(r => r.active).forEach(item => {
-                let dueDate = item.next_due_date;
-                let iterations = 0;
-                while (dueDate && dueDate <= projectionCeilingStr && iterations < 60) {
-                    if (item.end_date && dueDate > item.end_date) break;
+                const dueDates = servicesModule.projectRecurringDueDates(item, { untilDateStr: projectionCeilingStr, advanceDueDate: servicesModule.advanceDueDate });
+                dueDates.forEach(dueDate => {
                     calendarEvents.push({
                         title: (item.jenis === 'Pengeluaran' ? '-' : (item.jenis === 'Pemasukan' ? '+' : '⇄')) + formatShortVal(item.jumlah),
                         start: dueDate,
                         classNames: ['cal-event-projected'],
                         extendedProps: { isProjected: true, recurringLabel: item.keterangan || item.kategori, frequency: item.frequency }
                     });
-                    dueDate = servicesModule.advanceDueDate(dueDate, item.frequency);
-                    iterations++;
-                }
+                });
             });
 
             let isMobile = window.innerWidth < 768;
@@ -8331,16 +8320,13 @@ const api = (() => {
             // berulang yg terjadwal jatuh tempo persis di tanggal itu -- supaya modal ini juga
             // berguna buat "apa yang AKAN terjadi", bukan cuma "apa yg sudah terjadi". Item ini
             // murni proyeksi (belum benar-benar tercatat), ditandai jelas beda dari transaksi asli.
+            // Deteksi proyeksi: satu sumber kebenaran sekarang src/domain/calendar.js
+            // (projectRecurringDueDates) -- sama persis yang dipakai renderCalendar().
             let scheduledItems = [];
             if (dateStr > todayDateStr()) {
                 (globalRecurring || []).filter(r => r.active).forEach(item => {
-                    let d = item.next_due_date, i = 0;
-                    while (d && d <= dateStr && i < 60) {
-                        if (item.end_date && d > item.end_date) break;
-                        if (d === dateStr) { scheduledItems.push(item); break; }
-                        d = servicesModule.advanceDueDate(d, item.frequency);
-                        i++;
-                    }
+                    const dueDates = servicesModule.projectRecurringDueDates(item, { untilDateStr: dateStr, advanceDueDate: servicesModule.advanceDueDate });
+                    if (dueDates.includes(dateStr)) scheduledItems.push(item);
                 });
             }
 
