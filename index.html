@@ -118,6 +118,7 @@
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
+        import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -141,6 +142,7 @@
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights,
             computeGoalProgress, computeDebtProgress,
+            computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -7542,29 +7544,14 @@ const api = (() => {
         }
         function renderYearlyReport() {
             const yearEl = document.getElementById('report-year-label'); if (!yearEl) return;
-            const year = selectedReportYear, lastYear = year - 1;
+            const year = selectedReportYear;
             yearEl.innerText = year;
 
-            const monthlyNet = Array(12).fill(0);
-            let totalIn = 0, totalOut = 0, totalInLast = 0, totalOutLast = 0;
-            let hasDataThisYear = false;
+            // Net bulanan & total masuk/keluar tahun ini vs tahun lalu: satu sumber kebenaran
+            // sekarang src/domain/reports.js (dipakai juga oleh tests/unit/reports-domain.test.js).
+            const { monthlyNet, totalIn, totalOut, totalInLast, totalOutLast, totalNet, totalNetLast, hasDataThisYear } =
+                servicesModule.computeYearlySummary(globalData, { year, txIdrAmount, parseTgl });
 
-            (globalData || []).forEach(row => {
-                if (!row.tanggal) return;
-                const d = parseTgl(row.tanggal);
-                const y = d.getFullYear();
-                const amt = txIdrAmount(row);
-                if (y === year) {
-                    hasDataThisYear = true;
-                    if (row.jenis === 'Pemasukan') { totalIn += amt; monthlyNet[d.getMonth()] += amt; }
-                    else if (row.jenis === 'Pengeluaran') { totalOut += amt; monthlyNet[d.getMonth()] -= amt; }
-                } else if (y === lastYear) {
-                    if (row.jenis === 'Pemasukan') totalInLast += amt;
-                    else if (row.jenis === 'Pengeluaran') totalOutLast += amt;
-                }
-            });
-
-            const totalNet = totalIn - totalOut, totalNetLast = totalInLast - totalOutLast;
             animateRupiah(document.getElementById('yearly-total-in'), totalIn);
             animateRupiah(document.getElementById('yearly-total-out'), totalOut);
             const netEl = document.getElementById('yearly-total-net');
@@ -7599,30 +7586,13 @@ const api = (() => {
             renderYearlyReport();
             let filterVal = document.getElementById('reportFilterMonth').value; if(!filterVal) return;
             let [year, month] = filterVal.split('-');
-            let filteredData = globalData.filter(d => { if(!d.tanggal) return false; let dDate = parseTgl(d.tanggal); return dDate.getFullYear() == year && (dDate.getMonth() + 1) == month; });
-            
-            let catOutMap = {}; let catInMap = {}; let dailyMap = {}; 
-            let daysInMonth = new Date(year, month, 0).getDate();
-            for(let i=1; i<=daysInMonth; i++) dailyMap[i] = { in: 0, out: 0 }; 
-            
-            filteredData.forEach(d => { 
-                let date = parseTgl(d.tanggal); let amt = txIdrAmount(d); 
-                if(d.jenis === 'Pengeluaran') { 
-                    let style = getCategoryStyle(d.kategori, 'Pengeluaran');
-                    let pName = style.parentName || d.kategori;
-                    catOutMap[pName] = (catOutMap[pName] || 0) + amt; 
-                    dailyMap[date.getDate()].out += amt; 
-                } 
-                else if (d.jenis === 'Pemasukan') { 
-                    let style = getCategoryStyle(d.kategori, 'Pemasukan');
-                    let pName = style.parentName || d.kategori;
-                    catInMap[pName] = (catInMap[pName] || 0) + amt; 
-                    dailyMap[date.getDate()].in += amt; 
-                }
-            });
 
-            let outEntries = Object.keys(catOutMap).map(k => ({label: k, val: catOutMap[k]})).sort((a,b) => b.val - a.val);
-            let inEntries = Object.keys(catInMap).map(k => ({label: k, val: catInMap[k]})).sort((a,b) => b.val - a.val);
+            // Total per kategori (parent) & per hari utk bulan yang dipilih: satu sumber kebenaran
+            // sekarang src/domain/reports.js (dipakai juga oleh tests/unit/reports-domain.test.js).
+            const { dailyMap, outEntries, inEntries } = servicesModule.computeMonthlyBreakdown(globalData, {
+                year, month, txIdrAmount, parseTgl,
+                categorizeParent: (kategori, jenis) => getCategoryStyle(kategori, jenis).parentName,
+            });
 
             if(charts.catOut) charts.catOut.destroy(); let hasOutCat = outEntries.length > 0;
             charts.catOut = new Chart(document.getElementById('expenseCategoryChart').getContext('2d'), { 
@@ -7692,37 +7662,17 @@ const api = (() => {
             renderAiChatHistory();
         }
 
-        // ========================== TREN KATEGORI (6 bulan terakhir, lintas kategori) ==========================
-        function computeCategoryTrend(monthsCount) {
-            monthsCount = monthsCount || 6;
-            const now = new Date();
-            const monthKeys = [];
-            for (let i = monthsCount - 1; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                monthKeys.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }) });
-            }
-            const catMonthMap = {}; // { namaKategori: { 'YYYY-MM': total } }
-            globalData.forEach(t => {
-                if (t.jenis !== 'Pengeluaran' || !t.tanggal) return;
-                const mk = t.tanggal.slice(0, 7);
-                if (!monthKeys.some(m => m.key === mk)) return;
-                const style = getCategoryStyle(t.kategori, 'Pengeluaran');
-                const pName = style.parentName || t.kategori;
-                if (!catMonthMap[pName]) catMonthMap[pName] = {};
-                catMonthMap[pName][mk] = (catMonthMap[pName][mk] || 0) + txIdrAmount(t);
-            });
-            const totals = Object.keys(catMonthMap).map(cat => ({ cat, total: Object.values(catMonthMap[cat]).reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total);
-            const top5 = totals.slice(0, 5).map(t => t.cat);
-            return {
-                labels: monthKeys.map(m => m.label),
-                series: top5.map(cat => ({ label: cat, data: monthKeys.map(m => (catMonthMap[cat] && catMonthMap[cat][m.key]) || 0) }))
-            };
-        }
+        // computeCategoryTrend() lama sudah dipindah ke src/domain/reports.js -- lihat
+        // pemanggilannya di renderCategoryTrendChart().
 
         function renderCategoryTrendChart() {
             const canvas = document.getElementById('categoryTrendChart'); if (!canvas) return;
             const emptyEl = document.getElementById('categoryTrendChart-empty');
-            const { labels, series } = computeCategoryTrend(6);
+            const { labels, series } = servicesModule.computeCategoryTrend(globalData, 6, {
+                now: new Date(),
+                txIdrAmount,
+                categorizeExpenseParent: (kategori) => getCategoryStyle(kategori, 'Pengeluaran').parentName,
+            });
 
             if (charts.catTrend) { charts.catTrend.destroy(); charts.catTrend = null; }
             if (series.length === 0) {
