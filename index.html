@@ -6913,6 +6913,24 @@ const api = (() => {
             const { sortedAssets, totalNilai, totalModal, catMap, totalReturn, totalReturnPct, best, worst } =
                 servicesModule.summarizeAssets(globalAssets);
 
+            // Kekayaan Bersih = total nilai aset SAAT INI dikurangi total SISA utang yang belum
+            // lunas: satu sumber kebenaran sekarang src/domain/assets.js (computeNetWorth). Sengaja
+            // dihitung & di-render PALING AWAL di sini (sebelum daftar aset/goals/utang/chart di
+            // bawah) supaya widget Kekayaan Bersih tetap ter-update walau salah satu bagian lain di
+            // fungsi ini gagal render -- lihat fix bug "Kekayaan Bersih macet di Rp 0 padahal ada
+            // aset" (dulu kode ini ada di akhir fungsi, jadi ikut batal kalau renderGoalsList()/
+            // renderDebtsList() melempar error duluan).
+            const { totalUtangBersih, netWorth } = servicesModule.computeNetWorth(totalNilai, appSettings.debts);
+            const nwEl = document.getElementById('networth-total');
+            nwEl.classList.toggle('text-rose-300', netWorth < 0); // utang lebih besar dari aset -- kasih sinyal visual, bukan cuma angka minus yang gampang keskip
+            animateRupiah(nwEl, netWorth);
+            animateRupiah(document.getElementById('networth-aset'), totalNilai);
+            animateRupiah(document.getElementById('networth-utang'), totalUtangBersih);
+            const nwDenom = totalNilai + totalUtangBersih;
+            const asetBarPct = nwDenom > 0 ? (totalNilai / nwDenom) * 100 : 100;
+            document.getElementById('networth-bar-aset').style.width = asetBarPct + '%';
+            document.getElementById('networth-bar-utang').style.width = (100 - asetBarPct) + '%';
+
             const listEl = document.getElementById('asset-list-container');
             listEl.innerHTML = '';
             
@@ -7032,19 +7050,6 @@ const api = (() => {
             });
             renderGoalsList();
             renderDebtsList();
-
-            // Kekayaan Bersih = total nilai aset SAAT INI dikurangi total SISA utang yang belum
-            // lunas: satu sumber kebenaran sekarang src/domain/assets.js (computeNetWorth).
-            const { totalUtangBersih, netWorth } = servicesModule.computeNetWorth(totalNilai, appSettings.debts);
-            const nwEl = document.getElementById('networth-total');
-            nwEl.classList.toggle('text-rose-300', netWorth < 0); // utang lebih besar dari aset -- kasih sinyal visual, bukan cuma angka minus yang gampang keskip
-            animateRupiah(nwEl, netWorth);
-            animateRupiah(document.getElementById('networth-aset'), totalNilai);
-            animateRupiah(document.getElementById('networth-utang'), totalUtangBersih);
-            const nwDenom = totalNilai + totalUtangBersih;
-            const asetBarPct = nwDenom > 0 ? (totalNilai / nwDenom) * 100 : 100;
-            document.getElementById('networth-bar-aset').style.width = asetBarPct + '%';
-            document.getElementById('networth-bar-utang').style.width = (100 - asetBarPct) + '%';
         }
 
         // ========================== TUJUAN KEUANGAN (Financial Goals) ==========================
@@ -7115,8 +7120,8 @@ const api = (() => {
                         <div class="h-full rounded-full ${isDone ? 'bg-emerald-400' : 'bg-indigo-400'} transition-all" style="width:${pct}%"></div>
                     </div>
                     <div class="flex items-center justify-between mb-3">
-                        <span class="text-[11px] font-bold ${isDone ? 'text-emerald-500' : 'text-slate-500'}">${pct}% -- Rp ${new Intl.NumberFormat('id-ID').format(terkumpul)}</span>
-                        <span class="text-[10px] text-slate-400">dari Rp ${new Intl.NumberFormat('id-ID').format(target)}</span>
+                        <span class="text-[11px] font-bold ${isDone ? 'text-emerald-500' : 'text-slate-500'}">${pct}% -- Rp ${new Intl.NumberFormat('id-ID').format(g.terkumpul)}</span>
+                        <span class="text-[10px] text-slate-400">dari Rp ${new Intl.NumberFormat('id-ID').format(g.target)}</span>
                     </div>
                     ${isDone
                         ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Tercapai!</div>`
