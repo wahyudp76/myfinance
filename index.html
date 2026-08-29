@@ -120,6 +120,7 @@
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
+        import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart } from './src/domain/categories.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
 
         window.__myfinanceAuth = {
@@ -147,6 +148,7 @@
             computeGoalProgress, computeDebtProgress,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
+            resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
             aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
@@ -8040,11 +8042,9 @@ const api = (() => {
             let style = getCategoryStyle(categoryName, jenis);
             document.getElementById('detail-category-logo').innerHTML = categoryIconHtml(style, 'w-12 h-12 md:w-16 md:h-16 rounded-xl p-2 mr-4 flex items-center justify-center shadow-sm', 'text-2xl');
 
-            // Ambil semua subkategori jika ini parent
-            let subCategories = [categoryName];
-            if (categoryDict[jenis.toLowerCase()] && categoryDict[jenis.toLowerCase()][categoryName]) {
-                subCategories = subCategories.concat(categoryDict[jenis.toLowerCase()][categoryName].subs.map(s => s.name));
-            }
+            // Ambil semua subkategori jika ini parent: satu sumber kebenaran sekarang
+            // src/domain/categories.js (dipakai juga oleh tests/unit/categories-domain.test.js).
+            let subCategories = servicesModule.resolveCategoryAndSubNames(categoryDict, categoryName, jenis);
 
             // "Semua Riwayat Transaksi" di bawah SENGAJA tidak ikut difilter per-bulan (namanya
             // "SEMUA") -- cuma total & chart di atas yang bulan-spesifik (lihat renderCategoryDetailMonthData).
@@ -8127,27 +8127,11 @@ const api = (() => {
             document.getElementById('detail-category-month-label').innerText =
                 new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
-            let specificDataMonth = categoryDetailSpecificData.filter(d => {
-                if(!d.tanggal) return false;
-                let dDate = parseTgl(d.tanggal);
-                return dDate.getFullYear() === year && (dDate.getMonth() + 1) === month;
-            });
-
-            let totalMonth = specificDataMonth.reduce((sum, d) => sum + txIdrAmount(d), 0);
+            // Total bulan & tren harian: satu sumber kebenaran sekarang src/domain/categories.js
+            // (dipakai juga oleh tests/unit/categories-domain.test.js).
+            const { totalMonth, dailyLabels: chartLabels, dailyData: chartData } =
+                servicesModule.computeCategoryDetailMonthChart(categoryDetailSpecificData, year, month, { parseTgl, txIdrAmount });
             animateRupiah(document.getElementById('detail-category-total'), totalMonth);
-
-            // Chart Bar Trend (Hanya untuk bulan yang terpilih)
-            let daysInMonth = new Date(year, month, 0).getDate();
-            let dailyMap = {};
-            for(let i=1; i<=daysInMonth; i++) dailyMap[i] = 0;
-            
-            specificDataMonth.forEach(row => {
-                let day = parseTgl(row.tanggal).getDate();
-                dailyMap[day] += txIdrAmount(row);
-            });
-
-            let chartLabels = Object.keys(dailyMap);
-            let chartData = Object.values(dailyMap);
 
             // Sama seperti chart "Tren Transaksi" -- di layar sempit (HP), batasi cuma beberapa
             // batang paling signifikan yang dikasih label, dengan jarak minimal antar batang
