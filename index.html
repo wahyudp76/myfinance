@@ -119,6 +119,7 @@
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
+        import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -143,6 +144,7 @@
             computeFinancialHealthScore, computeFinancialInsights,
             computeGoalProgress, computeDebtProgress,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
+            aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -5181,10 +5183,12 @@ const api = (() => {
 
         function notifyIfBudgetThresholdCrossed(kategori, before) {
             const after = getCategoryBudgetStatus(kategori);
-            if (!after || !before) return;
-            if (before.pct < 1 && after.pct >= 1) {
+            // detectBudgetThresholdCrossing (src/domain/budgets.js) sudah menangani kasus
+            // before/after null -- dipertahankan biar 100% sama seperti kode lama.
+            const crossing = servicesModule.detectBudgetThresholdCrossing(before && before.pct, after && after.pct);
+            if (crossing === 'exceeded') {
                 showToast(`Budget "${after.parentName}" bulan ini sudah TERLAMPAUI -- Rp ${formatRp(after.spent)} dari Rp ${formatRp(after.budget)}.`, 'error');
-            } else if (before.pct < 0.8 && after.pct >= 0.8) {
+            } else if (crossing === 'warning') {
                 showInfoToast(`Budget "${after.parentName}" sudah ${Math.round(after.pct * 100)}% terpakai bulan ini (Rp ${formatRp(after.spent)} dari Rp ${formatRp(after.budget)}).`);
             }
         }
@@ -6703,101 +6707,57 @@ const api = (() => {
             }).saveBudgetsCloud(targetBulan, cloudBudgets);
         }
 
+        // classifyBudgetUsage() (src/domain/budgets.js) cuma mengembalikan level abstrak
+        // ('over'/'warning'/'safe') -- pemetaan ke warna/teks tampilan yang spesifik ini
+        // sengaja tetap tinggal di index.html (presentation layer), bukan di modul domain.
+        const BUDGET_USAGE_RING_COLOR = { over: '#fb7185', warning: '#fbbf24', safe: '#34d399' };
+        const BUDGET_USAGE_BAR_COLOR = { over: 'bg-rose-400', warning: 'bg-amber-400', safe: 'bg-emerald-400' };
+        const BUDGET_USAGE_BADGE = {
+            over: { text: 'Over Budget', cls: 'bg-rose-100 text-rose-600' },
+            warning: { text: 'Waspada', cls: 'bg-amber-100 text-amber-600' },
+            safe: { text: 'Aman', cls: 'bg-emerald-100 text-emerald-600' },
+        };
+
         function renderBudgetView() {
             const monthInput = document.getElementById('budgetFilterMonth'); if (!monthInput) return;
             if (!monthInput.value) { let n = new Date(); monthInput.value = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; }
             const targetBulan = monthInput.value;
             const [year, month] = targetBulan.split('-');
 
-            let actualCategoryMap = {};
-            globalData.forEach(d => {
-                if (d.jenis !== 'Pengeluaran' || !d.tanggal) return;
-                let dt = parseTgl(d.tanggal);
-                if (dt.getFullYear() != year || (dt.getMonth() + 1) != month) return;
-                actualCategoryMap[d.kategori] = (actualCategoryMap[d.kategori] || 0) + txIdrAmount(d);
-            });
-
-            let totalBudget = 0, totalActual = 0;
-            let entries = [];
-
-            Object.keys(categoryDict.pengeluaran).forEach(parentName => {
-                const parent = categoryDict.pengeluaran[parentName];
-                const hasSubs = parent.subs && parent.subs.length > 0;
-                // BUG FIX: sebelumnya ikon/warna di perincian Budget diambil LANGSUNG dari
-                // categoryDict mentah (parent.icon/bg/color, sub.icon) -- ini melewati
-                // getCategoryStyle(), jadi kustomisasi ikon/warna dari Pengaturan DAN foto/gambar
-                // kustom yang diupload user tidak pernah ikut kebawa ke halaman Budget (selalu
-                // tampil ikon+warna bawaan/default, beda dari yang tampil di Riwayat Transaksi/
-                // Kategori dsb). Sekarang pakai getCategoryStyle() yang sama supaya selalu sinkron.
-                const parentStyle = getCategoryStyle(parentName, 'Pengeluaran');
-
-                let pBudget = 0;
-                let pActual = 0;
-                let subEntries = [];
-
-                if (hasSubs) {
-                    parent.subs.forEach(sub => {
-                        const sBudget = cloudBudgets[sub.name] || 0;
-                        const sActual = actualCategoryMap[sub.name] || 0;
-                        pBudget += sBudget;
-                        pActual += sActual;
-                        const sPct = sBudget > 0 ? Math.round((sActual / sBudget) * 100) : (sActual > 0 ? 100 : 0);
-                        const subStyle = getCategoryStyle(sub.name, 'Pengeluaran');
-                        subEntries.push({ name: sub.name, budget: sBudget, actual: sActual, pct: sPct, icon: subStyle.icon, bg: subStyle.bg, color: subStyle.color, image: subStyle.image });
-                    });
-                } else {
-                    pBudget = cloudBudgets[parentName] || 0;
-                }
-
-                const directActual = actualCategoryMap[parentName] || 0;
-                pActual += directActual;
-                if (hasSubs && directActual > 0) {
-                    subEntries.push({ name: 'Tanpa sub-kategori', budget: 0, actual: directActual, pct: 100, icon: 'fa-ellipsis', bg: parentStyle.bg, color: parentStyle.color, image: parentStyle.image, isDirect: true });
-                }
-
-                if (pBudget > 0 || pActual > 0) {
-                    totalBudget += pBudget;
-                    totalActual += pActual;
-                    let pct = pBudget > 0 ? Math.round((pActual / pBudget) * 100) : (pActual > 0 ? 100 : 0);
-                    
-                    entries.push({ 
-                        name: parentName, 
-                        budget: pBudget, 
-                        actual: pActual, 
-                        pct: pct, 
-                        icon: parentStyle.icon, 
-                        bg: parentStyle.bg, 
-                        color: parentStyle.color,
-                        image: parentStyle.image,
-                        subEntries: subEntries
-                    });
-                }
-            });
-            
-            entries.sort((a, b) => b.pct - a.pct);
+            // Agregasi & kalkulasi murni sekarang satu sumber kebenaran di
+            // src/domain/budgets.js (dipakai juga oleh tests/unit/budgets-domain.test.js).
+            // BUG FIX (dipertahankan dari kode lama): ikon/warna diambil lewat
+            // getCategoryStyle() -- bukan langsung dari categoryDict mentah -- supaya
+            // kustomisasi ikon/warna/gambar upload dari Pengaturan ikut kebawa ke halaman
+            // Budget, bukan selalu tampil ikon+warna bawaan/default.
+            const actualCategoryMap = servicesModule.aggregateActualByCategory(globalData, { year, month, txIdrAmount, parseTgl });
+            const { entries, totalBudget, totalActual, remaining, overallPct } =
+                servicesModule.summarizeBudgets(categoryDict.pengeluaran, cloudBudgets, actualCategoryMap, { getCategoryStyle });
 
             animateRupiah(document.getElementById('budget-total-plan'), totalBudget);
             animateRupiah(document.getElementById('budget-total-actual'), totalActual);
-            let remaining = totalBudget - totalActual;
             const remEl = document.getElementById('budget-total-remaining');
             remEl.innerText = (remaining < 0 ? '-Rp ' : 'Rp ') + formatRp(Math.abs(remaining));
             remEl.className = 'text-xs md:text-lg font-extrabold whitespace-nowrap ' + (remaining >= 0 ? 'text-emerald-400' : 'text-rose-400');
 
-            let overallPct = totalBudget > 0 ? Math.round((totalActual / totalBudget) * 100) : 0;
             const ringCircle = document.getElementById('budget-ring-progress');
             const circumference = 2 * Math.PI * 52;
-            let ringColor = overallPct >= 100 ? '#fb7185' : (overallPct >= 70 ? '#fbbf24' : '#34d399');
+            let ringColor = BUDGET_USAGE_RING_COLOR[servicesModule.classifyBudgetUsage(overallPct)];
             let clampedPct = Math.min(overallPct, 100);
             ringCircle.setAttribute('stroke-dasharray', `${circumference}`);
             ringCircle.setAttribute('stroke-dashoffset', `${circumference - (clampedPct / 100) * circumference}`);
             ringCircle.style.stroke = ringColor;
             document.getElementById('budget-ring-pct').innerText = overallPct + '%';
 
+            const BUDGET_STATUS_MSG = {
+                over: 'Waduh, pengeluaranmu sudah melebihi budget! 😅',
+                warning: 'Hati-hati, pengeluaran bulanan hampir habis! ⚠️',
+                safe: 'Sangat baik! Finansialmu bulan ini sangat terjaga. 🎉',
+            };
             const statusEl = document.getElementById('budget-status-msg');
-            if (entries.length === 0) { statusEl.innerText = 'Yuk mulai atur budget kamu di cloud! ✨'; }
-            else if (overallPct >= 100) { statusEl.innerText = 'Waduh, pengeluaranmu sudah melebihi budget! 😅'; }
-            else if (overallPct >= 70) { statusEl.innerText = 'Hati-hati, pengeluaran bulanan hampir habis! ⚠️'; }
-            else { statusEl.innerText = 'Sangat baik! Finansialmu bulan ini sangat terjaga. 🎉'; }
+            statusEl.innerText = entries.length === 0
+                ? 'Yuk mulai atur budget kamu di cloud! ✨'
+                : BUDGET_STATUS_MSG[servicesModule.classifyBudgetUsage(overallPct)];
 
             if (charts.budgetCompare) { charts.budgetCompare.destroy(); charts.budgetCompare = null; }
             const chartCanvas = document.getElementById('budgetCompareChart');
@@ -6813,7 +6773,7 @@ const api = (() => {
                             labels: entries.map(e => e.name),
                             datasets: [
                                 { label: 'Budget', data: entries.map(e => e.budget), backgroundColor: '#c7d2fe', borderRadius: 6, barPercentage: 0.55 },
-                                { label: 'Realisasi', data: entries.map(e => e.actual), backgroundColor: entries.map(e => e.pct >= 100 ? '#fb7185' : (e.pct >= 70 ? '#fbbf24' : '#34d399')), borderRadius: 6, barPercentage: 0.55 }
+                                { label: 'Realisasi', data: entries.map(e => e.actual), backgroundColor: entries.map(e => BUDGET_USAGE_RING_COLOR[servicesModule.classifyBudgetUsage(e.pct)]), borderRadius: 6, barPercentage: 0.55 }
                             ]
                         },
                         options: {
@@ -6846,15 +6806,17 @@ const api = (() => {
                 </div>`;
             } else {
                 listEl.innerHTML = entries.map((e, idx) => {
-                    let barColor = e.pct >= 100 ? 'bg-rose-400' : (e.pct >= 70 ? 'bg-amber-400' : 'bg-emerald-400');
-                    let badge = e.pct >= 100 ? { text: 'Over Budget', cls: 'bg-rose-100 text-rose-600' } : (e.pct >= 70 ? { text: 'Waspada', cls: 'bg-amber-100 text-amber-600' } : { text: 'Aman', cls: 'bg-emerald-100 text-emerald-600' });
+                    const eLevel = servicesModule.classifyBudgetUsage(e.pct);
+                    let barColor = BUDGET_USAGE_BAR_COLOR[eLevel];
+                    let badge = BUDGET_USAGE_BADGE[eLevel];
                     let widthPct = Math.min(e.pct, 100);
                     const canExpand = e.subEntries && e.subEntries.length > 0;
                     const accId = `budget-acc-${idx}`;
 
                     const subHtml = canExpand ? e.subEntries.map(s => {
-                        let sBarColor = s.pct >= 100 ? 'bg-rose-400' : (s.pct >= 70 ? 'bg-amber-400' : 'bg-emerald-400');
-                        let sBadge = s.pct >= 100 ? { text: 'Over Budget', cls: 'bg-rose-100 text-rose-600' } : (s.pct >= 70 ? { text: 'Waspada', cls: 'bg-amber-100 text-amber-600' } : { text: 'Aman', cls: 'bg-emerald-100 text-emerald-600' });
+                        const sLevel = servicesModule.classifyBudgetUsage(s.pct);
+                        let sBarColor = BUDGET_USAGE_BAR_COLOR[sLevel];
+                        let sBadge = BUDGET_USAGE_BADGE[sLevel];
                         let sWidthPct = Math.min(s.pct, 100);
                         return `<div class="bg-white rounded-xl p-2.5 ring-1 ring-slate-100 ${s.isDirect ? 'border border-dashed border-slate-200' : ''}">
                             <div class="flex items-center justify-between mb-2 gap-2">
