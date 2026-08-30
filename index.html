@@ -3592,9 +3592,11 @@ const api = (() => {
             const settingsForCloud = Object.assign({}, appSettings);
             delete settingsForCloud.accountIcons;
             delete settingsForCloud.categoryStyles;
-            api.run.withSuccessHandler(function(){}).withFailureHandler(function() {
+            // Pensyahan api.run (slice settings+icons): service langsung, callback persis versi lama.
+            servicesModule.saveSettings(supabaseClient, settingsForCloud).catch((err) => {
+                console.error('api.run.saveSettingsCloud gagal:', err);
                 showErrorToast('Gagal menyimpan pengaturan ke Supabase. Periksa koneksi internet Anda.');
-            }).saveSettingsCloud(settingsForCloud);
+            });
         }
 
         // ---------- AKUN ----------
@@ -3855,14 +3857,17 @@ const api = (() => {
 
             if (categoryStyleOverride) {
                 appSettings.categoryStyles[jenisKey][catName] = categoryStyleOverride;
-                api.run.withSuccessHandler(() => {}).withFailureHandler(() => {
+                // Pensyahan api.run (slice settings+icons): service langsung, callback persis versi lama.
+                servicesModule.saveCustomIcon(supabaseClient, key, categoryStyleOverride).catch((err) => {
+                    console.error('api.run.saveCustomIcon gagal:', err);
                     showErrorToast('Gagal menyimpan kustomisasi kategori ke cloud. Coba lagi.');
-                }).saveCustomIcon(key, categoryStyleOverride);
+                });
             } else {
                 delete appSettings.categoryStyles[jenisKey][catName];
-                api.run.withSuccessHandler(() => {}).withFailureHandler(() => {
+                servicesModule.deleteCustomIcon(supabaseClient, key).catch((err) => {
+                    console.error('api.run.deleteCustomIcon gagal:', err);
                     showErrorToast('Gagal menghapus kustomisasi kategori di cloud. Coba lagi.');
-                }).deleteCustomIcon(key);
+                });
             }
 
             closeCategoryStyleModal();
@@ -3952,12 +3957,13 @@ const api = (() => {
             {
                 const onIconSyncFail = function() { showErrorToast('Ikon tersimpan di perangkat ini, tapi gagal sinkron ke cloud.'); };
                 if (isEdit && oldName !== name && hadCustomIconBefore) {
-                    api.run.withSuccessHandler(function(){}).withFailureHandler(onIconSyncFail).deleteCustomIcon(oldName);
+                    servicesModule.deleteCustomIcon(supabaseClient, oldName).catch((err) => { console.error('api.run.deleteCustomIcon gagal:', err); onIconSyncFail(err); });
                 }
                 if (accountIconOverride) {
-                    api.run.withSuccessHandler(function(){}).withFailureHandler(onIconSyncFail).saveCustomIcon(name, accountIconOverride);
+                    // Pensyahan api.run (slice settings+icons): service langsung, callback persis versi lama.
+                    servicesModule.saveCustomIcon(supabaseClient, name, accountIconOverride).catch((err) => { console.error('api.run.saveCustomIcon gagal:', err); onIconSyncFail(err); });
                 } else if (hadCustomIconBefore) {
-                    api.run.withSuccessHandler(function(){}).withFailureHandler(onIconSyncFail).deleteCustomIcon(name);
+                    servicesModule.deleteCustomIcon(supabaseClient, name).catch((err) => { console.error('api.run.deleteCustomIcon gagal:', err); onIconSyncFail(err); });
                 }
             }
 
@@ -3992,9 +3998,10 @@ const api = (() => {
                     // tempat ini tidak lagi bisa divergen satu sama lain.
                     const hadEntry = servicesModule.pruneAccountKeyedMaps(appSettings, removedName);
                     if (hadEntry.accountIcons) {
-                        api.run.withSuccessHandler(function(){}).withFailureHandler(function() {
+                        servicesModule.deleteCustomIcon(supabaseClient, removedName).catch((err) => {
+                            console.error('api.run.deleteCustomIcon gagal:', err);
                             showErrorToast('Akun terhapus, tapi ikon kustomnya gagal dibersihkan dari cloud.');
-                        }).deleteCustomIcon(removedName);
+                        });
                     }
                 }
                 persistSettings(); renderSettings(); if(globalData.length > 0) processDataForUI(globalData);
@@ -4300,13 +4307,13 @@ const api = (() => {
                 // Pengguna menghapus foto profilnya
                 if (appSettings.accountIcons) delete appSettings.accountIcons[PROFILE_AVATAR_KEY];
                 if (hadCustomAvatarBefore) {
-                    api.run.withSuccessHandler(function(){}).withFailureHandler(onAvatarSyncFail).deleteCustomIcon(PROFILE_AVATAR_KEY);
+                    servicesModule.deleteCustomIcon(supabaseClient, PROFILE_AVATAR_KEY).catch((err) => { console.error('api.run.deleteCustomIcon gagal:', err); onAvatarSyncFail(err); });
                 }
             } else if (profileAvatarOverride) {
                 // Foto baru dipilih
                 if (!appSettings.accountIcons) appSettings.accountIcons = {};
                 appSettings.accountIcons[PROFILE_AVATAR_KEY] = profileAvatarOverride;
-                api.run.withSuccessHandler(function(){}).withFailureHandler(onAvatarSyncFail).saveCustomIcon(PROFILE_AVATAR_KEY, profileAvatarOverride);
+                servicesModule.saveCustomIcon(supabaseClient, PROFILE_AVATAR_KEY, profileAvatarOverride).catch((err) => { console.error('api.run.saveCustomIcon gagal:', err); onAvatarSyncFail(err); });
             }
             // profileAvatarOverride === undefined -> foto tidak diubah sama sekali, tidak perlu sync apapun
 
@@ -5273,7 +5280,7 @@ const api = (() => {
                 globalData = response.transactions || [];
                 cloudBudgets = response.budgets || {};
                 globalAssets = response.assets || [];
-                globalRecurring = response.recurring || [];
+                globalRecurring = respsponse.recurring || [];
                 
                 if (response.settings) { appSettings = response.settings; }
                 ensureSettingsShape(); // jaga-jaga: settings lama dari cloud mungkin belum punya field terbaru
