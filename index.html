@@ -132,6 +132,7 @@
         import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI } from './src/ui/categories.js';
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
+        import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -187,6 +188,7 @@
             // renderAccountDetailChartsUI: idem, fungsi UI/render chart di halaman
             // Detail Akun (src/ui/accounts.js).
             renderAccountDetailChartsUI,
+            suggestCategory, getExchangeRate, scanReceipt,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -4586,13 +4588,17 @@ const api = (() => {
             if (cur === 'IDR') { currentTxMataUang = null; currentTxKurs = 1; updateCurrencyHintUI(null, 1); return; }
 
             updateCurrencyHintUI(cur, null, null, true);
-            api.run.withSuccessHandler((hasil) => {
-                currentTxMataUang = cur; currentTxKurs = hasil.rate;
-                updateCurrencyHintUI(cur, hasil.rate, hasil.tanggal, false);
-            }).withFailureHandler(() => {
-                currentTxMataUang = cur; currentTxKurs = null; // ditandai null -> submitForm() akan menolak submit sampai berhasil
-                updateCurrencyHintUI(cur, null, null, false, true);
-            }).getExchangeRate(cur);
+            // Pensyahan api.run (slice edge): service langsung (src/services/supabase/edge.js), callback persis.
+            servicesModule.getExchangeRate(supabaseClient, cur)
+                .then((hasil) => {
+                    currentTxMataUang = cur; currentTxKurs = hasil.rate;
+                    updateCurrencyHintUI(cur, hasil.rate, hasil.tanggal, false);
+                })
+                .catch((err) => {
+                    console.error('api.run.getExchangeRate gagal:', err);
+                    currentTxMataUang = cur; currentTxKurs = null; // ditandai null -> submitForm() akan menolak submit sampai berhasil
+                    updateCurrencyHintUI(cur, null, null, false, true);
+                });
         }
 
         // Sisi TUJUAN dari handleAccountChangeForCurrency() -- dipanggil dari selectCategoryItem()
@@ -4622,13 +4628,17 @@ const api = (() => {
                 return;
             }
             updateTransferDestCurrencyHintUI(currentTxMataUang, cur, null, true);
-            api.run.withSuccessHandler((hasil) => {
-                currentTxMataUangTujuan = cur; currentTxKursTujuan = hasil.rate;
-                updateTransferDestCurrencyHintUI(currentTxMataUang, cur, hasil.rate, false);
-            }).withFailureHandler(() => {
-                currentTxMataUangTujuan = cur; currentTxKursTujuan = null; // null -> submitForm() menolak submit sampai berhasil
-                updateTransferDestCurrencyHintUI(currentTxMataUang, cur, null, false, true);
-            }).getExchangeRate(cur);
+            // Pensyahan api.run (slice edge): service langsung, callback persis versi lama.
+            servicesModule.getExchangeRate(supabaseClient, cur)
+                .then((hasil) => {
+                    currentTxMataUangTujuan = cur; currentTxKursTujuan = hasil.rate;
+                    updateTransferDestCurrencyHintUI(currentTxMataUang, cur, hasil.rate, false);
+                })
+                .catch((err) => {
+                    console.error('api.run.getExchangeRate gagal:', err);
+                    currentTxMataUangTujuan = cur; currentTxKursTujuan = null; // null -> submitForm() menolak submit sampai berhasil
+                    updateTransferDestCurrencyHintUI(currentTxMataUang, cur, null, false, true);
+                });
         }
 
         function openCategorySelector() {
@@ -4868,17 +4878,20 @@ const api = (() => {
             const categories = Object.values(dict || {}).flatMap(p => p.subs.map(s => s.name));
             if (categories.length === 0) return;
 
-            api.run.withSuccessHandler((hasil) => {
-                // Kalau user udah keburu isi kategori sendiri / ganti teks selagi nunggu respons AI, abaikan hasilnya.
-                if (document.getElementById('kategori').value) return;
-                if (document.getElementById('keterangan').value.trim() !== text) return;
-                if (!hasil || !hasil.kategori) { hideCategorySuggestion(); return; }
-                categorySuggestionValue = hasil.kategori;
-                document.getElementById('category-suggestion-text').innerText = `Saran kategori: ${hasil.kategori}`;
-                const chip = document.getElementById('category-suggestion-chip');
-                chip.classList.remove('hidden'); chip.classList.add('flex');
-            }).withFailureHandler(() => { /* diam2 gagal aja, ini fitur pemanis bukan yg kritikal */ })
-              .suggestCategory(text, jenis, categories);
+            // Pensyahan api.run (slice edge): service langsung, callback persis versi lama
+            // (termasuk failure handler diam2 -- fitur pemanis, bukan yg kritikal).
+            servicesModule.suggestCategory(supabaseClient, text, jenis, categories)
+                .then((hasil) => {
+                    // Kalau user udah keburu isi kategori sendiri / ganti teks selagi nunggu respons AI, abaikan hasilnya.
+                    if (document.getElementById('kategori').value) return;
+                    if (document.getElementById('keterangan').value.trim() !== text) return;
+                    if (!hasil || !hasil.kategori) { hideCategorySuggestion(); return; }
+                    categorySuggestionValue = hasil.kategori;
+                    document.getElementById('category-suggestion-text').innerText = `Saran kategori: ${hasil.kategori}`;
+                    const chip = document.getElementById('category-suggestion-chip');
+                    chip.classList.remove('hidden'); chip.classList.add('flex');
+                })
+                .catch((err) => { console.error('api.run.suggestCategory gagal:', err); /* diam2 gagal aja, ini fitur pemanis bukan yg kritikal */ });
         }
 
         function applyCategorySuggestion() {
@@ -4912,13 +4925,17 @@ const api = (() => {
                     // boleh milih kategori yang BENAR-BENAR ada di akun user, tidak mengarang nama baru.
                     const categories = Object.values(categoryDict.pengeluaran || {}).flatMap(p => p.subs.map(s => s.name));
 
-                    api.run.withSuccessHandler((hasil) => {
-                        applyStrukResultToForm(hasil);
-                        btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
-                    }).withFailureHandler((err) => {
-                        showErrorToast(err && err.message ? err.message : 'Gagal membaca struk. Coba foto yang lebih jelas.');
-                        btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
-                    }).scanReceipt(base64Only, 'image/jpeg', categories);
+                    // Pensyahan api.run (slice edge): service langsung, callback persis versi lama.
+                    servicesModule.scanReceipt(supabaseClient, base64Only, 'image/jpeg', categories)
+                        .then((hasil) => {
+                            applyStrukResultToForm(hasil);
+                            btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
+                        })
+                        .catch((err) => {
+                            console.error('api.run.scanReceipt gagal:', err);
+                            showErrorToast(err && err.message ? err.message : 'Gagal membaca struk. Coba foto yang lebih jelas.');
+                            btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
+                        });
                 }).catch(function () {
                     showErrorToast('Gagal memproses foto ini. Coba foto lain.');
                     btn.disabled = false; btn.innerHTML = '<i class="fas fa-camera"></i>';
