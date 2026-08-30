@@ -5,7 +5,7 @@
 //
 // SUMBER FILE INI: di-recover langsung dari deployment live (Supabase MCP get_edge_function)
 // tanggal 25 Agustus 2026 -- sebelumnya TIDAK ADA sama sekali di git manapun, lihat
-// AUDIT_REPORT_2026-08.md §4.7 (yang mengklaim sudah "diselamatkan" tapi ternyata tidak pernah
+// docs/AUDIT_REPORT_2026-08.md §4.7 (yang mengklaim sudah "diselamatkan" tapi ternyata tidak pernah
 // benar-benar ter-commit) dan commit riwayat Phase 6 di branch ini.
 //
 // SUMBER: Frankfurter API (https://frankfurter.dev) -- kurs referensi harian dari European Central

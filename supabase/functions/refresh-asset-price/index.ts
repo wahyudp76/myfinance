@@ -7,7 +7,7 @@
 //
 // SUMBER FILE INI: di-recover langsung dari deployment live (Supabase MCP get_edge_function)
 // tanggal 25 Agustus 2026 -- sebelumnya TIDAK ADA sama sekali di git manapun, lihat
-// AUDIT_REPORT_2026-08.md §4.7 dan commit riwayat Phase 6 di branch ini.
+// docs/AUDIT_REPORT_2026-08.md §4.7 dan commit riwayat Phase 6 di branch ini.
 //
 // KENAPA LEWAT EDGE FUNCTION (bukan fetch CoinGecko langsung dari browser)?
 // Sebenarnya CoinGecko API publik boleh dipanggil langsung dari browser (tidak perlu API key

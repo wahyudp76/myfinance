@@ -4,11 +4,11 @@
 -- KENAPA FILE INI ADA: index.html (fungsi addAssetRemote/editAssetRemote/fetchAssetsRemote,
 -- lihat juga src/services/supabase/assets.js) dan Edge Function `refresh-asset-price` sudah
 -- lama membaca & menulis 3 kolom ini di tabel `assets` -- fitur ini AKTIF di produksi
--- (refresh-asset-price ada di daftar 6 edge function ter-deploy, lihat AUDIT_REPORT_2026-08.md
+-- (refresh-asset-price ada di daftar 6 edge function ter-deploy, lihat docs/AUDIT_REPORT_2026-08.md
 -- §4.6). Tapi tidak ada satu pun file migrasi manapun di repo ini yang pernah membuat kolom
 -- tersebut -- kemungkinan besar ditambahkan manual lewat Supabase Table Editor waktu itu,
 -- bukan lewat SQL Editor, jadi tidak pernah tercatat di git. Ini sisi SQL dari celah yang sama
--- yang sudah ditemukan AUDIT_REPORT_2026-08.md utk source Edge Function-nya.
+-- yang sudah ditemukan docs/AUDIT_REPORT_2026-08.md utk source Edge Function-nya.
 --
 -- Kalau kolom-kolom ini SUDAH ada di database live Anda (kemungkinan besar begitu, kalau
 -- fitur refresh harga otomatis sudah pernah dipakai): migrasi ini aman dijalankan ulang,

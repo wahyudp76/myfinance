@@ -36,17 +36,20 @@ myfinance-app/
 ├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
 ├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
 ├── _headers               # Header keamanan (khusus hosting Netlify)
+├── sw.js                   # Service Worker (precache app shell, network-first utk dokumen)
+├── package.json            # Script test + metadata Node (CI: .github/workflows/)
 ├── sql/
 │   ├── schema.sql              # SQL lengkap: tabel inti + Row Level Security
 │   └── *.sql                    # Migrasi tambahan bertanggal, urut dari nama file
 ├── supabase/functions/
 │   ├── scan-receipt/index.ts    # Edge Function: baca struk lewat Gemini vision
 │   └── whatsapp-webhook/index.ts # Edge Function: bot WhatsApp (Fonnte)
-├── src/                          # (khusus branch refactor) modul JS yang diimpor index.html
+├── src/                          # Modul JS produksi (auth/bootstrap/data/domain/services/ui) -- diimpor index.html
 ├── tests/
 │   ├── unit/                      # Test murni, tanpa network -- selalu jalan (npm run test:unit)
 │   └── parity/                    # Banding legacy vs native, sebagian butuh secret live
-├── docs/                           # Rencana & catatan migrasi arsitektur
+├── scripts/rls-audit/       # Probe audit RLS + grants behavioral (docs/rls-grants-audit-*)
+├── docs/                           # Rencana migrasi, audit historis & kontrak loader
 └── README.md
 ```
 

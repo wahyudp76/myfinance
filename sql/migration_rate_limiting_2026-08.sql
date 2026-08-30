@@ -28,7 +28,7 @@
 --
 -- Sengaja SATU RPC generik (bukan 1 RPC per fitur) -- p_action bebas string apa saja, supaya
 -- Edge Function lain (analyze-finance, get-exchange-rate, refresh-asset-price -- SETELAH source-
--- nya di-download & source-nya bisa diedit, lihat AUDIT_REPORT_2026-08.md §4.7) bisa ikut pakai
+-- nya di-download & source-nya bisa diedit, lihat docs/AUDIT_REPORT_2026-08.md §4.7) bisa ikut pakai
 -- infrastruktur yang sama tanpa migrasi SQL baru lagi per fitur.
 --
 -- Cara pakai: SQL Editor -> New query -> paste seluruh isi file ini -> Run. Aman dijalankan
@@ -37,7 +37,7 @@
 -- CATATAN NAMA TABEL: sengaja "api_rate_limits", BUKAN "rate_limits" -- pas dicek langsung ke
 -- database live, ternyata SUDAH ADA tabel public.rate_limits (kolom: user_id, last_ai_chat_at)
 -- yang sepertinya dipakai analyze-finance (salah satu Edge Function yang source-nya tidak ada
--- di repo ini, lihat AUDIT_REPORT_2026-08.md §4.7) buat cooldown sederhana berbasis timestamp
+-- di repo ini, lihat docs/AUDIT_REPORT_2026-08.md §4.7) buat cooldown sederhana berbasis timestamp
 -- terakhir. Skemanya beda total dari yang dibutuhkan migrasi ini (perlu kolom action/
 -- window_start/call_count buat banyak jenis aksi sekaligus, bukan cuma 1 timestamp), dan tabel
 -- itu tidak disentuh sama sekali di sini supaya tidak berisiko mematahkan analyze-finance yang

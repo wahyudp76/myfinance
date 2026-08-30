@@ -9,7 +9,7 @@
 //
 // SUMBER FILE INI: di-recover langsung dari deployment live (Supabase MCP get_edge_function)
 // tanggal 25 Agustus 2026 -- sebelumnya TIDAK ADA sama sekali di git manapun (lihat
-// AUDIT_REPORT_2026-08.md §4.7 dan commit riwayat Phase 6 di branch ini). ada function LAIN
+// docs/AUDIT_REPORT_2026-08.md §4.7 dan commit riwayat Phase 6 di branch ini). ada function LAIN
 // bernama "smooth-processor" yang deploy live juga masih aktif berisi versi LAMA fitur ini
 // (pakai Anthropic Claude, bukan Gemini, cuma 2 dari 4 mode) -- itu bukan file ini, tidak
 // dipanggil dari index.html sama sekali, dan disarankan dihapus manual
