@@ -2309,7 +2309,7 @@ const auth = {
 };
 
 // ==========================================================================
-// LAPISAN API (menggantikan peran google.script.run dari versi Apps Script)
+// LAPISAN API (menggantikan peran google.script.run dari versi Apps Script -- kini service layer src/services/*)
 // ==========================================================================
 // Status: SEMUA data aplikasi sudah tersambung penuh ke Supabase — tidak
 // ada lagi localStorage yang dipakai sebagai database. Tabel yang dipakai:
@@ -2319,13 +2319,10 @@ const auth = {
 //   - settings       (daftar akun & kategori kustom, 1 baris per user)
 //   - custom_icons   (ikon/logo kustom per akun)
 //
-// app.js TIDAK ditulis ulang satu-per-satu. Pola pemanggilan lama tetap
-// dipertahankan persis:
-//
-//     api.run.withSuccessHandler(cb).withFailureHandler(errCb).namaFungsi(args)
-//
-// hanya sumber datanya diarahkan ke Supabase di bawah ini. Membutuhkan
-// js/supabase-client.js dimuat lebih dulu.
+// Jalur data: SEMUA pemanggilan kini langsung ke service layer ES module
+// src/services/* (di-export lewat window.__myfinanceServices di <head>) --
+// adapter `api` gaya google.script.run yang dulu berdiri di sini sudah
+// dipensiunkan & dihapus utuh (seri commit "refactor(api-seam)").
 // ==========================================================================
 
 // BUG FIX: currentUserId() sengaja ditaruh di scope GLOBAL (SEBELUM IIFE `api` di bawah), bukan
@@ -2338,343 +2335,18 @@ async function currentUserId() {
     return user.id;
 }
 
-const api = (() => {
-
-    // ---------------- TRANSAKSI (tabel: transactions) ----------------
-    // PostgREST (di balik layar Supabase) membatasi maksimal ~1000 baris per response secara default,
-    // kalau query-nya tidak pakai .range()/.limit() eksplisit. Untuk app pencatatan keuangan yang
-    // datanya terus menumpuk tiap hari, ini artinya begitu jumlah baris user lewat 1000, sisanya
-    // TERPOTONG DIAM-DIAM (tidak error) -- transaksi lama bisa hilang dari laporan/grafik tanpa
-    // ada tanda apa pun. Helper ini menarik SEMUA baris dengan mem-paging per `pageSize` sampai
-    // halaman yang kembali lebih pendek dari pageSize (tandanya sudah baris terakhir).
-    async function fetchAllRows(buildQuery, pageSize = 1000) {
-        let allRows = [];
-        let from = 0;
-        while (true) {
-            const { data, error } = await buildQuery(from, from + pageSize - 1);
-            if (error) throw error;
-            allRows = allRows.concat(data || []);
-            if (!data || data.length < pageSize) break;
-            from += pageSize;
-        }
-        return allRows;
-    }
-
-    async function fetchTransactions() {
-        return await transactionService.list();
-    }
-
-    async function addTransactionRemote(data) {
-        await transactionService.create({
-            jenis: data.jenis,
-            tanggal: data.tanggal,
-            jumlah: Number(data.jumlah),
-            akun: data.akun,
-            kategori: data.kategori,
-            keterangan: data.keterangan || null,
-            mata_uang: data.mata_uang || null,
-            kurs: data.kurs || null,
-            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah),
-        });
-    }
-
-    async function editTransactionRemote(id, data) {
-        await transactionService.update(id, {
-            jenis: data.jenis,
-            tanggal: data.tanggal,
-            jumlah: Number(data.jumlah),
-            akun: data.akun,
-            kategori: data.kategori,
-            keterangan: data.keterangan || null,
-            mata_uang: data.mata_uang || null,
-            kurs: data.kurs || null,
-            jumlah_idr: data.jumlah_idr != null ? Number(data.jumlah_idr) : Number(data.jumlah),
-            // Sisi TUJUAN transfer -- cuma diisi submitForm() saat edit transaksi jenis Transfer;
-            // utk tipe transaksi lain nilainya undefined, yang berarti kolom ini di-set null di DB
-            // (memang seharusnya null utk transaksi non-Transfer).
-            transfer_jumlah_tujuan: data.transfer_jumlah_tujuan != null ? Number(data.transfer_jumlah_tujuan) : null,
-            transfer_mata_uang_tujuan: data.transfer_mata_uang_tujuan || null,
-            transfer_kurs_tujuan: data.transfer_kurs_tujuan != null ? Number(data.transfer_kurs_tujuan) : null,
-            transfer_jumlah_tujuan_idr: data.transfer_jumlah_tujuan_idr != null ? Number(data.transfer_jumlah_tujuan_idr) : null
-        });
-    }
-
-    async function deleteTransactionRemote(id) {
-        await transactionService.remove(id);
-    }
-
-    // BUG FIX (reliability hardening): dipakai KHUSUS oleh processDueRecurring() -- beda dari
-    // addTransactionRemote() biasa, ini lewat RPC create_recurring_transaction() yang idempoten
-    // di level DATABASE (bukan cuma di client) via unique index (user_id, recurring_id,
-    // recurring_due_date). Kenapa penting: kalau processDueRecurring() sempat kepanggil 2x nyaris
-    // bersamaan (mis. app dibuka di 2 tab, atau retry setelah timeout padahal request pertama
-    // sebenarnya sudah sukses di server), versi lama bisa mencatat transaksi berulang yang SAMA
-    // dua kali (uang "berlipat ganda" di laporan). RPC ini menjamin 1 template + 1 tanggal jatuh
-    // tempo = maksimal 1 baris transaksi, walau dipanggil berkali-kali.
-    async function createRecurringTransactionRemote(data) {
-        await servicesModule.createRecurringTransaction(supabaseClient, {
-            recurringId: data.recurring_id,
-            dueDate: data.due_date,
-            jenis: data.jenis,
-            jumlah: Number(data.jumlah),
-            akun: data.akun,
-            kategori: data.kategori,
-            keterangan: data.keterangan || null,
-            mataUang: data.mata_uang || null,
-            kurs: data.kurs || null,
-            jumlahIdr: data.jumlah_idr != null ? Number(data.jumlah_idr) : null,
-        });
-    }
-
-    // Transfer antar akun -- termasuk lintas mata uang -- dicatat lewat RPC ini (BUKAN insert
-    // langsung) supaya snapshot kurs kedua sisi (sumber & tujuan) dan konversi nominalnya
-    // dihitung SEKALI secara konsisten di database, bukan diduplikasi logikanya di client.
-    async function createTransferTransactionRemote(data) {
-        await servicesModule.createTransfer(supabaseClient, {
-            tanggal: data.tanggal,
-            sourceAmount: Number(data.jumlah),
-            sourceAccount: data.akun_sumber,
-            destinationAccount: data.akun_tujuan,
-            sourceCurrency: data.mata_uang_sumber || null,
-            destinationCurrency: data.mata_uang_tujuan || null,
-            sourceRateIdrPerUnit: data.kurs_sumber || 1,
-            destinationRateIdrPerUnit: data.kurs_tujuan || 1,
-            description: data.keterangan || null,
-        });
-    }
-
-    // ---------------- BUDGET (tabel: budgets, 1 baris per kategori per bulan) ----------------
-    // Body-nya sudah pindah ke src/services/supabase/budgets.js (fetchMonthBudgets) saat
-    // pensyahan api.run slice budgets -- tinggal delegasi utk getSyncData() di bawah.
-    async function getBudgetsRemote(bulan) {
-        return await servicesModule.fetchMonthBudgets(supabaseClient, bulan);
-    }
-
-    async function saveBudgetsCloudRemote(bulan, budgetsMap) {
-        // BUG FIX (reliability hardening): sebelumnya di sini DELETE semua budget bulan ini dulu,
-        // baru INSERT ulang sebagai 2 operasi terpisah dari browser -- kalau step INSERT gagal
-        // di tengah jalan (mis. koneksi putus) SETELAH step DELETE berhasil, budget sebulan penuh
-        // bisa hilang tanpa jejak. RPC replace_month_budgets() membungkus keduanya jadi SATU
-        // transaksi database (atomik): kalau ada yang gagal, semuanya dibatalkan (rollback),
-        // budget lama tetap utuh -- tidak ada kondisi "budget kosong di tengah jalan".
-        await servicesModule.replaceMonthBudgets(supabaseClient, bulan, budgetsMap || {});
-        return { status: 'success' };
-    }
-
-    // ---------------- PENGATURAN: akun & kategori (tabel: settings, 1 baris per user) ----------------
-    async function getSettingsRemote() {
-        return await servicesModule.getSettings(supabaseClient); // null = user baru, belum pernah simpan pengaturan
-    }
-
-    async function saveSettingsCloudRemote(settingsObj) {
-        await servicesModule.saveSettings(supabaseClient, settingsObj);
-        return { status: 'success' };
-    }
-
-    // ---------------- IKON KUSTOM AKUN (tabel: custom_icons) ----------------
-    async function getCustomIconsRemote() {
-        return await servicesModule.getCustomIcons(supabaseClient);
-    }
-
-    async function saveCustomIconRemote(accountName, iconObj) {
-        await servicesModule.saveCustomIcon(supabaseClient, accountName, iconObj);
-        return { status: 'success' };
-    }
-
-    async function deleteCustomIconRemote(accountName) {
-        await servicesModule.deleteCustomIcon(supabaseClient, accountName);
-        return { status: 'success' };
-    }
-
-    // ---------------- ASET / INVESTASI (tabel: assets) ----------------
-    async function fetchAssetsRemote() {
-        return await servicesModule.listAssets(supabaseClient);
-    }
-
-    async function addAssetRemote(data) {
-        await servicesModule.createAsset(supabaseClient, data);
-    }
-
-    async function editAssetRemote(id, data) {
-        await servicesModule.updateAsset(supabaseClient, id, data);
-    }
-
-    async function deleteAssetRemote(id) {
-        await servicesModule.deleteAsset(supabaseClient, id);
-    }
-
-    // Manggil Edge Function 'analyze-finance' mode "suggest_category" -- lihat penjelasan mode ini
-    // di file itu. Beda dari Rekomendasi AI/Tanya AI/Ringkasan Bulanan (yang butuh ringkasan angka
-    // keuangan), ini cuma butuh teks keterangan singkat + daftar kategori valid milik user.
-    async function suggestCategoryRemote(keterangan, jenis, categories) {
-        const { data, error } = await supabaseClient.functions.invoke('analyze-finance', {
-            body: { mode: 'suggest_category', keterangan, jenis, categories }
-        });
-        if (error) throw error;
-        if (data && data.error) throw new Error(data.error);
-        return data;
-    }
-
-    // Manggil Edge Function 'get-exchange-rate' -- lihat supabase/functions/get-exchange-rate/index.ts.
-    async function getExchangeRateRemote(mataUang) {
-        const { data, error } = await supabaseClient.functions.invoke('get-exchange-rate', { body: { mata_uang: mataUang } });
-        if (error) throw error;
-        if (data && data.error) throw new Error(data.error);
-        return data;
-    }
-
-    // Manggil Edge Function 'scan-receipt' -- lihat supabase/functions/scan-receipt/index.ts.
-    // Kirim foto struk (SUDAH dikompres di client, lihat compressImageDataUrl) + daftar kategori
-    // Pengeluaran milik user ini (supaya Gemini cuma boleh milih dari kategori yang BENAR-BENAR ada).
-    async function scanReceiptRemote(imageBase64, mimeType, categories) {
-        const { data, error } = await supabaseClient.functions.invoke('scan-receipt', {
-            body: { image_base64: imageBase64, mime_type: mimeType, categories }
-        });
-        if (error) throw error;
-        if (data && data.error) throw new Error(data.error);
-        return data;
-    }
-    // Beda dari CRUD lain di atas: fungsi ini TIDAK langsung query tabel `assets` dari sini, karena
-    // logic ambil-harga-dari-CoinGecko + hitung nilai baru + update value_history dilakukan di server.
-    async function refreshAssetPriceRemote(id) {
-        const { data, error } = await supabaseClient.functions.invoke('refresh-asset-price', { body: { asset_id: id } });
-        if (error) throw error;
-        if (data && data.error) throw new Error(data.error);
-        return data;
-    }
-
-    // ---------------- TRANSAKSI BERULANG (tabel: recurring_transactions) ----------------
-    async function fetchRecurringRemote() {
-        const data = await fetchAllRows((from, to) => supabaseClient
-            .from('recurring_transactions')
-            .select('id, jenis, jumlah, akun, kategori, keterangan, frequency, start_date, next_due_date, end_date, active')
-            .order('next_due_date', { ascending: true })
-            .order('id', { ascending: true })
-            .range(from, to));
-        return data.map(row => ({ ...row, jumlah: Number(row.jumlah) }));
-    }
-
-    async function addRecurringRemote(data) {
-        const user_id = await currentUserId();
-        const { error } = await supabaseClient.from('recurring_transactions').insert({
-            user_id,
-            jenis: data.jenis,
-            jumlah: Number(data.jumlah),
-            akun: data.akun,
-            kategori: data.kategori,
-            keterangan: data.keterangan || null,
-            frequency: data.frequency,
-            start_date: data.start_date,
-            next_due_date: data.next_due_date,
-            end_date: data.end_date || null,
-            active: true
-        });
-        if (error) throw error;
-    }
-
-    async function editRecurringRemote(id, data) {
-        const { error } = await supabaseClient.from('recurring_transactions').update({
-            jenis: data.jenis,
-            jumlah: Number(data.jumlah),
-            akun: data.akun,
-            kategori: data.kategori,
-            keterangan: data.keterangan || null,
-            frequency: data.frequency,
-            start_date: data.start_date,
-            next_due_date: data.next_due_date,
-            end_date: data.end_date || null
-        }).eq('id', id);
-        if (error) throw error;
-    }
-
-    async function deleteRecurringRemote(id) {
-        const { error } = await supabaseClient.from('recurring_transactions').delete().eq('id', id);
-        if (error) throw error;
-    }
-
-    async function setRecurringActiveRemote(id, active) {
-        const { error } = await supabaseClient.from('recurring_transactions').update({ active }).eq('id', id);
-        if (error) throw error;
-    }
-
-    async function advanceRecurringDueDateRemote(id, nextDueDate) {
-        const { error } = await supabaseClient.from('recurring_transactions').update({ next_due_date: nextDueDate }).eq('id', id);
-        if (error) throw error;
-    }
-
-    // ---------------- GABUNGAN UNTUK loadData() (Dashboard, Transaksi, Budget, Aset, Pengaturan) ----------------
-    async function getSyncData(bulan) {
-        const [transactions, budgets, assets, customIcons, settings, recurring] = await Promise.all([
-            fetchTransactions(),
-            getBudgetsRemote(bulan),
-            fetchAssetsRemote(),
-            getCustomIconsRemote(),
-            getSettingsRemote(),
-            fetchRecurringRemote()
-        ]);
-        return { transactions, budgets, assets, settings, customIcons, recurring };
-    }
-
-    // ---------------- ADAPTER: pola pemanggilan gaya google.script.run lama ----------------
-    const methodMap = {
-        getSyncData: (bulan) => getSyncData(bulan),
-        getTransactionsOnly: () => fetchTransactions(),
-        getAssetsOnly: () => fetchAssetsRemote(),
-        getBudgets: (bulan) => getBudgetsRemote(bulan),
-        saveBudgetsCloud: (bulan, map) => saveBudgetsCloudRemote(bulan, map),
-        saveSettingsCloud: (settings) => saveSettingsCloudRemote(settings),
-        saveCustomIcon: (name, obj) => saveCustomIconRemote(name, obj),
-        deleteCustomIcon: (name) => deleteCustomIconRemote(name),
-        getCustomIcons: () => getCustomIconsRemote(),
-        addTransaction: (data) => addTransactionRemote(data),
-        createRecurringTransaction: (data) => createRecurringTransactionRemote(data),
-        createTransferTransaction: (data) => createTransferTransactionRemote(data),
-        editTransaction: (id, data) => editTransactionRemote(id, data),
-        deleteTransaction: (id) => deleteTransactionRemote(id),
-        addAsset: (data) => addAssetRemote(data),
-        editAsset: (id, data) => editAssetRemote(id, data),
-        deleteAsset: (id) => deleteAssetRemote(id),
-        refreshAssetPrice: (id) => refreshAssetPriceRemote(id),
-        scanReceipt: (imageBase64, mimeType, categories) => scanReceiptRemote(imageBase64, mimeType, categories),
-        getExchangeRate: (mataUang) => getExchangeRateRemote(mataUang),
-        suggestCategory: (keterangan, jenis, categories) => suggestCategoryRemote(keterangan, jenis, categories),
-        getRecurring: () => fetchRecurringRemote(),
-        addRecurring: (data) => addRecurringRemote(data),
-        editRecurring: (id, data) => editRecurringRemote(id, data),
-        deleteRecurring: (id) => deleteRecurringRemote(id),
-        setRecurringActive: (id, active) => setRecurringActiveRemote(id, active),
-        advanceRecurringDueDate: (id, nextDueDate) => advanceRecurringDueDateRemote(id, nextDueDate)
-    };
-
-    function buildRunner(successCb, failCb) {
-        const runner = {};
-        Object.keys(methodMap).forEach(name => {
-            runner[name] = (...args) => {
-                methodMap[name](...args)
-                    .then(result => { if (successCb) successCb(result); })
-                    .catch(err => {
-                        console.error(`api.run.${name} gagal:`, err);
-                        if (failCb) failCb(err);
-                    });
-            };
-        });
-        runner.withFailureHandler = (newFailCb) => buildRunner(successCb, newFailCb);
-        return runner;
-    }
-
-    return {
-        run: {
-            withSuccessHandler(successCb) { return buildRunner(successCb, null); }
-        }
-    };
-})();
+// ADAPTER `api` (pola google.script.run) SUDAH DIPENSIUNKAN & DIHAPUS UTUH --
+// seri commit "refactor(api-seam)" 7a6ce0d..8c26719 memindahkan semua jalur data
+// ke service layer src/services/* (transactions.js, supabase/{budgets,settings,
+// custom-icons,assets,recurring,transfers,edge}.js) & getSyncData di-inline di
+// loadData(). currentUserId() di atas TETAP ada (dipakai restoreBackup() dkk).
 
 // ==========================================================================
 // APP.JS — Logic utama aplikasi (UI, render, kalkulasi, event handler)
 // ==========================================================================
 // File ini adalah hasil pemisahan dari <script> tunggal versi gabungan.
-// Semua pemanggilan data sekarang lewat "api.run...." (lihat js/api.js)
-// alih-alih "google.script.run...." versi Google Apps Script sebelumnya.
+// Semua pemanggilan data sekarang lewat service layer src/services/* --
+// adapter "api.run" gaya google.script.run sudah pensiun utuh (lihat komentar pengganti di atas).
 // Urutan pemuatan WAJIB: supabase-client.js -> auth.js -> api.js -> app.js
 // ==========================================================================
 
@@ -5315,7 +4987,20 @@ const api = (() => {
             
             const targetBulan = document.getElementById('budgetFilterMonth').value || todayDateStr().slice(0, 7);
 
-            api.run.withSuccessHandler((response) => {
+            // Pensyahan api.run (slice penutup): getSyncData() adapter di-inline di sini --
+            // Promise.all 6 service, urutan & bentuk hasil { transactions, budgets, assets,
+            // settings, customIcons, recurring } sama persis dgn getSyncData lama.
+            (async () => {
+                const [transactions, budgets, assets, customIcons, settings, recurring] = await Promise.all([
+                    transactionService.list(),
+                    servicesModule.fetchMonthBudgets(supabaseClient, targetBulan),
+                    servicesModule.listAssets(supabaseClient),
+                    servicesModule.getCustomIcons(supabaseClient),
+                    servicesModule.getSettings(supabaseClient),
+                    servicesModule.listRecurring(supabaseClient),
+                ]);
+                return { transactions, budgets, assets, settings, customIcons, recurring };
+            })().then((response) => {
                 globalData = response.transactions || [];
                 cloudBudgets = response.budgets || {};
                 globalAssets = response.assets || [];
@@ -5387,10 +5072,11 @@ const api = (() => {
 
                 showLoading(false);
                 processDueRecurring();
-            }).withFailureHandler((err) => {
+            }).catch((err) => {
+                console.error('api.run.getSyncData gagal:', err);
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
                 showLoading(false);
-            }).getSyncData(targetBulan);
+            });
         }
 
         // ========================== TRANSAKSI BERULANG (langganan, gaji, cicilan, tagihan rutin) ==========================
@@ -5401,14 +5087,8 @@ const api = (() => {
         // dan memajukan next_due_date ke periode berikutnya. Tidak butuh cron/server terjadwal apa pun
         // karena pengecekannya terjadi di sisi client, setiap kali user login/membuka app.
 
-        // Membungkus pola callback api.run.withSuccessHandler(...) jadi Promise, supaya bisa dipakai
-        // dengan async/await pada proses berantai (buat banyak transaksi berturut-turut, dsb) tanpa
-        // perlu mengubah struktur api.js yang sudah ada.
-        function apiCall(methodName, ...args) {
-            return new Promise((resolve, reject) => {
-                api.run.withSuccessHandler(resolve).withFailureHandler(reject)[methodName](...args);
-            });
-        }
+        // apiCall() (pembungkus api.run jadi Promise) ikut pensiun bersama adapter --
+// processDueRecurring() dkk kini meng-await service langsung (slice recurring).
 
         const RECURRING_FREQ_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan', tahunan: 'Tahunan' };
 
