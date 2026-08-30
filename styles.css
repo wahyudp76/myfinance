@@ -389,3 +389,65 @@
         .theme-btn { border: 1.5px solid transparent; }
         .theme-btn.theme-btn-active { border-color: #4f46e5; background: rgba(79, 70, 229, 0.08); }
         .dark .theme-btn.theme-btn-active { background: rgba(129, 140, 248, 0.15); }
+
+/* ==========================================================================
+   WARNA AKSEN (fitur ganti tema warna -- Pengaturan > Tampilan)
+   ==========================================================================
+   Semua rule di bawah HANYA aktif kalau <body> punya atribut data-theme-accent
+   (dipasang applyThemeColor() kalau appSettings.themeColor diisi). Tanpa
+   atribut itu (default/bawaan zamrud, atau user mereset), TIDAK ADA satu pun
+   rule yang cocok -- tampilan identik dengan sebelum fitur ini ada.
+
+   Nilai --accent-* dipasang sebagai inline CSS variables di <html> oleh
+   applyThemeColor(), dihitung src/domain/theme.js (buildAccentShades) dari
+   SATU warna dasar pilihan user. Override ini menargetkan PERSIS kelas
+   utilitas emerald yang dipakai index.html (di-audit dengan grep -- lihat
+   commit fitur ini); kelas semantik (rose=pengeluaran, blue=info,
+   amber=peringatan, dst.) SENGAJA tidak disentuh. Specificity semua rule
+   sengaja lebih tinggi dari utilitas Tailwind aslinya (body[attr] = 2
+   "class-level" + 1 elemen) supaya menang tanpa !important.
+   ========================================================================== */
+
+body[data-theme-accent] .text-emerald-300 { color: var(--accent-300); }
+body[data-theme-accent] .text-emerald-400 { color: var(--accent-400); }
+body[data-theme-accent] .text-emerald-500 { color: var(--accent-500); }
+body[data-theme-accent] .text-emerald-600 { color: var(--accent-600); }
+body[data-theme-accent] .text-emerald-700 { color: var(--accent-700); }
+
+body[data-theme-accent] .bg-emerald-50 { background-color: var(--accent-50); }
+body[data-theme-accent] .bg-emerald-100 { background-color: var(--accent-100); }
+body[data-theme-accent] .bg-emerald-400 { background-color: var(--accent-400); }
+/* Latar aksen penuh: warna teksnya ikut dikontraskan (mis. amber -> teks
+   gelap) supaya tombol tetap terbaca. Mencakup juga span.text-white di
+   dalamnya (specificity lebih tinggi dari .text-white Tailwind). */
+body[data-theme-accent] .bg-emerald-500 {
+    background-color: var(--accent-500);
+    color: var(--accent-contrast);
+}
+body[data-theme-accent] .bg-emerald-500 .text-white { color: var(--accent-contrast); }
+
+/* Varian opacity dari markup (bg-emerald-50/60, bg-emerald-400/10, dsb.) --
+   ditangkap lewat attribute selector supaya satu rule habisi semua varian. */
+body[data-theme-accent] [class*="bg-emerald-50/"] { background-color: var(--accent-50-60); }
+body[data-theme-accent] [class*="bg-emerald-400/"] { background-color: var(--accent-faint-10); }
+
+body[data-theme-accent] .hover\:bg-emerald-100:hover { background-color: var(--accent-100); }
+body[data-theme-accent] .hover\:bg-emerald-600:hover { background-color: var(--accent-600); }
+
+body[data-theme-accent] .border-emerald-100 { border-color: var(--accent-100); }
+
+/* Ring Tailwind bekerja lewat custom property --tw-ring-color, jadi cukup
+   menimpa property itu (bukan box-shadow jadi-jadian). */
+body[data-theme-accent] .ring-emerald-100 { --tw-ring-color: var(--accent-100); }
+body[data-theme-accent] .ring-emerald-300 { --tw-ring-color: var(--accent-300); }
+body[data-theme-accent] .focus-within\:ring-emerald-300:focus-within { --tw-ring-color: var(--accent-300); }
+body[data-theme-accent] .peer:checked ~ .peer-checked\:text-emerald-600 { color: var(--accent-600); }
+
+/* Mode gelap: pengganti rgba(16,185,129,...) & #34d399 yang di-hardcode di
+   bagian dark-mode styles.css ini (kelas .dark dipasang di <html>). */
+.dark body[data-theme-accent] [class*="bg-emerald-50"],
+.dark body[data-theme-accent] [class*="bg-emerald-100"],
+.dark body[data-theme-accent] .bg-emerald-50,
+.dark body[data-theme-accent] .bg-emerald-100 { background-color: var(--accent-dark-chip); }
+.dark body[data-theme-accent] .text-emerald-500,
+.dark body[data-theme-accent] .text-emerald-600 { color: var(--accent-400); }

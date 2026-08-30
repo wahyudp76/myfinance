@@ -113,6 +113,7 @@
         import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
+        import { normalizeThemeColor, buildAccentShades, PRESET_THEMES } from './src/domain/theme.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
@@ -1126,6 +1127,18 @@
                             <i class="fas fa-desktop text-slate-500"></i>
                             <span class="text-[10px] font-semibold text-slate-600">Sistem</span>
                         </button>
+                    </div>
+                    <!-- Warna Aksen (fitur tema warna) -- swatch dirender oleh renderThemePicker() -->
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"><i class="fas fa-palette text-indigo-400 mr-1"></i>Warna Aksen</p>
+                            <button type="button" onclick="setThemeColor(null)" class="text-[10px] text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors">Reset</button>
+                        </div>
+                        <div id="theme-accent-swatches" class="flex flex-wrap items-center gap-2"></div>
+                        <label class="mt-2.5 flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer select-none">
+                            <input type="color" id="theme-color-custom" oninput="setThemeColor(this.value, true)" aria-label="Warna kustom" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200 bg-white p-0.5">
+                            <span>Atau pilih warna kustommu sendiri</span>
+                        </label>
                     </div>
                 </div>
 
@@ -2433,6 +2446,9 @@ async function currentUserId() {
             // lama yang masih mengasumsikan appSettings.accounts = array of string tetap jalan
             // tanpa perlu diubah satu-satu.
             account_currencies: {},
+            // Warna aksen UI (fitur "Warna Aksen" di Pengaturan > Tampilan) -- null = zamrud
+            // bawaan (tanpa override CSS sama sekali). Nilai: hex '#rrggbb' yang sudah dinormalisasi.
+            themeColor: null,
             custom_categories: {
                 pengeluaran: { parents: [], subs: {} },
                 pemasukan: { parents: [], subs: {} }
@@ -2542,6 +2558,7 @@ async function currentUserId() {
             // defensive check `appSettings.account_currencies && ...`. Sekarang satu sumber
             // kebenaran di sini, sama seperti accountIcons/categoryStyles/dll di atas & bawah ini.
             if (!appSettings.account_currencies) appSettings.account_currencies = {};
+            if (typeof appSettings.themeColor !== 'string') appSettings.themeColor = null; // fitur Warna Aksen -- settings cloud lama belum punya field ini
             if (!appSettings.categoryStyles) appSettings.categoryStyles = { pengeluaran: {}, pemasukan: {} };
             ['pengeluaran', 'pemasukan'].forEach(type => { if (!appSettings.categoryStyles[type]) appSettings.categoryStyles[type] = {}; });
             if (!appSettings.hidden_categories) appSettings.hidden_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
@@ -3078,6 +3095,62 @@ async function currentUserId() {
             renderWhatsappLinkStatus();
             const accEl = document.getElementById('settings-stat-accounts'); if (accEl) accEl.innerText = appSettings.accounts.length;
             const catEl = document.getElementById('settings-stat-categories'); if (catEl) catEl.innerText = Object.keys(categoryDict.pemasukan).length + Object.keys(categoryDict.pengeluaran).length;
+            renderThemePicker();
+        }
+
+        // ---------- WARNA AKSEN (tema warna UI) ----------
+        // Pasang/lepas tema: menghitung shade dari appSettings.themeColor lewat domain
+        // module murni (teruji unit), menaruhnya sebagai CSS variables di <html>, lalu
+        // menandai <body data-theme-accent> yang mengaktifkan blok override di styles.css.
+        // themeColor null/tanpa atribut = nol rule aktif = tampilan bawaan persis asli.
+        function applyThemeColor() {
+            try {
+                const hex = normalizeThemeColor(appSettings && appSettings.themeColor);
+                const root = document.documentElement;
+                const body = document.body;
+                const meta = document.querySelector('meta[name="theme-color"]');
+                const shadeKeys = ['50', '100', '300', '400', '500', '600', '700'];
+                const extraProps = ['--accent-contrast', '--accent-dark-chip', '--accent-faint-10', '--accent-50-60'];
+                if (!hex) {
+                    delete body.dataset.themeAccent;
+                    shadeKeys.forEach((k) => root.style.removeProperty('--accent-' + k));
+                    extraProps.forEach((p) => root.style.removeProperty(p));
+                    if (meta) meta.setAttribute('content', '#151928'); // warna asli sebelum fitur ini
+                    return;
+                }
+                const shades = buildAccentShades(hex);
+                shadeKeys.forEach((k) => root.style.setProperty('--accent-' + k, shades[k]));
+                root.style.setProperty('--accent-contrast', shades.contrastText);
+                root.style.setProperty('--accent-dark-chip', shades.darkChipRgba);
+                root.style.setProperty('--accent-faint-10', shades.faint10Rgba);
+                root.style.setProperty('--accent-50-60', shades.shade50Alpha60Rgba);
+                body.dataset.themeAccent = hex;
+                if (meta) meta.setAttribute('content', shades['600']); // warna bilah browser di HP
+            } catch (e) {
+                console.error('Gagal menerapkan warna tema:', e);
+            }
+        }
+
+        function setThemeColor(color, silent) {
+            appSettings.themeColor = normalizeThemeColor(color); // null kalau reset/input tak valid
+            applyThemeColor();
+            renderThemePicker();
+            persistSettings(); // ikut pipeline settings yang sama -> sinkron ke semua device
+            if (!silent) showSuccessToast(appSettings.themeColor ? 'Warna tema diperbarui \u2728' : 'Kembali ke warna bawaan');
+        }
+
+        function renderThemePicker() {
+            const wrap = document.getElementById('theme-accent-swatches');
+            if (!wrap) return;
+            const current = normalizeThemeColor(appSettings && appSettings.themeColor);
+            wrap.innerHTML = PRESET_THEMES.map((t) => {
+                const active = current === t.color;
+                return `<button type="button" onclick="setThemeColor('${t.color}')" title="Tema ${t.label}" aria-label="Tema ${t.label}" aria-pressed="${active}"`
+                    + ` class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${active ? 'border-slate-700 scale-110 ring-2 ring-slate-300 ring-offset-1' : 'border-slate-200'}"`
+                    + ` style="background:${t.color}"></button>`;
+            }).join('');
+            const custom = document.getElementById('theme-color-custom');
+            if (custom && current) custom.value = current; // sinkronkan color picker dgn pilihan aktif
         }
 
         // ========================== BOT WHATSAPP (Fonnte) ==========================
@@ -5008,6 +5081,7 @@ async function currentUserId() {
                 
                 if (response.settings) { appSettings = response.settings; }
                 ensureSettingsShape(); // jaga-jaga: settings lama dari cloud mungkin belum punya field terbaru
+                applyThemeColor(); // warna aksen tersimpan di appSettings -> sekali setel, semua device ikut
 
                 // Ikon custom akun (upload gambar / pilih ikon) sumber datanya adalah tabel
                 // custom_icons di Supabase, dikirim lewat response.customIcons -- ini yang jadi
