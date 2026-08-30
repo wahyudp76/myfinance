@@ -114,6 +114,7 @@
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
+        import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
@@ -161,6 +162,8 @@
             // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
             // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.
             normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS,
+            // Aksesibilitas modal (src/ui/modal-a11y.js): pure helpers, dipakai blok classic.
+            getFocusable, nextTabTarget, pickTopModal, modalAccessibleName,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
@@ -4468,16 +4471,31 @@ async function currentUserId() {
                 ['modalRecurringForm', closeRecurringFormModal],
                 ['modalRecurringList', closeRecurringListModal],
                 ['modalAssetDetail', closeAssetDetailModal],
+                ['modalGoalContribute', closeGoalContributeModal],   // slice a11y: sebelumnya TIDAK ada di peta ESC
+                ['modalDebtPay', closeDebtPayModal],                // idem
                 ['modalProfile', closeProfileModal],
                 ['modalAccount', closeAccountModal],
+                ['modalCategoryStyle', closeCategoryStyleModal],    // idem
                 ['modalBudget', closeBudgetModal],
                 ['modalAsset', closeAssetModal],
+                ['modalGoal', closeGoalModal],                      // idem
+                ['modalDebt', closeDebtModal],                      // idem
                 ['modalForm', closeModal]
             ];
             for (const [id, closeFn] of modalCloseMap) {
                 const el = document.getElementById(id);
                 if (el && !el.classList.contains('hidden')) { closeFn(); return; }
             }
+        // FOCUS TRAP (slice a11y): saat modal terbuka, TAB/Shift+TAB tidak boleh
+        // kabur ke elemen di belakang backdrop. Modal teratas dipilih dari z-index
+        // computed style; logika wrap murni di src/ui/modal-a11y.js (teruji unit).
+        if (e.key === 'Tab') {
+            const top = servicesModule.pickTopModal(_modalA11yEls, (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0);
+            if (!top) return;
+            const focusables = servicesModule.getFocusable(top);
+            const target = servicesModule.nextTabTarget(focusables, document.activeElement, e.shiftKey);
+            if (target) { e.preventDefault(); target.focus(); }
+        }
         });
 
         const categoryTypeHeaderConfig = {
@@ -7700,6 +7718,47 @@ async function currentUserId() {
             if (area) area.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // ---------- AKSESIBILITAS MODAL (slice design #2) ----------
+        // Satu titik pusat, TANPA menyentuh 16 fungsi open/close bespoke: setiap modal
+        // [role=dialog] diberi nama aksesibel (aria-label dari heading), lalu
+        // MutationObserver class 'hidden' menangkap buka/tutup utk (1) memindahkan
+        // fokus ke kontrol pertama saat dibuka, (2) mengembalikan fokus ke elemen
+        // pembuka saat ditutup (nested: fokus kembali ke modal induk).
+        let _modalA11yReady = false, _modalA11yEls = [], _modalA11yOpen = [];
+        function setupModalA11y() {
+            if (_modalA11yReady) return; _modalA11yReady = true;
+            _modalA11yEls = Array.prototype.slice.call(document.querySelectorAll('[role="dialog"][aria-modal="true"]'));
+            _modalA11yEls.forEach((m) => {
+                const name = servicesModule.modalAccessibleName(m);
+                if (name && !m.getAttribute('aria-label')) m.setAttribute('aria-label', name);
+                let wasOpen = !m.classList.contains('hidden');
+                let opener = null;
+                new MutationObserver(() => {
+                    const open = !m.classList.contains('hidden');
+                    if (open && !wasOpen) {
+                        opener = document.activeElement;
+                        _modalA11yOpen.push(m);
+                        const f = servicesModule.getFocusable(m);
+                        const firstField = f.find((x) => ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(x.tagName) !== -1) || f[0];
+                        if (firstField) firstField.focus();
+                        else { m.setAttribute('tabindex', '-1'); m.focus(); }
+                    } else if (!open && wasOpen) {
+                        _modalA11yOpen = _modalA11yOpen.filter((x) => x !== m);
+                        if (_modalA11yOpen.length) {
+                            const parent = _modalA11yOpen[_modalA11yOpen.length - 1];
+                            const pf = servicesModule.getFocusable(parent);
+                            const pField = pf.find((x) => ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(x.tagName) !== -1) || pf[0];
+                            if (pField) pField.focus();
+                        } else if (opener && document.contains(opener)) {
+                            try { opener.focus(); } catch (err) { /* opener sudah tidak bisa difokuskan */ }
+                        }
+                        opener = null;
+                    }
+                    wasOpen = open;
+                }).observe(m, { attributes: true, attributeFilter: ['class'] });
+            });
+        }
+
         // Titik masuk utama aplikasi setelah status login terkonfirmasi. Dipanggil langsung oleh
         // alur bootstrap (lihat bagian AUTH & BOOTSTRAP di bawah) -- BUKAN lewat window.onload.
         // Sebelumnya app.js dimuat lewat <script> yang disisipkan secara dinamis SETELAH pengecekan
@@ -7709,6 +7768,7 @@ async function currentUserId() {
         // Memanggil fungsi ini secara eksplisit dari alur async login menghindari race condition itu.
         function initApp() {
             buildLookupTable();
+            setupModalA11y(); // a11y modal: aria-label + focus trap/restore (sekali, idempoten)
             renderSettings(); setDateHeader(); updateFormOptions(); loadData();
             setupResponsiveRerender();
             updateOfflineBanner();
