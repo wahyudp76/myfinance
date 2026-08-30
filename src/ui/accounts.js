@@ -86,7 +86,7 @@ export function renderAccountDetailCharts({
   resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory,
   getCategoryStyle, categoryIconHtml, jsStr, formatRp, formatShortVal,
   chartGridColor, chartLabelColor, chartEmptyColor, chartBorderColor,
-  cutePaletteOut, renderDonutBreakdown, Chart, charts,
+  cutePaletteOut, renderDonutBreakdown, accentColor, Chart, charts,
 }) {
   if (!currentAccountDetail) return;
   const accName = currentAccountDetail;
@@ -151,7 +151,7 @@ export function renderAccountDetailCharts({
       data: {
         labels: bucketLabels,
         datasets: [
-          { label: "Masuk", data: cashInData, backgroundColor: "#34d399", borderRadius: 4, barPercentage: 0.7 },
+          { label: "Masuk", data: cashInData, backgroundColor: (accentColor && accentColor("incomeBar")) || "#34d399", borderRadius: 4, barPercentage: 0.7 },
           { label: "Keluar", data: cashOutData, backgroundColor: "#fb7185", borderRadius: 4, barPercentage: 0.7 }
         ]
       },

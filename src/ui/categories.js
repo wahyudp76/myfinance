@@ -69,7 +69,7 @@ export function renderCategoryDetailMonthData({
   document, year, month, jenis, specificData,
   computeCategoryDetailMonthChart, parseTgl, txIdrAmount,
   animateRupiah, isChartNarrow, selectSparseLabelIndices,
-  chartGridColor, formatShortVal, Chart, charts,
+  chartGridColor, formatShortVal, accentColor, Chart, charts,
 }) {
   document.getElementById("detail-category-month-label").innerText =
     new Date(year, month - 1, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
@@ -98,7 +98,7 @@ export function renderCategoryDetailMonthData({
       datasets: [{
         label: "Total",
         data: chartData,
-        backgroundColor: jenis === "Pemasukan" ? "#34d399" : "#fb7185",
+        backgroundColor: jenis === "Pemasukan" ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185",
         borderRadius: 4
       }]
     },
@@ -112,7 +112,7 @@ export function renderCategoryDetailMonthData({
             if (catLabelIndicesToShow && !catLabelIndicesToShow.has(ctx.dataIndex)) return false;
             return true;
           },
-          color: jenis === "Pemasukan" ? "#047857" : "#be123c", font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 2
+          color: jenis === "Pemasukan" ? ((accentColor && accentColor("incomeLabel")) || "#047857") : "#be123c", font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 2
         }
       },
       scales: {

@@ -2,7 +2,7 @@
 // Sifat: murni (tanpa DOM), deterministik penuh.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PRESET_THEMES, normalizeThemeColor, buildAccentShades, contrastText, hexToRgb } from "../../src/domain/theme.js";
+import { PRESET_THEMES, normalizeThemeColor, buildAccentShades, contrastText, hexToRgb, colorDistance, isColorCloseToAny, CHART_EXPENSE_REDS } from "../../src/domain/theme.js";
 
 // ===================== normalizeThemeColor =====================
 
@@ -89,4 +89,31 @@ test("PRESET_THEMES: semua valid, unik, emerald pertama (bawaan)", () => {
     assert.ok(t.id && t.label, `preset ${t.id} butuh label`);
   }
   assert.equal(colors.size, PRESET_THEMES.length, "warna preset tidak boleh dobel");
+});
+
+// ===================== guard tabrakan warna chart =====================
+
+test("colorDistance: identik 0, jauh besar, input buruk Infinity", () => {
+  assert.equal(colorDistance("#10b981", "#10b981"), 0);
+  assert.ok(colorDistance("#10b981", "#f43f5e") > 250); // zamrud vs rose sangat jauh
+  assert.equal(colorDistance(null, "#10b981"), Infinity);
+});
+
+test("isColorCloseToAny: aksen rose tertangkap, zamrud & indigo lolos", () => {
+  const expense = ["#f43f5e", "#fb7185", "#e11d48"];
+  assert.equal(isColorCloseToAny("#f43f5e", expense, 110), true);  // preset rose persis
+  assert.equal(isColorCloseToAny("#fb7185", expense, 110), true);  // rose-400 dekat
+  assert.equal(isColorCloseToAny("#10b981", expense, 110), false); // bawaan aman
+  assert.equal(isColorCloseToAny("#6366f1", expense, 110), false); // indigo aman
+  assert.equal(isColorCloseToAny("#f59e0b", expense, 110), false); // amber vs ROSE aman (guard lain utk warning)
+});
+
+test("isColorCloseToAny: amber tertangkap guard warning budget", () => {
+  assert.equal(isColorCloseToAny("#f59e0b", ["#fbbf24"], 110), true); // amber vs amber-warning
+  assert.equal(isColorCloseToAny("#10b981", ["#fbbf24"], 110), false);
+});
+
+test("CHART_EXPENSE_REDS: semua entri valid & bukan warna bawaan", () => {
+  for (const c of CHART_EXPENSE_REDS) assert.equal(normalizeThemeColor(c), c);
+  assert.equal(isColorCloseToAny(PRESET_THEMES[0].color, CHART_EXPENSE_REDS, 110), false, "bawaan tak boleh ketangkap");
 });

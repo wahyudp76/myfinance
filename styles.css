@@ -451,3 +451,7 @@ body[data-theme-accent] .peer:checked ~ .peer-checked\:text-emerald-600 { color:
 .dark body[data-theme-accent] .bg-emerald-100 { background-color: var(--accent-dark-chip); }
 .dark body[data-theme-accent] .text-emerald-500,
 .dark body[data-theme-accent] .text-emerald-600 { color: var(--accent-400); }
+
+/* Chip logo "MyFinance" di sidebar (bg-[#151928] nilai arbitrer Tailwind) --
+   ikut warna aksen saat tema aktif; tanpa tema tetap navy gelap asli. */
+body[data-theme-accent] .bg-\[\#151928\] { background-color: var(--accent-600); }

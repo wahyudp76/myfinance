@@ -152,7 +152,7 @@ export function renderBudgetModalList({
 export function renderBudgetView({
   document, globalData, txIdrAmount, parseTgl, categoryDict, cloudBudgets,
   getCategoryStyle, animateRupiah, escapeHtml, formatRp, formatShortVal,
-  categoryIconHtml, chartLabelColor, chartGridColor, Chart, charts,
+  categoryIconHtml, chartLabelColor, chartGridColor, accentColor, Chart, charts,
   aggregateActualByCategory, summarizeBudgets, classifyBudgetUsage,
 }) {
   const monthInput = document.getElementById("budgetFilterMonth"); if (!monthInput) return;
@@ -178,7 +178,8 @@ export function renderBudgetView({
 
   const ringCircle = document.getElementById("budget-ring-progress");
   const circumference = 2 * Math.PI * 52;
-  let ringColor = BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(overallPct)];
+  const safeColor = (accentColor && accentColor("budgetSafe")) || BUDGET_USAGE_RING_COLOR.safe; // null saat aksen tabrakan warning/over -> tetap zamrud asli
+  let ringColor = classifyBudgetUsage(overallPct) === "safe" ? safeColor : BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(overallPct)];
   let clampedPct = Math.min(overallPct, 100);
   ringCircle.setAttribute("stroke-dasharray", `${circumference}`);
   ringCircle.setAttribute("stroke-dashoffset", `${circumference - (clampedPct / 100) * circumference}`);
@@ -209,7 +210,7 @@ export function renderBudgetView({
           labels: entries.map(e => e.name),
           datasets: [
             { label: "Budget", data: entries.map(e => e.budget), backgroundColor: "#c7d2fe", borderRadius: 6, barPercentage: 0.55 },
-            { label: "Realisasi", data: entries.map(e => e.actual), backgroundColor: entries.map(e => BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(e.pct)]), borderRadius: 6, barPercentage: 0.55 }
+            { label: "Realisasi", data: entries.map(e => e.actual), backgroundColor: entries.map(e => classifyBudgetUsage(e.pct) === "safe" ? safeColor : BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(e.pct)]), borderRadius: 6, barPercentage: 0.55 }
           ]
         },
         options: {

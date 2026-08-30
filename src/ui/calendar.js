@@ -99,7 +99,7 @@ export function updateCalendarSummary({ document, globalData, computeCalendarMon
  */
 export async function renderCalendar({
   document, window, data, loadFullCalendarLib, showErrorToast,
-  buildDailyCashflowMap, txIdrAmount, formatShortVal,
+  buildDailyCashflowMap, txIdrAmount, formatShortVal, accentColor,
   globalRecurring, projectRecurringDueDates, advanceDueDate,
   toDateStr, todayDateStr, calendarInstance, onInstanceReady,
   updateCalendarSummary, openCalendarDetail,
@@ -116,7 +116,7 @@ export async function renderCalendar({
   let eventsMap = buildDailyCashflowMap(data, { txIdrAmount });
   let calendarEvents = [];
   Object.keys(eventsMap).forEach(date => {
-    if (eventsMap[date].in > 0) calendarEvents.push({ title: "+" + formatShortVal(eventsMap[date].in), start: date, backgroundColor: "#d1fae5", textColor: "#059669" });
+    if (eventsMap[date].in > 0) calendarEvents.push({ title: "+" + formatShortVal(eventsMap[date].in), start: date, backgroundColor: (accentColor && accentColor("eventBg")) || "#d1fae5", textColor: (accentColor && accentColor("eventText")) || "#059669" });
     if (eventsMap[date].out > 0) calendarEvents.push({ title: "-" + formatShortVal(eventsMap[date].out), start: date, backgroundColor: "#ffe4e6", textColor: "#e11d48" });
     if (eventsMap[date].transfer > 0) calendarEvents.push({ title: "⇄" + formatShortVal(eventsMap[date].transfer), start: date, backgroundColor: "#dbeafe", textColor: "#2563eb" });
   });

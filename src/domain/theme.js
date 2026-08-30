@@ -111,3 +111,27 @@ export function buildAccentShades(hex) {
   shades.shade50Alpha60Rgba = `rgba(${s50.r}, ${s50.g}, ${s50.b}, 0.6)`;
   return shades;
 }
+
+// ---------- Warna chart & elemen grafis ----------
+
+/** Warna "pengeluaran/negatif" di chart (rose family) -- TIDAK boleh dipakai
+ *  sbg warna aksen utk seri "Masuk/pemasukan", nanti tak terbedakan. */
+export const CHART_EXPENSE_REDS = ["#f43f5e", "#fb7185", "#e11d48"];
+
+/** Jarak Euclidean RGB dua warna hex (sudah dinormalisasi bila perlu). */
+export function colorDistance(hexA, hexB) {
+  const a = normalizeThemeColor(hexA);
+  const b = normalizeThemeColor(hexB);
+  if (!a || !b) return Infinity;
+  const ca = hexToRgb(a), cb = hexToRgb(b);
+  return Math.sqrt((ca.r - cb.r) ** 2 + (ca.g - cb.g) ** 2 + (ca.b - cb.b) ** 2);
+}
+
+/** Apakah warna aksen terlalu dekat ke salah satu warna semantik tertentu?
+ *  Dipakai pemanggil utk memutuskan fallback: mis. aksen rose -> batang
+ *  "Masuk" TETAP zamrud asli supaya tidak bentrok dgn "Keluar" (rose),
+ *  aksen amber -> ring budget "safe" tetap zamrud supaya tidak tertukar
+ *  dgn status "warning" (amber). */
+export function isColorCloseToAny(accentHex, colors, maxDistance = 110) {
+  return colors.some((c) => colorDistance(accentHex, c) <= maxDistance);
+}

@@ -39,7 +39,7 @@
  * @param {(dataCtx: object, opts: {currentMonthBudgets: object}) => {finalScore: number, components: Array<{label: string, score: number, max: number}>}} ctx.computeFinancialHealthScore -
  *   dari src/domain/insights.js (via servicesModule).
  */
-export function renderHealthScore({ document, dataCtx, currentMonthBudgets, computeFinancialHealthScore }) {
+export function renderHealthScore({ document, dataCtx, currentMonthBudgets, computeFinancialHealthScore, accentColor }) {
   const numEl = document.getElementById("health-score-number");
   if (!numEl) return;
   const { finalScore, components } = computeFinancialHealthScore(dataCtx, { currentMonthBudgets });
@@ -51,7 +51,7 @@ export function renderHealthScore({ document, dataCtx, currentMonthBudgets, comp
   barEl.style.width = finalScore + "%";
 
   let band;
-  if (finalScore >= 75) band = { text: "Sehat", color: "#10b981", badge: "bg-emerald-100 text-emerald-600" };
+  if (finalScore >= 75) band = { text: "Sehat", color: (accentColor && accentColor("income500")) || "#10b981", badge: "bg-emerald-100 text-emerald-600" };
   else if (finalScore >= 50) band = { text: "Perlu Perhatian", color: "#f59e0b", badge: "bg-amber-100 text-amber-600" };
   else band = { text: "Kritis", color: "#f43f5e", badge: "bg-rose-100 text-rose-600" };
   barEl.style.background = band.color;

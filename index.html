@@ -113,7 +113,7 @@
         import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
-        import { normalizeThemeColor, buildAccentShades, PRESET_THEMES } from './src/domain/theme.js';
+        import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
@@ -160,7 +160,7 @@
             computeGoalProgress, computeDebtProgress,
             // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
             // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.
-            normalizeThemeColor, buildAccentShades, PRESET_THEMES,
+            normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
@@ -226,18 +226,18 @@
                     <svg class="login-mascot-svg" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <defs>
                             <linearGradient id="mascotBody" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#6366f1"/>
-                                <stop offset="100%" stop-color="#7c3aed"/>
+                                <stop offset="0%" stop-color="#6366f1" style="stop-color: var(--accent-500, #6366f1)"/>
+                                <stop offset="100%" stop-color="#7c3aed" style="stop-color: var(--accent-600, #7c3aed)"/>
                             </linearGradient>
                             <linearGradient id="mascotFlap" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#818cf8"/>
-                                <stop offset="100%" stop-color="#a78bfa"/>
+                                <stop offset="0%" stop-color="#818cf8" style="stop-color: var(--accent-300, #818cf8)"/>
+                                <stop offset="100%" stop-color="#a78bfa" style="stop-color: var(--accent-400, #a78bfa)"/>
                             </linearGradient>
                         </defs>
 
                         <!-- sparkle kecil di sekeliling maskot -->
                         <path class="login-sparkle" fill="#fbbf24" d="M14,20 L16.24,25.76 L22,28 L16.24,30.24 L14,36 L11.76,30.24 L6,28 L11.76,25.76 Z"/>
-                        <circle class="login-sparkle delay1" cx="150" cy="30" r="3.5" fill="#34d399"/>
+                        <circle class="login-sparkle delay1" cx="150" cy="30" r="3.5" fill="#34d399" style="fill: var(--accent-400, #34d399)"/>
                         <path class="login-sparkle delay2" fill="#f472b6" d="M12,128 L13.6,131.8 L17.4,133.4 L13.6,135 L12,138.8 L10.4,135 L6.6,133.4 L10.4,131.8 Z"/>
 
                         <!-- badan dompet -->
@@ -682,7 +682,7 @@
                     <div class="flex-shrink-0 mx-auto sm:mx-0 relative w-28 h-28 md:w-32 md:h-32">
                         <svg viewBox="0 0 120 120" class="w-full h-full -rotate-90">
                             <circle cx="60" cy="60" r="52" fill="none" stroke="#ffffff1a" stroke-width="12"></circle>
-                            <circle id="budget-ring-progress" cx="60" cy="60" r="52" fill="none" stroke="#34d399" stroke-width="12" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7" style="transition: stroke-dashoffset 0.8s ease, stroke 0.5s ease;"></circle>
+                            <circle id="budget-ring-progress" cx="60" cy="60" r="52" fill="none" stroke="#34d399" stroke-width="12" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7" style="transition: stroke-dashoffset 0.8s ease, stroke 0.5s ease; stroke: var(--accent-400, #34d399);"></circle>
                         </svg>
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
                             <p id="budget-ring-pct" class="text-white text-xl md:text-2xl font-extrabold">0%</p>
@@ -1139,7 +1139,7 @@
                         </div>
                         <div id="theme-accent-swatches" class="flex flex-wrap items-center gap-2"></div>
                         <label class="mt-2.5 flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer select-none">
-                            <input type="color" id="theme-color-custom" oninput="setThemeColor(this.value, true)" aria-label="Warna kustom" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200 bg-white p-0.5">
+                            <input type="color" id="theme-color-custom" oninput="setThemeColor(this.value, true)" onchange="setThemeColor(this.value)" aria-label="Warna kustom" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200 bg-white p-0.5">
                             <span>Atau pilih warna kustommu sendiri</span>
                         </label>
                     </div>
@@ -3134,12 +3134,44 @@ async function currentUserId() {
             }
         }
 
+        // Warna utk chart/ikon/grafik yang mengikuti Warna Aksen. Mengembalikan null
+        // kalau tema tidak aktif ATAU warna aksen bakal TABRAK dgn warna semantik chart
+        // (aksen rose utk batang "Masuk" = tak terbedakan dari "Keluar"; aksen amber utk
+        // ring budget "safe" = tertukar dgn status "warning") -- pemanggil fallback ke
+        // warna asli. Semua nilai dibaca dari CSS variables yang dipasang applyThemeColor().
+        function themeAccentColor(kind) {
+            try {
+                if (!document.body.dataset.themeAccent) return null;
+                const cs = getComputedStyle(document.documentElement);
+                const v = (prop, fallback) => (cs.getPropertyValue(prop) || '').trim() || fallback;
+                const a500 = v('--accent-500', '#10b981');
+                const clashRed = servicesModule.isColorCloseToAny(a500, servicesModule.CHART_EXPENSE_REDS, 110);
+                switch (kind) {
+                    case 'incomeBar':   return clashRed ? null : v('--accent-400', '#34d399');
+                    case 'income500':   return clashRed ? null : a500;
+                    case 'income600':   return clashRed ? null : v('--accent-600', '#059669');
+                    case 'incomeLabel': return clashRed ? null : v('--accent-700', '#047857');
+                    case 'budgetSafe':  return servicesModule.isColorCloseToAny(a500, servicesModule.CHART_EXPENSE_REDS.concat(['#fbbf24']), 110) ? null : v('--accent-400', '#34d399');
+                    case 'eventBg':     return v('--accent-100', '#d1fae5');
+                    case 'eventText':   return v('--accent-700', '#059669');
+                    case 'paletteIn':   return clashRed ? null : [v('--accent-400', '#34D399'), a500, v('--accent-600', '#059669'), v('--accent-700', '#047857'), v('--accent-300', '#6EE7B7'), v('--accent-100', '#A7F3D0')];
+                }
+            } catch (e) { console.error('Gagal membaca warna aksen chart:', e); }
+            return null;
+        }
+
         function setThemeColor(color, silent) {
             appSettings.themeColor = servicesModule.normalizeThemeColor(color); // null kalau reset/input tak valid
             applyThemeColor();
             renderThemePicker();
-            persistSettings(); // ikut pipeline settings yang sama -> sinkron ke semua device
-            if (!silent) showSuccessToast(appSettings.themeColor ? 'Warna tema diperbarui \u2728' : 'Kembali ke warna bawaan');
+            // silent = live preview color picker (oninput): jangan spam simpan cloud /
+            // re-render chart di tiap geseran -- finalize (onchange / klik preset) yang
+            // menyimpan & menyegarkan chart (pola yang sama dgn ganti dark mode).
+            if (!silent) {
+                persistSettings(); // ikut pipeline settings yang sama -> sinkron ke semua device
+                showSuccessToast(appSettings.themeColor ? 'Warna tema diperbarui \u2728' : 'Kembali ke warna bawaan');
+                if (typeof rerenderVisibleCharts === 'function') rerenderVisibleCharts();
+            }
         }
 
         function renderThemePicker() {
@@ -5678,7 +5710,7 @@ async function currentUserId() {
                 data: { labels: chartLabels, datasets: [{
                     label: 'Arus Kas Bersih',
                     data: chartNet,
-                    backgroundColor: chartNet.map(v => v >= 0 ? '#10b981' : '#f43f5e'),
+                    backgroundColor: chartNet.map(v => v >= 0 ? (themeAccentColor('income500') || '#10b981') : '#f43f5e'),
                     borderRadius: 3, borderSkipped: false, barPercentage: 0.55
                 }] },
                 options: {
@@ -5697,7 +5729,7 @@ async function currentUserId() {
                                 if (labelIndicesToShow && !labelIndicesToShow.has(ctx.dataIndex)) return false;
                                 return true;
                             },
-                            color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#059669' : '#e11d48',
+                            color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? (themeAccentColor('income600') || '#059669') : '#e11d48',
                             font: { size: 8, weight: 'bold' },
                             formatter: (v) => (v >= 0 ? '+' : '-') + formatShortVal(Math.abs(v)),
                             // SELALU anchor 'end' (ujung nilai batang) -- ini yg terbukti reliable (dipakai
@@ -5800,7 +5832,7 @@ async function currentUserId() {
                     data: {
                         labels: labels7,
                         datasets: [
-                            { label: 'Masuk', data: last7Order.map(k => last7Map[k].in), backgroundColor: '#34d399', borderRadius: 6, barPercentage: 0.6 },
+                            { label: 'Masuk', data: last7Order.map(k => last7Map[k].in), backgroundColor: (themeAccentColor('incomeBar') || '#34d399'), borderRadius: 6, barPercentage: 0.6 },
                             { label: 'Keluar', data: last7Order.map(k => last7Map[k].out), backgroundColor: '#fb7185', borderRadius: 6, barPercentage: 0.6 }
                         ]
                     },
@@ -5886,7 +5918,7 @@ async function currentUserId() {
             if(document.getElementById('monthlyChart')) {
                 charts.monthly = new Chart(document.getElementById('monthlyChart').getContext('2d'), { 
                     type: 'bar', 
-                    data: { labels: monthLabels.length ? monthLabels : ['Bulan Ini'], datasets: [{ label: 'Masuk', data: monthLabels.length ? monthLabels.map(l => monthlyMap[l].in) : [0], backgroundColor: '#10b981' }, { label: 'Keluar', data: monthLabels.length ? monthLabels.map(l => monthlyMap[l].out) : [0], backgroundColor: '#f43f5e' }] }, 
+                    data: { labels: monthLabels.length ? monthLabels : ['Bulan Ini'], datasets: [{ label: 'Masuk', data: monthLabels.length ? monthLabels.map(l => monthlyMap[l].in) : [0], backgroundColor: (themeAccentColor('income500') || '#10b981') }, { label: 'Keluar', data: monthLabels.length ? monthLabels.map(l => monthlyMap[l].out) : [0], backgroundColor: '#f43f5e' }] }, 
                     options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } }, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: {size: 11, weight: 'bold'} } }, datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: (ctx) => chartLabelColor(ctx.dataset.backgroundColor), font: {size: 9, weight: 'bold'}, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2 } }, scales: { x: { grid: {display: false}, ticks: {font: {size: 10, weight: 'bold'}} }, y: { grid: {color: chartGridColor()}, ticks: {font: {size: 10}} } } } 
                 });
             }
@@ -5941,6 +5973,7 @@ async function currentUserId() {
                 dataCtx: ctx,
                 currentMonthBudgets: currentMonthBudgetsCache,
                 computeFinancialHealthScore: servicesModule.computeFinancialHealthScore,
+                accentColor: themeAccentColor,
             });
         }
 
@@ -6419,6 +6452,7 @@ async function currentUserId() {
                 document, globalData, txIdrAmount, parseTgl, categoryDict, cloudBudgets,
                 getCategoryStyle, animateRupiah, escapeHtml, formatRp, formatShortVal,
                 categoryIconHtml, chartLabelColor, chartGridColor,
+                accentColor: themeAccentColor,
                 Chart, charts,
                 aggregateActualByCategory: servicesModule.aggregateActualByCategory,
                 summarizeBudgets: servicesModule.summarizeBudgets,
@@ -6889,7 +6923,7 @@ async function currentUserId() {
             const monthLabels = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
             charts.yearlyNet = new Chart(document.getElementById('yearlyNetChart').getContext('2d'), {
                 type: 'bar',
-                data: { labels: monthLabels, datasets: [{ data: monthlyNet, backgroundColor: monthlyNet.map(v => v >= 0 ? '#34d399' : '#fb7185'), borderRadius: 6, maxBarThickness: 28 }] },
+                data: { labels: monthLabels, datasets: [{ data: monthlyNet, backgroundColor: monthlyNet.map(v => v >= 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185'), borderRadius: 6, maxBarThickness: 28 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false }, datalabels: { display: false },
@@ -6944,7 +6978,7 @@ async function currentUserId() {
             if(charts.catIn) charts.catIn.destroy(); let hasInCat = inEntries.length > 0;
             charts.catIn = new Chart(document.getElementById('incomeCategoryChart').getContext('2d'), { 
                 type: 'doughnut', 
-                data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: hasInCat ? cutePaletteIn : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
+                data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: hasInCat ? getCutePaletteIn() : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '65%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },
@@ -6963,7 +6997,7 @@ async function currentUserId() {
                 listEl: document.getElementById('incomeCategoryChart-list'),
                 totalEl: document.getElementById('incomeCategoryChart-total'),
                 entries: inEntries.map(e => { const s = getCategoryStyle(e.label, 'Pemasukan'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
-                palette: cutePaletteIn,
+                palette: getCutePaletteIn(),
                 onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pemasukan')`,
                 emptyMessage: 'Belum ada pemasukan bulan ini.'
             });
@@ -7250,6 +7284,7 @@ async function currentUserId() {
                 getCategoryStyle, categoryIconHtml, jsStr, formatRp, formatShortVal,
                 chartGridColor, chartLabelColor, chartEmptyColor, chartBorderColor,
                 cutePaletteOut, renderDonutBreakdown,
+                accentColor: themeAccentColor,
                 Chart, charts,
             });
         }
@@ -7370,6 +7405,7 @@ async function currentUserId() {
                 isChartNarrow: servicesModule.isChartNarrow,
                 selectSparseLabelIndices: servicesModule.selectSparseLabelIndices,
                 chartGridColor, formatShortVal,
+                accentColor: themeAccentColor,
                 Chart, charts,
             });
         }
@@ -7425,6 +7461,7 @@ async function currentUserId() {
                 loadFullCalendarLib, showErrorToast,
                 buildDailyCashflowMap: servicesModule.buildDailyCashflowMap,
                 txIdrAmount, formatShortVal,
+                accentColor: themeAccentColor,
                 globalRecurring,
                 projectRecurringDueDates: servicesModule.projectRecurringDueDates,
                 advanceDueDate: servicesModule.advanceDueDate,
@@ -7488,8 +7525,13 @@ async function currentUserId() {
             '#fbbf24': '#b45309',                          // amber -> amber-700
             '#c7d2fe': '#4f46e5'                            // indigo pastel -> indigo-600
         };
-        function chartLabelColor(bg) { return chartLabelColorMap[bg] || bg; }
-        const cutePaletteIn = ['#34D399', '#4ADE80', '#10B981', '#059669', '#6EE7B7', '#A7F3D0'];
+        function chartLabelColor(bg) {
+            const inBar = themeAccentColor('incomeBar'), in500 = themeAccentColor('income500');
+            if ((inBar && bg === inBar) || (in500 && bg === in500)) return themeAccentColor('incomeLabel') || '#047857';
+            return chartLabelColorMap[bg] || bg;
+        }
+        const CUTE_PALETTE_IN_DEFAULT = ['#34D399', '#4ADE80', '#10B981', '#059669', '#6EE7B7', '#A7F3D0'];
+        function getCutePaletteIn() { return themeAccentColor('paletteIn') || CUTE_PALETTE_IN_DEFAULT; }
 
         // Debounce resize/orientationchange, dan hanya render ulang chart di tab yang SEDANG
         // terlihat — sebelumnya processDataForUI()/renderReportTab() jalan di setiap event resize

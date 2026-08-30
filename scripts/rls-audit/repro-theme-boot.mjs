@@ -78,6 +78,96 @@ try {
   await page.click("#view-pengaturan div button:has-text(\"Reset\")");
   await page.waitForTimeout(800);
   console.log("setelah reset -> data-theme-accent:", await page.evaluate(() => document.body.dataset.themeAccent ?? "(tidak ada)"));
+
+  // ===== verifikasi menyeluruh: logo, chart, ring budget, guard rose =====
+  console.log("\n== Klik ulang ungu utk uji chart/maskot/ring ==");
+  await page.click("#theme-accent-swatches button:nth-child(4)");
+  await page.waitForTimeout(1500);
+  await page.click("#nav-dashboard");
+  await page.waitForTimeout(1500);
+  const deep = await page.evaluate(() => {
+    const out = {};
+    out.accentVar = getComputedStyle(document.documentElement).getPropertyValue("--accent-500").trim();
+    // maskot login: stop gradient pertama
+    const stop = document.querySelector("#mascotBody stop");
+    out.mascotStop = stop ? getComputedStyle(stop).stop_color || getComputedStyle(stop).stopColor || "?" : "tidak ada";
+    // SEMUA chart yg ter-register: kumpulkan warna dataset
+    out.chartColors = [];
+    if (window.Chart && Chart.getChart) {
+      for (const canvas of document.querySelectorAll("canvas")) {
+        const c = Chart.getChart(canvas);
+        if (!c) continue;
+        for (const ds of c.data.datasets) {
+          const bg = Array.isArray(ds.backgroundColor) ? ds.backgroundColor.slice(0, 2) : ds.backgroundColor;
+          out.chartColors.push({ id: canvas.id, label: ds.label || "-", bg });
+        }
+      }
+    }
+    return out;
+  });
+  console.log("accent var:", deep.accentVar, "| maskot stop:", deep.mascotStop);
+  console.log("chart terlihat:", JSON.stringify(deep.chartColors.slice(0, 6)));
+  const expected400 = await page.evaluate(() => window.__myfinanceServices.buildAccentShades("#8b5cf6")["400"]);
+  console.log("expected accent-400 (ungu):", expected400);
+  const themed = deep.chartColors.filter((c) => JSON.stringify(c.bg).includes(expected400));
+  console.log(themed.length ? `PASS chart pakai aksen (${themed.length} dataset)` : "CEK: tidak ada dataset beraksen (mungkin tab chart tidak terlihat)");
+
+  console.log("\n== Tab Budget: ring pakai aksen? ==");
+  await page.click("#nav-budget");
+  await page.waitForTimeout(1500);
+  const ring = await page.evaluate(() => document.getElementById("budget-ring-progress")?.style.stroke || "(belum dirender)");
+  console.log("ring stroke:", ring, ring === expected400 ? "-> PASS" : "(cek manual bila beda)");
+
+  console.log("\n== Tab Laporan: txTrend/yearlyNet ikut aksen? ==");
+  await page.click("#nav-laporan");
+  await page.waitForTimeout(1800);
+  const laporan = await page.evaluate(() => {
+    const out = {};
+    for (const id of ["txTrendChart", "yearlyNetChart", "monthlyChart", "expenseCategoryChart"]) {
+      const c = window.Chart && Chart.getChart(document.getElementById(id));
+      if (!c) { out[id] = "(tidak ter-render)"; continue; }
+      out[id] = c.data.datasets.map((d) => Array.isArray(d.backgroundColor) ? d.backgroundColor[0] : d.backgroundColor).join(",");
+    }
+    return out;
+  });
+  console.log("laporan:", JSON.stringify(laporan));
+
+  console.log("\n== Tab Transaksi: txTrend ikut aksen? ==");
+  await page.evaluate(() => switchView("transaksi"));
+  await page.waitForTimeout(1500);
+  const txTrend = await page.evaluate(() => {
+    const c = window.Chart && Chart.getChart(document.getElementById("txTrendChart"));
+    return c ? (Array.isArray(c.data.datasets[0].backgroundColor) ? c.data.datasets[0].backgroundColor[0] : c.data.datasets[0].backgroundColor) : "(tidak ter-render)";
+  });
+  console.log("txTrend warna:", txTrend, txTrend === "#8b5cf6" ? "-> PASS (income500 ungu)" : "(cek)");
+
+  console.log("\n== GUARD: pilih rose -> chart 'Masuk' TETAP zamrud ==");
+  await page.click("#nav-pengaturan");
+  await page.waitForTimeout(400);
+  await page.click("#theme-accent-swatches button:nth-child(7)"); // rose
+  await page.waitForTimeout(1200);
+  const guard = await page.evaluate(() => {
+    const attr = document.body.dataset.themeAccent;
+    const incomeBar = document.querySelectorAll("#theme-accent-swatches button").length; // sanity
+    return { attr, income: window.__myfinanceServices && null };
+  });
+  console.log("atribut tema:", guard.attr);
+  await page.click("#nav-dashboard");
+  await page.waitForTimeout(1200);
+  const roseChart = await page.evaluate(() => {
+    const seen = [];
+    for (const canvas of document.querySelectorAll("canvas")) {
+      const c = window.Chart && Chart.getChart(canvas);
+      if (!c) continue;
+      for (const ds of c.data.datasets) {
+        const bg = Array.isArray(ds.backgroundColor) ? ds.backgroundColor : [ds.backgroundColor];
+        bg.forEach((b) => { if (b) seen.push(b); });
+      }
+    }
+    return { masihZamrud: seen.includes("#34d399"), roseDiChart: seen.includes("#f43f5e") || seen.includes("#fb7185") };
+  });
+  console.log("guard rose ->", JSON.stringify(roseChart), roseChart.masihZamrud ? "(PASS: seri Masuk tetap zamrud)" : "(cek)");
+
   console.log("\n== ringkasan ==");
   console.log("body data-theme-accent:", await page.evaluate(() => document.body.dataset.themeAccent ?? "(tidak ada)"));
   console.log("loading overlay hidden:", await page.evaluate(() => { const el = document.getElementById("loading-overlay") || document.getElementById("loading"); if (!el) return "(elemen loading tak ditemukan)"; return el.classList.contains("hidden") || el.classList.contains("opacity-0") || getComputedStyle(el).display === "none"; }));
