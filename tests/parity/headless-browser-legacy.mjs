@@ -15,6 +15,7 @@ const context = await browser.newContext();
 const page = await context.newPage();
 const transactionResponses = [];
 const observedApiPaths = new Set();
+const transactionGetStatuses = []; // diagnostik: SEMUA status GET /transactions (walau bukan 200)
 const pageErrors = [];
 
 page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -26,6 +27,9 @@ page.on("response", async (response) => {
     observedApiPaths.add(url.pathname);
     if (!url.pathname.endsWith("/transactions")) return;
     if (response.request().method() !== "GET") return;
+    // Diagnostik (kejadian race deploy 624aeec): rekam SEMUA status GET /transactions,
+    // bukan cuma 200 -- kalau gagal lagi, pesan error memberi tahu status apa yg terlihat.
+    transactionGetStatuses.push(response.status());
     if (response.status() !== 200) return;
 
     const body = await response.json();
@@ -75,7 +79,9 @@ try {
     const errors = pageErrors.slice(0, 5).join(" | ") || "none";
     throw new Error(
       `Production transaction read was not observed. ` +
-      `Observed REST paths: ${apiPaths}. Page errors: ${errors}. ` +
+      `Observed REST paths: ${apiPaths}. ` +
+      `Transaction GET statuses: ${transactionGetStatuses.join(", ") || "none"}. ` +
+      `Page errors: ${errors}. ` +
       `The production transport may have changed, login/bootstrap may have failed, ` +
       `or transactions may now be loaded through a non-REST path.`
     );
