@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { listAssets, createAsset, updateAsset, deleteAsset } from "../../src/services/supabase/assets.js";
+import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from "../../src/services/supabase/assets.js";
 import { createMockSupabaseClient } from "./helpers/mock-supabase-client.js";
 
 const RAW_ROW = {
@@ -87,4 +87,42 @@ test("deleteAsset(): delete difilter by id", async () => {
   assert.equal(call.table, "assets");
   assert.equal(call.method, "delete");
   assert.deepEqual(call.filters, [["id", "a1"]]);
+});
+
+// ===================== refreshAssetPrice (Edge Function) =====================
+// Ditambah saat pensyahan api.run (slice assets): body refreshAssetPriceRemote()
+// adapter `api` di index.html pindah ke sini. Dua lapis error adapter lama
+// dipertahankan: error transport (functions.invoke) & error aplikasi (data.error).
+
+function mockFunctionsClient(result) {
+  const calls = [];
+  return {
+    calls,
+    functions: {
+      invoke(name, opts) { calls.push({ name, opts }); return Promise.resolve(result); },
+    },
+  };
+}
+
+test("refreshAssetPrice(): invoke 'refresh-asset-price' dgn body { asset_id }", async () => {
+  const client = mockFunctionsClient({ data: { nilai_baru: 27800000 }, error: null });
+  const out = await refreshAssetPrice(client, "asset-123");
+  assert.equal(client.calls.length, 1);
+  assert.equal(client.calls[0].name, "refresh-asset-price");
+  assert.deepEqual(client.calls[0].opts, { body: { asset_id: "asset-123" } });
+  assert.deepEqual(out, { nilai_baru: 27800000 });
+});
+
+test("refreshAssetPrice(): error transport dari functions.invoke di-lempar", async () => {
+  const client = mockFunctionsClient({ data: null, error: new Error("FunctionsClient: 500") });
+  await assert.rejects(() => refreshAssetPrice(client, "a1"), /FunctionsClient: 500/);
+});
+
+test("refreshAssetPrice(): data.error dari Edge Function diubah jadi throw (pesan server diteruskan)", async () => {
+  const client = mockFunctionsClient({ data: { error: "Sumber harga tidak didukung" }, error: null });
+  await assert.rejects(() => refreshAssetPrice(client, "a1"), /Sumber harga tidak didukung/);
+});
+
+test("refreshAssetPrice(): client null ditolak requireClient", async () => {
+  await assert.rejects(() => refreshAssetPrice(null, "a1"), /belum diberikan/);
 });

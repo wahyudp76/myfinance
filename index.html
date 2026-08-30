@@ -110,7 +110,7 @@
         import { replaceMonthBudgets, fetchMonthBudgets } from './src/services/supabase/budgets.js';
         import { getSettings, saveSettings } from './src/services/supabase/settings.js';
         import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
-        import { listAssets, createAsset, updateAsset, deleteAsset } from './src/services/supabase/assets.js';
+        import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
@@ -142,7 +142,7 @@
         window.__myfinanceServices = {
             createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
-            listAssets, createAsset, updateAsset, deleteAsset,
+            listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
             // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
@@ -5195,15 +5195,21 @@ const api = (() => {
             const onAssetSaveFail = () => { showErrorToast('Gagal menyimpan aset. Periksa koneksi internet Anda lalu coba lagi.'); showLoading(false); };
             const onAssetSaveOk = () => { closeAssetModal(); refreshAssetsOnly(); showSuccessToast(wasEdit ? 'Aset berhasil diperbarui.' : 'Aset berhasil ditambahkan.'); };
             if(currentAssetEditId) {
-                api.run.withSuccessHandler(onAssetSaveOk).withFailureHandler(onAssetSaveFail).editAsset(currentAssetEditId, data);
+                // Pensyahan api.run (slice assets): service langsung (adapter memang cuma
+                // meneruskan data tanpa mapping), callback persis versi lama.
+                servicesModule.updateAsset(supabaseClient, currentAssetEditId, data)
+                    .then(onAssetSaveOk)
+                    .catch((err) => { console.error('api.run.editAsset gagal:', err); onAssetSaveFail(err); });
             } else {
-                api.run.withSuccessHandler(onAssetSaveOk).withFailureHandler(onAssetSaveFail).addAsset(data);
+                servicesModule.createAsset(supabaseClient, data)
+                    .then(onAssetSaveOk)
+                    .catch((err) => { console.error('api.run.addAsset gagal:', err); onAssetSaveFail(err); });
             }
         }
 
         function deleteAssetData(id) {
             showConfirm('Yakin ingin menghapus aset ini dari portofolio?', () => {
-                showLoading(true); api.run.withSuccessHandler(() => { refreshAssetsOnly(); showSuccessToast('Aset berhasil dihapus.'); }).withFailureHandler(() => { showErrorToast('Gagal menghapus aset. Coba lagi.'); showLoading(false); }).deleteAsset(id);
+                showLoading(true); servicesModule.deleteAsset(supabaseClient, id).then(() => { refreshAssetsOnly(); showSuccessToast('Aset berhasil dihapus.'); }).catch((err) => { console.error('api.run.deleteAsset gagal:', err); showErrorToast('Gagal menghapus aset. Coba lagi.'); showLoading(false); });
             });
         }
 
@@ -5273,15 +5279,17 @@ const api = (() => {
         }
 
         function refreshAssetsOnly() {
-            api.run.withSuccessHandler((assets) => {
+            // Pensyahan api.run (slice assets): service langsung, callback persis versi lama.
+            servicesModule.listAssets(supabaseClient).then((assets) => {
                 globalAssets = assets || [];
                 processDataForUI(globalData); // dashboard menampilkan total nilai aset, jadi tetap perlu diperbarui
                 if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
                 showLoading(false);
-            }).withFailureHandler((err) => {
+            }).catch((err) => {
+                console.error('api.run.getAssetsOnly gagal:', err);
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
                 showLoading(false);
-            }).getAssetsOnly();
+            });
         }
 
         // ========================== MASTER FETCH ==========================
@@ -6982,18 +6990,23 @@ const api = (() => {
             const btn = document.getElementById('asset-detail-refresh-btn');
             btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Mengambil harga terkini...';
 
-            api.run.withSuccessHandler((result) => {
-                showSuccessToast('Harga diperbarui: Rp ' + formatRp(result.nilai_baru));
-                api.run.withSuccessHandler((assets) => {
-                    globalAssets = assets || [];
-                    processDataForUI(globalData);
-                    if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
-                    openAssetDetailModal(currentAssetDetailId); // re-render detail dgn nilai & grafik terbaru
-                }).withFailureHandler(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis'; }).getAssetsOnly();
-            }).withFailureHandler((err) => {
-                showErrorToast(err && err.message ? err.message : 'Gagal mengambil harga terkini. Coba lagi.');
-                btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
-            }).refreshAssetPrice(currentAssetDetailId);
+            // Pensyahan api.run (slice assets): Edge Function lewat service langsung
+            // (src/services/supabase/assets.js), rantai nested & callback persis versi lama.
+            servicesModule.refreshAssetPrice(supabaseClient, currentAssetDetailId)
+                .then((result) => {
+                    showSuccessToast('Harga diperbarui: Rp ' + formatRp(result.nilai_baru));
+                    servicesModule.listAssets(supabaseClient).then((assets) => {
+                        globalAssets = assets || [];
+                        processDataForUI(globalData);
+                        if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
+                        openAssetDetailModal(currentAssetDetailId); // re-render detail dgn nilai & grafik terbaru
+                    }).catch((err) => { console.error('api.run.getAssetsOnly gagal:', err); btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis'; });
+                })
+                .catch((err) => {
+                    console.error('api.run.refreshAssetPrice gagal:', err);
+                    showErrorToast(err && err.message ? err.message : 'Gagal mengambil harga terkini. Coba lagi.');
+                    btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
+                });
         }
 
         function renderAssetDetailChart(history) {

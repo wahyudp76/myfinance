@@ -91,3 +91,19 @@ export async function deleteAsset(client, id) {
   const { error } = await supabase.from("assets").delete().eq("id", id);
   if (error) throw error;
 }
+
+/**
+ * Refresh harga aset lewat Edge Function 'refresh-asset-price' -- TIDAK
+ * query tabel assets langsung dari client karena logic ambil harga
+ * (CoinGecko dsb) + hitung nilai baru + update value_history terjadi di
+ * server. Dulunya body refreshAssetPriceRemote() di adapter `api`
+ * (index.html) -- dipindah saat pensyahan api.run (slice assets), body
+ * persis sama termasuk dua lapis error (error transport & data.error).
+ */
+export async function refreshAssetPrice(client, assetId) {
+  const supabase = requireClient(client);
+  const { data, error } = await supabase.functions.invoke("refresh-asset-price", { body: { asset_id: assetId } });
+  if (error) throw error;
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
