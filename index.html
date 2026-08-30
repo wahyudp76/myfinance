@@ -129,6 +129,7 @@
         import { renderGoalIconColorPalette as renderGoalIconColorPaletteUI, renderGoalsList as renderGoalsListUI, renderDebtIconColorPalette as renderDebtIconColorPaletteUI, renderDebtsList as renderDebtsListUI } from './src/ui/goals-debts.js';
         import { renderAssetView as renderAssetViewUI } from './src/ui/assets.js';
         import { renderBudgetView as renderBudgetViewUI, renderBudgetModalList as renderBudgetModalListUI } from './src/ui/budgets.js';
+        import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI } from './src/ui/categories.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -175,6 +176,9 @@
             // renderBudgetViewUI/renderBudgetModalListUI: idem, fungsi UI/render
             // tab Budget & modal Atur Budget (src/ui/budgets.js).
             renderBudgetViewUI, renderBudgetModalListUI,
+            // renderCategoryDetailMonthDataUI: idem, fungsi UI/render bagian
+            // bulan-spesifik halaman Kategori Detail (src/ui/categories.js).
+            renderCategoryDetailMonthDataUI,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -7622,58 +7626,24 @@ const api = (() => {
         // Dipisah dari openCategoryDetail() supaya bisa dipanggil ulang sendiri saat geser bulan,
         // tanpa perlu hitung ulang seluruh "Semua Riwayat Transaksi" (yg memang tidak berubah).
         function renderCategoryDetailMonthData() {
-            const year = categoryDetailYear, month = categoryDetailMonth, jenis = categoryDetailJenis;
-            document.getElementById('detail-category-month-label').innerText =
-                new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-
-            // Total bulan & tren harian: satu sumber kebenaran sekarang src/domain/categories.js
-            // (dipakai juga oleh tests/unit/categories-domain.test.js).
-            const { totalMonth, dailyLabels: chartLabels, dailyData: chartData } =
-                servicesModule.computeCategoryDetailMonthChart(categoryDetailSpecificData, year, month, { parseTgl, txIdrAmount });
-            animateRupiah(document.getElementById('detail-category-total'), totalMonth);
-
-            // Sama seperti chart "Tren Transaksi" / "Tren Saldo-Arus Kas" Detail Akun -- kalau
-            // chart-nya sempit, batasi cuma beberapa batang paling signifikan yang dikasih label,
-            // dengan jarak minimal antar batang berlabel, supaya tidak numpuk. Batang lain tetap
-            // bisa dilihat lewat tap (tooltip). "Sempit?" dicek dari lebar CONTAINER dibagi jumlah
-            // batang (BUKAN window.innerWidth -- lihat catatan BUG FIX di chart Detail Akun),
-            // ketiga chart ini sekarang satu sumber kebenaran di src/domain/chart-labels.js.
-            const catChartContainerWidth = document.getElementById('catTrendChart').parentElement.clientWidth || window.innerWidth;
-            const catChartIsNarrow = servicesModule.isChartNarrow(catChartContainerWidth, chartData.length);
-            const catLabelIndicesToShow = catChartIsNarrow ? servicesModule.selectSparseLabelIndices(chartData, 5) : null;
-
-            if(charts.catTrend) charts.catTrend.destroy();
-            charts.catTrend = new Chart(document.getElementById('catTrendChart').getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: chartLabels,
-                    datasets: [{
-                        label: 'Total',
-                        data: chartData,
-                        backgroundColor: jenis === 'Pemasukan' ? '#34d399' : '#fb7185',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            display: (ctx) => {
-                                if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
-                                if (catLabelIndicesToShow && !catLabelIndicesToShow.has(ctx.dataIndex)) return false;
-                                return true;
-                            },
-                            color: jenis === 'Pemasukan' ? '#047857' : '#be123c', font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2
-                        }
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
-                        // Grid putus-putus & elegan sebagai garis batas antar nilai (konsisten dgn
-                        // chart "Tren Transaksi") -- lebih jelas terbaca dibanding garis solid polos.
-                        y: { grid: { color: chartGridColor(), borderDash: [4, 4] }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-                    }
-                }
+            // Bangun DOM/HTML-nya sekarang di src/ui/categories.js (dipakai juga oleh
+            // tests/unit/ui-categories.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks (state bulan/jenis/data & helper) yang dibutuhkan. State
+            // categoryDetailYear/Month/Jenis/SpecificData tetap dimiliki index.html
+            // (ditulis openCategoryDetail & categoryDetailShiftMonth), modul hanya
+            // membacanya. Chart & charts di-inject per pemanggilan (pola assets/budgets).
+            // Nama fungsi & cara memanggilnya di tempat lain TIDAK berubah sama sekali.
+            servicesModule.renderCategoryDetailMonthDataUI({
+                document,
+                year: categoryDetailYear, month: categoryDetailMonth, jenis: categoryDetailJenis,
+                specificData: categoryDetailSpecificData,
+                computeCategoryDetailMonthChart: servicesModule.computeCategoryDetailMonthChart,
+                parseTgl, txIdrAmount,
+                animateRupiah,
+                isChartNarrow: servicesModule.isChartNarrow,
+                selectSparseLabelIndices: servicesModule.selectSparseLabelIndices,
+                chartGridColor, formatShortVal,
+                Chart, charts,
             });
         }
 
