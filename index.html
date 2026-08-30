@@ -126,6 +126,7 @@
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
         import { renderRecurringSummary as renderRecurringSummaryUI, renderRecurringListModal as renderRecurringListModalUI } from './src/ui/recurring.js';
         import { renderHealthScore as renderHealthScoreUI, renderInsights as renderInsightsUI } from './src/ui/insights.js';
+        import { renderGoalIconColorPalette as renderGoalIconColorPaletteUI, renderGoalsList as renderGoalsListUI, renderDebtIconColorPalette as renderDebtIconColorPaletteUI, renderDebtsList as renderDebtsListUI } from './src/ui/goals-debts.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -163,6 +164,9 @@
             // renderHealthScoreUI/renderInsightsUI: idem, fungsi UI/render Skor Kesehatan &
             // Wawasan Keuangan (src/ui/insights.js).
             renderHealthScoreUI, renderInsightsUI,
+            // renderGoal*/renderDebt*UI: idem, fungsi UI/render Tujuan Keuangan & Utang
+            // (src/ui/goals-debts.js).
+            renderGoalIconColorPaletteUI, renderGoalsListUI, renderDebtIconColorPaletteUI, renderDebtsListUI,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -6921,78 +6925,34 @@ const api = (() => {
         // Disimpan di appSettings.financial_goals (array biasa, ikut kesinkron lewat persistSettings()
         // yang sudah ada) -- SENGAJA tidak bikin tabel Supabase baru, sama seperti pola categoryStyles/
         // accountIcons sebelumnya, supaya tidak perlu migrasi SQL tambahan.
-        const goalIconPalette = ['fa-plane', 'fa-house', 'fa-car', 'fa-graduation-cap', 'fa-ring', 'fa-piggy-bank', 'fa-laptop', 'fa-umbrella-beach', 'fa-gift', 'fa-heart-pulse'];
-        const goalColorPalette = [
-            { bg: 'bg-indigo-100', color: 'text-indigo-500' }, { bg: 'bg-rose-100', color: 'text-rose-500' },
-            { bg: 'bg-emerald-100', color: 'text-emerald-500' }, { bg: 'bg-amber-100', color: 'text-amber-500' },
-            { bg: 'bg-cyan-100', color: 'text-cyan-500' }, { bg: 'bg-purple-100', color: 'text-purple-500' }
-        ];
+        // (Konstanta palet goalIconPalette/goalColorPalette pindah ke src/ui/goals-debts.js --
+        // hanya dipakai fungsi palet di sana.)
         let goalFormState = { icon: 'fa-piggy-bank', bg: 'bg-indigo-100', color: 'text-indigo-500' };
         let currentGoalEditId = null;
         let currentGoalContributeId = null;
 
         function renderGoalIconColorPalette() {
-            const iconWrap = document.getElementById('goal-icon-palette');
-            iconWrap.innerHTML = goalIconPalette.map(ic => `
-                <button type="button" onclick="pickGoalIcon('${ic}')" class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === goalFormState.icon ? goalFormState.bg + ' ' + goalFormState.color + ' ring-2 ring-offset-1 ring-indigo-400' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}">
-                    <i class="fas ${ic} text-sm"></i>
-                </button>`).join('');
-            const colorWrap = document.getElementById('goal-color-palette');
-            colorWrap.innerHTML = goalColorPalette.map(c => `
-                <button type="button" onclick="pickGoalColor('${c.bg}','${c.color}')" class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === goalFormState.bg ? 'ring-2 ring-offset-1 ring-indigo-400' : ''}">
-                    ${c.bg === goalFormState.bg ? `<i class="fas fa-check text-[10px] ${c.color}"></i>` : ''}
-                </button>`).join('');
+            // Bangun DOM/HTML-nya sekarang di src/ui/goals-debts.js (dipakai juga oleh
+            // tests/unit/ui-goals-debts.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks yang dibutuhkan. goalFormState tetap dimiliki & di-mutasi di
+            // sini (oleh pickGoalIcon/pickGoalColor), modul hanya membacanya. Nama fungsi &
+            // cara memanggilnya di tempat lain TIDAK berubah sama sekali.
+            servicesModule.renderGoalIconColorPaletteUI({ document, formState: goalFormState });
         }
         function pickGoalIcon(icon) { goalFormState.icon = icon; renderGoalIconColorPalette(); }
         function pickGoalColor(bg, color) { goalFormState.bg = bg; goalFormState.color = color; renderGoalIconColorPalette(); }
 
         function renderGoalsList() {
-            const listEl = document.getElementById('goals-list-container'); if (!listEl) return;
-            const goals = appSettings.financial_goals || [];
-            if (goals.length === 0) {
-                listEl.innerHTML = `
-                    <div class="col-span-1 md:col-span-2 py-12 text-center text-slate-400 stagger-item">
-                        <i class="fas fa-bullseye text-4xl mb-3 opacity-30"></i>
-                        <p class="text-sm font-bold text-slate-500">Belum ada tujuan keuangan</p>
-                        <p class="text-[10px]">Bikin target pertamamu lewat tombol Tambah Tujuan.</p>
-                    </div>`;
-                return;
-            }
-            listEl.innerHTML = goals.map(g => {
-                // Progres (persen, sisa, status selesai, sisa hari ke deadline): satu sumber
-                // kebenaran sekarang src/domain/goals-debts.js (computeGoalProgress).
-                const { pct, sisa, isDone, daysUntilDeadline } = servicesModule.computeGoalProgress(g, new Date());
-                let deadlineHtml = '';
-                if (daysUntilDeadline !== null) {
-                    deadlineHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-calendar-days"></i> ${daysUntilDeadline > 0 ? daysUntilDeadline + ' hari lagi' : (daysUntilDeadline === 0 ? 'Hari ini' : 'Lewat tenggat')}</span>`;
-                }
-                return `
-                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm stagger-item">
-                    <div class="flex items-start justify-between mb-3">
-                        <div class="flex items-center min-w-0">
-                            <div class="w-10 h-10 rounded-xl ${g.bg} ${g.color} flex items-center justify-center mr-3 flex-shrink-0"><i class="fas ${g.icon}"></i></div>
-                            <div class="min-w-0">
-                                <p class="text-sm font-bold text-slate-800 truncate">${escapeHtml(g.nama)}</p>
-                                ${deadlineHtml}
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="openGoalModal(true,'${g.id}')" aria-label="Ubah tujuan" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
-                            <button onclick="removeGoal('${g.id}')" aria-label="Hapus tujuan" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
-                        </div>
-                    </div>
-                    <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-                        <div class="h-full rounded-full ${isDone ? 'bg-emerald-400' : 'bg-indigo-400'} transition-all" style="width:${pct}%"></div>
-                    </div>
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="text-[11px] font-bold ${isDone ? 'text-emerald-500' : 'text-slate-500'}">${pct}% -- Rp ${new Intl.NumberFormat('id-ID').format(g.terkumpul)}</span>
-                        <span class="text-[10px] text-slate-400">dari Rp ${new Intl.NumberFormat('id-ID').format(g.target)}</span>
-                    </div>
-                    ${isDone
-                        ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Tercapai!</div>`
-                        : `<button onclick="openGoalContributeModal('${g.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Setor Dana <span class="text-slate-400 font-normal">(sisa Rp ${new Intl.NumberFormat('id-ID').format(sisa)})</span></button>`}
-                </div>`;
-            }).join('');
+            // Bangun DOM/HTML-nya sekarang di src/ui/goals-debts.js (dipakai juga oleh
+            // tests/unit/ui-goals-debts.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks (data & helper) yang dibutuhkan. Nama fungsi & cara
+            // memanggilnya di tempat lain (termasuk onclick="..." di kartu tujuan)
+            // TIDAK berubah sama sekali.
+            servicesModule.renderGoalsListUI({
+                document, appSettings,
+                computeGoalProgress: servicesModule.computeGoalProgress,
+                escapeHtml,
+            });
         }
 
         function openGoalModal(isEdit = false, id = null) {
@@ -7087,27 +7047,19 @@ const api = (() => {
         // sinkron lewat persistSettings() yang sudah ada, tanpa tabel/migrasi Supabase baru), cuma
         // progresnya kebalikan: Tujuan Keuangan menuju ATAS (terkumpul naik ke target), Utang
         // menuju BAWAH (sisa turun ke nol).
-        const debtIconPalette = ['fa-credit-card', 'fa-car', 'fa-house', 'fa-motorcycle', 'fa-graduation-cap', 'fa-file-invoice-dollar', 'fa-hand-holding-dollar', 'fa-mobile-screen', 'fa-briefcase', 'fa-receipt'];
-        const debtColorPalette = [
-            { bg: 'bg-rose-100', color: 'text-rose-500' }, { bg: 'bg-orange-100', color: 'text-orange-500' },
-            { bg: 'bg-amber-100', color: 'text-amber-500' }, { bg: 'bg-slate-200', color: 'text-slate-600' },
-            { bg: 'bg-pink-100', color: 'text-pink-500' }, { bg: 'bg-purple-100', color: 'text-purple-500' }
-        ];
+        // (Konstanta palet debtIconPalette/debtColorPalette pindah ke src/ui/goals-debts.js --
+        // hanya dipakai fungsi palet di sana.)
         let debtFormState = { icon: 'fa-credit-card', bg: 'bg-rose-100', color: 'text-rose-500' };
         let currentDebtEditId = null;
         let currentDebtPayId = null;
 
         function renderDebtIconColorPalette() {
-            const iconWrap = document.getElementById('debt-icon-palette');
-            iconWrap.innerHTML = debtIconPalette.map(ic => `
-                <button type="button" onclick="pickDebtIcon('${ic}')" class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === debtFormState.icon ? debtFormState.bg + ' ' + debtFormState.color + ' ring-2 ring-offset-1 ring-rose-400' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}">
-                    <i class="fas ${ic} text-sm"></i>
-                </button>`).join('');
-            const colorWrap = document.getElementById('debt-color-palette');
-            colorWrap.innerHTML = debtColorPalette.map(c => `
-                <button type="button" onclick="pickDebtColor('${c.bg}','${c.color}')" class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === debtFormState.bg ? 'ring-2 ring-offset-1 ring-rose-400' : ''}">
-                    ${c.bg === debtFormState.bg ? `<i class="fas fa-check text-[10px] ${c.color}"></i>` : ''}
-                </button>`).join('');
+            // Bangun DOM/HTML-nya sekarang di src/ui/goals-debts.js (dipakai juga oleh
+            // tests/unit/ui-goals-debts.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks yang dibutuhkan. debtFormState tetap dimiliki & di-mutasi di
+            // sini (oleh pickDebtIcon/pickDebtColor), modul hanya membacanya. Nama fungsi &
+            // cara memanggilnya di tempat lain TIDAK berubah sama sekali.
+            servicesModule.renderDebtIconColorPaletteUI({ document, formState: debtFormState });
         }
         function pickDebtIcon(icon) { debtFormState.icon = icon; renderDebtIconColorPalette(); }
         function pickDebtColor(bg, color) { debtFormState.bg = bg; debtFormState.color = color; renderDebtIconColorPalette(); }
@@ -7124,52 +7076,16 @@ const api = (() => {
         }
 
         function renderDebtsList() {
-            const listEl = document.getElementById('debts-list-container'); if (!listEl) return;
-            const debts = appSettings.debts || [];
-            if (debts.length === 0) {
-                listEl.innerHTML = `
-                    <div class="col-span-1 md:col-span-2 py-12 text-center text-slate-400 stagger-item">
-                        <i class="fas fa-hand-holding-dollar text-4xl mb-3 opacity-30"></i>
-                        <p class="text-sm font-bold text-slate-500">Belum ada utang/cicilan tercatat</p>
-                        <p class="text-[10px]">Bikin catatan pertamamu lewat tombol Tambah Utang.</p>
-                    </div>`;
-                return;
-            }
-            listEl.innerHTML = debts.map(d => {
-                // Progres pelunasan (persen, sisa, status lunas, estimasi bulan lagi): satu sumber
-                // kebenaran sekarang src/domain/goals-debts.js (computeDebtProgress).
-                const { paidPct, sisa, isLunas, bulanLagi } = servicesModule.computeDebtProgress(d);
-                let estimasiHtml = '';
-                if (bulanLagi !== null) {
-                    estimasiHtml = `<span class="text-[10px] text-slate-400 flex items-center gap-1"><i class="fas fa-hourglass-half"></i> ~${bulanLagi} bulan lagi (estimasi)</span>`;
-                }
-                return `
-                <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm stagger-item">
-                    <div class="flex items-start justify-between mb-3">
-                        <div class="flex items-center min-w-0">
-                            <div class="w-10 h-10 rounded-xl ${d.bg} ${d.color} flex items-center justify-center mr-3 flex-shrink-0"><i class="fas ${d.icon}"></i></div>
-                            <div class="min-w-0">
-                                <p class="text-sm font-bold text-slate-800 truncate">${escapeHtml(d.nama)}</p>
-                                ${estimasiHtml}
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="openDebtModal(true,'${d.id}')" aria-label="Ubah utang" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
-                            <button onclick="removeDebt('${d.id}')" aria-label="Hapus utang" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
-                        </div>
-                    </div>
-                    <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-                        <div class="h-full rounded-full ${isLunas ? 'bg-emerald-400' : 'bg-rose-400'} transition-all" style="width:${paidPct}%"></div>
-                    </div>
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="text-[11px] font-bold ${isLunas ? 'text-emerald-500' : 'text-slate-500'}">${paidPct}% terlunasi</span>
-                        <span class="text-[10px] text-slate-400">sisa Rp ${new Intl.NumberFormat('id-ID').format(sisa)}</span>
-                    </div>
-                    ${isLunas
-                        ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Lunas!</div>`
-                        : `<button onclick="openDebtPayModal('${d.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Bayar Cicilan</button>`}
-                </div>`;
-            }).join('');
+            // Bangun DOM/HTML-nya sekarang di src/ui/goals-debts.js (dipakai juga oleh
+            // tests/unit/ui-goals-debts.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks (data & helper) yang dibutuhkan. Nama fungsi & cara
+            // memanggilnya di tempat lain (termasuk onclick="..." di kartu utang)
+            // TIDAK berubah sama sekali.
+            servicesModule.renderDebtsListUI({
+                document, appSettings,
+                computeDebtProgress: servicesModule.computeDebtProgress,
+                escapeHtml,
+            });
         }
 
         function openDebtModal(isEdit = false, id = null) {
