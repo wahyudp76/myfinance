@@ -106,7 +106,7 @@
         } from './src/auth/index.js';
         import { createTransactionService, toCreateRecord, toUpdateRecord } from './src/services/transactions.js';
         import { createTransfer, toTransferParams } from './src/services/supabase/transfers.js';
-        import { createRecurringTransaction } from './src/services/supabase/recurring.js';
+        import { createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate } from './src/services/supabase/recurring.js';
         import { replaceMonthBudgets, fetchMonthBudgets } from './src/services/supabase/budgets.js';
         import { getSettings, saveSettings } from './src/services/supabase/settings.js';
         import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
@@ -140,7 +140,7 @@
         window.dispatchEvent(new Event('myfinance:auth-ready'));
 
         window.__myfinanceServices = {
-            createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, replaceMonthBudgets, fetchMonthBudgets,
+            createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
@@ -5441,11 +5441,13 @@ const api = (() => {
                         // createRecurringTransaction() dijamin idempoten di level database: 1
                         // template + 1 tanggal jatuh tempo = maksimal 1 transaksi, walau baris ini
                         // ke-trigger berkali-kali.
-                        await apiCall('createRecurringTransaction', {
+                        // Pensyahan api.run (slice recurring): RPC idempoten dipanggil service
+                        // langsung; mapping snake_case -> param ada di servicesModule.toCreateRecurringParams.
+                        await servicesModule.createRecurringTransaction(supabaseClient, servicesModule.toCreateRecurringParams({
                             recurring_id: item.id, due_date: dueDate, jenis: item.jenis, jumlah: item.jumlah,
                             akun: item.akun, kategori: item.kategori,
                             keterangan: (item.keterangan ? item.keterangan + ' ' : '') + '(otomatis berulang)'
-                        });
+                        }));
                         totalCreated++; countThis++;
                     } catch (e) {
                         console.error('Gagal membuat transaksi berulang otomatis:', e);
@@ -5462,8 +5464,8 @@ const api = (() => {
                 // dijaga oleh !itemFailed.
                 if (countThis > 0 && !itemFailed) {
                     try {
-                        if (shouldDeactivate) { await apiCall('setRecurringActive', item.id, false); }
-                        else { await apiCall('advanceRecurringDueDate', item.id, nextDueDateAfter); }
+                        if (shouldDeactivate) { await servicesModule.setRecurringActive(supabaseClient, item.id, false); }
+                        else { await servicesModule.advanceRecurringDueDate(supabaseClient, item.id, nextDueDateAfter); }
                     } catch (e) { console.error('Gagal memperbarui jadwal transaksi berulang:', e); }
                 }
             }
@@ -5518,21 +5520,21 @@ const api = (() => {
 
         function toggleRecurringActive(id, currentActive) {
             showLoading(true);
-            api.run.withSuccessHandler(() => {
+            servicesModule.setRecurringActive(supabaseClient, id, !currentActive).then(() => {
                 const item = globalRecurring.find(r => r.id === id); if (item) item.active = !currentActive;
                 renderRecurringListModal(); renderRecurringSummary(); showLoading(false);
                 showSuccessToast(currentActive ? 'Transaksi berulang dijeda.' : 'Transaksi berulang diaktifkan kembali.');
-            }).withFailureHandler(() => { showErrorToast('Gagal memperbarui status. Coba lagi.'); showLoading(false); }).setRecurringActive(id, !currentActive);
+            }).catch((err) => { console.error('api.run.setRecurringActive gagal:', err); showErrorToast('Gagal memperbarui status. Coba lagi.'); showLoading(false); });
         }
 
         function deleteRecurringTemplate(id) {
             showConfirm('Yakin ingin menghapus transaksi berulang ini? Transaksi yang sudah tercatat sebelumnya tidak akan terhapus.', () => {
                 showLoading(true);
-                api.run.withSuccessHandler(() => {
+                servicesModule.deleteRecurring(supabaseClient, id).then(() => {
                     globalRecurring = globalRecurring.filter(r => r.id !== id);
                     renderRecurringListModal(); renderRecurringSummary(); showLoading(false);
                     showSuccessToast('Transaksi berulang berhasil dihapus.');
-                }).withFailureHandler(() => { showErrorToast('Gagal menghapus. Coba lagi.'); showLoading(false); }).deleteRecurring(id);
+                }).catch((err) => { console.error('api.run.deleteRecurring gagal:', err); showErrorToast('Gagal menghapus. Coba lagi.'); showLoading(false); });
             });
         }
 
@@ -5625,16 +5627,16 @@ const api = (() => {
             const onOk = () => {
                 closeRecurringFormModal(); showLoading(false);
                 showSuccessToast(wasEdit ? 'Transaksi berulang berhasil diperbarui.' : 'Transaksi berulang berhasil ditambahkan.');
-                api.run.withSuccessHandler((list) => { globalRecurring = list || []; renderRecurringListModal(); renderRecurringSummary(); }).withFailureHandler(() => {}).getRecurring();
+                servicesModule.listRecurring(supabaseClient).then((list) => { globalRecurring = list || []; renderRecurringListModal(); renderRecurringSummary(); }).catch((err) => { console.error('api.run.getRecurring gagal:', err); });
             };
             if (wasEdit) {
                 // next_due_date TIDAK diubah lewat form edit ini (supaya jadwal yang sudah berjalan tidak
                 // ter-reset tanpa sengaja) -- edit di sini cuma untuk detail transaksinya (jumlah, kategori, dst).
                 const existing = globalRecurring.find(r => r.id === currentRecurringEditId);
                 data.next_due_date = existing ? existing.next_due_date : startDate;
-                api.run.withSuccessHandler(onOk).withFailureHandler(onFail).editRecurring(currentRecurringEditId, data);
+                servicesModule.updateRecurring(supabaseClient, currentRecurringEditId, data).then(onOk).catch((err) => { console.error('api.run.editRecurring gagal:', err); onFail(err); });
             } else {
-                api.run.withSuccessHandler(onOk).withFailureHandler(onFail).addRecurring(data);
+                servicesModule.createRecurring(supabaseClient, data).then(onOk).catch((err) => { console.error('api.run.addRecurring gagal:', err); onFail(err); });
             }
         }
 
