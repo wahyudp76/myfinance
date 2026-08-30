@@ -107,7 +107,7 @@
         import { createTransactionService } from './src/services/transactions.js';
         import { createTransfer } from './src/services/supabase/transfers.js';
         import { createRecurringTransaction } from './src/services/supabase/recurring.js';
-        import { replaceMonthBudgets } from './src/services/supabase/budgets.js';
+        import { replaceMonthBudgets, fetchMonthBudgets } from './src/services/supabase/budgets.js';
         import { getSettings, saveSettings } from './src/services/supabase/settings.js';
         import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
         import { listAssets, createAsset, updateAsset, deleteAsset } from './src/services/supabase/assets.js';
@@ -140,7 +140,7 @@
         window.dispatchEvent(new Event('myfinance:auth-ready'));
 
         window.__myfinanceServices = {
-            createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets,
+            createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset,
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
@@ -2442,15 +2442,10 @@ const api = (() => {
     }
 
     // ---------------- BUDGET (tabel: budgets, 1 baris per kategori per bulan) ----------------
+    // Body-nya sudah pindah ke src/services/supabase/budgets.js (fetchMonthBudgets) saat
+    // pensyahan api.run slice budgets -- tinggal delegasi utk getSyncData() di bawah.
     async function getBudgetsRemote(bulan) {
-        const { data, error } = await supabaseClient
-            .from('budgets')
-            .select('kategori, jumlah')
-            .eq('bulan', bulan);
-        if (error) throw error;
-        const map = {};
-        (data || []).forEach(row => { map[row.kategori] = Number(row.jumlah); });
-        return map;
+        return await servicesModule.fetchMonthBudgets(supabaseClient, bulan);
     }
 
     async function saveBudgetsCloudRemote(bulan, budgetsMap) {
@@ -6106,10 +6101,17 @@ const api = (() => {
         let currentMonthBudgetsCache = {};
         function currentMonthStr() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
         function refreshCurrentMonthBudgetsCache(onDone) {
-            api.run.withSuccessHandler((budgets) => {
-                currentMonthBudgetsCache = budgets || {};
-                if (typeof onDone === 'function') onDone();
-            }).withFailureHandler(() => { /* biarin cache lama kalau gagal fetch -- bukan hal fatal */ }).getBudgets(currentMonthStr());
+            // Pensyahan api.run (slice budgets): panggil service langsung (src/services/supabase/budgets.js),
+            // callback sukses/gagal persis versi adapter lama (termasuk console.error ala buildRunner).
+            servicesModule.fetchMonthBudgets(supabaseClient, currentMonthStr())
+                .then((budgets) => {
+                    currentMonthBudgetsCache = budgets || {};
+                    if (typeof onDone === 'function') onDone();
+                })
+                .catch((err) => {
+                    console.error('api.run.getBudgets gagal:', err);
+                    /* biarin cache lama kalau gagal fetch -- bukan hal fatal */
+                });
         }
 
         // Menghasilkan array wawasan {icon,bg,color,title,message}, urutan sesuai prioritas
@@ -6503,14 +6505,18 @@ const api = (() => {
         function changeBudgetMonth() {
             showLoading(true);
             const targetBulan = document.getElementById('budgetFilterMonth').value;
-            api.run.withSuccessHandler((cloudBudgetsData) => {
-                cloudBudgets = cloudBudgetsData || {};
-                renderBudgetView();
-                showLoading(false);
-            }).withFailureHandler(() => {
-                showErrorToast('Gagal memuat budget bulan ini. Coba lagi.');
-                showLoading(false);
-            }).getBudgets(targetBulan);
+            // Pensyahan api.run (slice budgets): panggil service langsung, callback persis versi adapter lama.
+            servicesModule.fetchMonthBudgets(supabaseClient, targetBulan)
+                .then((cloudBudgetsData) => {
+                    cloudBudgets = cloudBudgetsData || {};
+                    renderBudgetView();
+                    showLoading(false);
+                })
+                .catch((err) => {
+                    console.error('api.run.getBudgets gagal:', err);
+                    showErrorToast('Gagal memuat budget bulan ini. Coba lagi.');
+                    showLoading(false);
+                });
         }
 
         function openBudgetModal() {
@@ -6571,21 +6577,27 @@ const api = (() => {
                 if(val > 0) cloudBudgets[catName] = val;
             });
 
-            api.run.withSuccessHandler((response) => {
-                closeBudgetModal();
-                renderBudgetView();
-                showLoading(false);
-                showSuccessToast('Budget berhasil disimpan.');
-                // Kalau yang disimpan adalah anggaran BULAN KALENDER SEKARANG, sinkronkan juga ke cache
-                // wawasan keuangan supaya "Peringatan Anggaran" langsung mencerminkan angka terbaru.
-                if (targetBulan === currentMonthStr()) {
-                    currentMonthBudgetsCache = Object.assign({}, cloudBudgets);
-                    if (lastInsightsCtx) renderInsights(lastInsightsCtx);
-                }
-            }).withFailureHandler((err) => {
-                showErrorToast('Gagal menyimpan budget ke cloud. Perubahan belum tersimpan, coba lagi.');
-                showLoading(false);
-            }).saveBudgetsCloud(targetBulan, cloudBudgets);
+            // Pensyahan api.run (slice budgets): saveBudgetsCloudRemote di adapter cuma membungkus
+            // replaceMonthBudgets() + return {status:'success'} yg tidak pernah dipakai handler --
+            // panggil RPC-nya langsung (catatan: adapter memakai guard `|| {}`, dipertahankan).
+            servicesModule.replaceMonthBudgets(supabaseClient, targetBulan, cloudBudgets || {})
+                .then((response) => {
+                    closeBudgetModal();
+                    renderBudgetView();
+                    showLoading(false);
+                    showSuccessToast('Budget berhasil disimpan.');
+                    // Kalau yang disimpan adalah anggaran BULAN KALENDER SEKARANG, sinkronkan juga ke cache
+                    // wawasan keuangan supaya "Peringatan Anggaran" langsung mencerminkan angka terbaru.
+                    if (targetBulan === currentMonthStr()) {
+                        currentMonthBudgetsCache = Object.assign({}, cloudBudgets);
+                        if (lastInsightsCtx) renderInsights(lastInsightsCtx);
+                    }
+                })
+                .catch((err) => {
+                    console.error('api.run.saveBudgetsCloud gagal:', err);
+                    showErrorToast('Gagal menyimpan budget ke cloud. Perubahan belum tersimpan, coba lagi.');
+                    showLoading(false);
+                });
         }
 
         // Konstanta presentasi BUDGET_USAGE_RING_COLOR/BAR_COLOR/BADGE pindah ke
