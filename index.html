@@ -2722,17 +2722,20 @@ async function currentUserId() {
             buildLookupTable();
         }
 
+        // Logo bank/e-wallet kini SELF-HOSTED di icons/banks/ (tidak lagi hotlink Wikimedia --
+        // 5 dari 10 URL lama sudah 404: Mandiri/BNI/Jago/GoPay/ShopeePay). File SVG dari
+        // Wikimedia Commons (nama file saat diunduh), ShopeePay = marka buatan-sendiri.
         const bankWalletDatabase = [
-            { name: "Bank Central Asia (BCA)", category: "Bank", keywords: ["bca","central asia"], url: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Bank_Central_Asia.svg" },
-            { name: "Bank Mandiri", category: "Bank", keywords: ["mandiri"], url: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Logo_Bank_Mandiri_Baru.png" },
-            { name: "Bank Rakyat Indonesia (BRI)", category: "Bank", keywords: ["bri","rakyat indonesia"], url: "https://upload.wikimedia.org/wikipedia/commons/2/2e/BRI_2020.svg" },
-            { name: "Bank Negara Indonesia (BNI)", category: "Bank", keywords: ["bni","negara indonesia"], url: "https://upload.wikimedia.org/wikipedia/id/5/55/BNI_logo.svg" },
-            { name: "Bank Syariah Indonesia (BSI)", category: "Bank", keywords: ["bsi","syariah indonesia"], url: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Bank_Syariah_Indonesia.svg" },
-            { name: "Bank Jago", category: "Bank", keywords: ["jago", "bank jago"], url: "https://upload.wikimedia.org/wikipedia/commons/3/36/Bank_Jago_logo.svg" },
-            { name: "GoPay", category: "E-Wallet", keywords: ["gopay","go-pay"], url: "https://upload.wikimedia.org/wikipedia/commons/8/86/Gopay_logo.svg" },
-            { name: "OVO", category: "E-Wallet", keywords: ["ovo"], url: "https://upload.wikimedia.org/wikipedia/commons/e/eb/Logo_ovo_purple.svg" },
-            { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "https://upload.wikimedia.org/wikipedia/commons/7/72/Logo_dana_blue.svg" },
-            { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay","shopee pay"], url: "https://upload.wikimedia.org/wikipedia/commons/f/fe/ShopeePay_Logo.png" },
+            { name: "Bank Central Asia (BCA)", category: "Bank", keywords: ["bca","central asia"], url: "icons/banks/bca.svg" },
+            { name: "Bank Mandiri", category: "Bank", keywords: ["mandiri"], url: "icons/banks/mandiri.svg" },
+            { name: "Bank Rakyat Indonesia (BRI)", category: "Bank", keywords: ["bri","rakyat indonesia"], url: "icons/banks/bri.svg" },
+            { name: "Bank Negara Indonesia (BNI)", category: "Bank", keywords: ["bni","negara indonesia"], url: "icons/banks/bni.png" },
+            { name: "Bank Syariah Indonesia (BSI)", category: "Bank", keywords: ["bsi","syariah indonesia"], url: "icons/banks/bsi.svg" },
+            { name: "Bank Jago", category: "Bank", keywords: ["jago", "bank jago"], url: "icons/banks/jago.svg" },
+            { name: "GoPay", category: "E-Wallet", keywords: ["gopay","go-pay"], url: "icons/banks/gopay.svg" },
+            { name: "OVO", category: "E-Wallet", keywords: ["ovo"], url: "icons/banks/ovo.svg" },
+            { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "icons/banks/dana.svg" },
+            { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay","shopee pay"], url: "icons/banks/shopeepay.svg" },
             // Tambahan untuk Platform Aset/Investasi (Bisa jadi akun juga)
             { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], badge: "BB", color: "bg-green-600" },
             { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], badge: "AJ", color: "bg-blue-500" },

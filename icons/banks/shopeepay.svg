@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ShopeePay">
+  <!-- Marka ShopeePay buatan-sendiri (bentuk tas belanja khas, oranye merek #EE4D2D).
+       Digambar sederhana utk ukuran kecil (20-28px) di kartu akun; menggantikan
+       hotlink Wikimedia yang sudah 404. -->
+  <path d="M14 20 h36 l-3.2 31.2 A6 6 0 0 1 40.8 57 H23.2 A6 6 0 0 1 17.2 51.2 Z" fill="#EE4D2D"/>
+  <path d="M23 24 v-6.5 a9 9 0 0 1 18 0 V24" fill="none" stroke="#EE4D2D" stroke-width="5" stroke-linecap="round"/>
+  <path d="M23.5 42.5 q8.5 7 17 0" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</svg>
