@@ -125,6 +125,7 @@
         import { isChartNarrow, selectSparseLabelIndices } from './src/domain/chart-labels.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
         import { renderRecurringSummary as renderRecurringSummaryUI, renderRecurringListModal as renderRecurringListModalUI } from './src/ui/recurring.js';
+        import { renderHealthScore as renderHealthScoreUI, renderInsights as renderInsightsUI } from './src/ui/insights.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -159,6 +160,9 @@
             // UI/render (src/ui/recurring.js, menyentuh DOM) -- ditumpangkan di bag yang sama dengan
             // alasan yang sama seperti fungsi2 di atas (satu-satunya jalur modul ES ke classic script).
             renderRecurringSummaryUI, renderRecurringListModalUI,
+            // renderHealthScoreUI/renderInsightsUI: idem, fungsi UI/render Skor Kesehatan &
+            // Wawasan Keuangan (src/ui/insights.js).
+            renderHealthScoreUI, renderInsightsUI,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -6097,28 +6101,16 @@ const api = (() => {
         // pemanggilannya di renderHealthScore().
 
         function renderHealthScore(ctx) {
-            const numEl = document.getElementById('health-score-number');
-            if (!numEl) return;
-            const { finalScore, components } = servicesModule.computeFinancialHealthScore(ctx, { currentMonthBudgets: currentMonthBudgetsCache });
-            const barEl = document.getElementById('health-score-bar');
-            const labelEl = document.getElementById('health-score-label');
-            const breakdownEl = document.getElementById('health-score-breakdown');
-
-            numEl.innerText = finalScore;
-            barEl.style.width = finalScore + '%';
-
-            let band;
-            if (finalScore >= 75) band = { text: 'Sehat', color: '#10b981', badge: 'bg-emerald-100 text-emerald-600' };
-            else if (finalScore >= 50) band = { text: 'Perlu Perhatian', color: '#f59e0b', badge: 'bg-amber-100 text-amber-600' };
-            else band = { text: 'Kritis', color: '#f43f5e', badge: 'bg-rose-100 text-rose-600' };
-            barEl.style.background = band.color;
-            labelEl.innerText = band.text;
-            labelEl.className = 'text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0 ' + band.badge;
-
-            breakdownEl.innerHTML = components.map(c => {
-                const pct = c.max > 0 ? Math.round((c.score / c.max) * 100) : 0;
-                return `<div class="flex items-center justify-between text-[10px] md:text-xs"><span class="text-slate-400 truncate mr-2">${c.label}</span><span class="font-bold text-slate-600 flex-shrink-0">${pct}%</span></div>`;
-            }).join('');
+            // Bangun DOM/HTML-nya sekarang di src/ui/insights.js (dipakai juga oleh
+            // tests/unit/ui-insights.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks (data & helper) yang dibutuhkan. Nama fungsi & cara
+            // memanggilnya di tempat lain TIDAK berubah sama sekali.
+            servicesModule.renderHealthScoreUI({
+                document,
+                dataCtx: ctx,
+                currentMonthBudgets: currentMonthBudgetsCache,
+                computeFinancialHealthScore: servicesModule.computeFinancialHealthScore,
+            });
         }
 
         // computeFinancialInsights() lama sudah dipindah ke src/domain/insights.js -- lihat
@@ -6126,33 +6118,22 @@ const api = (() => {
 
         let lastInsightsCtx = null;
         function renderInsights(ctx) {
+            // State lastInsightsCtx SENGAJA tetap dikelola di sini (dipakai juga oleh fitur
+            // rekomendasi AI / chat di luar modul UI). Bangun DOM/HTML-nya sekarang di
+            // src/ui/insights.js (dipakai juga oleh tests/unit/ui-insights.test.js) --
+            // fungsi ini tinggal wrapper tipis yang menyuplai konteks (data & helper) yang
+            // dibutuhkan, termasuk requestAiInsight (dipanggil modul HANYA di cabang daftar
+            // non-kosong, persis seperti kode lama). Nama fungsi & cara memanggilnya di
+            // tempat lain TIDAK berubah sama sekali.
             lastInsightsCtx = ctx;
-            const container = document.getElementById('insights-container'); if (!container) return;
-            const insights = servicesModule.computeFinancialInsights(ctx, { currentMonthBudgets: currentMonthBudgetsCache, formatRp, formatShortVal });
-
-            if (insights.length === 0) {
-                container.innerHTML = `
-                    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-circle-check text-sm"></i></div>
-                        <p class="text-xs md:text-sm text-slate-500">${ctx.monthTxCount > 0 ? 'Belum ada hal mencolok bulan ini -- keuangan kamu terlihat stabil 👍' : 'Belum ada transaksi bulan ini. Wawasan akan muncul begitu ada transaksi tercatat.'}</p>
-                    </div>`;
-                return;
-            }
-
-            container.innerHTML = insights.map(ins => `
-                <div class="bg-white rounded-2xl p-3.5 md:p-4 border border-slate-100 shadow-sm flex items-start gap-3">
-                    <div class="w-9 h-9 rounded-xl ${ins.bg} ${ins.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${ins.icon} text-sm"></i></div>
-                    <div class="min-w-0">
-                        <p class="text-xs md:text-sm font-bold text-slate-800">${ins.title}</p>
-                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">${ins.message}</p>
-                    </div>
-                </div>`).join('');
-
-            // Wawasan rule-based di atas selalu instan & gratis; di sisi ini kita juga minta analisis
-            // Gemini yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- TAPI cuma
-            // benar2 manggil Gemini kalau belum ada cache tersimpan; kalau sudah ada, cache itu yang
-            // ditampilkan (lihat requestAiInsight()).
-            requestAiInsight(false);
+            servicesModule.renderInsightsUI({
+                document,
+                dataCtx: ctx,
+                currentMonthBudgets: currentMonthBudgetsCache,
+                computeFinancialInsights: servicesModule.computeFinancialInsights,
+                formatRp, formatShortVal,
+                requestAiInsight,
+            });
         }
 
         // ========================== REKOMENDASI AI (Gemini, via Supabase Edge Function) ==========================
