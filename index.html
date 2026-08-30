@@ -131,6 +131,7 @@
         import { renderBudgetView as renderBudgetViewUI, renderBudgetModalList as renderBudgetModalListUI } from './src/ui/budgets.js';
         import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI } from './src/ui/categories.js';
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
+        import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -183,6 +184,9 @@
             // updateCalendarSummaryUI/renderCalendarUI/openCalendarDetailUI: idem,
             // fungsi UI/render tab Kalender & modal detail tanggal (src/ui/calendar.js).
             updateCalendarSummaryUI, renderCalendarUI, openCalendarDetailUI,
+            // renderAccountDetailChartsUI: idem, fungsi UI/render chart di halaman
+            // Detail Akun (src/ui/accounts.js).
+            renderAccountDetailChartsUI,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
@@ -7406,128 +7410,25 @@ const api = (() => {
         }
 
         function renderAccountDetailCharts() {
-            if (!currentAccountDetail) return;
-            const accName = currentAccountDetail;
-            const periodSelect = document.getElementById('accountDetailPeriod');
-            const periodVal = periodSelect ? periodSelect.value : '180';
-            const fullSeries = servicesModule.buildAccountBalanceSeries(globalData, accName, { transferTargetAmount, parseTgl });
-            const now = new Date();
-
-            // Granularitas bucket (hari/minggu/bulan) & agregasi Saldo/Arus-Kas: satu sumber
-            // kebenaran sekarang src/domain/accounts.js (dipakai juga oleh
-            // tests/unit/accounts-domain.test.js).
-            const { cutoff, bucketLabels, cashInData, cashOutData, balanceLabels, balanceChartData } =
-                servicesModule.computeAccountChartSeries(fullSeries, periodVal, { now });
-
-            if (charts.accBalance) charts.accBalance.destroy();
-            if (document.getElementById('accountBalanceChart')) {
-                charts.accBalance = new Chart(document.getElementById('accountBalanceChart').getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: balanceLabels,
-                        datasets: [{
-                            label: 'Saldo', data: balanceChartData,
-                            borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                            borderWidth: 3, fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#3b82f6'
-                        }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            legend: { display: false }, datalabels: { display: false },
-                            tooltip: { callbacks: { label: (ctx) => 'Saldo: Rp ' + formatRp(ctx.raw) } }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, maxTicksLimit: 8, autoSkip: true } },
-                            y: { grid: { color: chartGridColor(), drawBorder: false }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-                        }
-                    }
-                });
-            }
-
-            if (charts.accCashflow) charts.accCashflow.destroy();
-            if (document.getElementById('accountDetailChart')) {
-                // Sama seperti chart "Tren Transaksi"/"Tren Kategori" -- di layar sempit (HP), cuma
-                // beberapa titik (bucket) paling signifikan yang dikasih label, dengan jarak minimal
-                // antar titik berlabel. Di sini ADA 2 dataset (Masuk & Keluar) per titik, jadi total
-                // teksnya 2x lebih padat -- batasnya dibuat lebih ketat (4, bukan 5) dari chart 1
-                // dataset. Titik yg tidak kepilih tetap ada batangnya, cuma tanpa angka di atasnya --
-                // detail nilainya tetap bisa dilihat lewat tap (tooltip).
-                //
-                // "Sempit?" dicek dari lebar CONTAINER chart (bukan window.innerWidth -- chart ini
-                // duduk berdampingan 2-kolom bareng chart "Tren Saldo Akun", jadi window lebar tidak
-                // berarti canvas-nya lebar) dibagi jumlah titik data. Ketiga chart bar di app ini
-                // (chart ini, "Tren Transaksi", "Tren Kategori") sekarang satu sumber kebenaran di
-                // src/domain/chart-labels.js (dipakai juga oleh tests/unit/chart-labels.test.js).
-                const cashflowContainerWidth = document.getElementById('accountDetailChart').parentElement.clientWidth || window.innerWidth;
-                const cashflowIsNarrow = servicesModule.isChartNarrow(cashflowContainerWidth, bucketLabels.length);
-                const cashflowMagnitudes = bucketLabels.map((_, i) => Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0));
-                const cashflowIndicesToShow = cashflowIsNarrow ? servicesModule.selectSparseLabelIndices(cashflowMagnitudes, 4) : null;
-
-                charts.accCashflow = new Chart(document.getElementById('accountDetailChart').getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: bucketLabels,
-                        datasets: [
-                            { label: 'Masuk', data: cashInData, backgroundColor: '#34d399', borderRadius: 4, barPercentage: 0.7 },
-                            { label: 'Keluar', data: cashOutData, backgroundColor: '#fb7185', borderRadius: 4, barPercentage: 0.7 }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
-                        plugins: {
-                            legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } },
-                            datalabels: {
-                                display: (ctx) => {
-                                    if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
-                                    if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
-                                    return true;
-                                },
-                                color: (ctx) => chartLabelColor(ctx.dataset.backgroundColor), font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2
-                            },
-                            tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': Rp ' + formatRp(ctx.raw) } }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, maxTicksLimit: 8, autoSkip: true } },
-                            y: { grid: { color: chartGridColor(), drawBorder: false }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-                        }
-                    }
-                });
-            }
-
-            // Distribusi kategori pengeluaran -- filter INDEPENDEN dari "Rentang Grafik" di atas
-            // (opsi "sync" ikut cutoff yang sama; selain itu pakai rentang kalender sendiri: bulan/
-            // tahun ini/lalu, atau bulan tertentu yang dipilih).
-            const catFilterType = document.getElementById('accountCatFilterType') ? document.getElementById('accountCatFilterType').value : 'sync';
-            const customMonthStr = catFilterType === 'custom' ? document.getElementById('accountCatFilterMonth').value : null; // "YYYY-MM"
-            // Resolusi filter kalender & agregasi kategori: satu sumber kebenaran sekarang
-            // src/domain/accounts.js (dipakai juga oleh tests/unit/accounts-domain.test.js).
-            const { start: catStart, end: catEnd } = servicesModule.resolveAccountCategoryDateRange(catFilterType, { now, syncCutoff: cutoff, customMonthStr });
-            const { entries: catEntries } = servicesModule.aggregateAccountExpenseByCategory(globalData, accName, { getCategoryStyle, parseTgl, start: catStart, end: catEnd });
-            let hasCatData = catEntries.length > 0;
-
-            if (charts.accCat) charts.accCat.destroy();
-            if (document.getElementById('accountCatChart')) {
-                charts.accCat = new Chart(document.getElementById('accountCatChart').getContext('2d'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: hasCatData ? catEntries.map(e => e.label) : ['Belum ada pengeluaran'],
-                        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hasCatData ? cutePaletteOut : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, cutout: '65%',
-                        plugins: { legend: { display: false }, datalabels: { display: false } }
-                    }
-                });
-            }
-            renderDonutBreakdown({
-                legendEl: document.getElementById('accountCatChart-legend'),
-                listEl: document.getElementById('accountCatChart-list'),
-                totalEl: document.getElementById('accountCatChart-total'),
-                entries: catEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
-                palette: cutePaletteOut,
-                onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
-                emptyMessage: 'Belum ada pengeluaran untuk akun ini pada rentang yang dipilih.'
+            // Bangun chart-nya sekarang di src/ui/accounts.js (dipakai juga oleh
+            // tests/unit/ui-accounts.test.js) -- fungsi ini tinggal wrapper tipis yang
+            // menyuplai konteks (state akun & helper) yang dibutuhkan. State
+            // currentAccountDetail tetap dimiliki index.html (ditulis openAccountDetail,
+            // dibaca juga alur refresh data). Dipanggil dari: openAccountDetail,
+            // toggleAccountCatFilter, onchange #accountDetailPeriod di markup, & handler
+            // resize. Nama fungsi & cara memanggilnya TIDAK berubah sama sekali.
+            servicesModule.renderAccountDetailChartsUI({
+                document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
+                buildAccountBalanceSeries: servicesModule.buildAccountBalanceSeries,
+                computeAccountChartSeries: servicesModule.computeAccountChartSeries,
+                isChartNarrow: servicesModule.isChartNarrow,
+                selectSparseLabelIndices: servicesModule.selectSparseLabelIndices,
+                resolveAccountCategoryDateRange: servicesModule.resolveAccountCategoryDateRange,
+                aggregateAccountExpenseByCategory: servicesModule.aggregateAccountExpenseByCategory,
+                getCategoryStyle, categoryIconHtml, jsStr, formatRp, formatShortVal,
+                chartGridColor, chartLabelColor, chartEmptyColor, chartBorderColor,
+                cutePaletteOut, renderDonutBreakdown,
+                Chart, charts,
             });
         }
 
