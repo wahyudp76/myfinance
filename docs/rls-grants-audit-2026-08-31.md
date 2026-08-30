@@ -120,3 +120,21 @@ Setelah migrasi dijalankan, verifikasi dengan menjalankan ulang
 `scripts/rls-audit/rls-audit2.mjs`: ketiga RPC invoker utk anon harus
 berubah dari "RLS violation di dalam" menjadi **"permission denied for
 function"**, dan jalur app (authenticated) tetap normal.
+
+## 6. Verifikasi pasca-hardening (2026-08-31, live)
+
+`scripts/rls-audit/rls-audit3-verify-hardening.mjs` — hasil setelah user
+menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
+
+- **F3 ✅** — anon ke 3 RPC invoker kini `HTTP 401 / 42501 "permission
+  denied for function …"` (sebelumnya: RLS violation di dalam), dan jalur
+  authenticated tetap hidup (`replace_month_budgets` → 204).
+- **F2 ✅** — insert `whatsapp_link_codes` TANPA `user_id` sebagai user
+  login → `201` (default `auth.uid()` terbukti hidup di live).
+- **F1 ⏳ DITAHAN GUARD** — `rls_auto_enable` TIDAK di-drop: definisinya
+  tidak lolos guard blacklist migrasi (berisi pola selain sekadar
+  `enable row level security`), jadi cabang aman aktif — fungsi dibiarkan
+  & definisinya dicetak sebagai WARNING di SQL Editor utk review manual.
+  Eksekusi anon tetap tertolak (42501) sehingga tidak ada risiko sementara.
+  Tindak lanjut: baca WARNING di output SQL Editor (atau query inspeksi di
+  §3 F1), lalu drop manual bila definisinya memang helper yang aman.

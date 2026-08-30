@@ -5,7 +5,8 @@ langsung terhadap proyek Supabase live dan TIDAK mengubah data user
 sungguhan — insersi uji memakai baris milik user audit sementara yang
 dibuat lewat Admin API lalu dihapus (FK cascade). Laporan ronde 1 di
 `rls-audit.mjs` (matriks tabel), ronde 2 di `rls-audit2.mjs` (RPC & guard
-SECURITY DEFINER).
+SECURITY DEFINER), ronde 3 di `rls-audit3-verify-hardening.mjs`
+(verifikasi pasca `sql/migration_rls_hardening_2026-08-31.sql`).
 
 ## Cara menjalankan
 
