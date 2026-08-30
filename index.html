@@ -5294,7 +5294,7 @@ const api = (() => {
                 globalData = response.transactions || [];
                 cloudBudgets = response.budgets || {};
                 globalAssets = response.assets || [];
-                globalRecurring = respsponse.recurring || [];
+                globalRecurring = response.recurring || [];
                 
                 if (response.settings) { appSettings = response.settings; }
                 ensureSettingsShape(); // jaga-jaga: settings lama dari cloud mungkin belum punya field terbaru
