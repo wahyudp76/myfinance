@@ -104,8 +104,8 @@
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
             onAuthStateChange, requireUser,
         } from './src/auth/index.js';
-        import { createTransactionService } from './src/services/transactions.js';
-        import { createTransfer } from './src/services/supabase/transfers.js';
+        import { createTransactionService, toCreateRecord, toUpdateRecord } from './src/services/transactions.js';
+        import { createTransfer, toTransferParams } from './src/services/supabase/transfers.js';
         import { createRecurringTransaction } from './src/services/supabase/recurring.js';
         import { replaceMonthBudgets, fetchMonthBudgets } from './src/services/supabase/budgets.js';
         import { getSettings, saveSettings } from './src/services/supabase/settings.js';
@@ -140,7 +140,7 @@
         window.dispatchEvent(new Event('myfinance:auth-ready'));
 
         window.__myfinanceServices = {
-            createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets, fetchMonthBudgets,
+            createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset,
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
@@ -3977,9 +3977,14 @@ const api = (() => {
                     jenis: 'Pemasukan', tanggal: todayDateStr(),
                     jumlah: String(saldoAwal), akun: name, kategori: 'Saldo Awal', keterangan: 'Saldo awal saat akun dibuat'
                 };
-                api.run.withSuccessHandler(() => { refreshTransactionsOnly(); }).withFailureHandler(() => {
-                    showErrorToast('Akun tersimpan, tapi gagal mencatat saldo awal. Silakan tambahkan manual lewat menu Tambah Transaksi.');
-                }).addTransaction(data);
+                // Pensyahan api.run (slice transactions): service langsung, mapping payload di
+                // servicesModule.toCreateRecord (body addTransactionRemote adapter lama), callback persis.
+                transactionService.create(servicesModule.toCreateRecord(data))
+                    .then(() => { refreshTransactionsOnly(); })
+                    .catch((err) => {
+                        console.error('api.run.addTransaction gagal:', err);
+                        showErrorToast('Akun tersimpan, tapi gagal mencatat saldo awal. Silakan tambahkan manual lewat menu Tambah Transaksi.');
+                    });
             }
         }
 
@@ -5035,13 +5040,18 @@ const api = (() => {
                 // lintas mata uang. RPC ini menangani kasus sama-mata-uang dgn benar juga (kurs
                 // sumber == kurs tujuan -> jumlah tujuan = jumlah sumber persis), sekalian dapat
                 // manfaat "1 operasi atomik" utk SEMUA transfer baru.
-                api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).createTransferTransaction({
+                // Pensyahan api.run (slice transactions): RPC transfer dipanggil lewat service
+                // langsung; mapping argumen form -> parameter ada di servicesModule.toTransferParams
+                // (body createTransferTransactionRemote adapter lama), callback persis.
+                servicesModule.createTransfer(supabaseClient, servicesModule.toTransferParams({
                     tanggal: data.tanggal, jumlah: jumlahNum, akun_sumber: data.akun, akun_tujuan: catVal,
                     mata_uang_sumber: currentTxMataUang, mata_uang_tujuan: currentTxMataUangTujuan,
                     kurs_sumber: currentTxMataUang ? currentTxKurs : 1,
                     kurs_tujuan: currentTxMataUangTujuan ? currentTxKursTujuan : 1,
                     keterangan: data.keterangan || null
-                });
+                }))
+                    .then(onSaveOk)
+                    .catch((err) => { console.error('api.run.createTransferTransaction gagal:', err); onSaveFail(err); });
                 return;
             }
 
@@ -5059,11 +5069,13 @@ const api = (() => {
                 data.transfer_jumlah_tujuan_idr = sourceIdr;
             }
 
-            if(currentEditId) { api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).editTransaction(currentEditId, data); } 
-            else { api.run.withSuccessHandler(onSaveOk).withFailureHandler(onSaveFail).addTransaction(data); }
+            // Pensyahan api.run (slice transactions): service langsung + normalizer payload
+            // (toUpdateRecord/toCreateRecord = body edit/addTransactionRemote adapter lama), callback persis.
+            if(currentEditId) { transactionService.update(currentEditId, servicesModule.toUpdateRecord(data)).then(onSaveOk).catch((err) => { console.error('api.run.editTransaction gagal:', err); onSaveFail(err); }); } 
+            else { transactionService.create(servicesModule.toCreateRecord(data)).then(onSaveOk).catch((err) => { console.error('api.run.addTransaction gagal:', err); onSaveFail(err); }); }
         }
 
-        function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true); api.run.withSuccessHandler(() => { refreshTransactionsOnly(); showSuccessToast('Transaksi berhasil dihapus.'); }).withFailureHandler(() => { showErrorToast('Gagal menghapus transaksi. Coba lagi.'); showLoading(false); }).deleteTransaction(id); }); }
+        function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true); transactionService.remove(id).then(() => { refreshTransactionsOnly(); showSuccessToast('Transaksi berhasil dihapus.'); }).catch((err) => { console.error('api.run.deleteTransaction gagal:', err); showErrorToast('Gagal menghapus transaksi. Coba lagi.'); showLoading(false); }); }); }
 
         // ========================== FORM ASET ACTIONS ==========================
         // Section "Simbol/ID" + "Jumlah Unit" cuma relevan buat kategori yang punya sumber harga
@@ -5203,7 +5215,8 @@ const api = (() => {
         // tabel yang benar-benar terpengaruh, lalu menjalankan render yang sama seperti loadData() untuk
         // bagian yang relevan -- hasil akhir di layar identik, tapi jauh lebih sedikit request ke server.
         function refreshTransactionsOnly(afterCallback) {
-            api.run.withSuccessHandler((transactions) => {
+            // Pensyahan api.run (slice transactions): service langsung, callback persis versi lama.
+            transactionService.list().then((transactions) => {
                 globalData = transactions || [];
 
                 let needsSettingUpdate = false;
@@ -5225,10 +5238,11 @@ const api = (() => {
 
                 showLoading(false);
                 if (typeof afterCallback === 'function') afterCallback();
-            }).withFailureHandler((err) => {
+            }).catch((err) => {
+                console.error('api.run.getTransactionsOnly gagal:', err);
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
                 showLoading(false);
-            }).getTransactionsOnly();
+            });
         }
 
         // ========================== NOTIFIKASI BUDGET MEPET LIMIT (Quick win) ==========================

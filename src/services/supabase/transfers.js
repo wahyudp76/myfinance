@@ -63,3 +63,24 @@ export async function createTransfer(client, input) {
   if (error) throw error;
   return { data, preview };
 }
+
+/**
+ * Normalisasi argumen form transfer (akun_sumber/akun_tujuan/kurs_sumber/...)
+ * -> parameter createTransfer(). Dulunya bagian mapping di
+ * createTransferTransactionRemote() adapter `api` (index.html) -- dipindah ke
+ * sini saat pensyahan api.run (slice transactions) supaya mapping kurs default
+ * (|| 1) & null-nya mata uang tetap punya satu sumber kebenaran yang dites.
+ */
+export function toTransferParams(data) {
+  return {
+    tanggal: data.tanggal,
+    sourceAmount: Number(data.jumlah),
+    sourceAccount: data.akun_sumber,
+    destinationAccount: data.akun_tujuan,
+    sourceCurrency: data.mata_uang_sumber || null,
+    destinationCurrency: data.mata_uang_tujuan || null,
+    sourceRateIdrPerUnit: data.kurs_sumber || 1,
+    destinationRateIdrPerUnit: data.kurs_tujuan || 1,
+    description: data.keterangan || null,
+  };
+}
