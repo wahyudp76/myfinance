@@ -122,6 +122,7 @@
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
         import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart } from './src/domain/categories.js';
         import { matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal } from './src/domain/transactions.js';
+        import { isChartNarrow, selectSparseLabelIndices } from './src/domain/chart-labels.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
 
         window.__myfinanceAuth = {
@@ -151,6 +152,7 @@
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
             matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal,
+            isChartNarrow, selectSparseLabelIndices,
             aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
@@ -5836,26 +5838,21 @@ const api = (() => {
             let chartNet = chartLabels.map((_, i) => Number(chartIn[i] || 0) - Number(chartOut[i] || 0));
 
             // Di layar sempit (HP), menampilkan label di SEMUA batang pasti numpuk/tumpang tindih --
-            // ruang horizontalnya tidak cukup buat puluhan angka. Jadi di layar sempit, cuma batang
-            // paling signifikan (nilai absolut terbesar) yang dikasih label, DENGAN jarak minimal
-            // antar batang yang dikasih label (supaya tidak 2 batang bersebelahan sama2 dikasih
-            // label lalu tetap numpuk). Batang lain tetap bisa dilihat detailnya lewat tap (tooltip).
-            const chartIsNarrow = window.innerWidth < 640;
-            let labelIndicesToShow = null;
-            if (chartIsNarrow) {
-                const maxLabelCount = 5;
-                const minIndexGap = Math.max(2, Math.floor(chartNet.length / (maxLabelCount + 1)));
-                const candidates = chartNet
-                    .map((v, i) => ({ v: Math.abs(v), i }))
-                    .filter(x => x.v > 0)
-                    .sort((a, b) => b.v - a.v);
-                const chosen = [];
-                for (const item of candidates) {
-                    if (chosen.length >= maxLabelCount) break;
-                    if (chosen.every(idx => Math.abs(idx - item.i) >= minIndexGap)) chosen.push(item.i);
-                }
-                labelIndicesToShow = new Set(chosen);
-            }
+            // ruang horizontalnya tidak cukup buat puluhan angka. Jadi kalau chart-nya sempit, cuma
+            // batang paling signifikan (nilai absolut terbesar) yang dikasih label, DENGAN jarak
+            // minimal antar batang yang dikasih label (supaya tidak 2 batang bersebelahan sama2
+            // dikasih label lalu tetap numpuk). Batang lain tetap bisa dilihat detailnya lewat tap
+            // (tooltip).
+            //
+            // BUG FIX: "sempit?" sebelumnya dicek dari window.innerWidth (lebar JENDELA) -- di layar
+            // lebar (desktop) dgn banyak sekali hari (mis. filter 1 bulan penuh), tiap batang bisa
+            // tetap dapat sangat sedikit px meski window-nya lebar, jadi labelnya numpuk juga.
+            // Sekarang dicek dari lebar CONTAINER chart yg sebenarnya dibagi jumlah batang (sama
+            // seperti chart "Tren Saldo/Arus Kas" Detail Akun & "Tren Kategori" Detail Kategori --
+            // ketiganya sekarang satu sumber kebenaran di src/domain/chart-labels.js).
+            const txTrendContainerWidth = document.getElementById('txTrendChart').parentElement.clientWidth || window.innerWidth;
+            const chartIsNarrow = servicesModule.isChartNarrow(txTrendContainerWidth, chartNet.length);
+            const labelIndicesToShow = chartIsNarrow ? servicesModule.selectSparseLabelIndices(chartNet, 5) : null;
 
             charts.txTrend = new Chart(document.getElementById('txTrendChart').getContext('2d'), {
                 type: 'bar',
@@ -7861,33 +7858,15 @@ const api = (() => {
                 // dataset. Titik yg tidak kepilih tetap ada batangnya, cuma tanpa angka di atasnya --
                 // detail nilainya tetap bisa dilihat lewat tap (tooltip).
                 //
-                // BUG FIX: "sempit?" sebelumnya dicek dari window.innerWidth (lebar JENDELA), padahal
-                // chart ini duduk berdampingan 2-kolom (grid-cols-1 lg:grid-cols-2) berbarengan dgn
-                // chart "Tren Saldo Akun". Di web/desktop, window-nya memang lebar (>=640px) jadi
-                // pengecekan lama menganggap "tidak sempit" dan MEMAKSA semua label tampil -- padahal
-                // canvas chart ini sendiri cuma dapat separuh lebar window (berbagi kolom), jadi kalau
-                // titik datanya banyak, label "Masuk"/"Keluar" di tiap titik jadi numpuk/tumpang-tindih.
-                // Di HP (1 kolom) kebetulan tidak kelihatan krn window sempit = lolos threshold lama
-                // dgn kebetulan benar. Sekarang dicek dari lebar CONTAINER chart yg sebenarnya dibagi
-                // jumlah titik data -- akurat di ukuran layar & jumlah data berapa pun.
+                // "Sempit?" dicek dari lebar CONTAINER chart (bukan window.innerWidth -- chart ini
+                // duduk berdampingan 2-kolom bareng chart "Tren Saldo Akun", jadi window lebar tidak
+                // berarti canvas-nya lebar) dibagi jumlah titik data. Ketiga chart bar di app ini
+                // (chart ini, "Tren Transaksi", "Tren Kategori") sekarang satu sumber kebenaran di
+                // src/domain/chart-labels.js (dipakai juga oleh tests/unit/chart-labels.test.js).
                 const cashflowContainerWidth = document.getElementById('accountDetailChart').parentElement.clientWidth || window.innerWidth;
-                const cashflowPxPerBucket = bucketLabels.length > 0 ? cashflowContainerWidth / bucketLabels.length : Infinity;
-                const cashflowIsNarrow = cashflowPxPerBucket < 60;
-                let cashflowIndicesToShow = null;
-                if (cashflowIsNarrow) {
-                    const maxLabelCount = 4;
-                    const minIndexGap = Math.max(2, Math.floor(bucketLabels.length / (maxLabelCount + 1)));
-                    const candidates = bucketLabels
-                        .map((_, i) => ({ v: Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0), i }))
-                        .filter(x => x.v > 0)
-                        .sort((a, b) => b.v - a.v);
-                    const chosen = [];
-                    for (const item of candidates) {
-                        if (chosen.length >= maxLabelCount) break;
-                        if (chosen.every(idx => Math.abs(idx - item.i) >= minIndexGap)) chosen.push(item.i);
-                    }
-                    cashflowIndicesToShow = new Set(chosen);
-                }
+                const cashflowIsNarrow = servicesModule.isChartNarrow(cashflowContainerWidth, bucketLabels.length);
+                const cashflowMagnitudes = bucketLabels.map((_, i) => Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0));
+                const cashflowIndicesToShow = cashflowIsNarrow ? servicesModule.selectSparseLabelIndices(cashflowMagnitudes, 4) : null;
 
                 charts.accCashflow = new Chart(document.getElementById('accountDetailChart').getContext('2d'), {
                     type: 'bar',
@@ -8065,22 +8044,15 @@ const api = (() => {
                 servicesModule.computeCategoryDetailMonthChart(categoryDetailSpecificData, year, month, { parseTgl, txIdrAmount });
             animateRupiah(document.getElementById('detail-category-total'), totalMonth);
 
-            // Sama seperti chart "Tren Transaksi" -- di layar sempit (HP), batasi cuma beberapa
-            // batang paling signifikan yang dikasih label, dengan jarak minimal antar batang
-            // berlabel, supaya tidak numpuk. Batang lain tetap bisa dilihat lewat tap (tooltip).
-            const catChartIsNarrow = window.innerWidth < 640;
-            let catLabelIndicesToShow = null;
-            if (catChartIsNarrow) {
-                const maxLabelCount = 5;
-                const minIndexGap = Math.max(2, Math.floor(chartData.length / (maxLabelCount + 1)));
-                const candidates = chartData.map((v, i) => ({ v: Math.abs(v), i })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
-                const chosen = [];
-                for (const item of candidates) {
-                    if (chosen.length >= maxLabelCount) break;
-                    if (chosen.every(idx => Math.abs(idx - item.i) >= minIndexGap)) chosen.push(item.i);
-                }
-                catLabelIndicesToShow = new Set(chosen);
-            }
+            // Sama seperti chart "Tren Transaksi" / "Tren Saldo-Arus Kas" Detail Akun -- kalau
+            // chart-nya sempit, batasi cuma beberapa batang paling signifikan yang dikasih label,
+            // dengan jarak minimal antar batang berlabel, supaya tidak numpuk. Batang lain tetap
+            // bisa dilihat lewat tap (tooltip). "Sempit?" dicek dari lebar CONTAINER dibagi jumlah
+            // batang (BUKAN window.innerWidth -- lihat catatan BUG FIX di chart Detail Akun),
+            // ketiga chart ini sekarang satu sumber kebenaran di src/domain/chart-labels.js.
+            const catChartContainerWidth = document.getElementById('catTrendChart').parentElement.clientWidth || window.innerWidth;
+            const catChartIsNarrow = servicesModule.isChartNarrow(catChartContainerWidth, chartData.length);
+            const catLabelIndicesToShow = catChartIsNarrow ? servicesModule.selectSparseLabelIndices(chartData, 5) : null;
 
             if(charts.catTrend) charts.catTrend.destroy();
             charts.catTrend = new Chart(document.getElementById('catTrendChart').getContext('2d'), {
