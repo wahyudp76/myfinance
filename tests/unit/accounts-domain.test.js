@@ -7,6 +7,7 @@ import {
   resolveAccountCategoryDateRange,
   aggregateAccountExpenseByCategory,
   computeAccountGroupNet,
+  isTransactionForAccount,
 } from "../../src/domain/accounts.js";
 
 function makeDeps(overrides = {}) {
@@ -277,4 +278,18 @@ test("computeAccountGroupNet: transfer MASUK ke akun ini -> menambah net, pakai 
 
 test("computeAccountGroupNet: grup kosong -> net 0", () => {
   assert.equal(computeAccountGroupNet([], "Dompet", { transferTargetAmount: transferTargetAmount2 }), 0);
+});
+
+// ===================== isTransactionForAccount =====================
+
+test("isTransactionForAccount: Pemasukan/Pengeluaran -> cocok kalau t.akun sama", () => {
+  assert.equal(isTransactionForAccount({ jenis: "Pemasukan", akun: "Dompet" }, "Dompet"), true);
+  assert.equal(isTransactionForAccount({ jenis: "Pengeluaran", akun: "Bank" }, "Dompet"), false);
+});
+
+test("isTransactionForAccount: Transfer -> cocok baik sebagai akun SUMBER (t.akun) maupun TUJUAN (t.kategori)", () => {
+  const transfer = { jenis: "Transfer", akun: "Dompet", kategori: "Bank" };
+  assert.equal(isTransactionForAccount(transfer, "Dompet"), true); // sumber
+  assert.equal(isTransactionForAccount(transfer, "Bank"), true); // tujuan
+  assert.equal(isTransactionForAccount(transfer, "E-Wallet"), false); // tidak terlibat
 });

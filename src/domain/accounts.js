@@ -245,6 +245,21 @@ export function aggregateAccountExpenseByCategory(transactions, accName, { getCa
 }
 
 /**
+ * Apakah 1 transaksi "melibatkan" akun tertentu -- sebagai akun utama
+ * (Pemasukan/Pengeluaran, atau sisi SUMBER kalau Transfer) ATAU sebagai
+ * akun TUJUAN Transfer. Dipakai antara lain oleh removeSetting() di
+ * index.html utk mengecek berapa transaksi yang terdampak sebelum
+ * menghapus sebuah akun (lihat komentar BUG FIX di sana).
+ *
+ * @param {object} t - 1 baris transaksi.
+ * @param {string} accountName
+ * @returns {boolean}
+ */
+export function isTransactionForAccount(t, accountName) {
+  return t.akun === accountName || (t.jenis === "Transfer" && t.kategori === accountName);
+}
+
+/**
  * Total bersih (masuk dikurangi keluar) SEKELOMPOK transaksi (mis. semua
  * transaksi di 1 tanggal yang sama) TERHADAP 1 akun -- dipakai utk badge
  * ringkasan per-hari di riwayat transaksi Detail Akun. Extracted dari

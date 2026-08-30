@@ -114,7 +114,7 @@
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
-        import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet } from './src/domain/accounts.js';
+        import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
@@ -144,7 +144,7 @@
             // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
             aggregateDashboardData,
             computeAccountTotals, buildAccountBalanceSeries,
-            computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet,
+            computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount,
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights,
             computeGoalProgress, computeDebtProgress,
@@ -3950,7 +3950,7 @@ const api = (() => {
         }
 
         function removeSetting(type, i) {
-            showConfirm('Hapus item ini dari pengaturan?', () => {
+            const doRemove = () => {
                 const removedName = type === 'accounts' ? appSettings[type][i] : null;
                 appSettings[type].splice(i, 1);
                 if (removedName) {
@@ -3970,7 +3970,28 @@ const api = (() => {
                     }
                 }
                 persistSettings(); renderSettings(); if(globalData.length > 0) processDataForUI(globalData);
-            });
+            };
+
+            if (type === 'accounts') {
+                const accName = appSettings.accounts[i];
+                // BUG FIX: sebelumnya menghapus akun langsung jalan tanpa peringatan apa pun kalau
+                // akun itu masih dipakai transaksi -- user mengira transaksinya IKUT terhapus (jadi
+                // "hilang"), padahal transaksinya TIDAK dihapus dari database sama sekali. Yang
+                // sebenarnya terjadi: begitu nama akun itu tidak ada lagi di daftar, transaksi2
+                // tersebut jadi "yatim" -- tidak lagi muncul di kartu ringkasan Akun & tidak bisa
+                // dibuka lewat Detail Akun (kartunya sudah tidak ada), saldo per-akunnya juga tidak
+                // lagi dihitung -- walau transaksinya sendiri tetap ada & tetap muncul apa adanya di
+                // Riwayat Transaksi/Laporan. Sekarang dicek dulu berapa transaksi yang terdampak,
+                // supaya user bisa memutuskan lanjut atau batal dengan info yang benar.
+                const affectedCount = (globalData || []).filter(t => servicesModule.isTransactionForAccount(t, accName)).length;
+                const message = affectedCount > 0
+                    ? `Akun "${accName}" masih dipakai di ${affectedCount} transaksi. Transaksinya TIDAK ikut terhapus (tetap ada di Riwayat Transaksi), tapi tidak lagi tampil di ringkasan & Detail Akun setelah akun ini dihapus. Lanjutkan hapus akun ini?`
+                    : `Hapus akun "${accName}" dari pengaturan?`;
+                showConfirm(message, doRemove);
+                return;
+            }
+
+            showConfirm('Hapus item ini dari pengaturan?', doRemove);
         }
 
         // ---------- TEMA TAMPILAN (Terang/Gelap/Sistem) ----------
