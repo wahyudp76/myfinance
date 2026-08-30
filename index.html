@@ -158,6 +158,9 @@
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights,
             computeGoalProgress, computeDebtProgress,
+            // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
+            // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.
+            normalizeThemeColor, buildAccentShades, PRESET_THEMES,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
@@ -3105,7 +3108,7 @@ async function currentUserId() {
         // themeColor null/tanpa atribut = nol rule aktif = tampilan bawaan persis asli.
         function applyThemeColor() {
             try {
-                const hex = normalizeThemeColor(appSettings && appSettings.themeColor);
+                const hex = servicesModule.normalizeThemeColor(appSettings && appSettings.themeColor);
                 const root = document.documentElement;
                 const body = document.body;
                 const meta = document.querySelector('meta[name="theme-color"]');
@@ -3118,7 +3121,7 @@ async function currentUserId() {
                     if (meta) meta.setAttribute('content', '#151928'); // warna asli sebelum fitur ini
                     return;
                 }
-                const shades = buildAccentShades(hex);
+                const shades = servicesModule.buildAccentShades(hex);
                 shadeKeys.forEach((k) => root.style.setProperty('--accent-' + k, shades[k]));
                 root.style.setProperty('--accent-contrast', shades.contrastText);
                 root.style.setProperty('--accent-dark-chip', shades.darkChipRgba);
@@ -3132,7 +3135,7 @@ async function currentUserId() {
         }
 
         function setThemeColor(color, silent) {
-            appSettings.themeColor = normalizeThemeColor(color); // null kalau reset/input tak valid
+            appSettings.themeColor = servicesModule.normalizeThemeColor(color); // null kalau reset/input tak valid
             applyThemeColor();
             renderThemePicker();
             persistSettings(); // ikut pipeline settings yang sama -> sinkron ke semua device
@@ -3142,8 +3145,8 @@ async function currentUserId() {
         function renderThemePicker() {
             const wrap = document.getElementById('theme-accent-swatches');
             if (!wrap) return;
-            const current = normalizeThemeColor(appSettings && appSettings.themeColor);
-            wrap.innerHTML = PRESET_THEMES.map((t) => {
+            const current = servicesModule.normalizeThemeColor(appSettings && appSettings.themeColor);
+            wrap.innerHTML = servicesModule.PRESET_THEMES.map((t) => {
                 const active = current === t.color;
                 return `<button type="button" onclick="setThemeColor('${t.color}')" title="Tema ${t.label}" aria-label="Tema ${t.label}" aria-pressed="${active}"`
                     + ` class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${active ? 'border-slate-700 scale-110 ring-2 ring-slate-300 ring-offset-1' : 'border-slate-200'}"`
