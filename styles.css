@@ -455,3 +455,30 @@ body[data-theme-accent] .peer:checked ~ .peer-checked\:text-emerald-600 { color:
 /* Chip logo "MyFinance" di sidebar (bg-[#151928] nilai arbitrer Tailwind) --
    ikut warna aksen saat tema aktif; tanpa tema tetap navy gelap asli. */
 body[data-theme-accent] .bg-\[\#151928\] { background-color: var(--accent-600); }
+
+/* ==========================================================================
+   SKELETON LOADING (slice design #3 -- dipakai #dashboard-skeleton)
+   ==========================================================================
+   Bone = blok placeholder ber-shimmer. Animasi dimatikan utk user yang
+   memilih prefers-reduced-motion (aksesibilitas). Mode gelap pakai tone
+   slate yang senada dgn kartu gelap app. */
+.skeleton-bone {
+    background-image: linear-gradient(90deg, rgba(226, 232, 240, 0.7) 25%, rgba(241, 245, 249, 0.95) 50%, rgba(226, 232, 240, 0.7) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.dark .skeleton-bone {
+    background-image: linear-gradient(90deg, rgba(51, 65, 85, 0.55) 25%, rgba(71, 85, 105, 0.8) 50%, rgba(51, 65, 85, 0.55) 75%);
+}
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-bone { animation: none; }
+}
+
+/* Latar layer skeleton menutupi konten dashboard yg masih kosong (z di bawah
+   modal, di atas konten). Warna menyatu dgn latar app di kedua mode. */
+#dashboard-skeleton { background-color: #f8fafc; }
+.dark #dashboard-skeleton { background-color: #0f172a; }

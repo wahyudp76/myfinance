@@ -115,6 +115,7 @@
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
+        import { dashboardSkeletonHtml } from './src/ui/skeletons.js';
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
@@ -164,6 +165,7 @@
             normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS,
             // Aksesibilitas modal (src/ui/modal-a11y.js): pure helpers, dipakai blok classic.
             getFocusable, nextTabTarget, pickTopModal, modalAccessibleName,
+            dashboardSkeletonHtml,
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
@@ -433,7 +435,10 @@
     <main class="flex-1 flex flex-col h-full overflow-hidden relative">
         
         <!-- DASHBOARD VIEW -->
-        <div id="view-dashboard" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 block">
+        <div id="view-dashboard" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 block relative">
+            <!-- Skeleton sinkronisasi (slice design #3): layer menutupi konten selama loadData()
+                 saat tab Dashboard aktif -- diisi setSyncLoading(), disembunyikan begitu data dirender. -->
+            <div id="dashboard-skeleton" class="hidden absolute inset-0 z-20 overflow-hidden p-4 md:p-8 lg:px-12" role="status" aria-label="Memuat data..."></div>
             <header class="mb-6 md:mb-8 flex justify-between items-end">
                 <div>
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Overview</h2>
@@ -2810,6 +2815,31 @@ async function currentUserId() {
         
         function showLoading(show) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
 
+        // ---------- SKELETON SYNC-LOADING (slice design #3) ----------
+        // loadData() memakai state ini, bukan showLoading() langsung: saat tab Dashboard
+        // terlihat, tampil SKELETON berbentuk konten (app terasa hidup saat sinkronisasi);
+        // di tab lain jatuh kembali ke overlay #loading seperti biasa. Kontrak lama utk
+        // indikator pull-to-refresh (memantau "loading selesai") dijaga lewat
+        // body[data-sync-loading] -- lihat setupPullToRefresh().
+        function setSyncLoading(active) {
+            const skel = document.getElementById('dashboard-skeleton');
+            const dash = document.getElementById('view-dashboard');
+            const dashVisible = !!(dash && dash.classList.contains('block'));
+            if (active) {
+                document.body.dataset.syncLoading = '1';
+                if (skel && dashVisible) {
+                    if (!skel.dataset.ready) { skel.innerHTML = servicesModule.dashboardSkeletonHtml(); skel.dataset.ready = '1'; }
+                    skel.classList.remove('hidden');
+                } else {
+                    showLoading(true);
+                }
+            } else {
+                delete document.body.dataset.syncLoading;
+                if (skel) skel.classList.add('hidden');
+                showLoading(false); // no-op kalau overlay memang tidak menyala
+            }
+        }
+
         // Toast notifikasi (error/sukses/info) — showErrorToast() lama dipertahankan sebagai
         // pembungkus tipis supaya seluruh pemanggilan yang sudah ada di kode tetap jalan apa adanya.
         let _errorToastTimeout = null;
@@ -5112,7 +5142,7 @@ async function currentUserId() {
 
         // ========================== MASTER FETCH ==========================
         function loadData() {
-            showLoading(true);
+            setSyncLoading(true); // slice design #3: skeleton Dashboard / overlay utk tab lain
             
             const targetBulan = document.getElementById('budgetFilterMonth').value || todayDateStr().slice(0, 7);
 
@@ -5200,12 +5230,12 @@ async function currentUserId() {
                 if(document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
                 renderRecurringSummary();
 
-                showLoading(false);
+                setSyncLoading(false);
                 processDueRecurring();
             }).catch((err) => {
                 console.error('api.run.getSyncData gagal:', err);
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
-                showLoading(false);
+                setSyncLoading(false);
             });
         }
 
@@ -7677,7 +7707,9 @@ async function currentUserId() {
                 // sendiri, supaya benar-benar mencerminkan kapan sinkronisasi sungguhan selesai.
                 const waitForLoadDone = setInterval(function () {
                     const loadingEl = document.getElementById('loading');
-                    if (!loadingEl || loadingEl.style.display === 'none' || loadingEl.style.display === '') {
+                    // slice design #3: loadData kini bisa sinkron via SKELETON (overlay tak menyala)
+                    // -- cek body[data-sync-loading] dulu, fallback ke cek overlay lama.
+                    if (!document.body.dataset.syncLoading && (!loadingEl || loadingEl.style.display === 'none' || loadingEl.style.display === '')) {
                         clearInterval(waitForLoadDone);
                         refreshing = false;
                         resetIndicator();
