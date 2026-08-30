@@ -84,26 +84,15 @@ jobs:
       - name: Tunggu deploy GitHub Pages selesai (hindari race browser vs deploy)
         # Deploy Pages berjalan PARALEL dgn CI ini; browser headless menguji SITE
         # LIVE, jadi kalau step ini lari saat deploy masih bertukar artifact, hasilnya
-        # acak (kejadian nyata: 624aeec, 2026-08-30 -- hanya sebagian path REST
-        # teramati padahal app nyala). Tunggu workflow "pages build and deployment"
-        # utk commit INI selesai sukses dulu (maks ~3 menit), baru uji.
+        # acak (kejadian nyata: 624aeec, 2026-08-30). Tunggu workflow "pages build and
+        # deployment" utk commit INI selesai sukses dulu (maks ~3 menit), baru uji.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           for i in $(seq 1 36); do
             STATUS=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?per_page=20" \
-              | SHA="$GITHUB_SHA" python3 -c '
-                  import json, os, sys
-                  sha = os.environ["SHA"]
-                  runs = [r for r in json.load(sys.stdin)["workflow_runs"]
-                          if r["head_sha"] == sha and "pages" in r["name"].lower()]
-                  if not runs:
-                      print("none")
-                  else:
-                      r = runs[0]
-                      print(r["status"] if r["status"] != "completed" else "completed:" + str(r.get("conclusion")))
-              ')
+              | jq -r --arg sha "$GITHUB_SHA" '[.workflow_runs[] | select(.head_sha == $sha and (.name | test("pages"; "i")))][0] | if . == null then "none" else (if .status != "completed" then .status else "completed:" + (.conclusion // "") end) end')
             echo "attempt $i: pages deploy = $STATUS"
             case "$STATUS" in
               completed:success) echo "Pages ter-deploy penuh utk $GITHUB_SHA"; exit 0 ;;
