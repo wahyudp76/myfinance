@@ -121,6 +121,7 @@
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
         import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart } from './src/domain/categories.js';
+        import { matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal } from './src/domain/transactions.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
 
         window.__myfinanceAuth = {
@@ -149,6 +150,7 @@
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
+            matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal,
             aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
@@ -5682,87 +5684,25 @@ const api = (() => {
             
             const searchQuery = document.getElementById('txSearchInput').value.toLowerCase().trim();
             if (searchQuery) {
-                data = data.filter(item => {
-                    const kategori = (item.kategori || '').toLowerCase(); const keterangan = (item.keterangan || '').toLowerCase();
-                    const jenis = (item.jenis || '').toLowerCase(); const akun = (item.akun || '').toLowerCase();
-                    return kategori.includes(searchQuery) || keterangan.includes(searchQuery) || jenis.includes(searchQuery) || akun.includes(searchQuery);
-                });
+                // Satu sumber kebenaran sekarang src/domain/transactions.js (dipakai juga oleh
+                // tests/unit/transactions-domain.test.js).
+                data = data.filter(item => servicesModule.matchesTransactionSearch(item, searchQuery));
             }
 
             const timeFilterType = document.getElementById('txTimeFilterType').value;
             let chartLabels = []; let chartIn = []; let chartOut = [];
 
+            // Filter waktu + agregasi chart-nya: satu sumber kebenaran sekarang
+            // src/domain/transactions.js (dipakai juga oleh tests/unit/transactions-domain.test.js).
             if (timeFilterType === 'last30') {
-                const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                data = data.filter(item => parseTgl(item.tanggal) >= thirtyDaysAgo);
-                
-                let last30Days = []; let inMap = {}; let outMap = {};
-                for (let i = 29; i >= 0; i--) { let d = new Date(); d.setDate(d.getDate() - i); let key = d.toLocaleDateString('en-CA'); last30Days.push(key); inMap[key] = 0; outMap[key] = 0; }
-                data.forEach(d => {
-                    if(!d.tanggal) return; let dStr = d.tanggal.split('T')[0];
-                    if(inMap[dStr] !== undefined) { if(d.jenis === 'Pemasukan') inMap[dStr] += txIdrAmount(d); if(d.jenis === 'Pengeluaran') outMap[dStr] += txIdrAmount(d); }
-                });
-                chartLabels = last30Days.map(d => new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'short'}));
-                chartIn = last30Days.map(d => inMap[d]); chartOut = last30Days.map(d => outMap[d]);
-                
+                ({ filtered: data, chartLabels, chartIn, chartOut } = servicesModule.computeLast30DaysView(data, { now: new Date(), parseTgl, txIdrAmount }));
             } else if (timeFilterType === 'custom') {
                 const monthYearVal = document.getElementById('txFilterMonthYear').value;
-                if (monthYearVal) {
-                    const [year, month] = monthYearVal.split('-');
-                    data = data.filter(item => { const d = parseTgl(item.tanggal); return d.getFullYear() == year && (d.getMonth() + 1) == month; });
-                    
-                    let daysInMonth = new Date(year, month, 0).getDate();
-                    let inMap = {}; let outMap = {};
-                    for (let i = 1; i <= daysInMonth; i++) { inMap[i] = 0; outMap[i] = 0; }
-                    
-                    data.forEach(d => {
-                        if(!d.tanggal) return; const day = parseTgl(d.tanggal).getDate();
-                        if (inMap[day] !== undefined) { if(d.jenis === 'Pemasukan') inMap[day] += txIdrAmount(d); if(d.jenis === 'Pengeluaran') outMap[day] += txIdrAmount(d); }
-                    });
-                    
-                    for (let i = 1; i <= daysInMonth; i++) { chartLabels.push(String(i)); chartIn.push(inMap[i]); chartOut.push(outMap[i]); }
-                }
+                ({ filtered: data, chartLabels, chartIn, chartOut } = servicesModule.computeCustomMonthView(data, monthYearVal, { parseTgl, txIdrAmount }));
             } else if (timeFilterType === 'range') {
                 const fromVal = document.getElementById('txFilterDateFrom').value;
                 const toVal = document.getElementById('txFilterDateTo').value;
-                if (fromVal || toVal) {
-                    const fromDate = fromVal ? parseTgl(fromVal) : null;
-                    const toDate = toVal ? parseTgl(toVal) : null;
-                    data = data.filter(item => {
-                        const d = parseTgl(item.tanggal);
-                        if (fromDate && d < fromDate) return false;
-                        if (toDate && d > toDate) return false;
-                        return true;
-                    });
-                }
-                if (fromVal && toVal) {
-                    // Rentang bisa berapa saja panjangnya -- kalau <=31 hari, kelompokkan per HARI
-                    // (detail); kalau lebih panjang, per BULAN (biar chart tidak sesak batang).
-                    const fromDate = parseTgl(fromVal), toDate = parseTgl(toVal);
-                    const spanDays = Math.round((toDate - fromDate) / 86400000) + 1;
-                    if (spanDays > 0 && spanDays <= 31) {
-                        let inMap = {}, outMap = {};
-                        for (let i = 0; i < spanDays; i++) { const d = new Date(fromDate); d.setDate(d.getDate() + i); const key = toDateStr(d); inMap[key] = 0; outMap[key] = 0; }
-                        data.forEach(d => {
-                            if (!d.tanggal) return; const dStr = toDateStr(parseTgl(d.tanggal));
-                            if (inMap[dStr] !== undefined) { if (d.jenis === 'Pemasukan') inMap[dStr] += txIdrAmount(d); if (d.jenis === 'Pengeluaran') outMap[dStr] += txIdrAmount(d); }
-                        });
-                        const keys = Object.keys(inMap);
-                        chartLabels = keys.map(k => parseTgl(k).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
-                        chartIn = keys.map(k => inMap[k]); chartOut = keys.map(k => outMap[k]);
-                    } else if (spanDays > 0) {
-                        let inMap = {}, outMap = {}, order = [];
-                        let cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
-                        const endCursor = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
-                        while (cursor <= endCursor) { const key = cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2, '0'); order.push(key); inMap[key] = 0; outMap[key] = 0; cursor.setMonth(cursor.getMonth() + 1); }
-                        data.forEach(d => {
-                            if (!d.tanggal) return; const dd = parseTgl(d.tanggal); const key = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0');
-                            if (inMap[key] !== undefined) { if (d.jenis === 'Pemasukan') inMap[key] += txIdrAmount(d); if (d.jenis === 'Pengeluaran') outMap[key] += txIdrAmount(d); }
-                        });
-                        chartLabels = order.map(k => { const [y, m] = k.split('-'); return new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }); });
-                        chartIn = order.map(k => inMap[k]); chartOut = order.map(k => outMap[k]);
-                    }
-                }
+                ({ filtered: data, chartLabels, chartIn, chartOut } = servicesModule.computeDateRangeView(data, fromVal, toVal, { parseTgl, txIdrAmount, toDateStr }));
             }
 
             // Filter Lanjutan: rentang nominal -- berlaku BERBARENGAN dgn filter waktu manapun yg
@@ -5773,12 +5713,7 @@ const api = (() => {
             const amountMin = amountMinEl && amountMinEl.value ? Number(amountMinEl.value) : null;
             const amountMax = amountMaxEl && amountMaxEl.value ? Number(amountMaxEl.value) : null;
             if (amountMin != null || amountMax != null) {
-                data = data.filter(item => {
-                    const amt = txIdrAmount(item);
-                    if (amountMin != null && amt < amountMin) return false;
-                    if (amountMax != null && amt > amountMax) return false;
-                    return true;
-                });
+                data = data.filter(item => servicesModule.isWithinAmountRange(item, amountMin, amountMax, { txIdrAmount }));
             }
 
             // Reset pagination ("Muat lebih banyak") ke halaman pertama HANYA kalau kriteria filter
@@ -5840,11 +5775,8 @@ const api = (() => {
 
                     // Total bersih hari itu = Pemasukan - Pengeluaran (Transfer tidak dihitung karena
                     // cuma memindahkan uang antar akun, tidak menambah/mengurangi kekayaan bersih).
-                    let netTotal = 0;
-                    rows.forEach(row => {
-                        if (row.jenis === 'Pemasukan') netTotal += txIdrAmount(row);
-                        else if (row.jenis === 'Pengeluaran') netTotal -= txIdrAmount(row);
-                    });
+                    // Satu sumber kebenaran sekarang src/domain/transactions.js (computeDayNetTotal).
+                    const netTotal = servicesModule.computeDayNetTotal(rows, { txIdrAmount });
                     const netColor = netTotal > 0 ? 'text-emerald-500' : (netTotal < 0 ? 'text-rose-500' : 'text-slate-400');
                     const netPrefix = netTotal > 0 ? '+' : (netTotal < 0 ? '-' : '');
 
