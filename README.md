@@ -1,5 +1,7 @@
 # MyFinance Dashboard — Full Supabase New Format Edition
 
+[![CI](https://github.com/wahyudp76/myfinance/actions/workflows/parity.yml/badge.svg)](https://github.com/wahyudp76/myfinance/actions/workflows/parity.yml)
+
 Versi ini digabung jadi **`index.html` + `styles.css`** (bukan lagi
 `login.html`/`css/style.css` terpisah versi lama -- CSS dipisah lagi ke
 `styles.css` di Phase 7 refactor, langkah paling aman utk mulai memecah

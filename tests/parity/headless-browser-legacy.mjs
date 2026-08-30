@@ -56,6 +56,17 @@ try {
   // Allow the SPA to finish auth/bootstrap and any paginated transaction reads.
   await page.waitForTimeout(10000);
 
+  // HARD GATE: exception tak tertangani selama login/bootstrap/data-load =
+  // build GAGAL. Pengamatan traffic REST saja tidak cukup: pada regresi
+  // c57dc6d (typo 'respsponse') GET /transactions tetap teramati sukses
+  // walau handler .then-nya melempar ReferenceError -- app rusak tapi
+  // observasi lolos. pageErrors tadinya hanya dilaporkan, kini menggagalkan.
+  if (pageErrors.length) {
+    throw new Error(
+      `Production page errors observed: ${pageErrors.slice(0, 5).join(" | ")}`
+    );
+  }
+
   // An observed successful GET returning [] is a valid read. It means the
   // authenticated account currently has no transaction rows. Do not confuse
   // that with the absence of a transaction request altogether.

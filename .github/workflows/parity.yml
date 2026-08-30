@@ -1,4 +1,4 @@
-name: Parity Tests
+name: CI
 
 on:
   push:
@@ -25,6 +25,12 @@ on:
 permissions:
   contents: read
 
+# Push beruntun ke branch yang sama tidak menumpuk antrean runner --
+# run lama yang keburu usang dibatalkan otomatis.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -35,7 +41,27 @@ env:
   LEGACY_TRANSACTION_ROWS_FILE: legacy-rows.json
 
 jobs:
+  # Suite unit terbukti 100% bebas import npm (hanya node:test + assert +
+  # modul repo), jadi job ini TANPA npm install sama sekali: cepat (~30s)
+  # dan kebal thd gangguan registry/download playwright. Termasuk gerbang
+  # sintaks blok <script> index.html (tests/unit/index-inline-scripts.test.js).
+  unit:
+    name: Unit tests (tanpa install)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Run unit tests
+        run: npm run test:unit
+
   parity:
+    name: Parity + headless (live Supabase)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -44,14 +70,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           check-latest: true
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies (reproducible dari lockfile)
+        run: npm ci --no-audit --no-fund
+        env:
+          # Browser TIDAK ikut diunduh saat npm ci -- tetap lewat step
+          # terpisah di bawah agar versi build browser terpin & eksplisit.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: Run unit tests
-        run: npm run test:unit
       - name: Run fixture parity tests
         run: npm run test:parity
       - name: Observe production legacy transaction read
@@ -82,10 +110,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           check-latest: true
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies (reproducible dari lockfile)
+        run: npm ci --no-audit --no-fund
       - name: Run opt-in live data-rich parity
         env:
           RUN_LIVE_DATA_RICH_PARITY: "true"
@@ -101,10 +129,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           check-latest: true
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies (reproducible dari lockfile)
+        run: npm ci --no-audit --no-fund
       - name: Run opt-in cross-user isolation parity
         env:
           RUN_LIVE_ISOLATION_PARITY: "true"
