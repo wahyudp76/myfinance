@@ -106,3 +106,17 @@ agar tidak mematahkan alur auth).
 Basis acuan niat desain: `sql/schema.sql`, `sql/rls_performance_fix.sql`,
 `sql/migration_{rate_limiting,whatsapp,reliability_hardening,transfer_currency}_2026-08.sql`.
 Untuk menjalankan ulang audit: lihat `scripts/rls-audit/README.md`.
+
+## 5. Tindak lanjut
+
+Temuan F1–F3 telah dibekukan jadi migrasi siap-jalankan:
+**`sql/migration_rls_hardening_2026-08-31.sql`** — F1 drop `rls_auto_enable`
+dengan guard keamanan (hanya jika definisinya benar-benar sekadar pengaktif
+RLS), F2 `default auth.uid()` di `whatsapp_link_codes.user_id`, F3 revoke
+execute anon **dan public** + grant eksplisit `authenticated, service_role`
+di 3 RPC invoker (meniru preseden `check_and_consume_rate_limit`).
+
+Setelah migrasi dijalankan, verifikasi dengan menjalankan ulang
+`scripts/rls-audit/rls-audit2.mjs`: ketiga RPC invoker utk anon harus
+berubah dari "RLS violation di dalam" menjadi **"permission denied for
+function"**, dan jalur app (authenticated) tetap normal.
