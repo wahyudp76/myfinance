@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderCategoryDetailMonthData, renderCategorySubProportion, formatRupiahShort } from "../../src/ui/categories.js";
+import { renderCategoryDetailMonthData, renderCategorySubProportion, formatRupiahShort, buildSubTipHtml } from "../../src/ui/categories.js";
 
 /**
  * Stub `document` minimal -- cuma implementasi getElementById() yang
@@ -204,15 +204,11 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.ok(doc.host.innerHTML.includes("2x"));
   // datalabels: WAJIB display:false (plugin global; label segmen menabrak teks pusat)
   assert.equal(cfg.options.plugins.datalabels.display, false);
-  // tooltip: nilai penuh + persen + HITAM SOLID (opaque, bukan transparan)
+  // tooltip: EKSTERNAL -- internal dimatikan, kartu hitam #000 di bawah donat
   const tt2 = cfg.options.plugins.tooltip;
-  assert.equal(
-    tt2.callbacks.label({ parsed: 120000, dataIndex: 0 }),
-    " Rp 120000 \u2022 66,7%"
-  );
-  assert.equal(tt2.backgroundColor, "#0f172a");
-  assert.equal(tt2.displayColors, false);
-  assert.ok(tt2.padding >= 10);
+  assert.equal(typeof tt2.external, "function"); // enabled dibiarkan default (false = tooltip mati total)
+  assert.ok(doc.host.innerHTML.includes("cat-sub-tip"));
+  assert.ok(doc.host.innerHTML.includes("Ketuk segmen untuk detail"));
 });
 
 // ===================== formatRupiahShort (slice polish angka) =====================
@@ -260,4 +256,16 @@ test("renderCategorySubProportion: <2 slice -> empty-state + chart lama di-destr
 test("renderCategorySubProportion: host hilang -> no-op aman", () => {
   const { deps } = makeSubDeps({ document: { getElementById: () => null } });
   renderCategorySubProportion(deps);
+});
+
+test("buildSubTipHtml: kartu hitam MURNI #000 + nama ter-escape + nilai + persen", () => {
+  const html = buildSubTipHtml(
+    { name: "Katering <Kantor>", total: 450000, pct: 29, count: 2 },
+    { formatRp: () => "450.000", fmtPct: (p) => p + "%", color: "#8b5cf6", escapeHtml: (s) => String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") }
+  );
+  assert.ok(html.includes("background:#000000"));
+  assert.ok(html.includes("Katering &lt;Kantor&gt;"));
+  assert.ok(html.includes("Rp 450.000"));
+  assert.ok(html.includes("29%"));
+  assert.ok(html.includes("#8b5cf6"));
 });

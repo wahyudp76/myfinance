@@ -181,6 +181,19 @@ export function formatRupiahShort(n) {
  * pusat (formatRupiahShort besar + nilai penuh kecil) + daftar bar proporsi
  * beranimasi dengan PILL persen ber-tint & nominal ringkas.
  */
+/**
+ * Kartu tooltip EKSTERNAL (revisi #3): konten HTML tooltip proporsi yang
+ * digambar DI LUAR kanvas (elemen .cat-sub-tip di bawah donat) -- hitam
+ * MURNI #000 solid, tidak mungkin menimpa chart. Murni + ter-unit-test.
+ */
+export function buildSubTipHtml(it, { formatRp, fmtPct, color, escapeHtml }) {
+  return `<div class="inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5 shadow-lg transition-opacity" style="background:#000000" role="status">
+    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${color};box-shadow:0 0 8px ${color}99"></span>
+    <span class="text-xs md:text-sm font-extrabold text-white whitespace-nowrap">${escapeHtml(it.name)}</span>
+    <span class="text-xs md:text-sm font-bold text-slate-200 whitespace-nowrap tabular-nums">Rp ${formatRp(it.total)} \u2022 ${fmtPct(it.pct)}</span>
+  </div>`;
+}
+
 export function renderCategorySubProportion({
   document, year, month, jenis, categoryName, specificData,
   aggregateSubCategoryShares, parseTgl, txIdrAmount,
@@ -193,6 +206,7 @@ export function renderCategorySubProportion({
     aggregateSubCategoryShares(specificData, year, month, { parseTgl, txIdrAmount });
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("id-ID", { month: "long" });
   const fmtPct = (p) => (p % 1 === 0 ? String(p) : p.toFixed(1).replace(".", ",")) + "%";
+  const tipHint = `<span class="text-[10px] text-slate-400"><i class="fas fa-hand-pointer mr-1"></i>Ketuk segmen untuk detail</span>`;
 
   if (!items || items.length < 2) {
     if (charts.catSubDonut) { charts.catSubDonut.destroy(); delete charts.catSubDonut; }
@@ -232,7 +246,7 @@ export function renderCategorySubProportion({
 
   host.innerHTML = `
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 md:gap-6 items-center">
-      <div class="lg:col-span-2 flex justify-center">
+      <div class="lg:col-span-2 flex flex-col items-center">
         <div class="relative w-44 h-44 md:w-52 md:h-52" style="filter:drop-shadow(0 8px 24px rgba(99,102,241,.28))">
           <canvas id="catSubDonut" class="absolute inset-0 w-full h-full"></canvas>
           <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding:0 30px">
@@ -242,6 +256,7 @@ export function renderCategorySubProportion({
             <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(monthLabel)}</p>
           </div>
         </div>
+        <div class="cat-sub-tip w-full flex items-center justify-center min-h-[60px] mt-3">${tipHint}</div>
       </div>
       <div class="lg:col-span-3 space-y-3 md:space-y-4">${rows}</div>
     </div>`;
@@ -274,24 +289,27 @@ export function renderCategorySubProportion({
         // + tooltip; donat kini murni bentuk visual proporsi.
         datalabels: { display: false },
         tooltip: {
-          // Hitam SOLID (permintaan pemilik): default Chart.js rgba(0,0,0,.8)
-          // transparan -- teks kurang kontras di atas chart berwarna.
-          // slate-900 opaque + teks putih tebal + sudut membulat.
-          backgroundColor: "#0f172a",
-          titleColor: "#ffffff",
-          titleFont: { weight: "800" },
-          bodyColor: "#f1f5f9",
-          bodyFont: { weight: "700" },
-          cornerRadius: 10,
-          padding: 12,
-          displayColors: false,
-          caretSize: 6,
-          callbacks: {
-            // title default Chart.js sudah menampilkan nama; label cukup nilai.
-            label: (c) => {
-              const it = items[c.dataIndex];
-              return it ? ` Rp ${formatRp(c.parsed)} \u2022 ${fmtPct(it.pct)}` : "";
-            },
+          // Revisi #3 (feedback pemilik + forensik screenshot 372x177):
+          // tooltip internal Chart.js -- apa pun warnanya -- SELALU digambar
+          // menimpa kanvas; di donat kecil layar HP kotak 136px menutupi
+          // teks pusat (tumpang tindih). Solusi: tooltip DIGAMBAR DI LUAR
+          // kanvas sebagai kartu hitam MURNI #000 di bawah donat.
+          // PENTING: JANGAN enabled:false -- itu mematikan tooltip SEMPURNA
+          // (handler external tak pernah dipanggil; terbukti di uji hover).
+          // Kehadiran `external` saja sudah mengganti penggambaran internal.
+          // animation:false -> opacity langsung 1 saat hover (tanpa fade
+          // internal Chart.js; kartu punya transisi CSS sendiri).
+          animation: false,
+          external: (ctx) => {
+            const tipEl = host.querySelector(".cat-sub-tip");
+            if (!tipEl) return;
+            const tp = ctx.tooltip;
+            const dp = tp && tp.dataPoints && tp.dataPoints[0];
+            const idx = dp ? dp.dataIndex : -1;
+            const it = idx >= 0 ? items[idx] : null;
+            tipEl.innerHTML = (tp && tp.opacity > 0 && it)
+              ? buildSubTipHtml(it, { formatRp, fmtPct, color: colors[idx], escapeHtml })
+              : tipHint;
           },
         },
       },
