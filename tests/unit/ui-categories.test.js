@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderCategoryDetailMonthData, renderCategorySubProportion } from "../../src/ui/categories.js";
+import { renderCategoryDetailMonthData, renderCategorySubProportion, formatRupiahShort } from "../../src/ui/categories.js";
 
 /**
  * Stub `document` minimal -- cuma implementasi getElementById() yang
@@ -198,8 +198,39 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.ok(doc.host.innerHTML.includes("66,7%"));
   assert.ok(doc.host.innerHTML.includes("33,3%"));
   assert.ok(doc.host.innerHTML.includes("Rp 180000"));
+  assert.ok(doc.host.innerHTML.includes("180 rb"));
+  assert.ok(doc.host.innerHTML.includes("Rp 120 rb")); // nominal bar kini ringkas
   assert.ok(doc.host.innerHTML.includes("Agustus"));
   assert.ok(doc.host.innerHTML.includes("2x"));
+  // datalabels: persen di segmen, hanya slice >= 8%
+  const dl = cfg.options.plugins.datalabels;
+  assert.equal(dl.formatter(0, { dataIndex: 0 }), "66,7%");
+  assert.equal(dl.display({ dataIndex: 0 }), true);
+  assert.equal(dl.display({ dataIndex: 9 }), false); // items[9] undefined -> false
+  // tooltip: nilai penuh + persen, tanpa duplikat nama
+  assert.equal(
+    cfg.options.plugins.tooltip.callbacks.label({ parsed: 120000, dataIndex: 0 }),
+    " Rp 120000 \u2022 66,7%"
+  );
+});
+
+// ===================== formatRupiahShort (slice polish angka) =====================
+
+test("formatRupiahShort: rb / jt / M / T + desimal koma + buang ,0", () => {
+  assert.equal(formatRupiahShort(500), "500");
+  assert.equal(formatRupiahShort(900), "900");
+  assert.equal(formatRupiahShort(999), "999");
+  assert.equal(formatRupiahShort(1000), "1 rb");
+  assert.equal(formatRupiahShort(900000), "900 rb");
+  assert.equal(formatRupiahShort(1550000), "1,55 jt");
+  assert.equal(formatRupiahShort(1250000), "1,25 jt");
+  assert.equal(formatRupiahShort(1600000), "1,6 jt");
+  assert.equal(formatRupiahShort(12500000), "12,5 jt");
+  assert.equal(formatRupiahShort(12000000), "12 jt");
+  assert.equal(formatRupiahShort(2000000), "2 jt");
+  assert.equal(formatRupiahShort(3400000000), "3,4 M");
+  assert.equal(formatRupiahShort(1200000000000), "1,2 T");
+  assert.equal(formatRupiahShort(-450000), "-450 rb");
 });
 
 test("renderCategorySubProportion: bar teranimasi 0 -> target lewat rAF ganda", () => {

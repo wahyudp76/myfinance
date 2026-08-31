@@ -150,6 +150,37 @@ export const SUB_SHARE_COLORS = [
  * aggregateSubCategoryShares (domain), formatRp, escapeHtml, chartBorderColor,
  * requestAnimationFrame (animasi lebar bar dari 0 -> target).
  */
+/**
+ * Format Rupiah RINGKAS gaya Indonesia (slice polish angka): 1,2 T / 3,4 M
+ * (miliar) / 1,55 jt / 900 rb / angka utuh. Desimal koma, nol desimal dibuang
+ * ("2 jt", bukan "2,0 jt"). Dipakai pusat donat & bar proporsi supaya angka
+ * besar mudah dibaca sekilas; nilai persis tetap ada di tooltip.
+ */
+export function formatRupiahShort(n) {
+  const v = Math.abs(n);
+  // desimal adaptif: 1,55 jt / 1,6 jt / 12 jt -- presisi justru di angka kecil
+  const fmt = (x) => {
+    const d = x < 10 ? 2 : x < 100 ? 1 : 0;
+    // trim nol HANYA di bagian desimal (900 tetap "900", 1,60 -> "1,6", 1,00 -> "1")
+    const [int, dec] = x.toFixed(d).split(".");
+    const dd = (dec || "").replace(/0+$/, "");
+    return dd ? int + "," + dd : int;
+  };
+  if (v >= 1e12) return fmt(n / 1e12) + " T";
+  if (v >= 1e9) return fmt(n / 1e9) + " M";
+  if (v >= 1e6) return fmt(n / 1e6) + " jt";
+  if (v >= 1e3) return fmt(n / 1e3) + " rb";
+  return String(n);
+}
+
+/**
+ * Render kartu "Proporsi Sub-Kategori" (slice proporsi sub + polish angka):
+ * donat Chart.js (cutout 72%, glow, PERSSEN di tiap segmen via datalabels --
+ * wajib dikonfigurasi eksplisit karena plugin DataLabels ter-register GLOBAL
+ * di app; tanpa ini angka mentah bakal numpuk di segmen) + total ringkas di
+ * pusat (formatRupiahShort besar + nilai penuh kecil) + daftar bar proporsi
+ * beranimasi dengan PILL persen ber-tint & nominal ringkas.
+ */
 export function renderCategorySubProportion({
   document, year, month, jenis, categoryName, specificData,
   aggregateSubCategoryShares, parseTgl, txIdrAmount,
@@ -182,15 +213,15 @@ export function renderCategorySubProportion({
     const c = colors[i];
     return `
       <div>
-        <div class="flex items-center justify-between mb-1.5">
+        <div class="flex items-center justify-between mb-1.5 gap-2">
           <div class="flex items-center min-w-0">
             <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mr-2" style="background:${c};box-shadow:0 0 8px ${c}66"></span>
             <span class="text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(labelOf(it))}</span>
             <span class="text-[10px] text-slate-400 ml-2 flex-shrink-0">${it.count}x</span>
           </div>
-          <div class="text-right flex-shrink-0 ml-3">
-            <span class="text-xs md:text-sm font-extrabold" style="color:${c}">${fmtPct(it.pct)}</span>
-            <span class="text-[10px] md:text-xs text-slate-500 ml-1.5">Rp ${formatRp(it.total)}</span>
+          <div class="flex items-center flex-shrink-0">
+            <span class="text-[10px] md:text-xs font-bold text-slate-500 tabular-nums whitespace-nowrap mr-2">Rp ${formatRupiahShort(it.total)}</span>
+            <span class="text-[11px] md:text-xs font-extrabold tabular-nums rounded-full px-2 py-0.5" style="background:${c}1f;color:${c}">${fmtPct(it.pct)}</span>
           </div>
         </div>
         <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -204,10 +235,11 @@ export function renderCategorySubProportion({
       <div class="lg:col-span-2 flex justify-center">
         <div class="relative w-44 h-44 md:w-52 md:h-52" style="filter:drop-shadow(0 8px 24px rgba(99,102,241,.28))">
           <canvas id="catSubDonut" class="absolute inset-0 w-full h-full"></canvas>
-          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding:0 28px">
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding:0 30px">
             <p class="text-[10px] font-bold uppercase tracking-widest" style="color:#6366f1">Total ${escapeHtml(jenis === "Pemasukan" ? "Masuk" : "Keluar")}</p>
-            <p class="text-sm md:text-base font-extrabold text-slate-800 leading-tight text-center">Rp ${formatRp(totalMonth)}</p>
-            <p class="text-[10px] text-slate-400">${escapeHtml(monthLabel)}</p>
+            <p class="text-xl md:text-2xl font-extrabold text-slate-800 leading-tight tabular-nums">${formatRupiahShort(totalMonth)}</p>
+            <p class="text-[10px] text-slate-400 tabular-nums">Rp ${formatRp(totalMonth)}</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(monthLabel)}</p>
           </div>
         </div>
       </div>
@@ -234,9 +266,28 @@ export function renderCategorySubProportion({
       animation: { animateRotate: true, duration: 900 },
       plugins: {
         legend: { display: false },
+        // WAJIB eksplisit: DataLabels ter-register global (index.html L~7554) --
+        // tanpa ini angka mentah ditampilkan di segmen. Versi ini justru
+        // memakainya utk label PERSSEN estetik di segmen yang cukup lebar.
+        datalabels: {
+          display: (c) => !!(items[c.dataIndex] && items[c.dataIndex].pct >= 8),
+          formatter: (v, c) => {
+            const it = items[c.dataIndex];
+            return it ? fmtPct(it.pct) : "";
+          },
+          color: "#ffffff",
+          font: { size: 11, weight: "800" },
+          align: "center",
+          anchor: "end",
+          clamp: true,
+        },
         tooltip: {
           callbacks: {
-            label: (c) => ` ${c.label}: Rp ${formatRp(c.parsed)} (${fmtPct(items[c.dataIndex].pct)})`,
+            // title default Chart.js sudah menampilkan nama; label cukup nilai.
+            label: (c) => {
+              const it = items[c.dataIndex];
+              return it ? ` Rp ${formatRp(c.parsed)} \u2022 ${fmtPct(it.pct)}` : "";
+            },
           },
         },
       },
