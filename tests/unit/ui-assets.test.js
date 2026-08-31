@@ -201,7 +201,7 @@ test("renderAssetView: chart lama di-destroy dulu, chart baru doughnut dgn label
   assert.equal(cfg.type, "doughnut");
   assert.deepEqual(cfg.data.labels, ["Emas", "Deposito"]);
   assert.deepEqual(cfg.data.datasets[0].data, [27800000, 15500000]);
-  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#60A5FA", "#34D399", "#A78BFA", "#F472B6", "#FBBF24", "#38BDF8", "#4ADE80", "#C084FC"]); // modernPalette
+  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#22d3ee", "#34d399", "#a78bfa", "#f472b6", "#fbbf24", "#38bdf8", "#4ade80", "#e879f9"]); // modernPalette
   assert.equal(cfg.data.datasets[0].borderColor, "#ffffff");
   assert.equal(cfg.options.cutout, "70%");
 });
@@ -226,7 +226,7 @@ test("renderAssetView: renderDonutBreakdown menerima elemen legenda/list/total, 
   assert.deepEqual(opts.entries.map(e => e.label), ["Emas", "Deposito"]);
   assert.deepEqual(opts.entries.map(e => e.val), [27800000, 15500000]);
   assert.match(opts.entries[0].iconHtml, /fa-emas-icon/);
-  assert.equal(opts.palette[0], "#60A5FA");
+  assert.equal(opts.palette[0], "#22d3ee");
   assert.equal(opts.emptyMessage, "Belum ada aset yang dicatat.");
 });
 
