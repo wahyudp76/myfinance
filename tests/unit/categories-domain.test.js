@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   resolveCategoryAndSubNames,
   computeCategoryDetailMonthChart,
+  aggregateSubCategoryShares,
 } from "../../src/domain/categories.js";
 
 const parseTgl = (tanggalStr) => new Date(String(tanggalStr).split("T")[0] + "T00:00:00");
@@ -84,4 +85,58 @@ test("computeCategoryDetailMonthChart: tidak ada transaksi sama sekali -> total 
   assert.equal(result.totalMonth, 0);
   assert.equal(result.dailyLabels.length, 31); // Agustus 31 hari
   result.dailyData.forEach((v) => assert.equal(v, 0));
+});
+
+// ===================== aggregateSubCategoryShares (slice proporsi sub) =====================
+
+const parseTglS = (s) => new Date(s + "T00:00:00");
+const idrS = (t) => t.jumlah_idr;
+
+test("aggregateSubCategoryShares: kelompok per sub, pct 1 desimal, urut menurun", () => {
+  const data = [
+    { tanggal: "2026-08-02", kategori: "Makan di Luar", jumlah_idr: 60000 },
+    { tanggal: "2026-08-05", kategori: "Bahan Baku", jumlah_idr: 30000 },
+    { tanggal: "2026-08-09", kategori: "Makan di Luar", jumlah_idr: 60000 },
+    { tanggal: "2026-08-21", kategori: "Katering", jumlah_idr: 30000 },
+  ];
+  const { items, totalMonth } = aggregateSubCategoryShares(data, 2026, 8, { parseTgl: parseTglS, txIdrAmount: idrS });
+  assert.equal(totalMonth, 180000);
+  assert.deepEqual(items.map((i) => i.name), ["Makan di Luar", "Bahan Baku", "Katering"]);
+  assert.equal(items[0].total, 120000);
+  assert.equal(items[0].count, 2);
+  assert.equal(items[0].pct, 66.7);
+  assert.equal(items[1].pct, 16.7);
+  assert.equal(items[2].pct, 16.7);
+});
+
+test("aggregateSubCategoryShares: HANYA bulan ybs -- bulan/tahun lain dikecualikan", () => {
+  const data = [
+    { tanggal: "2026-07-31", kategori: "Makan di Luar", jumlah_idr: 999999 },
+    { tanggal: "2026-08-01", kategori: "Makan di Luar", jumlah_idr: 10000 },
+    { tanggal: "2026-09-01", kategori: "Bahan Baku", jumlah_idr: 888888 },
+  ];
+  const { items, totalMonth } = aggregateSubCategoryShares(data, 2026, 8, { parseTgl: parseTglS, txIdrAmount: idrS });
+  assert.equal(totalMonth, 10000);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].pct, 100);
+});
+
+test("aggregateSubCategoryShares: multi-mata uang lewat txIdrAmount (nilai IDR-equivalent)", () => {
+  const data = [
+    { tanggal: "2026-08-01", kategori: "A", jumlah: 10 },
+    { tanggal: "2026-08-02", kategori: "B", jumlah: 5 },
+  ];
+  const rate = (t) => t.jumlah * 16000;
+  const { items, totalMonth } = aggregateSubCategoryShares(data, 2026, 8, { parseTgl: parseTglS, txIdrAmount: rate });
+  assert.equal(totalMonth, 240000);
+  assert.equal(items[0].pct, 66.7);
+});
+
+test("aggregateSubCategoryShares: kosong / tanpa transaksi bulan itu -> items [] & total 0", () => {
+  const kosong = aggregateSubCategoryShares([], 2026, 8, { parseTgl: parseTglS, txIdrAmount: idrS });
+  assert.deepEqual(kosong.items, []);
+  assert.equal(kosong.totalMonth, 0);
+  const bedaBulan = aggregateSubCategoryShares([{ tanggal: "2026-01-01", kategori: "A", jumlah_idr: 1 }], 2026, 8, { parseTgl: parseTglS, txIdrAmount: idrS });
+  assert.deepEqual(bedaBulan.items, []);
+  assert.equal(bedaBulan.totalMonth, 0);
 });

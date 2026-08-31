@@ -118,7 +118,7 @@
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
-        import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart } from './src/domain/categories.js';
+        import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart, aggregateSubCategoryShares } from './src/domain/categories.js';
         import { matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal } from './src/domain/transactions.js';
         import { isChartNarrow, selectSparseLabelIndices } from './src/domain/chart-labels.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing } from './src/domain/budgets.js';
@@ -127,7 +127,7 @@
         import { renderGoalIconColorPalette as renderGoalIconColorPaletteUI, renderGoalsList as renderGoalsListUI, renderDebtIconColorPalette as renderDebtIconColorPaletteUI, renderDebtsList as renderDebtsListUI } from './src/ui/goals-debts.js';
         import { renderAssetView as renderAssetViewUI } from './src/ui/assets.js';
         import { renderBudgetView as renderBudgetViewUI, renderBudgetModalList as renderBudgetModalListUI } from './src/ui/budgets.js';
-        import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI } from './src/ui/categories.js';
+        import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI, renderCategorySubProportion } from './src/ui/categories.js';
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
         import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
@@ -186,7 +186,8 @@
             renderBudgetViewUI, renderBudgetModalListUI,
             // renderCategoryDetailMonthDataUI: idem, fungsi UI/render bagian
             // bulan-spesifik halaman Kategori Detail (src/ui/categories.js).
-            renderCategoryDetailMonthDataUI,
+            renderCategoryDetailMonthDataUI, renderCategorySubProportion,
+            aggregateSubCategoryShares,
             // updateCalendarSummaryUI/renderCalendarUI/openCalendarDetailUI: idem,
             // fungsi UI/render tab Kalender & modal detail tanggal (src/ui/calendar.js).
             updateCalendarSummaryUI, renderCalendarUI, openCalendarDetailUI,
@@ -1425,6 +1426,17 @@
             <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8 h-64 md:h-72">
                 <h4 class="text-xs md:text-sm font-bold text-slate-700 mb-2 md:mb-4">Tren Kategori Sepanjang Bulan</h4>
                 <div class="relative w-full h-full pb-4"><canvas id="catTrendChart"></canvas></div>
+            </div>
+
+            <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8">
+                <div class="flex items-center justify-between mb-3 md:mb-4">
+                    <div>
+                        <h4 class="text-xs md:text-sm font-bold text-slate-700">Proporsi Sub-Kategori</h4>
+                        <p class="text-[10px] md:text-xs text-slate-400 mt-0.5">Perbandingan persentase antar sub-kategori pada bulan aktif</p>
+                    </div>
+                    <span class="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 rounded-full px-3 py-1 shadow-md shadow-indigo-200"><i class="fas fa-chart-pie"></i> PROPORSI</span>
+                </div>
+                <div id="cat-sub-proportion"></div>
             </div>
 
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -7472,6 +7484,20 @@ async function currentUserId() {
                 chartGridColor, formatShortVal,
                 accentColor: themeAccentColor,
                 Chart, charts,
+            });
+
+            // Kartu "Proporsi Sub-Kategori" (slice proporsi sub): donat + bar persentase
+            // per sub utk bulan aktif. Konteks sama persis + helper tambahan (formatRp,
+            // escapeHtml, chartBorderColor utk pemisah segmen donat, rAF utk animasi bar).
+            servicesModule.renderCategorySubProportion({
+                document,
+                year: categoryDetailYear, month: categoryDetailMonth, jenis: categoryDetailJenis,
+                categoryName: document.getElementById('detail-category-name').innerText,
+                specificData: categoryDetailSpecificData,
+                aggregateSubCategoryShares: servicesModule.aggregateSubCategoryShares,
+                parseTgl, txIdrAmount, formatRp, escapeHtml, chartBorderColor,
+                Chart, charts,
+                requestAnimationFrame,
             });
         }
 

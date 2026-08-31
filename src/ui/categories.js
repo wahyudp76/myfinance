@@ -124,3 +124,130 @@ export function renderCategoryDetailMonthData({
     }
   });
 }
+
+/**
+ * Palet warna proporsi sub-kategori (estetik futuristik, siklis).
+ * Urutan: indigo -> violet -> cyan -> fuchsia -> emerald -> amber ->
+ * rose -> blue -> teal -> slate.
+ */
+export const SUB_SHARE_COLORS = [
+  "#6366f1", "#8b5cf6", "#06b6d4", "#d946ef", "#10b981",
+  "#f59e0b", "#fb7185", "#3b82f6", "#14b8a6", "#94a3b8",
+];
+
+/**
+ * Render kartu "Proporsi Sub-Kategori" (slice proporsi sub): donat Chart.js
+ * (cutout 72%, glow lembut, total di tengah) + daftar bar proporsi beranimasi
+ * per sub-kategori bulan aktif. Konten diarahkan ke #cat-sub-proportion
+ * (kartu statisnya ada di markup index.html); instance chart disimpan di
+ * ctx.charts.catSubDonut (di-destroy tiap render ulang, pola chart lain).
+ *
+ * Kasus <2 slice (belum ada pembanding): empty-state ramah + chart lama
+ * (kalau ada) di-destroy -- jangan menyisakan donat basi saat geser bulan.
+ *
+ * @param {object} ctx - pola injeksi yang sama dengan renderCategoryDetailMonthData.
+ * Tambahan spesifik: categoryName (nama parent utk label "(langsung)"),
+ * aggregateSubCategoryShares (domain), formatRp, escapeHtml, chartBorderColor,
+ * requestAnimationFrame (animasi lebar bar dari 0 -> target).
+ */
+export function renderCategorySubProportion({
+  document, year, month, jenis, categoryName, specificData,
+  aggregateSubCategoryShares, parseTgl, txIdrAmount,
+  formatRp, escapeHtml, chartBorderColor, Chart, charts, requestAnimationFrame,
+}) {
+  const host = document.getElementById("cat-sub-proportion");
+  if (!host) return;
+
+  const { items, totalMonth } =
+    aggregateSubCategoryShares(specificData, year, month, { parseTgl, txIdrAmount });
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("id-ID", { month: "long" });
+  const fmtPct = (p) => (p % 1 === 0 ? String(p) : p.toFixed(1).replace(".", ",")) + "%";
+
+  if (!items || items.length < 2) {
+    if (charts.catSubDonut) { charts.catSubDonut.destroy(); delete charts.catSubDonut; }
+    host.innerHTML = `
+      <div class="text-center py-8 text-slate-400 stagger-item">
+        <i class="fas fa-chart-pie text-3xl mb-2"></i>
+        <p class="text-xs font-semibold">Belum ada perbandingan proporsi pada ${escapeHtml(monthLabel)} ini.</p>
+        <p class="text-[11px] mt-1">Proporsi sub-kategori muncul otomatis saat ada transaksi di 2 sub berbeda bulan ini.</p>
+      </div>`;
+    return;
+  }
+
+  const colors = items.map((_, i) => SUB_SHARE_COLORS[i % SUB_SHARE_COLORS.length]);
+  const labelOf = (it) =>
+    categoryName && it.name === categoryName ? `${it.name} (langsung)` : it.name;
+
+  const rows = items.map((it, i) => {
+    const c = colors[i];
+    return `
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <div class="flex items-center min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mr-2" style="background:${c};box-shadow:0 0 8px ${c}66"></span>
+            <span class="text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(labelOf(it))}</span>
+            <span class="text-[10px] text-slate-400 ml-2 flex-shrink-0">${it.count}x</span>
+          </div>
+          <div class="text-right flex-shrink-0 ml-3">
+            <span class="text-xs md:text-sm font-extrabold" style="color:${c}">${fmtPct(it.pct)}</span>
+            <span class="text-[10px] md:text-xs text-slate-500 ml-1.5">Rp ${formatRp(it.total)}</span>
+          </div>
+        </div>
+        <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full rounded-full cat-sub-fill" data-w="${it.pct}" style="width:0%;background:linear-gradient(90deg,${c},${c}8c)"></div>
+        </div>
+      </div>`;
+  }).join("");
+
+  host.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 md:gap-6 items-center">
+      <div class="lg:col-span-2 flex justify-center">
+        <div class="relative w-44 h-44 md:w-52 md:h-52" style="filter:drop-shadow(0 8px 24px rgba(99,102,241,.28))">
+          <canvas id="catSubDonut" class="absolute inset-0 w-full h-full"></canvas>
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding:0 28px">
+            <p class="text-[10px] font-bold uppercase tracking-widest" style="color:#6366f1">Total ${escapeHtml(jenis === "Pemasukan" ? "Masuk" : "Keluar")}</p>
+            <p class="text-sm md:text-base font-extrabold text-slate-800 leading-tight text-center">Rp ${formatRp(totalMonth)}</p>
+            <p class="text-[10px] text-slate-400">${escapeHtml(monthLabel)}</p>
+          </div>
+        </div>
+      </div>
+      <div class="lg:col-span-3 space-y-3 md:space-y-4">${rows}</div>
+    </div>`;
+
+  if (charts.catSubDonut) charts.catSubDonut.destroy();
+  charts.catSubDonut = new Chart(document.getElementById("catSubDonut").getContext("2d"), {
+    type: "doughnut",
+    data: {
+      labels: items.map(labelOf),
+      datasets: [{
+        data: items.map((it) => it.total),
+        backgroundColor: colors,
+        borderColor: chartBorderColor(),
+        borderWidth: 3,
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "72%",
+      animation: { animateRotate: true, duration: 900 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => ` ${c.label}: Rp ${formatRp(c.parsed)} (${fmtPct(items[c.dataIndex].pct)})`,
+          },
+        },
+      },
+    },
+  });
+
+  const fills = host.querySelectorAll(".cat-sub-fill");
+  const apply = () => fills.forEach((el) => {
+    const target = Math.max(2, Math.min(100, parseFloat(el.dataset.w) || 0));
+    el.style.width = target + "%";
+  });
+  if (requestAnimationFrame) requestAnimationFrame(() => requestAnimationFrame(apply));
+  else apply();
+}
