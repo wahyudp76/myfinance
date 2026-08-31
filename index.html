@@ -2177,15 +2177,31 @@
     </div>
 
 
-    <!-- Chart.js & DataLabels: DIPINDAH dari <head> ke sini (slice loading).
-         Masih classic script (blocking) tapi kini dieksekusi SETELAH seluruh
-         markup selesai di-parse -- first paint (layar login) tidak lagi menunggu
-         ~200KB library grafik dari CDN. URUTAN eksekusi tetap chart.js ->
-         datalabels -> app script, identik seperti saat masih di <head>, jadi
-         Chart/ChartDataLabels dijamin sudah terdefinisi saat app script jalan.
-         (FullCalendar memang sudah lazy-load dinamis, hanya saat tab Kalender.) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- Chart.js & DataLabels: LAZY + PARALEL (Tier-2 struktural #5).
+         Versi lama: 2 classic script blocking di sini -- parser harus menyelesaikan
+         unduhan ~205KB chart.js SEBELU app script di bawahnya dieksekusi, jadi
+         wiring layar login (event handler) ikut tertunda di koneksi lambat.
+         Versi ini: loader ringan menyuntik <script> dinamis -- app script langsung
+         jalan PARALEL dgn unduhan chart; window.__mfChartLibReady (Promise)
+         digerbangi di loadData() sebelum render grafik pertama (semua chart
+         memang hanya dirender pasca-login). URUTAN tetap chart.js -> datalabels.
+         FullCalendar sudah lazy sejak awal (hanya saat tab Kalender dibuka). -->
+    <script>
+        window.__mfChartLibReady = new Promise((resolve, reject) => {
+            const s1 = document.createElement('script');
+            s1.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+            s1.onload = () => {
+                const s2 = document.createElement('script');
+                s2.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0';
+                s2.onload = resolve;
+                s2.onerror = () => reject(new Error('chartjs-plugin-datalabels gagal dimuat'));
+                document.head.appendChild(s2);
+            };
+            s1.onerror = () => reject(new Error('chart.js gagal dimuat'));
+            document.head.appendChild(s1);
+        });
+        window.__mfChartLibReady.catch((err) => console.error('Chart libs gagal dimuat:', err));
+    </script>
 
     <!-- ==========================================================================
          SCRIPT -- digabung jadi satu <script> (urutan di dalamnya tetap penting):
@@ -5167,8 +5183,14 @@ async function currentUserId() {
         }
 
         // ========================== MASTER FETCH ==========================
-        function loadData() {
+        async function loadData() {
             setSyncLoading(true); // slice design #3: skeleton Dashboard / overlay utk tab lain
+            // Gerbang chart lazy (Tier-2 #5): tunggu chart.js+datalabels siap sebelum
+            // rantai render grafik jalan. Semua chart hanya dirender pasca-login, jadi
+            // dalam praktik promise ini sudah lama selesai (unduhan dimulai saat halaman
+            // dibuka, paralel dgn app script). Gagal dimuat -> lanjut tanpa chart
+            // (paritas perilaku versi CDN-off), error sudah dicatat loader.
+            if (window.__mfChartLibReady) { try { await window.__mfChartLibReady; } catch (e) {} }
             
             const targetBulan = document.getElementById('budgetFilterMonth').value || todayDateStr().slice(0, 7);
 
