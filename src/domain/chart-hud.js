@@ -99,6 +99,100 @@ export function hudLineDataset({ from = HUD_COLORS.cyan, to, fill, points = 6, g
  * @param {object}  [o]
  * @param {string}  [o.yGrid] warna grid Y (bawaan cyan redup; bisa chartGridColor())
  */
+/** Warna glow ungu utk donut "reactor" (kontras dgn cyan milik grafik garis). */
+export const HUD_GLOW_VIOLET = "rgba(167,139,250,0.45)";
+
+/** Plugin glow violet utk donut -- dipasang per-chart via `plugins: [hudDonutGlowPlugin]`. */
+export const hudDonutGlowPlugin = {
+  id: "hudGlow",
+  beforeDatasetsDraw(chart) {
+    const c = chart.ctx;
+    c.save();
+    c.shadowColor = HUD_GLOW_VIOLET;
+    c.shadowBlur = 16;
+  },
+  afterDatasetsDraw(chart) {
+    chart.ctx.restore();
+  }
+};
+
+/** Resolusi warna per batang: string, array per index, atau fn(i). */
+function resolveHudColor(spec, i) {
+  if (typeof spec === "function") return spec(i);
+  if (Array.isArray(spec)) return spec[i] || spec[spec.length - 1] || "#22d3ee";
+  return spec || "#22d3ee";
+}
+
+/**
+ * DNA grafik batang HUD: gradasi vertikal neon (puncak terang -> dasar memudar),
+ * casing neon tipis, ujung membulat. `from`/`to` boleh string, array per batang,
+ * atau fn(i) -- utk batang dua warna (net +/-). Aman tanpa DOM: scriptable
+ * callback fallback ke warna solid kalau ctx chart belum ada.
+ */
+export function hudBarDataset(opts = {}) {
+  const {
+    from = "#22d3ee",
+    to = null, // default: sama dgn from (gradasi satu hue)
+    borderRadius = 6,
+    borderSkipped = false,
+    barPercentage,
+    maxBarThickness
+  } = opts;
+  return {
+    backgroundColor: (ctx) => {
+      const el = ctx.element;
+      const base = resolveHudColor(from, ctx.dataIndex);
+      const tip = to == null ? base : resolveHudColor(to, ctx.dataIndex);
+      if (!el || typeof el.y !== "number" || typeof el.base !== "number" || !ctx.chart || !ctx.chart.ctx || !ctx.chart.ctx.createLinearGradient) {
+        return base;
+      }
+      const top = Math.min(el.y, el.base);
+      const bottom = Math.max(el.y, el.base);
+      if (bottom - top < 0.5) return tip;
+      const g = ctx.chart.ctx.createLinearGradient(0, top, 0, bottom);
+      g.addColorStop(0, tip);
+      g.addColorStop(1, hudAlpha(base, 0.32));
+      return g;
+    },
+    borderColor: (ctx) => hudAlpha(resolveHudColor(to == null ? from : to, ctx.dataIndex), 0.9),
+    borderWidth: 1,
+    hoverBackgroundColor: (ctx) => resolveHudColor(to == null ? from : to, ctx.dataIndex),
+    borderRadius,
+    borderSkipped,
+    ...(barPercentage != null ? { barPercentage } : {}),
+    ...(maxBarThickness != null ? { maxBarThickness } : {})
+  };
+}
+
+/**
+ * DNA segmen donut HUD: tiap segmen bergradasi sepanjang sudutnya (ujung terang
+ * -> ekor memudar) seperti komet neon di ring reactor. `palette` = array warna
+ * per segmen (palet aplikasi tetap sumber warna -- kontrak colorblind aman).
+ */
+export function hudDonutSegment(palette) {
+  const list = Array.isArray(palette) && palette.length ? palette : ["#22d3ee"];
+  return (ctx) => {
+    const el = ctx.element;
+    const base = list[ctx.dataIndex % list.length];
+    if (!el || typeof el.x !== "number" || typeof el.startAngle !== "number" || typeof el.endAngle !== "number" ||
+        typeof el.outerRadius !== "number" || !ctx.chart || !ctx.chart.ctx || !ctx.chart.ctx.createLinearGradient) {
+      return base;
+    }
+    const r = (el.outerRadius + (el.innerRadius || 0)) / 2 || el.outerRadius;
+    const x1 = el.x + Math.cos(el.startAngle) * r;
+    const y1 = el.y + Math.sin(el.startAngle) * r;
+    const x2 = el.x + Math.cos(el.endAngle) * r;
+    const y2 = el.y + Math.sin(el.endAngle) * r;
+    if (!isFinite(x1) || !isFinite(y1) || !isFinite(x2) || !isFinite(y2) || (Math.abs(x2 - x1) < 0.01 && Math.abs(y2 - y1) < 0.01)) {
+      return base;
+    }
+    const g = ctx.chart.ctx.createLinearGradient(x1, y1, x2, y2);
+    g.addColorStop(0, base);
+    g.addColorStop(1, hudAlpha(base, 0.5));
+    return g;
+  };
+}
+
 export function hudLineScales(labels, formatShort, { yGrid } = {}) {
   const list = Array.isArray(labels) ? labels : [];
   const dense = list.length > 16;

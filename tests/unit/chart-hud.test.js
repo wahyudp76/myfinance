@@ -1,7 +1,7 @@
 // Unit test domain chart-hud (src/domain/chart-hud.js) -- murni, tanpa DOM/Chart.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HUD_COLORS, hudGlowPlugin, hudAlpha, hudLineDataset, hudLineScales } from "../../src/domain/chart-hud.js";
+import { HUD_COLORS, HUD_GLOW_VIOLET, hudGlowPlugin, hudAlpha, hudBarDataset, hudDonutGlowPlugin, hudDonutSegment, hudLineDataset, hudLineScales } from "../../src/domain/chart-hud.js";
 
 function fakeGradientCtx() {
   const stops = [];
@@ -90,5 +90,66 @@ test("hudGlowPlugin: id tetap 'hudGlow' (kontrak inline lama) + save/restore ctx
   assert.equal(hudGlowPlugin.id, "hudGlow");
   hudGlowPlugin.beforeDatasetsDraw(chart);
   hudGlowPlugin.afterDatasetsDraw(chart);
+  assert.deepEqual(calls, ["save", "restore"]);
+});
+
+function fakeGradient() {
+  const stops = [];
+  return { g: { addColorStop: (o, c) => stops.push([o, c]) }, stops };
+}
+
+test("hudBarDataset: bentuk dasar + fallback warna solid tanpa geometri", () => {
+  const ds = hudBarDataset({ from: "#34d399" });
+  assert.equal(ds.borderRadius, 6);
+  assert.equal(ds.borderSkipped, false);
+  assert.equal(ds.borderWidth, 1);
+  assert.equal(typeof ds.backgroundColor, "function");
+  // tanpa element/ctx -> fallback solid
+  assert.equal(ds.backgroundColor({ dataIndex: 0, element: null, chart: null }), "#34d399");
+  assert.equal(ds.hoverBackgroundColor({ dataIndex: 0 }), "#34d399");
+  assert.equal(ds.borderColor({ dataIndex: 0 }), "rgba(52,211,153,0.9)");
+  assert.equal(ds.barPercentage, undefined);
+  const ds2 = hudBarDataset({ from: "#22d3ee", barPercentage: 0.6, maxBarThickness: 28 });
+  assert.equal(ds2.barPercentage, 0.6);
+  assert.equal(ds2.maxBarThickness, 28);
+});
+
+test("hudBarDataset: gradasi vertikal puncak terang -> dasar memudar + array per batang", () => {
+  const { g, stops } = fakeGradient();
+  const chart = { ctx: { createLinearGradient: (...a) => { g._args = a; return g; } } };
+  const ds = hudBarDataset({ from: ["#34d399", "#fb7185"] });
+  const fill = ds.backgroundColor({ dataIndex: 1, element: { y: 10, base: 90 }, chart });
+  assert.equal(fill, g);
+  assert.deepEqual(g._args, [0, 10, 0, 90]);
+  assert.deepEqual(stops, [[0, "#fb7185"], [1, "rgba(251,113,133,0.32)"]]);
+  // batang negatif: gradasi tetap dihitung dari ujung atas ke bawah
+  const { g: g2 } = fakeGradient();
+  const chart2 = { ctx: { createLinearGradient: () => g2 } };
+  const fillNeg = ds.backgroundColor({ dataIndex: 0, element: { y: 90, base: 20 }, chart: chart2 });
+  assert.equal(fillNeg, g2);
+});
+
+test("hudDonutSegment: gradasi sepanjang sudut + fallback palet solid", () => {
+  const fn = hudDonutSegment(["#22d3ee", "#a78bfa"]);
+  assert.equal(fn({ dataIndex: 1, element: null, chart: null }), "#a78bfa");
+  const { g, stops } = fakeGradient();
+  let args = null;
+  const chart = { ctx: { createLinearGradient: (...a) => { args = a; return g; } } };
+  const fill = fn({ dataIndex: 0, element: { x: 100, y: 100, startAngle: 0, endAngle: Math.PI / 2, outerRadius: 50, innerRadius: 30 }, chart });
+  assert.equal(fill, g);
+  assert.deepEqual(stops, [[0, "#22d3ee"], [1, "rgba(34,211,238,0.5)"]]);
+  assert.ok(args.every((v) => Number.isFinite(v)));
+  // palet rusak -> cyan default
+  const fb = hudDonutSegment(null);
+  assert.equal(fb({ dataIndex: 3, element: null, chart: null }), "#22d3ee");
+});
+
+test("hudDonutGlowPlugin: id 'hudGlow', glow violet, save/restore", () => {
+  const calls = [];
+  const chart = { ctx: { save: () => calls.push("save"), restore: () => calls.push("restore") } };
+  assert.equal(hudDonutGlowPlugin.id, "hudGlow");
+  assert.equal(HUD_GLOW_VIOLET, "rgba(167,139,250,0.45)");
+  hudDonutGlowPlugin.beforeDatasetsDraw(chart);
+  hudDonutGlowPlugin.afterDatasetsDraw(chart);
   assert.deepEqual(calls, ["save", "restore"]);
 });

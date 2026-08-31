@@ -127,10 +127,22 @@ ok("grafik garis laporan ber-DNA balanceTrend (crosshair+glow+glowPlugin)", awai
     (d.plugins || []).some((p) => p.id === "hudGlow") &&
     t && t.data.datasets[0].tension === 0.45 && (t.plugins || []).some((p) => p.id === "hudGlow");
 }));
+ok("grafik batang ber-DNA HUD (gradasi scriptable + casing + glow)", await page.evaluate(() => {
+  const ok1 = (c) => c && c.data.datasets.every((ds) => typeof ds.backgroundColor === "function" && ds.borderSkipped === false) && (c.plugins || []).some((p) => p.id === "hudGlow");
+  return typeof charts !== "undefined" && ok1(charts.cashflow7 && charts.cashflow7.config) && ok1(charts.monthly && charts.monthly.config);
+}));
+ok("donut ber-DNA HUD (segmen gradasi scriptable + glow violet)", await page.evaluate(() => {
+  const a = typeof charts !== "undefined" && charts.asset && charts.asset.config;
+  return a && typeof a.data.datasets[0].backgroundColor === "function" &&
+    (a.plugins || []).some((p) => p.id === "hudGlow" && p !== undefined) && a.data.datasets[0].hoverOffset === 8;
+}));
 await page.screenshot({ path: `${SHOTS}/03-laporan.png`, fullPage: false });
 await page.locator("#dailyChart").scrollIntoViewIfNeeded();
 await page.waitForTimeout(900);
 await page.screenshot({ path: `${SHOTS}/08-laporan-daily.png` });
+await page.locator("#yearlyNetChart").scrollIntoViewIfNeeded();
+await page.waitForTimeout(900);
+await page.screenshot({ path: `${SHOTS}/09-laporan-yearly.png` });
 
 // ---------- kontrak: command palette Ctrl+K ----------
 await page.evaluate(() => switchView("dashboard"));
