@@ -22,7 +22,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v5';
+const CACHE_VERSION = 'myfinance-v6';
 
 // App shell + file vendor CDN yang dipakai index.html -- disimpan ke cache saat
 // service worker pertama kali terpasang, supaya kunjungan berikutnya (termasuk saat
@@ -37,9 +37,11 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './styles.css',
-  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+  './fonts/plus-jakarta-sans-latin.woff2',
   './css/tailwind.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+  './css/fontawesome-all.min.css',
+  './webfonts/fa-solid-900.woff2',
+  './webfonts/fa-brands-400.woff2',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0',
   'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js',

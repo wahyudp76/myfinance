@@ -285,8 +285,8 @@ lebih layak dipakai sehari-hari, bukan cuma prototipe:
   ketahuan orang lain.
 - **Header keamanan** (`_headers`, khusus efeknya kalau di-hosting di
   Netlify): Content-Security-Policy (dibatasi persis ke domain yang benar-
-  benar dipakai index.html — Tailwind CDN, jsdelivr, cdnjs, Google Fonts,
-  Wikimedia untuk logo bank/e-wallet, dan project Supabase kamu),
+  benar dipakai index.html — jsdelivr untuk Chart.js dan project Supabase
+  kamu; Tailwind di-build sendiri, font/ikon/logo semua self-hosted),
   `X-Frame-Options: DENY` (cegah situs lain nge-iframe halaman ini demi
   clickjacking), `Referrer-Policy`, `Permissions-Policy` (matikan akses
   kamera/mikrofon/lokasi yang memang tidak dipakai app ini).

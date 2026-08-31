@@ -35,16 +35,11 @@
     <!-- Preconnect ke semua origin CDN yang dipakai -- browser bisa mulai DNS lookup + TLS handshake
          lebih awal (paralel dengan parsing HTML lainnya), jadi begitu tag <script>/<link> di bawah
          benar-benar mengambil resource-nya, koneksinya sudah siap (tidak perlu nunggu handshake dulu). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <!-- Font Plus Jakarta Sans: sengaja pakai <link rel="stylesheet"> di sini (bukan @import di dalam
-         <style> di bawah). @import di dalam CSS baru mulai diproses SETELAH seluruh stylesheet yang
-         memuatnya selesai di-download+parse -- jadi font-nya baru mulai di-fetch belakangan, menunda
-         teks tampil dengan font yang benar. <link> di <head> membuat browser menemukan & mulai
-         mengambil font ini jauh lebih awal, paralel dengan resource lain. -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font self-host (slice loading): variable woff2 27KB utk weight 400-800,
+         di-preload di sini + @font-face (font-display:swap) ada di styles.css.
+         Tidak ada lagi DNS/TLS ke Google Fonts & stylesheet render-blocking. -->
+    <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
     <!-- Tailwind CSS -- build statis: css/tailwind.css dibangun oleh `npm run build:css`
          (input css/tailwind.src.css + tailwind.config.js) dan HASILNYA DI-COMMIT ke repo,
          supaya GitHub Pages tetap hosting statis murni tanpa langkah build di server.
@@ -56,11 +51,8 @@
          menang saat specificity sama. Setelah ubah kelas Tailwind di markup/modul, jalankan
          `npm run build:css` lalu commit ulang css/tailwind.css (CI menjaga drift ini). -->
     <link rel="stylesheet" href="css/tailwind.css">
-    <!-- Chart.js & DataLabels Plugin -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="css/fontawesome-all.min.css" rel="stylesheet">
     <!-- FullCalendar: SENGAJA TIDAK dimuat di sini -- lihat loadFullCalendarLib() di bawah.
          Library ini (~280KB) cuma dipakai di tab Kalender; dimuat lazy (disisipkan lewat DOM
          secara dinamis) hanya saat tab itu pertama kali dibuka, supaya parsing/eksekusinya tidak
@@ -2170,6 +2162,16 @@
         </div>
     </div>
 
+
+    <!-- Chart.js & DataLabels: DIPINDAH dari <head> ke sini (slice loading).
+         Masih classic script (blocking) tapi kini dieksekusi SETELAH seluruh
+         markup selesai di-parse -- first paint (layar login) tidak lagi menunggu
+         ~200KB library grafik dari CDN. URUTAN eksekusi tetap chart.js ->
+         datalabels -> app script, identik seperti saat masih di <head>, jadi
+         Chart/ChartDataLabels dijamin sudah terdefinisi saat app script jalan.
+         (FullCalendar memang sudah lazy-load dinamis, hanya saat tab Kalender.) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 
     <!-- ==========================================================================
          SCRIPT -- digabung jadi satu <script> (urutan di dalamnya tetap penting):
