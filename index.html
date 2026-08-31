@@ -416,15 +416,15 @@
 
     <!-- Bottom Navigation Bar (Mobile) -->
     <div class="md:hidden liquid-glass-nav fixed left-4 right-4 flex items-center justify-around py-2 z-40 rounded-[28px]">
-        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-1.5 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-layer-group text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Beranda</span></button>
-        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-1.5 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-bullseye text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Budget</span></button>
+        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-2 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-layer-group text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Beranda</span></button>
+        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-bullseye text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Budget</span></button>
         <div class="relative -top-5 flex flex-col items-center justify-center z-50">
             <button id="fabMobileCatat" onclick="openModal()" aria-label="Catat Transaksi Baru" class="w-14 h-14 bg-gradient-to-tr from-[#151928] to-[#2e3754] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/30 hover:scale-110 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-90 transition-all duration-200 border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
-            <span class="text-[9px] mt-1 font-bold text-[#151928] tracking-tight">Catat</span>
+            <span class="text-[10px] mt-1 font-bold text-[#151928] tracking-tight">Catat</span>
         </div>
-        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-1.5 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-chart-simple text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Analisis</span></button>
+        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-chart-simple text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Analisis</span></button>
         <!-- Diubah dari Kalender menjadi Aset sesuai permintaan -->
-        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-1.5 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-gem text-lg"></i><span class="text-[9px] mt-1 tracking-tight">Aset</span></button>
+        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-gem text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Aset</span></button>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -485,14 +485,14 @@
                 <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-receipt text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
-                        <p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight">Transaksi Bulan Ini</p>
+                        <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Transaksi Bulan Ini</p>
                         <p id="insight-tx-count" class="text-xs md:text-sm font-bold text-slate-800">0</p>
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-calendar-day text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
-                        <p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight">Rata-rata Harian</p>
+                        <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Rata-rata Harian</p>
                         <p id="insight-avg-daily" class="text-xs md:text-sm font-bold text-slate-800 truncate">Rp 0</p>
                     </div>
                 </div>
@@ -532,11 +532,11 @@
                 <div class="flex items-center justify-between mb-3 md:mb-4">
                     <div class="flex items-center gap-2">
                         <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest">Rekomendasi AI</h4>
-                        <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold">Gemini AI</span>
+                        <span class="text-[10px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold">Gemini AI</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span id="ai-insight-timestamp" class="text-[9px] text-slate-400"></span>
-                        <button onclick="requestAiInsight(true)" id="ai-insight-refresh-btn" class="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-500 hover:border-indigo-200 flex items-center justify-center transition flex-shrink-0" title="Analisis ulang sekarang">
+                        <span id="ai-insight-timestamp" class="text-[10px] text-slate-400"></span>
+                        <button onclick="requestAiInsight(true)" id="ai-insight-refresh-btn" class="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-500 hover:border-indigo-200 flex items-center justify-center transition flex-shrink-0" title="Analisis ulang sekarang" aria-label="Analisis ulang sekarang">
                             <i class="fas fa-rotate text-[11px]"></i>
                         </button>
                     </div>
@@ -586,7 +586,7 @@
 
             <div onclick="switchView('transaksi')" class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm flex justify-between items-center mb-4 md:mb-8 cursor-pointer hover:shadow-md hover:border-slate-200 transition group">
                 <h4 class="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition">Transaksi Terakhir</h4>
-                <button onclick="switchView('transaksi')" class="text-[10px] md:text-xs font-medium text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors flex items-center gap-1.5">Lihat Semua <i class="fas fa-arrow-right text-[9px]"></i></button>
+                <button onclick="switchView('transaksi')" class="text-[10px] md:text-xs font-medium text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors flex items-center gap-1.5">Lihat Semua <i class="fas fa-arrow-right text-[10px]"></i></button>
             </div>
             
             <div id="recent-transactions-list" class="space-y-3 pb-8"></div>
@@ -690,22 +690,22 @@
                         </svg>
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
                             <p id="budget-ring-pct" class="text-white text-xl md:text-2xl font-extrabold">0%</p>
-                            <p class="text-slate-400 text-[9px] uppercase font-bold tracking-wide">Terpakai</p>
+                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wide">Terpakai</p>
                         </div>
                     </div>
                     <div class="flex-1 min-w-0">
                         <p id="budget-status-msg" class="text-sm md:text-base font-bold text-white mb-4 text-center sm:text-left">Yuk mulai atur budget kamu! ✨</p>
                         <div class="grid grid-cols-3 gap-2 md:gap-6">
                             <div class="text-center sm:text-left">
-                                <p class="text-slate-400 text-[9px] md:text-xs font-medium mb-1">Total Rencana</p>
+                                <p class="text-slate-400 text-[10px] md:text-xs font-medium mb-1">Total Rencana</p>
                                 <p id="budget-total-plan" class="text-white text-xs md:text-lg font-bold whitespace-nowrap">Rp 0</p>
                             </div>
                             <div class="text-center sm:text-left">
-                                <p class="text-slate-400 text-[9px] md:text-xs font-medium mb-1">Aktual Terpakai</p>
+                                <p class="text-slate-400 text-[10px] md:text-xs font-medium mb-1">Aktual Terpakai</p>
                                 <p id="budget-total-actual" class="text-rose-400 text-xs md:text-lg font-bold whitespace-nowrap">Rp 0</p>
                             </div>
                             <div class="text-center sm:text-left">
-                                <p class="text-slate-400 text-[9px] md:text-xs font-medium mb-1">Sisa Dana</p>
+                                <p class="text-slate-400 text-[10px] md:text-xs font-medium mb-1">Sisa Dana</p>
                                 <p id="budget-total-remaining" class="text-emerald-400 text-xs md:text-lg font-bold whitespace-nowrap">Rp 0</p>
                             </div>
                         </div>
@@ -845,7 +845,7 @@
                         <div class="flex items-center gap-2 min-w-0">
                             <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-file-lines text-xs"></i></div>
                             <div class="min-w-0">
-                                <h4 class="text-sm font-bold text-slate-800">Ringkasan Bulanan <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Gemini</span></h4>
+                                <h4 class="text-sm font-bold text-slate-800">Ringkasan Bulanan <span class="text-[10px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Gemini</span></h4>
                                 <p class="text-[10px] text-slate-400">Laporan singkat keuangan bulan lalu, dibuat AI</p>
                             </div>
                         </div>
@@ -859,7 +859,7 @@
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2 flex-shrink-0">
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-wand-magic-sparkles text-xs"></i></div>
                         <div class="min-w-0">
-                            <h4 class="text-sm font-bold text-slate-800">Tanya AI <span class="text-[8px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Gemini</span></h4>
+                            <h4 class="text-sm font-bold text-slate-800">Tanya AI <span class="text-[10px] bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle ml-1">Gemini</span></h4>
                             <p class="text-[10px] text-slate-400">Tanya apa saja soal keuanganmu, dijawab berdasarkan data yang tercatat</p>
                         </div>
                     </div>
@@ -935,7 +935,7 @@
                 <div class="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100 flex items-center gap-3 min-w-0">
                     <div class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-trophy text-xs"></i></div>
                     <div class="min-w-0">
-                        <p class="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Cuan Terbesar</p>
+                        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Cuan Terbesar</p>
                         <p id="asset-best-name" class="text-xs font-bold text-slate-800 truncate">-</p>
                         <p id="asset-best-pct" class="text-[10px] text-emerald-600 font-semibold">-</p>
                     </div>
@@ -943,7 +943,7 @@
                 <div class="bg-rose-50/60 rounded-2xl p-4 border border-rose-100 flex items-center gap-3 min-w-0">
                     <div class="w-9 h-9 rounded-full bg-rose-100 text-rose-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-triangle-exclamation text-xs"></i></div>
                     <div class="min-w-0">
-                        <p class="text-[9px] font-bold text-rose-500 uppercase tracking-wide">Rugi Terbesar</p>
+                        <p class="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Rugi Terbesar</p>
                         <p id="asset-worst-name" class="text-xs font-bold text-slate-800 truncate">-</p>
                         <p id="asset-worst-pct" class="text-[10px] text-rose-500 font-semibold">-</p>
                     </div>
@@ -1053,8 +1053,8 @@
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Kelola akun dan kategori (Otomatis tersimpan ke Cloud) ✨</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-full"><i class="fas fa-wallet text-[9px]"></i> <span id="settings-stat-accounts">0</span> Akun</span>
-                    <span class="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-3 py-1.5 rounded-full"><i class="fas fa-shapes text-[9px]"></i> <span id="settings-stat-categories">0</span> Kategori</span>
+                    <span class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-full"><i class="fas fa-wallet text-[10px]"></i> <span id="settings-stat-accounts">0</span> Akun</span>
+                    <span class="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold px-3 py-1.5 rounded-full"><i class="fas fa-shapes text-[10px]"></i> <span id="settings-stat-categories">0</span> Kategori</span>
                 </div>
             </header>
 
@@ -1206,7 +1206,7 @@
                         </div>
                     </div>
 
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Kategori Tersedia</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Kategori Tersedia</p>
                     <div id="list-tree-pemasukan" class="space-y-1.5 overflow-y-auto flex-1 pr-1 -mr-1"></div>
                 </div>
 
@@ -1238,7 +1238,7 @@
                         </div>
                     </div>
 
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Kategori Tersedia</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Kategori Tersedia</p>
                     <div id="list-tree-pengeluaran" class="space-y-1.5 overflow-y-auto flex-1 pr-1 -mr-1"></div>
                 </div>
 
@@ -1314,14 +1314,14 @@
                 <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-receipt text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
-                        <p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight">Jumlah Transaksi</p>
+                        <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Jumlah Transaksi</p>
                         <p id="detail-account-tx-count" class="text-xs md:text-sm font-bold text-slate-800">0</p>
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-scale-balanced text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
-                        <p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight">Rata-rata / Transaksi</p>
+                        <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Rata-rata / Transaksi</p>
                         <p id="detail-account-avg" class="text-xs md:text-sm font-bold text-slate-800 truncate">Rp 0</p>
                     </div>
                 </div>
@@ -1772,15 +1772,15 @@
             <div class="flex-1 overflow-y-auto p-5">
                 <div class="grid grid-cols-3 gap-2 mb-5">
                     <div class="bg-white rounded-xl p-3 border border-slate-100 text-center">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase">Modal</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Modal</p>
                         <p id="asset-detail-modal" class="text-xs font-bold text-slate-700 mt-0.5">Rp 0</p>
                     </div>
                     <div class="bg-white rounded-xl p-3 border border-slate-100 text-center">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase">Sekarang</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Sekarang</p>
                         <p id="asset-detail-nilai" class="text-xs font-bold text-slate-800 mt-0.5">Rp 0</p>
                     </div>
                     <div class="bg-white rounded-xl p-3 border border-slate-100 text-center">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase">Return</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Return</p>
                         <p id="asset-detail-return" class="text-xs font-bold mt-0.5">0%</p>
                     </div>
                 </div>
@@ -1858,7 +1858,7 @@
                         <label for="acc-modal-upload-input" class="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-2xl py-6 cursor-pointer transition bg-white">
                             <i class="fas fa-cloud-arrow-up text-xl text-slate-300"></i>
                             <span class="text-[11px] font-bold text-slate-500">Klik untuk upload gambar</span>
-                            <span class="text-[9px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
+                            <span class="text-[10px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
                         </label>
                         <input type="file" id="acc-modal-upload-input" accept="image/*" class="hidden" onchange="handleAccountIconUpload(event)">
                     </div>
@@ -1872,7 +1872,7 @@
                         <input type="text" id="acc-modal-saldo-display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'acc-modal-saldo')">
                         <input type="hidden" id="acc-modal-saldo">
                     </div>
-                    <p class="text-[9px] text-slate-400 mt-1">Otomatis dicatat sebagai transaksi Pemasukan "Saldo Awal" di akun ini, langsung kelihatan di Dashboard.</p>
+                    <p class="text-[10px] text-slate-400 mt-1">Otomatis dicatat sebagai transaksi Pemasukan "Saldo Awal" di akun ini, langsung kelihatan di Dashboard.</p>
                 </div>
 
             </div>
@@ -1924,7 +1924,7 @@
                         <label for="catstyle-upload-input" class="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-2xl py-6 cursor-pointer transition bg-white">
                             <i class="fas fa-cloud-arrow-up text-xl text-slate-300"></i>
                             <span class="text-[11px] font-bold text-slate-500">Klik untuk upload gambar</span>
-                            <span class="text-[9px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
+                            <span class="text-[10px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
                         </label>
                         <input type="file" id="catstyle-upload-input" accept="image/*" class="hidden" onchange="handleCategoryStyleUpload(event)">
                     </div>
@@ -1964,7 +1964,7 @@
                     </label>
                     <input type="file" id="profile-modal-upload-input" accept="image/*" class="hidden" onchange="handleProfileAvatarUpload(event)">
                     <button type="button" id="profile-modal-remove-photo" onclick="removeProfileAvatarSelection()" class="hidden mt-2 text-[11px] font-bold text-rose-500 hover:text-rose-700"><i class="fas fa-trash-alt mr-1"></i>Hapus Foto</button>
-                    <p class="text-[9px] text-slate-400 mt-1">PNG/JPG, otomatis dikecilkan</p>
+                    <p class="text-[10px] text-slate-400 mt-1">PNG/JPG, otomatis dikecilkan</p>
                 </div>
 
                 <div>
@@ -3062,7 +3062,7 @@ async function currentUserId() {
             sizeClass = sizeClass || 'text-xl';
             if (!obj) return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
             if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i>';">`;
-            if (obj.type === 'badge') return `<span class="w-full h-full rounded-full ${obj.color} text-white inline-flex items-center justify-center font-extrabold text-[9px] tracking-tight leading-none">${obj.value}</span>`;
+            if (obj.type === 'badge') return `<span class="w-full h-full rounded-full ${obj.color} text-white inline-flex items-center justify-center font-extrabold text-[10px] tracking-tight leading-none">${obj.value}</span>`;
             if (obj.type === 'icon') return `<span class="w-full h-full rounded-full ${obj.bg} ${obj.color} inline-flex items-center justify-center"><i class="fas ${obj.value} text-[11px]"></i></span>`;
             // 'icon-plain' (akun Tunai/Cash & Investasi/Saham) -- ukuran ikon di-fix kecil & wrapper
             // selalu w-full h-full biar SELALU pas & center di kotak manapun ia ditaruh (termasuk
@@ -3714,16 +3714,16 @@ async function currentUserId() {
                 ? bankWalletDatabase.filter(item => item.name.toLowerCase().includes(q) || item.keywords.some(k => k.includes(q))).slice(0, 8)
                 : bankWalletDatabase.slice(0, 8);
             if (results.length === 0) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-            box.innerHTML = `<div class="text-[9px] font-bold text-slate-400 uppercase tracking-wide px-2.5 pt-1 pb-1.5">${q ? 'Hasil Pencarian' : 'Populer di Indonesia'}</div>` +
+            box.innerHTML = `<div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-2.5 pt-1 pb-1.5">${q ? 'Hasil Pencarian' : 'Populer di Indonesia'}</div>` +
                 results.map(item => {
                     const iconHtml = item.url
                         ? `<div class="w-7 h-7 rounded-full overflow-hidden bg-white ring-1 ring-slate-100 flex-shrink-0 flex items-center justify-center p-1"><img src="${item.url}" class="w-full h-full object-contain" onerror="this.style.visibility='hidden'"></div>`
-                        : `<div class="w-7 h-7 rounded-full ${item.color} text-white flex items-center justify-center font-extrabold text-[8px] flex-shrink-0">${item.badge}</div>`;
+                        : `<div class="w-7 h-7 rounded-full ${item.color} text-white flex items-center justify-center font-extrabold text-[10px] flex-shrink-0">${item.badge}</div>`;
                     return `<div onmousedown="pickAccountModalSuggestion('${jsStr(item.name)}')" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-50 cursor-pointer transition">
                         ${iconHtml}
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-slate-700 truncate">${escapeHtml(item.name)}</p>
-                            <p class="text-[9px] text-slate-400">${item.category}</p>
+                            <p class="text-[10px] text-slate-400">${item.category}</p>
                         </div>
                     </div>`;
                 }).join('');
@@ -4225,22 +4225,22 @@ async function currentUserId() {
                     const subIdx = customSubsForParent.indexOf(sub.name);
                     const isCustomSub = subIdx !== -1;
                     const subStyle = getCategoryStyle(sub.name, jenisProper);
-                    const subIconHtml = categoryIconHtml(subStyle, 'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0', 'text-[8px]');
-                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}','${jsStr(parentName)}')" aria-label="Ubah ikon sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[8px]"></i></button>`;
+                    const subIconHtml = categoryIconHtml(subStyle, 'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0', 'text-[10px]');
+                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}','${jsStr(parentName)}')" aria-label="Ubah ikon sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[10px]"></i></button>`;
                     if (isCustomSub) {
                         return `<span class="inline-flex items-center gap-1 bg-white ring-1 ring-slate-200 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-600 m-0.5" id="sub-${type}-${slug}-${subIdx}">
                             ${subIconHtml}
                             ${escapeHtml(sub.name)}
                             ${styleBtnHtml}
-                            <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" aria-label="Ubah nama sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[8px]"></i></button>
-                            <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
+                            <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" aria-label="Ubah nama sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[10px]"></i></button>
+                            <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[10px]"></i></button>
                         </span>`;
                     }
                     return `<span class="inline-flex items-center gap-1 bg-slate-50 ring-1 ring-slate-100 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-500 m-0.5">
                         ${subIconHtml}
                         ${escapeHtml(sub.name)}
                         ${styleBtnHtml}
-                        <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[9px]"></i></button>
+                        <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[10px]"></i></button>
                     </span>`;
                 }).join('');
                 if (!subsHtml) subsHtml = `<span class="text-[10px] text-slate-300 italic px-1">Belum ada sub-kategori</span>`;
@@ -4251,7 +4251,7 @@ async function currentUserId() {
                             <div class="flex items-center min-w-0">
                                 ${categoryIconHtml(parentStyle, 'w-7 h-7 rounded-lg flex items-center justify-center mr-2 flex-shrink-0', 'text-[11px]')}
                                 <span class="text-xs font-bold text-slate-700 truncate">${escapeHtml(parentName)}</span>
-                                ${isCustomParent ? `<span class="ml-1.5 text-[8px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">custom</span>` : ''}
+                                ${isCustomParent ? `<span class="ml-1.5 text-[10px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">custom</span>` : ''}
                             </div>
                             <div class="flex items-center gap-1 flex-shrink-0">
                                 <button onclick="event.stopPropagation(); openCategoryStyleModal('${type}','${jsStr(parentName)}')" aria-label="Ubah ikon kategori" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
@@ -4293,7 +4293,7 @@ async function currentUserId() {
                 <span class="inline-flex items-center gap-1 bg-white ring-2 ${theme.focusRing} rounded-full pl-2 pr-1 py-0.5 text-[10px] font-semibold m-0.5" id="sub-${type}-${slug}-${idx}">
                     <input type="text" id="sub-edit-input-${type}-${slug}-${idx}" value="${escapeHtml(oldVal)}" class="w-20 outline-none bg-transparent text-[10px]"
                         onkeydown="if(event.key==='Enter'){saveEditSub('${type}','${jsStr(parentName)}',${idx});} if(event.key==='Escape'){renderCategoryTree('${type}');}">
-                    <button onclick="saveEditSub('${type}','${jsStr(parentName)}',${idx})" aria-label="Simpan nama sub-kategori" class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-check text-[8px]"></i></button>
+                    <button onclick="saveEditSub('${type}','${jsStr(parentName)}',${idx})" aria-label="Simpan nama sub-kategori" class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-check text-[10px]"></i></button>
                 </span>`;
             const inp = document.getElementById(`sub-edit-input-${type}-${slug}-${idx}`); inp.focus(); inp.select();
         }
@@ -4584,7 +4584,7 @@ async function currentUserId() {
                         return `
                         <div onclick="selectCategoryItem('${jsStr(sub.name)}', '${jsStr(parentName)}', '${activeCategoryTab}')" class="flex flex-col items-center justify-center cursor-pointer hover:bg-white p-2 rounded-xl transition border border-transparent hover:border-slate-100">
                             ${categoryIconHtml(subStyle, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-base mb-1 shadow-sm border border-white', 'text-sm md:text-base')}
-                            <span class="text-[9px] md:text-[10px] font-bold text-slate-600 text-center leading-tight tracking-tight">${escapeHtml(sub.name)}</span>
+                            <span class="text-[10px] md:text-[10px] font-bold text-slate-600 text-center leading-tight tracking-tight">${escapeHtml(sub.name)}</span>
                         </div>
                     `;
                     }).join('');
@@ -4667,7 +4667,7 @@ async function currentUserId() {
                 // Sekarang dihitung ulang di sini lewat getCategoryStyle(), sama seperti
                 // setCategoryUIFromValue() di bawah -- satu sumber kebenaran untuk semua tampilan ikon.
                 let style = getCategoryStyle(name, type);
-                displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(name)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(parentName)})</span>`;
+                displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(name)}</span> <span class="text-[10px] text-slate-400 ml-2">(${escapeHtml(parentName)})</span>`;
             }
             closeCategorySelector();
         }
@@ -4683,7 +4683,7 @@ async function currentUserId() {
                 displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(val)}</div><span class="font-bold text-slate-800">${escapeHtml(val)}</span>`;
             } else {
                 let style = getCategoryStyle(val, jenis);
-                displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[9px] text-slate-400 ml-2">(${escapeHtml(style.parentName || style.parent)})</span>`;
+                displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[10px] text-slate-400 ml-2">(${escapeHtml(style.parentName || style.parent)})</span>`;
             }
         }
 
@@ -5696,7 +5696,7 @@ async function currentUserId() {
                     const rowsHtml = rows.map((row, idx) => {
                         let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
                         let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : '');
-                        let akuntxt = row.jenis === 'Transfer' ? `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} <i class="fas fa-arrow-right text-[9px] mx-1 text-slate-300"></i> <span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.kategori)}</span> ${escapeHtml(row.kategori)}</span>` : `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1.5 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)}</span>`;
+                        let akuntxt = row.jenis === 'Transfer' ? `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} <i class="fas fa-arrow-right text-[10px] mx-1 text-slate-300"></i> <span class="w-3.5 h-3.5 mr-1 inline-flex">${getAccountLogo(row.kategori)}</span> ${escapeHtml(row.kategori)}</span>` : `<span class="flex items-center"><span class="w-3.5 h-3.5 mr-1.5 inline-flex">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)}</span>`;
                         let style = getCategoryStyle(row.kategori, row.jenis);
 
                         return `
@@ -5722,7 +5722,7 @@ async function currentUserId() {
                             <div class="flex items-center justify-between px-3 md:px-4 py-2 bg-slate-50/70">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm md:text-base font-extrabold text-slate-800">${d.getDate()}</span>
-                                    <span class="text-[9px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
+                                    <span class="text-[10px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
                                     <span class="text-[10px] md:text-xs text-slate-400 font-semibold">${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}</span>
                                 </div>
                                 <span class="text-xs md:text-sm font-bold ${netColor}">${netPrefix}Rp ${formatRp(Math.abs(netTotal))}</span>
@@ -5877,10 +5877,10 @@ async function currentUserId() {
                 if (topCatEntry) {
                     let style = getCategoryStyle(topCatEntry[0], 'Pengeluaran');
                     chipTopWrap.innerHTML = `${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm')}
-                        <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry[0]}</p></div>`;
+                        <div class="min-w-0"><p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry[0]}</p></div>`;
                 } else {
                     chipTopWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400 flex-shrink-0"><i class="fas fa-inbox text-xs md:text-sm"></i></div>
-                        <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-400">Belum ada</p></div>`;
+                        <div class="min-w-0"><p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-400">Belum ada</p></div>`;
                 }
             }
 
@@ -6393,7 +6393,7 @@ async function currentUserId() {
                         </div>
                         <div class="text-right pl-2">
                             <p class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">Rp ${prefix}${formatRp(row.jumlah)}</p>
-                            <p class="text-[9px] md:text-[10px] text-slate-400 mt-1">${parseTgl(row.tanggal).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}</p>
+                            <p class="text-[10px] md:text-[10px] text-slate-400 mt-1">${parseTgl(row.tanggal).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}</p>
                         </div>
                     </div>`;
             }).join('');
@@ -7218,10 +7218,10 @@ async function currentUserId() {
             if (topCatEntry) {
                 let style = getCategoryStyle(topCatEntry.label, 'Pengeluaran');
                 topCatWrap.innerHTML = `${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm')}
-                    <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry.label}</p></div>`;
+                    <div class="min-w-0"><p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-800 truncate">${topCatEntry.label}</p></div>`;
             } else {
                 topCatWrap.innerHTML = `<div class="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400 flex-shrink-0"><i class="fas fa-inbox text-xs md:text-sm"></i></div>
-                    <div class="min-w-0"><p class="text-[9px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-400">Belum ada</p></div>`;
+                    <div class="min-w-0"><p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight font-bold">Pengeluaran Terbesar</p><p class="text-xs md:text-sm font-bold text-slate-400">Belum ada</p></div>`;
             }
 
             // Riwayat, dikelompokkan per tanggal (mempermudah pembacaan dibanding tabel datar) --
@@ -7293,7 +7293,7 @@ async function currentUserId() {
                             <div class="flex items-center justify-between px-3 md:px-4 py-2 bg-slate-50/70">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm md:text-base font-extrabold text-slate-800">${d.getDate()}</span>
-                                    <span class="text-[9px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
+                                    <span class="text-[10px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
                                     <span class="text-[10px] md:text-xs text-slate-400 font-semibold">${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}</span>
                                 </div>
                                 <span class="text-xs md:text-sm font-bold ${netColor}">${netPrefix}Rp ${formatRp(Math.abs(netTotal))}</span>
@@ -7421,7 +7421,7 @@ async function currentUserId() {
                             <div class="flex items-center justify-between px-3 md:px-4 py-2 bg-slate-50/70">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm md:text-base font-extrabold text-slate-800">${d.getDate()}</span>
-                                    <span class="text-[9px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
+                                    <span class="text-[10px] md:text-[10px] font-bold px-1.5 md:px-2 py-0.5 rounded-md ${badgeClass}">${dayAbbrevID[dow]}</span>
                                     <span class="text-[10px] md:text-xs text-slate-400 font-semibold">${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}</span>
                                 </div>
                                 <span class="text-xs md:text-sm font-bold ${color}">${prefix}Rp ${formatRp(dayTotal)}</span>

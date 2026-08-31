@@ -511,3 +511,13 @@ body[data-theme-accent] .bg-\[\#151928\] { background-color: var(--accent-600); 
     max-width: 72rem;
     margin-inline: auto;
 }
+
+/* ====================================================================
+   A11Y -- focus ring konsisten (slice a11y Tier-1 #3)
+   Outline hanya muncul untuk navigasi KEYBOARD (:focus-visible) --
+   klik/tap tetap bersih. Warna indigo (aksen brand), versi dark lebih
+   terang. Boleh tampil bersama ring tailwind yg sudah ada (indikator
+   ganda lebih aman daripada kosong).
+   ==================================================================== */
+:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+.dark :focus-visible { outline-color: #818cf8; }

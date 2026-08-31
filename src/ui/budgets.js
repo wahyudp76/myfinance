@@ -90,7 +90,7 @@ export function renderBudgetModalList({
                 ${categoryIconHtml(parentStyle, "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm", "text-xs")}
                 <div class="flex-1 min-w-0">
                     <span class="text-xs font-bold text-slate-700 block truncate">${escapeHtml(parentName)}</span>
-                    ${hasSubs ? `<span class="text-[9px] text-slate-400 font-semibold">Akumulasi sub-kategori</span>` : ""}
+                    ${hasSubs ? `<span class="text-[10px] text-slate-400 font-semibold">Akumulasi sub-kategori</span>` : ""}
                 </div>
                 <div class="flex items-center ${hasSubs ? "bg-slate-50" : "bg-white focus-within:ring-indigo-300"} rounded-xl ring-1 ring-slate-200 px-2.5 py-2 flex-shrink-0 w-32 focus-within:ring-2 transition">
                     <span class="text-[10px] text-slate-400 mr-1 flex-shrink-0">Rp</span>
@@ -110,7 +110,7 @@ export function renderBudgetModalList({
                 ${categoryIconHtml(subStyle, "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", "text-[10px]")}
                 <span class="text-[11px] font-bold text-slate-600 flex-1 min-w-0 truncate">${escapeHtml(sub.name)}</span>
                 <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-100 px-2.5 py-1.5 flex-shrink-0 w-28 focus-within:ring-2 focus-within:ring-indigo-300 transition">
-                    <span class="text-[9px] text-slate-400 mr-1">Rp</span>
+                    <span class="text-[10px] text-slate-400 mr-1">Rp</span>
                     <input type="text" inputmode="numeric" id="budget-sub-${sSlug}" data-parentslug="${pSlug}" data-category="${escapeHtml(sub.name)}" value="${subVal ? new Intl.NumberFormat("id-ID").format(subVal) : ""}" placeholder="0" oninput="formatBudgetInputDisplay(this); calcBudgetParent('${pSlug}')" class="w-full text-[11px] font-bold text-slate-800 outline-none bg-transparent text-right budget-input">
                 </div>
             </div>`;
@@ -261,15 +261,15 @@ export function renderBudgetView({
                     ${categoryIconHtml(s, "w-7 h-7 rounded-lg flex items-center justify-center mr-2 flex-shrink-0", "text-[10px]")}
                     <div class="min-w-0">
                         <p class="text-[11px] font-bold text-slate-700 truncate">${escapeHtml(s.name)}</p>
-                        <p class="text-[9px] text-slate-400 font-semibold whitespace-nowrap">Rp ${formatRp(s.actual)} <span class="text-slate-300">/ Rp ${formatRp(s.budget)}</span></p>
+                        <p class="text-[10px] text-slate-400 font-semibold whitespace-nowrap">Rp ${formatRp(s.actual)} <span class="text-slate-300">/ Rp ${formatRp(s.budget)}</span></p>
                     </div>
                 </div>
-                <span class="text-[8px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${sBadge.cls}">${sBadge.text}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${sBadge.cls}">${sBadge.text}</span>
             </div>
             <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div class="h-full rounded-full ${sBarColor} transition-all duration-700 ease-out" style="width:${sWidthPct}%;"></div>
             </div>
-            <p class="text-right text-[9px] font-bold text-slate-400 mt-1">${s.pct}%</p>
+            <p class="text-right text-[10px] font-bold text-slate-400 mt-1">${s.pct}%</p>
         </div>`;
       }).join("") : "";
 
@@ -284,7 +284,7 @@ export function renderBudgetView({
                     </div>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
-                    <span class="text-[9px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${badge.cls}">${badge.text}</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${badge.cls}">${badge.text}</span>
                     ${canExpand ? `<i id="icon-${accId}" class="fas fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>` : ""}
                 </div>
             </div>
@@ -295,7 +295,7 @@ export function renderBudgetView({
         </div>
         ${canExpand ? `<div id="${accId}" class="accordion-content bg-slate-50/60">
             <div class="px-4 pb-4 pt-1 space-y-2 border-t border-slate-100">
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest pt-3 pb-1">Rincian Sub-kategori</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-3 pb-1">Rincian Sub-kategori</p>
                 ${subHtml}
             </div>
         </div>` : ""}
