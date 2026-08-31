@@ -266,21 +266,13 @@ export function renderCategorySubProportion({
       animation: { animateRotate: true, duration: 900 },
       plugins: {
         legend: { display: false },
-        // WAJIB eksplisit: DataLabels ter-register global (index.html L~7554) --
-        // tanpa ini angka mentah ditampilkan di segmen. Versi ini justru
-        // memakainya utk label PERSSEN estetik di segmen yang cukup lebar.
-        datalabels: {
-          display: (c) => !!(items[c.dataIndex] && items[c.dataIndex].pct >= 8),
-          formatter: (v, c) => {
-            const it = items[c.dataIndex];
-            return it ? fmtPct(it.pct) : "";
-          },
-          color: "#ffffff",
-          font: { size: 11, weight: "800" },
-          align: "center",
-          anchor: "end",
-          clamp: true,
-        },
+        // WAJIB eksplisit: DataLabels ter-register GLOBAL (index.html) --
+        // tanpa konfigurasi ini angka mentah ditampilkan otomatis di segmen.
+        // Revisi polish #2 (feedback pemilik): label di segmen DIPADAMKAN --
+        // band donat tipis (cutout 72%) bikin angka bertabrakan dgn teks pusat.
+        // Persen sudah tampil jelas & bebas tabrakan di pill tiap bar sub-kategori
+        // + tooltip; donat kini murni bentuk visual proporsi.
+        datalabels: { display: false },
         tooltip: {
           callbacks: {
             // title default Chart.js sudah menampilkan nama; label cukup nilai.

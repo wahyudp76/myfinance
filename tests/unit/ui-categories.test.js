@@ -202,11 +202,8 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.ok(doc.host.innerHTML.includes("Rp 120 rb")); // nominal bar kini ringkas
   assert.ok(doc.host.innerHTML.includes("Agustus"));
   assert.ok(doc.host.innerHTML.includes("2x"));
-  // datalabels: persen di segmen, hanya slice >= 8%
-  const dl = cfg.options.plugins.datalabels;
-  assert.equal(dl.formatter(0, { dataIndex: 0 }), "66,7%");
-  assert.equal(dl.display({ dataIndex: 0 }), true);
-  assert.equal(dl.display({ dataIndex: 9 }), false); // items[9] undefined -> false
+  // datalabels: WAJIB display:false (plugin global; label segmen menabrak teks pusat)
+  assert.equal(cfg.options.plugins.datalabels.display, false);
   // tooltip: nilai penuh + persen, tanpa duplikat nama
   assert.equal(
     cfg.options.plugins.tooltip.callbacks.label({ parsed: 120000, dataIndex: 0 }),
