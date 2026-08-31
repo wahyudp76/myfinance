@@ -521,3 +521,19 @@ body[data-theme-accent] .bg-\[\#151928\] { background-color: var(--accent-600); 
    ==================================================================== */
 :focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
 .dark :focus-visible { outline-color: #818cf8; }
+
+/* ====================================================================
+   SYNC LOADING -- animasi LOGO APP (slice sync-logo)
+   Dipakai 2 tempat: overlay #loading (ring dashed berputar + logo
+   berdenyut) dan header skeleton Dashboard (src/ui/skeletons.js).
+   Logo di-inline dari icons/icon-source.svg dgn prefix id unik
+   (lgO-/lgS-) supaya gradient SVG tidak tabrakan di DOM.
+   Hormat prefers-reduced-motion (di bawah).
+   ==================================================================== */
+@keyframes mf-logo-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes mf-logo-spin  { to { transform: rotate(360deg); } }
+.mf-sync-logo { display: block; animation: mf-logo-pulse 1.6s ease-in-out infinite; }
+.mf-sync-ring { display: block; animation: mf-logo-spin 2.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+    .mf-sync-logo, .mf-sync-ring { animation: none; }
+}

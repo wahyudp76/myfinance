@@ -6,6 +6,8 @@ import { dashboardSkeletonHtml } from "../../src/ui/skeletons.js";
 test("dashboardSkeletonHtml: struktur lengkap -- 3 kartu ringkasan, chart, 5 baris daftar", () => {
   const html = dashboardSkeletonHtml();
   assert.ok(html.includes("md:grid-cols-3"), "grid kartu ringkasan");
+  assert.ok(html.includes("mf-sync-logo"), "header logo sync bermerek");
+  assert.ok(html.includes("Menyinkronkan data"), "teks status sinkronisasi");
   assert.ok(html.includes("lg:grid-cols-3"), "grid chart + kartu samping");
   assert.ok(html.includes("h-44 w-full rounded-2xl"), "blok area chart");
   assert.equal((html.match(/h-9 w-9 rounded-full/g) || []).length, 5, "5 baris daftar transaksi");
