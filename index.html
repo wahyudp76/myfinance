@@ -107,6 +107,7 @@
         import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows } from './src/domain/backup.js';
+        import { buildDemoTransactions, isDemoTransaction, DEMO_MARKER } from './src/domain/demo-data.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
@@ -140,6 +141,7 @@
 
         window.__myfinanceServices = {
             buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows,
+            buildDemoTransactions, isDemoTransaction, DEMO_MARKER,
             createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
@@ -447,6 +449,19 @@
                     <i class="fas fa-sync-alt md:mr-1"></i> <span class="hidden md:inline">Sinkronisasi</span>
                 </button>
             </header>
+
+            <!-- Empty-state onboarding (Tier-3 #8): tampil hanya saat BELUM ada transaksi
+                 sama sekali (toggle updateDashboardEmptyState di akhir loadData). -->
+            <div id="dashboard-empty-state" class="hidden mb-6 md:mb-8 bg-white rounded-2xl md:rounded-3xl border-2 border-dashed border-indigo-200 p-6 md:p-10 text-center">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-4"><i class="fas fa-wand-magic-sparkles text-white text-2xl"></i></div>
+                <h3 class="text-lg md:text-xl font-extrabold text-slate-800">Selamat datang di MyFinance! 👋</h3>
+                <p class="text-xs md:text-sm text-slate-500 mt-2 max-w-md mx-auto">Dashboard kamu masih kosong. Catat transaksi pertamamu, atau coba isi dulu dengan data contoh biar bisa menjelajahi semua fitur.</p>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-5">
+                    <button onclick="openModal()" class="w-full sm:w-auto bg-[#151928] hover:bg-black text-white text-xs md:text-sm font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-slate-300/50"><i class="fas fa-plus mr-2"></i>Catat Transaksi Pertama</button>
+                    <button onclick="seedDemoData()" class="w-full sm:w-auto bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs md:text-sm font-bold px-6 py-3 rounded-xl transition border border-indigo-100"><i class="fas fa-sparkles mr-2"></i>Isi Data Contoh</button>
+                </div>
+                <p class="text-[10px] md:text-[11px] text-slate-400 mt-4">Transaksi contoh diberi tanda <span class="font-bold">[Demo]</span> pada keterangannya — bisa dihapus massal kapan saja dari Pengaturan &gt; Data &amp; Backup.</p>
+            </div>
 
             <div class="bg-[#171a25] rounded-[24px] p-6 md:p-8 relative overflow-hidden mb-6 md:mb-8 shadow-xl shadow-slate-200/50">
                 <div class="absolute -top-16 -right-16 w-48 md:w-64 h-48 md:h-64 bg-white opacity-[0.03] rounded-full pointer-events-none"></div>
@@ -1111,6 +1126,9 @@
                             <i class="fas fa-upload"></i> Impor dari File
                         </button>
                         <input type="file" id="backupFileInput" accept=".json,application/json" class="hidden" onchange="handleBackupFileSelect(event)">
+                        <button onclick="removeDemoData()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            <i class="fas fa-broom"></i> Hapus Semua Data Contoh <span class="font-mono">[Demo]</span>
+                        </button>
                         <p class="text-[10px] text-slate-400 leading-relaxed pt-1">Pengaturan (akun/kategori/tujuan/utang) akan <b>ditimpa</b> saat impor. Transaksi/aset/berulang akan <b>ditambahkan</b>, bukan menimpa.</p>
                     </div>
                 </div>
@@ -3459,6 +3477,66 @@ async function currentUserId() {
             });
         }
 
+        // ==================== DATA CONTOH (onboarding Tier-3 #8) ====================
+        // Seeder memakai src/domain/demo-data.js (murni, deterministik, ter-unit-test):
+        // seluruh baris diberi prefix keterangan "[Demo] " supaya mudah dibersihkan
+        // massal oleh removeDemoData() TANPA menyentuh transaksi asli user.
+        async function seedDemoData() {
+            const jumlah = servicesModule.buildDemoTransactions({ today: new Date(), accounts: appSettings.accounts || [] }).length;
+            showConfirm(
+                `Ini akan menambahkan ${jumlah} transaksi contoh (gaji, belanja, tagihan, makan, transport; bulan lalu + bulan ini) ke akunmu. Semuanya bertanda [Demo] dan bisa dihapus massal dari Pengaturan > Data & Backup. Lanjutkan?`,
+                doSeedDemoData
+            );
+        }
+        async function doSeedDemoData() {
+            showLoading(true);
+            try {
+                const user_id = await currentUserId();
+                if (!user_id) { showErrorToast('Sesi login sudah berakhir, coba login ulang.'); return; }
+                const rows = servicesModule.buildDemoTransactions({ today: new Date(), accounts: appSettings.accounts || [] })
+                    .map((r) => ({ ...r, user_id }));
+                const { error } = await supabaseClient.from('transactions').insert(rows);
+                if (error) throw error;
+                showSuccessToast('Data contoh berhasil ditambahkan! Memuat ulang...');
+                loadData();
+            } catch (e) {
+                console.error('Seed data contoh gagal:', e);
+                showErrorToast('Gagal menambahkan data contoh. Periksa koneksi internet kamu.');
+            } finally {
+                showLoading(false);
+            }
+        }
+        async function removeDemoData() {
+            showConfirm(
+                'Hapus SEMUA transaksi contoh bertanda [Demo] dari akunmu? Transaksi asli kamu tidak akan tersentuh.',
+                async () => {
+                    showLoading(true);
+                    try {
+                        const user_id = await currentUserId();
+                        if (!user_id) { showErrorToast('Sesi login sudah berakhir, coba login ulang.'); return; }
+                        const { error } = await supabaseClient.from('transactions').delete()
+                            .eq('user_id', user_id)
+                            .like('keterangan', servicesModule.DEMO_MARKER + '%');
+                        if (error) throw error;
+                        showSuccessToast('Data contoh dihapus. Memuat ulang...');
+                        loadData();
+                    } catch (e) {
+                        console.error('Hapus data contoh gagal:', e);
+                        showErrorToast('Gagal menghapus data contoh. Coba lagi.');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+            );
+        }
+        // Toggle kartu onboarding: hanya tampil saat user belum punya SATU transaksi pun.
+        // Dipanggil di akhir loadData sukses (setelah globalData terisi) -- status lain
+        // (mis. baris demo barusan dihapus sampai habis) otomatis konsisten.
+        function updateDashboardEmptyState() {
+            const el = document.getElementById('dashboard-empty-state');
+            if (el) el.classList.toggle('hidden', !(Array.isArray(globalData) && globalData.length === 0));
+        }
+
         // ---------- AKUN ----------
         function renderAccountList() {
             const ul = document.getElementById('list-accounts');
@@ -5279,6 +5357,7 @@ async function currentUserId() {
                 renderRecurringSummary();
 
                 setSyncLoading(false);
+                updateDashboardEmptyState(); // Tier-3 #8: kartu onboarding saat belum ada transaksi
                 processDueRecurring();
             }).catch((err) => {
                 console.error('api.run.getSyncData gagal:', err);
