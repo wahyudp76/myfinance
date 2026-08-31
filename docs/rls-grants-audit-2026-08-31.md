@@ -149,6 +149,23 @@ menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
   + `check_and_consume_rate_limit` utk anon) tetap PGRST202/tak-terlihat --
   revoke F3 masih hidup. DDL tetap harus lewat Dashboard → SQL Editor.
 
+  **PENUTUPAN F1 (2026-08-31, sesi lanjutan 2) — VERIFIED BY DESIGN,
+  DIPERTAHANKAN, TIDAK ADA DROP.** Attempt drop manual tertolak Postgres:
+  `2BP01 cannot drop function rls_auto_enable() … event trigger ensure_rls
+  depends on it` (transaksi atomik dibatalkan — DB tak berubah). Inspeksi
+  `pg_event_trigger` membuktikan: `ensure_rls` = event trigger
+  `ddl_command_end` (tags: CREATE TABLE / CREATE TABLE AS / SELECT INTO)
+  yang memanggil `rls_auto_enable()` utk menjalankan
+  `alter table … enable row level security` pada setiap tabel baru di
+  schema `public`. Murni pengaktif RLS (nol verb berbahaya; SECURITY
+  DEFINER + search_path pg_catalog = higien; owner postgres). Inilah
+  sebabnya seluruh 10 tabel live terbukti RLS aktif di audit ini.
+  Definisi verbatim dibekukan di repo: **`sql/event_trigger_ensure_rls.sql`**
+  (reference copy — jangan dijalankan/di-drop).
+  `sql/migration_f1_rls_auto_enable_2026-08-31.sql` ditandai RESOLVED
+  (arsip proses; guarded-drop-nya memang akan menahan drop ini — definisi
+  memuat string 'CREATE TABLE' di daftar tag event).
+
 ---
 
 ## Addendum — audit & pembersihan live (sesi 2026-08-31, pasca-migrasi Tailwind)

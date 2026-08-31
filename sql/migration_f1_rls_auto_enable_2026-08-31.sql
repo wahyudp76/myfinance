@@ -1,6 +1,13 @@
 -- ============================================================
 -- Migrasi F1: inspeksi + DROP TERJAGA rls_auto_enable (2026-08-31)
 -- ============================================================
+-- >>> RESOLVED 2026-08-31 — JANGAN DIJALANKAN LAGI (arsip proses). <<<
+-- F1 ternyata BY DESIGN: rls_auto_enable() dipakai event trigger
+-- `ensure_rls` (auto-ENABLE RLS utk tabel baru di schema public).
+-- Drop manual sudah dicoba & ditolak Postgres (2BP01 dependency) —
+-- itu justru temuan penutup. Definisi verbatim & keputusan
+-- DIPERTAHANKAN: lihat sql/event_trigger_ensure_rls.sql dan
+-- docs/rls-grants-audit-2026-08-31.md §6.
 -- Sumber temuan: docs/rls-grants-audit-2026-08-31.md §3 F1 & §6.
 -- Migrasi sebelumnya (sql/migration_rls_hardening_2026-08-31.sql) MENAHAN drop
 -- ini karena definisi tidak lolos blacklist-nya -- file ini adalah tindak lanjut
