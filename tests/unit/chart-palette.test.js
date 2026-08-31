@@ -33,5 +33,5 @@ test("chartPaletteLabel: label manusiawi, tak dikenal -> Standar", () => {
 });
 
 test("SUB_SHARE_COLORS (fallback ui) tetap sama dengan palet default (kompatibilitas visual)", () => {
-  assert.deepEqual(SUB_SHARE_COLORS, ["#6366f1", "#8b5cf6", "#06b6d4", "#d946ef", "#10b981", "#f59e0b", "#fb7185", "#3b82f6", "#14b8a6", "#94a3b8"]);
+  assert.deepEqual(SUB_SHARE_COLORS, ["#22d3ee", "#f472b6", "#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#fb7185", "#38bdf8", "#e879f9", "#94a3b8"]);
 });

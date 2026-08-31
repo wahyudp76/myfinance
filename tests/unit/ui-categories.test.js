@@ -194,7 +194,7 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.equal(cfg.options.cutout, "72%");
   assert.deepEqual(cfg.data.labels, ["Makanan (langsung)", "Katering"]);
   assert.deepEqual(cfg.data.datasets[0].data, [120000, 60000]);
-  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#6366f1", "#8b5cf6"]);
+  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#22d3ee", "#f472b6"]);
   assert.ok(doc.host.innerHTML.includes("66,7%"));
   assert.ok(doc.host.innerHTML.includes("33,3%"));
   assert.ok(doc.host.innerHTML.includes("Rp 180000"));

@@ -179,7 +179,7 @@ export function renderAssetView({
 
   let catLabels = Object.keys(catMap);
   let catData = Object.values(catMap);
-  let modernPalette = ["#60A5FA", "#34D399", "#A78BFA", "#F472B6", "#FBBF24", "#38BDF8", "#4ADE80", "#C084FC"];
+  let modernPalette = ["#22d3ee", "#34d399", "#a78bfa", "#f472b6", "#fbbf24", "#38bdf8", "#4ade80", "#e879f9"];
 
   if (charts.assetAlloc) charts.assetAlloc.destroy();
   charts.assetAlloc = new Chart(document.getElementById("assetAllocationChart").getContext("2d"), {

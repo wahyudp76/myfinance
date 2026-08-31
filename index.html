@@ -39,7 +39,7 @@
 
     <!-- PWA: bisa di-"Add to Home Screen" dari Android/iOS -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#151928">
+    <meta name="theme-color" content="#05070f">
     <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
     <link rel="icon" href="icons/favicon-16.png" sizes="16x16" type="image/png">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -3299,6 +3299,7 @@ async function currentUserId() {
                     case 'income500':   return clashRed ? null : a500;
                     case 'income600':   return clashRed ? null : v('--accent-600', '#059669');
                     case 'incomeLabel': return clashRed ? null : v('--accent-700', '#047857');
+                    case 'incomeLabelDark': return clashRed ? null : v('--accent-300', '#a7f3d0');
                     case 'budgetSafe':  return servicesModule.isColorCloseToAny(a500, servicesModule.CHART_EXPENSE_REDS.concat(['#fbbf24']), 110) ? null : v('--accent-400', '#34d399');
                     case 'eventBg':     return v('--accent-100', '#d1fae5');
                     case 'eventText':   return v('--accent-700', '#059669');
@@ -4135,9 +4136,9 @@ async function currentUserId() {
 
         // Dipakai oleh konfigurasi chart (Chart.js tidak ikut aturan CSS, jadi warnanya
         // perlu diatur manual lewat JS setiap kali chart dibuat/diperbarui).
-        function chartGridColor() { return document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.08)' : '#f1f5f9'; }
-        function chartEmptyColor() { return document.documentElement.classList.contains('dark') ? '#334155' : '#f1f5f9'; } // ring donut chart saat data kosong
-        function chartBorderColor() { return document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff'; } // garis pemisah antar-segmen donut, menyatu dgn warna kartu
+        function chartGridColor() { return document.documentElement.classList.contains('dark') ? 'rgba(148,163,184,0.12)' : '#e8ebfb'; }
+        function chartEmptyColor() { return document.documentElement.classList.contains('dark') ? '#1c2942' : '#e8ebfb'; } // ring donut chart saat data kosong
+        function chartBorderColor() { return document.documentElement.classList.contains('dark') ? '#0d1424' : '#ffffff'; } // garis pemisah antar-segmen donut, menyatu dgn warna kartu
 
         // Ikon per kategori aset -- tidak seperti kategori pengeluaran/pemasukan, kategori aset (Saham,
         // Reksadana, dst) bebas diketik user jadi tidak ada tabel ikon tetapnya. Ini cuma tebakan
@@ -4241,7 +4242,7 @@ async function currentUserId() {
         function applyTheme(pref, rerenderCharts) {
             const isDark = resolveIsDark(pref);
             document.documentElement.classList.toggle('dark', isDark);
-            if (typeof Chart !== 'undefined') { Chart.defaults.color = '#94a3b8'; } // kontrasnya sudah cukup di kedua tema, tetap disegarkan tiap ganti tema
+            if (typeof Chart !== 'undefined') { Chart.defaults.color = document.documentElement.classList.contains('dark') ? '#a6b4d2' : '#64748b'; } // kontrasnya sudah cukup di kedua tema, tetap disegarkan tiap ganti tema
             updateThemeButtonsUI(pref);
             if (rerenderCharts) rerenderVisibleCharts();
         }
@@ -6220,7 +6221,7 @@ async function currentUserId() {
             }
 
             let accHtml = ''; let assetEntries = [];
-            let modernPalette = ['#60A5FA', '#34D399', '#A78BFA', '#F472B6', '#FBBF24', '#38BDF8', '#4ADE80', '#C084FC'];
+            let modernPalette = ['#22d3ee', '#34d399', '#a78bfa', '#f472b6', '#fbbf24', '#38bdf8', '#4ade80', '#e879f9'];
             
             appSettings.accounts.forEach(acc => {
                 let bal = accBalances[acc] || 0; if(bal > 0) assetEntries.push({label: acc, val: bal});
@@ -6631,7 +6632,7 @@ async function currentUserId() {
             if (charts.balanceTrend) charts.balanceTrend.destroy();
             if (document.getElementById('balanceTrendChart')) {
                 const isPositiveTrend = trend[trend.length - 1].balance >= trend[0].balance;
-                const lineColor = isPositiveTrend ? '#4f46e5' : '#f43f5e';
+                const lineColor = isPositiveTrend ? '#22d3ee' : '#f43f5e';
                 charts.balanceTrend = new Chart(document.getElementById('balanceTrendChart').getContext('2d'), {
                     type: 'line',
                     data: {
@@ -7167,7 +7168,7 @@ async function currentUserId() {
             if (charts.assetDetail) charts.assetDetail.destroy();
             if (!document.getElementById('assetDetailChart')) return;
             const isUp = history.length > 1 ? history[history.length - 1].nilai >= history[0].nilai : true;
-            const lineColor = isUp ? '#4f46e5' : '#f43f5e';
+            const lineColor = isUp ? '#22d3ee' : '#f43f5e';
             charts.assetDetail = new Chart(document.getElementById('assetDetailChart').getContext('2d'), {
                 type: 'line',
                 data: {
@@ -7861,7 +7862,7 @@ async function currentUserId() {
             if (typeof Chart === 'undefined') return;
             if (typeof ChartDataLabels !== 'undefined') { try { Chart.register(ChartDataLabels); } catch (e) { /* idempoten */ } }
             Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
-            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.color = document.documentElement.classList.contains('dark') ? '#a6b4d2' : '#64748b';
             Chart.defaults.plugins.tooltip.backgroundColor = '#000000'; // hitam murni -- konsisten dgn kartu tooltip eksternal chart proporsi (kontrak #000)
             Chart.defaults.plugins.tooltip.padding = 12;
             Chart.defaults.plugins.tooltip.cornerRadius = 8;
@@ -7884,23 +7885,43 @@ async function currentUserId() {
         }
         applyChartStyleDefaults(); // kompatibilitas kalau Chart suatu saat kembali dimuat sinkron
         
-        const cutePaletteOut = ['#F472B6', '#A78BFA', '#60A5FA', '#FBBF24', '#F87171', '#38BDF8', '#818CF8', '#FB923C', '#C084FC'];
+        const cutePaletteOut = ['#f472b6', '#a78bfa', '#22d3ee', '#fbbf24', '#fb7185', '#38bdf8', '#818cf8', '#fb923c', '#e879f9'];
 
-        // Label angka pada chart batang ditaruh DI LUAR batang (di atas, di atas latar kartu putih),
+        // Label angka pada chart batang ditaruh DI LUAR batang (di atas, di atas latar kartu),
         // jadi warna batang yang pastel/medium (dioptimalkan utk fill, bukan teks) perlu dipetakan
-        // ke versi lebih gelap supaya kontrasnya cukup terbaca sebagai teks.
+        // ke warna teks yang kontras terhadap LATAR KARTU -- terang (kartu putih) map ke versi
+        // gelap, gelap (kartu midnight neon) map ke versi terang. Ini memastikan angka selalu
+        // mudah dibaca di kedua tema (tidak tumpang tindih secara kontras).
         const chartLabelColorMap = {
-            '#34d399': '#047857', '#10b981': '#047857',   // emerald -> emerald-700
-            '#fb7185': '#be123c', '#f43f5e': '#be123c',   // rose -> rose-700
-            '#fbbf24': '#b45309',                          // amber -> amber-700
-            '#c7d2fe': '#4f46e5'                            // indigo pastel -> indigo-600
+            light: {
+                '#34d399': '#047857', '#10b981': '#047857', '#4ade80': '#065f46', '#2dd4bf': '#0f766e',
+                '#fb7185': '#be123c', '#f43f5e': '#be123c', '#f87171': '#b91c1c',
+                '#fbbf24': '#b45309', '#f59e0b': '#b45309', '#fb923c': '#c2410c',
+                '#c7d2fe': '#4f46e5',
+                '#22d3ee': '#0e7490', '#38bdf8': '#0369a1', '#60a5fa': '#1d4ed8',
+                '#a78bfa': '#6d28d9', '#8b5cf6': '#6d28d9', '#e879f9': '#a21caf',
+                '#f472b6': '#be185d', '#ec4899': '#be185d', '#c084fc': '#7e22ce',
+                '#818cf8': '#4338ca'
+            },
+            dark: {
+                '#34d399': '#a7f3d0', '#10b981': '#6ee7b7', '#4ade80': '#a7f3d0', '#2dd4bf': '#99f6e4',
+                '#fb7185': '#fecdd3', '#f43f5e': '#fecdd3', '#f87171': '#fecaca',
+                '#fbbf24': '#fde68a', '#f59e0b': '#fde68a', '#fb923c': '#fed7aa',
+                '#c7d2fe': '#e0e7ff',
+                '#22d3ee': '#a5f3fc', '#38bdf8': '#bae6fd', '#60a5fa': '#bfdbfe',
+                '#a78bfa': '#ddd6fe', '#8b5cf6': '#ddd6fe', '#e879f9': '#f5d0fe',
+                '#f472b6': '#fbcfe8', '#ec4899': '#fbcfe8', '#c084fc': '#e9d5ff',
+                '#818cf8': '#c7d2fe'
+            }
         };
         function chartLabelColor(bg) {
+            const isDark = document.documentElement.classList.contains('dark');
             const inBar = themeAccentColor('incomeBar'), in500 = themeAccentColor('income500');
-            if ((inBar && bg === inBar) || (in500 && bg === in500)) return themeAccentColor('incomeLabel') || '#047857';
-            return chartLabelColorMap[bg] || bg;
+            if ((inBar && bg === inBar) || (in500 && bg === in500)) return themeAccentColor(isDark ? 'incomeLabelDark' : 'incomeLabel') || (isDark ? '#a7f3d0' : '#047857');
+            const map = isDark ? chartLabelColorMap.dark : chartLabelColorMap.light;
+            return map[bg] || bg;
         }
-        const CUTE_PALETTE_IN_DEFAULT = ['#34D399', '#4ADE80', '#10B981', '#059669', '#6EE7B7', '#A7F3D0'];
+        const CUTE_PALETTE_IN_DEFAULT = ['#34D399', '#4ADE80', '#10B981', '#2DD4BF', '#6EE7B7', '#A7F3D0'];
         function getCutePaletteIn() { return themeAccentColor('paletteIn') || CUTE_PALETTE_IN_DEFAULT; }
 
         // Debounce resize/orientationchange, dan hanya render ulang chart di tab yang SEDANG
