@@ -9,8 +9,10 @@
     <script>
         (function () {
             try {
-                var pref = localStorage.getItem('myfinance-theme') || 'system';
-                var isDark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                var pref = localStorage.getItem('myfinance-theme') || 'dark';
+                // HUD cyberpunk = tampilan default; hanya pilihan eksplisit "Terang" yang
+                // keluar dari mode gelap ('system' kini diperlakukan sebagai HUD gelap).
+                var isDark = pref !== 'light';
                 document.documentElement.classList.toggle('dark', isDark);
             } catch (e) { /* localStorage bisa saja diblokir (mode privat ketat) -- diamkan, default ke terang */ }
         })();
@@ -145,6 +147,7 @@
         import { renderBudgetView as renderBudgetViewUI, renderBudgetModalList as renderBudgetModalListUI } from './src/ui/budgets.js';
         import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI, renderCategorySubProportion } from './src/ui/categories.js';
         import { pickChartPalette, chartPaletteLabel } from './src/domain/chart-palette.js';
+        import { buildDailyFlow, sparklineSvg } from './src/domain/sparkline.js';
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
         import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
@@ -167,6 +170,7 @@
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
+            buildDailyFlow, sparklineSvg, // sparkline HUD (src/domain/sparkline.js) -- domain murni
             // aggregateDashboardData: domain logic murni juga (src/domain/dashboard.js), sama
             // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
             aggregateDashboardData,
@@ -394,10 +398,11 @@
     <!-- Mobile Top Bar -->
     <div class="md:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between z-20 shadow-sm flex-shrink-0 pt-safe">
         <div class="flex items-center">
-            <div class="bg-[#151928] text-white p-1.5 rounded-lg mr-2 flex items-center justify-center shadow-md shadow-slate-900/10"><i class="fas fa-wallet text-xs"></i></div>
+            <div class="bg-[#151928] text-white p-1.5 rounded-lg mr-2 flex items-center justify-center shadow-md shadow-slate-900/10"><i class="fas fa-bolt text-xs"></i></div>
             <h1 class="text-lg font-extrabold tracking-tight text-slate-900">MyFinance</h1>
         </div>
         <div class="flex items-center gap-1">
+            <div class="hud-status" data-state="live" aria-hidden="true" style="margin-right:4px"><span class="hud-led"></span><span class="hud-status-text">LIVE</span></div>
             <button onclick="switchView('kalender')" id="mobile-top-kalender" aria-label="Buka Kalender" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-calendar-alt text-xl"></i></button>
             <button onclick="switchView('pengaturan')" id="mobile-top-settings" aria-label="Buka Pengaturan" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-cog text-xl"></i></button>
             <button data-logout-btn aria-label="Keluar" class="text-slate-500 hover:text-rose-500 p-2 rounded-xl hover:bg-rose-50 transition-all" title="Keluar"><i class="fas fa-arrow-right-from-bracket text-xl"></i></button>
@@ -408,19 +413,27 @@
     <aside id="sidebar" class="hidden md:flex w-64 bg-white border-r border-slate-100 flex-col justify-between flex-shrink-0 h-full">
         <div>
             <div class="flex h-20 items-center px-6 mb-4">
-                <div class="bg-[#151928] text-white p-2 rounded-lg mr-3 flex items-center justify-center"><i class="fas fa-wallet text-sm"></i></div>
+                <div class="bg-[#151928] text-white p-2 rounded-lg mr-3 flex items-center justify-center"><i class="fas fa-bolt text-sm"></i></div>
                 <h1 class="text-xl font-extrabold tracking-tight text-slate-900">MyFinance</h1>
             </div>
             <div class="px-4">
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">Menu Utama</p>
                 <nav class="space-y-1">
-                    <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center px-3 py-3 rounded-xl menu-active transition-colors"><i class="fas fa-layer-group w-6 text-center mr-2"></i><span class="text-sm">Dashboard</span></button>
-                    <button onclick="switchView('budget')" id="nav-budget" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-bullseye w-6 text-center mr-2"></i><span class="text-sm">Budget</span></button>
-                    <button onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-chart-simple w-6 text-center mr-2"></i><span class="text-sm">Laporan</span></button>
-                    <button onclick="switchView('aset')" id="nav-aset" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-gem w-6 text-center mr-2"></i><span class="text-sm">Aset</span></button>
+                    <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center px-3 py-3 rounded-xl menu-active transition-colors"><i class="fas fa-satellite-dish w-6 text-center mr-2"></i><span class="text-sm">Dashboard</span></button>
+                    <button onclick="switchView('budget')" id="nav-budget" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-crosshairs w-6 text-center mr-2"></i><span class="text-sm">Budget</span></button>
+                    <button onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-wave-square w-6 text-center mr-2"></i><span class="text-sm">Laporan</span></button>
+                    <button onclick="switchView('aset')" id="nav-aset" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-database w-6 text-center mr-2"></i><span class="text-sm">Aset</span></button>
                     <button onclick="switchView('kalender')" id="nav-kalender" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-calendar-alt w-6 text-center mr-2"></i><span class="text-sm">Kalender</span></button>
-                    <button onclick="switchView('pengaturan')" id="nav-pengaturan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-cog w-6 text-center mr-2"></i><span class="text-sm">Pengaturan</span></button>
+                    <button onclick="switchView('pengaturan')" id="nav-pengaturan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-sliders w-6 text-center mr-2"></i><span class="text-sm">Pengaturan</span></button>
                 </nav>
+                <div class="mt-5 px-2" aria-hidden="true">
+                    <div class="hud-hash"></div>
+                    <div class="flex items-center justify-between mt-3">
+                        <div class="hud-status" data-state="live"><span class="hud-led"></span><span class="hud-status-text">LIVE</span></div>
+                        <div class="hud-barcode" style="width:48px;height:14px"></div>
+                    </div>
+                    <p class="hud-mono" style="font-size:8px;letter-spacing:.28em;color:rgba(125,211,252,.45);margin-top:8px">SYS.01 // MF-HUD // NODE-JBI</p>
+                </div>
             </div>
         </div>
         <div class="p-6">
@@ -439,15 +452,15 @@
 
     <!-- Bottom Navigation Bar (Mobile) -->
     <div class="md:hidden liquid-glass-nav fixed left-4 right-4 flex items-center justify-around py-2 z-40 rounded-[28px]">
-        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-2 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-layer-group text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Beranda</span></button>
-        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-bullseye text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Budget</span></button>
+        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-2 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-satellite-dish text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Beranda</span></button>
+        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-crosshairs text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Budget</span></button>
         <div class="relative -top-5 flex flex-col items-center justify-center z-50">
             <button id="fabMobileCatat" onclick="openModal()" aria-label="Catat Transaksi Baru" class="w-14 h-14 bg-gradient-to-tr from-[#151928] to-[#2e3754] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/30 hover:scale-110 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-90 transition-all duration-200 border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
             <span class="text-[10px] mt-1 font-bold text-[#151928] tracking-tight">Catat</span>
         </div>
-        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-chart-simple text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Analisis</span></button>
+        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-wave-square text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Analisis</span></button>
         <!-- Diubah dari Kalender menjadi Aset sesuai permintaan -->
-        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-gem text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Aset</span></button>
+        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-database text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Aset</span></button>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -462,7 +475,9 @@
                 <div>
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Overview</h2>
                     <p id="currentDate" class="text-slate-500 text-xs md:text-sm mt-1"></p>
+                    <p class="hud-mono hud-coord mt-1" aria-hidden="true">// GEO -1.6101,103.6131 · NODE-JBI-01 · UPLINK STABLE</p>
                 </div>
+                <div class="hud-status hud-status-desk" data-state="live"><span class="hud-led"></span><span class="hud-status-text">LIVE</span><span class="hud-mono" style="opacity:.55">SEC-LINK</span></div>
                 <button onclick="openCommandPalette()" class="hidden md:flex text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition items-center gap-2 shadow-sm" aria-label="Pencarian cepat (Ctrl K)">
                     <i class="fas fa-magnifying-glass"></i><span>Cari</span><kbd class="text-[10px] font-bold text-slate-400 border border-slate-200 rounded px-1">Ctrl K</kbd>
                 </button>
@@ -485,12 +500,14 @@
             </div>
 
             <div class="bg-[#171a25] rounded-[24px] p-6 md:p-8 relative overflow-hidden mb-6 md:mb-8 shadow-xl shadow-slate-200/50">
+                <div class="hud-barcode" aria-hidden="true" style="position:absolute;top:14px;right:16px;width:72px;height:16px;z-index:6"></div>
+                <div class="hud-dots" aria-hidden="true" style="position:absolute;bottom:14px;left:18px;width:64px;height:24px;opacity:.3;z-index:6"></div>
                 <div class="absolute -top-16 -right-16 w-48 md:w-64 h-48 md:h-64 bg-white opacity-[0.03] rounded-full pointer-events-none"></div>
                 <div class="absolute -bottom-16 -left-16 w-32 md:w-48 h-32 md:h-48 bg-blue-500 opacity-[0.05] rounded-full pointer-events-none"></div>
                 
                 <div class="flex flex-col md:flex-row md:items-end justify-between relative z-10 gap-6">
                     <div>
-                        <p class="text-slate-400 text-xs md:text-sm font-medium mb-1">Total Kekayaan Tunai & Dompet</p>
+                        <p class="text-slate-400 text-xs md:text-sm font-medium mb-1">Total Kekayaan Tunai & Dompet <span class="hud-mono hud-coord" aria-hidden="true">[BAL.SYS]</span></p>
                         <div class="flex items-center gap-3">
                             <h3 class="text-white text-2xl md:text-5xl font-bold tracking-tight whitespace-nowrap" id="dash-total">Rp 0</h3>
                             <button onclick="toggleNominalVisibility()" class="nominal-eye-btn w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors flex-shrink-0" title="Sembunyikan saldo" aria-label="Sembunyikan saldo">
@@ -508,27 +525,30 @@
                     <div>
                         <p class="text-slate-400 text-xs font-medium mb-1 md:mb-2">Pemasukan Bulan Ini</p>
                         <p class="text-emerald-400 text-base md:text-lg font-semibold flex items-center"><i class="fas fa-arrow-trend-up mr-2 text-xs"></i> <span id="dash-in">Rp 0</span></p>
+                        <div class="hud-spark" id="spark-in" aria-hidden="true"></div>
                     </div>
                     <div>
                         <p class="text-slate-400 text-xs font-medium mb-1 md:mb-2">Pengeluaran Bulan Ini</p>
                         <p class="text-rose-400 text-base md:text-lg font-semibold flex items-center"><i class="fas fa-arrow-trend-down mr-2 text-xs"></i> <span id="dash-out">Rp 0</span></p>
+                        <div class="hud-spark" id="spark-out" aria-hidden="true"></div>
                     </div>
                     <div>
                         <p class="text-slate-400 text-xs font-medium mb-1 md:mb-2">Saldo Arus Kas</p>
                         <p id="dash-saldo" class="text-sky-300 text-base md:text-lg font-semibold flex items-center"><i class="fas fa-wallet mr-2 text-xs"></i> Rp 0</p>
+                        <div class="hud-spark" id="spark-net" aria-hidden="true"></div>
                     </div>
                 </div>
             </div>
 
             <div class="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
-                <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
+                <div class="bg-white hud-kpi rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-receipt text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
                         <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Transaksi Bulan Ini</p>
                         <p id="insight-tx-count" class="text-xs md:text-sm font-bold text-slate-800">0</p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
+                <div class="bg-white hud-kpi rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-calendar-day text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
                         <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Rata-rata Harian</p>
@@ -595,7 +615,7 @@
                 </div>
                 <p class="text-xs text-slate-400 mb-4">Distribusi uang tunai dari berbagai akun</p>
                 <div class="flex items-center gap-4 md:gap-6">
-                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetChart"></canvas></div>
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="asset-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
                     <div id="assetChart-legend" class="flex-1 min-w-0"></div>
                 </div>
                 <div id="assetChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
@@ -719,6 +739,8 @@
 
             <!-- Summary Card -->
             <div class="bg-[#171a25] rounded-[24px] p-6 md:p-8 relative overflow-hidden mb-6 md:mb-8 shadow-xl shadow-slate-200/50">
+                <div class="hud-barcode" aria-hidden="true" style="position:absolute;top:14px;right:16px;width:72px;height:16px;z-index:6"></div>
+                <div class="hud-dots" aria-hidden="true" style="position:absolute;bottom:14px;left:18px;width:64px;height:24px;opacity:.3;z-index:6"></div>
                 <div class="absolute -top-16 -right-16 w-48 md:w-64 h-48 md:h-64 bg-white opacity-[0.03] rounded-full pointer-events-none"></div>
                 <div class="absolute -bottom-16 -left-16 w-32 md:w-48 h-32 md:h-48 bg-indigo-500 opacity-[0.05] rounded-full pointer-events-none"></div>
                 <div class="flex flex-col sm:flex-row sm:items-center gap-6 relative z-10">
@@ -842,7 +864,7 @@
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Pengeluaran berdasarkan kategori</p>
                         <div class="flex items-center gap-3 md:gap-4">
-                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="expenseCategoryChart"></canvas></div>
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="expenseCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="exp-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
                             <div id="expenseCategoryChart-legend" class="flex-1 min-w-0"></div>
                         </div>
                         <div id="expenseCategoryChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50 max-h-64 overflow-y-auto"></div>
@@ -854,7 +876,7 @@
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Sumber pemasukan terbesar</p>
                         <div class="flex items-center gap-3 md:gap-4">
-                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="incomeCategoryChart"></canvas></div>
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="incomeCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="inc-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
                             <div id="incomeCategoryChart-legend" class="flex-1 min-w-0"></div>
                         </div>
                         <div id="incomeCategoryChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50 max-h-64 overflow-y-auto"></div>
@@ -1363,14 +1385,14 @@
 
             <!-- Insight Chips -->
             <div class="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
-                <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
+                <div class="bg-white hud-kpi rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-receipt text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
                         <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Jumlah Transaksi</p>
                         <p id="detail-account-tx-count" class="text-xs md:text-sm font-bold text-slate-800">0</p>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
+                <div class="bg-white hud-kpi rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-scale-balanced text-xs md:text-sm"></i></div>
                     <div class="min-w-0">
                         <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight">Rata-rata / Transaksi</p>
@@ -2936,6 +2958,7 @@ async function currentUserId() {
             const dashVisible = !!(dash && dash.classList.contains('block'));
             if (active) {
                 document.body.dataset.syncLoading = '1';
+                setHudStatus('sync');
                 // Overlay logo berputar di TENGAH kini tampil utk SEMUA tab (revisi
                 // slice sync-logo: permintaan pemilik -- animasi loading terpusat &
                 // jelas terlihat). Skeleton Dashboard tetap diisi di belakang overlay
@@ -2947,6 +2970,7 @@ async function currentUserId() {
                 }
             } else {
                 delete document.body.dataset.syncLoading;
+                setHudStatus('live');
                 if (skel) skel.classList.add('hidden');
                 showLoading(false); // no-op kalau overlay memang tidak menyala
             }
@@ -5511,6 +5535,7 @@ async function currentUserId() {
 
                 filterTransactions(); 
                 renderRecentList(globalData); 
+                renderHudSparklines();
                 processDataForUI(globalData); 
                 renderReportTab();
 
@@ -5528,6 +5553,7 @@ async function currentUserId() {
                 processDueRecurring();
             }).catch((err) => {
                 console.error('api.run.getSyncData gagal:', err);
+                setHudStatus('error');
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
                 setSyncLoading(false);
             });
@@ -5978,6 +6004,8 @@ async function currentUserId() {
                     const netColor = netTotal > 0 ? 'text-emerald-500' : (netTotal < 0 ? 'text-rose-500' : 'text-slate-400');
                     const netPrefix = netTotal > 0 ? '+' : (netTotal < 0 ? '-' : '');
 
+                    // HUD: bar nominal proporsional terhadap transaksi terbesar hari itu.
+                    const grpMaxAmt = Math.max(...rows.map(r => Math.abs(Number(r.jumlah) || 0)), 1);
                     const rowsHtml = rows.map((row, idx) => {
                         let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
                         let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : '');
@@ -5995,10 +6023,11 @@ async function currentUserId() {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
-                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(row.jumlah)}</span>
+                                    <span class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(row.jumlah)}</span>
                                     <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
                                     <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
+                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / grpMaxAmt * 100))}%"></div></div>
                             </div>`;
                     }).join('');
 
@@ -6051,6 +6080,7 @@ async function currentUserId() {
             const labelIndicesToShow = chartIsNarrow ? servicesModule.selectSparseLabelIndices(chartNet, 5) : null;
 
             charts.txTrend = new Chart(document.getElementById('txTrendChart').getContext('2d'), {
+                plugins: [hudGlowPlugin],
                 type: 'bar',
                 data: { labels: chartLabels, datasets: [{
                     label: 'Arus Kas Bersih',
@@ -6173,6 +6203,7 @@ async function currentUserId() {
             if (document.getElementById('cashflow7Chart')) {
                 let labels7 = last7Order.map(k => last7Map[k].dateObj.toLocaleDateString('id-ID', { weekday: 'short' }));
                 charts.cashflow7 = new Chart(document.getElementById('cashflow7Chart').getContext('2d'), {
+                    plugins: [hudGlowPlugin],
                     type: 'bar',
                     data: {
                         labels: labels7,
@@ -6241,7 +6272,7 @@ async function currentUserId() {
             if(document.getElementById('assetChart')) {
                 charts.asset = new Chart(document.getElementById('assetChart').getContext('2d'), { 
                     type: 'doughnut', 
-                    data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: assetData[0]===1&&assetLabels[0]==='Kosong' ? [chartEmptyColor()] : modernPalette, borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
+                    data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: assetData[0]===1&&assetLabels[0]==='Kosong' ? [chartEmptyColor()] : modernPalette, borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
                     options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, datalabels: { display: false } } } 
                 });
             }
@@ -6254,6 +6285,18 @@ async function currentUserId() {
                 onClickItem: (label) => `openAccountDetail('${jsStr(label)}')`,
                 emptyMessage: 'Belum ada saldo di akun manapun.'
             });
+
+                // HUD radar: persen saldo terbesar di tengah cincin donat aset.
+                const assetRadarEl = document.getElementById('asset-radar-pct');
+                if (assetRadarEl) {
+                    const assetTot = assetEntries.reduce((a, e) => a + e.val, 0);
+                    const assetTop = assetEntries.reduce((m, e) => (e.val > m.val ? e : m), assetEntries[0] || { val: 0, label: '' });
+                    if (assetEntries.length && assetTot > 0) {
+                        assetRadarEl.querySelector('b').textContent = Math.round((assetTop.val / assetTot) * 100) + '%';
+                        assetRadarEl.querySelector('span').textContent = String(assetTop.label).toUpperCase().slice(0, 10);
+                        assetRadarEl.style.display = 'flex';
+                    } else { assetRadarEl.style.display = 'none'; }
+                }
 
             let monthKeys = Object.keys(monthlyMap);
             monthKeys.sort((a,b) => { let dateA = new Date("1 " + a); let dateB = new Date("1 " + b); return dateA - dateB; });
@@ -6633,14 +6676,18 @@ async function currentUserId() {
             if (document.getElementById('balanceTrendChart')) {
                 const isPositiveTrend = trend[trend.length - 1].balance >= trend[0].balance;
                 const lineColor = isPositiveTrend ? '#22d3ee' : '#f43f5e';
+                const trendLabels = trend.map(t => t.label);
                 charts.balanceTrend = new Chart(document.getElementById('balanceTrendChart').getContext('2d'), {
                     type: 'line',
                     data: {
-                        labels: trend.map(t => t.label),
+                        labels: trendLabels,
                         datasets: [{
                             label: 'Saldo', data: trend.map(t => t.balance),
-                            borderColor: lineColor, backgroundColor: lineColor + '1a', fill: true,
-                            tension: 0.35, pointRadius: 3, pointBackgroundColor: lineColor, pointBorderColor: chartBorderColor(), pointBorderWidth: 2, borderWidth: 2.5
+                            borderColor: (ctx) => { const a = ctx.chart.chartArea; if (!a) return lineColor; const g = ctx.chart.ctx.createLinearGradient(a.left, 0, a.right, 0); g.addColorStop(0, '#22d3ee'); g.addColorStop(1, '#a78bfa'); return g; },
+                            backgroundColor: (ctx) => { const a = ctx.chart.chartArea; if (!a) return lineColor + '1a'; const g = ctx.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom); g.addColorStop(0, 'rgba(34,211,238,0.30)'); g.addColorStop(0.65, 'rgba(167,139,250,0.10)'); g.addColorStop(1, 'rgba(167,139,250,0)'); return g; },
+                            fill: true,
+                            tension: 0.45, pointStyle: 'crossRot', pointRadius: 6, pointHoverRadius: 9,
+                            pointBackgroundColor: 'rgba(4,10,20,0.92)', pointBorderColor: '#67e8f9', pointBorderWidth: 2, borderWidth: 3
                         }]
                     },
                     options: {
@@ -6651,10 +6698,11 @@ async function currentUserId() {
                             tooltip: { callbacks: { label: (ctx) => 'Rp ' + formatRp(ctx.parsed.y) } }
                         },
                         scales: {
-                            x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } },
-                            y: { grid: { color: chartGridColor() }, ticks: { font: { size: 10 }, callback: (v) => formatShortVal(v) } }
+                            x: { grid: { color: 'rgba(34,211,238,0.07)' }, ticks: { font: { size: 9, weight: 'bold' }, callback: (v, i) => 'T' + String(i + 1).padStart(2, '0') + '·' + trendLabels[i] } },
+                            y: { grid: { color: chartGridColor() }, ticks: { font: { size: 9 }, callback: (v) => 'Y·' + formatShortVal(v) } }
                         }
-                    }
+                    },
+                    plugins: [hudGlowPlugin]
                 });
             }
         }
@@ -6664,24 +6712,57 @@ async function currentUserId() {
             let sortedData = [...data].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
             let recent = sortedData.slice(0, 5);
             if(recent.length === 0) { container.innerHTML = ''; return; }
+            // HUD: bar nominal proporsional terhadap transaksi terbesar di antara 5 teratas.
+            const hudMaxAmt = Math.max(...recent.map(r => Math.abs(Number(r.jumlah) || 0)), 1);
             container.innerHTML = recent.map((row, idx) => {
                 let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
                 let prefix = row.jenis === 'Pengeluaran' ? '-' : (row.jenis === 'Pemasukan' ? '+' : '');
                 let style = getCategoryStyle(row.kategori, row.jenis);
+                const hudBarPct = Math.max(4, Math.round(Math.abs(Number(row.jumlah) || 0) / hudMaxAmt * 100));
 
                 return `
                     <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms" onclick="switchView('transaksi')">
                         ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
+                            <p class="text-xs md:text-sm font-bold text-slate-800 truncate"><span class="hud-mono hud-tx-id" aria-hidden="true">TX-${String(idx + 1).padStart(2, '0')}</span> ${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
                             <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 flex items-center">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} ${row.keterangan? '• ' + escapeHtml(row.keterangan) : ''}</p>
+                            <div class="hud-bar mt-1.5" style="max-width:150px" aria-hidden="true"><div class="hud-bar-fill" style="width:${hudBarPct}%"></div></div>
                         </div>
                         <div class="text-right pl-2">
-                            <p class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">Rp ${prefix}${formatRp(row.jumlah)}</p>
+                            <p class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap">Rp ${prefix}${formatRp(row.jumlah)}</p>
                             <p class="text-[10px] md:text-[10px] text-slate-400 mt-1">${parseTgl(row.tanggal).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}</p>
                         </div>
                     </div>`;
             }).join('');
+        }
+
+        // ========================== HUD: SPARKLINE & STATUS ==========================
+        // Gelombang neon tren 14 hari di kartu hero (domain murni: src/domain/sparkline.js).
+        function renderHudSparklines() {
+            try {
+                const s = window.__myfinanceServices;
+                if (!s || typeof s.sparklineSvg !== 'function' || typeof s.buildDailyFlow !== 'function') return;
+                const flow = s.buildDailyFlow(globalData || [], { days: 14 });
+                const mounts = [
+                    ['spark-in', flow.map(d => d.in), '#34d399'],
+                    ['spark-out', flow.map(d => d.out), '#fb7185'],
+                    ['spark-net', flow.map(d => d.net), '#22d3ee'],
+                ];
+                mounts.forEach(([id, vals, stroke]) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = s.sparklineSvg(vals, { stroke, id });
+                });
+            } catch (e) { console.error('Sparkline HUD gagal dirender:', e); }
+        }
+
+        // Indikator LED HUD (LIVE / SYNCING / OFFLINE) di header, sidebar & topbar mobile.
+        function setHudStatus(state) {
+            const text = state === 'sync' ? 'SYNCING' : (state === 'error' ? 'OFFLINE' : 'LIVE');
+            document.querySelectorAll('.hud-status').forEach((el) => {
+                el.dataset.state = state;
+                const t = el.querySelector('.hud-status-text');
+                if (t) t.textContent = text;
+            });
         }
 
         // ========================== TAB BUDGET ==========================
@@ -7296,7 +7377,7 @@ async function currentUserId() {
             if(charts.catOut) charts.catOut.destroy(); let hasOutCat = outEntries.length > 0;
             charts.catOut = new Chart(document.getElementById('expenseCategoryChart').getContext('2d'), { 
                 type: 'doughnut', 
-                data: { labels: hasOutCat ? outEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasOutCat ? outEntries.map(e=>e.val) : [1], backgroundColor: hasOutCat ? cutePaletteOut : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
+                data: { labels: hasOutCat ? outEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasOutCat ? outEntries.map(e=>e.val) : [1], backgroundColor: hasOutCat ? cutePaletteOut : [chartEmptyColor()], borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '65%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },
@@ -7320,10 +7401,22 @@ async function currentUserId() {
                 emptyMessage: 'Belum ada pengeluaran bulan ini.'
             });
 
+                // HUD radar: persen kategori pengeluaran terbesar di tengah cincin.
+                const expRadarEl = document.getElementById('exp-radar-pct');
+                if (expRadarEl) {
+                    const expTot = outEntries.reduce((a, e) => a + e.val, 0);
+                    const expTop = outEntries.reduce((m, e) => (e.val > m.val ? e : m), outEntries[0] || { val: 0, label: '' });
+                    if (hasOutCat && expTot > 0) {
+                        expRadarEl.querySelector('b').textContent = Math.round((expTop.val / expTot) * 100) + '%';
+                        expRadarEl.querySelector('span').textContent = String(expTop.label).toUpperCase().slice(0, 10);
+                        expRadarEl.style.display = 'flex';
+                    } else { expRadarEl.style.display = 'none'; }
+                }
+
             if(charts.catIn) charts.catIn.destroy(); let hasInCat = inEntries.length > 0;
             charts.catIn = new Chart(document.getElementById('incomeCategoryChart').getContext('2d'), { 
                 type: 'doughnut', 
-                data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: hasInCat ? getCutePaletteIn() : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }] }, 
+                data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: hasInCat ? getCutePaletteIn() : [chartEmptyColor()], borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '65%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },
@@ -7346,6 +7439,18 @@ async function currentUserId() {
                 onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pemasukan')`,
                 emptyMessage: 'Belum ada pemasukan bulan ini.'
             });
+
+                // HUD radar: persen kategori pemasukan terbesar di tengah cincin.
+                const incRadarEl = document.getElementById('inc-radar-pct');
+                if (incRadarEl) {
+                    const incTot = inEntries.reduce((a, e) => a + e.val, 0);
+                    const incTop = inEntries.reduce((m, e) => (e.val > m.val ? e : m), inEntries[0] || { val: 0, label: '' });
+                    if (hasInCat && incTot > 0) {
+                        incRadarEl.querySelector('b').textContent = Math.round((incTop.val / incTot) * 100) + '%';
+                        incRadarEl.querySelector('span').textContent = String(incTop.label).toUpperCase().slice(0, 10);
+                        incRadarEl.style.display = 'flex';
+                    } else { incRadarEl.style.display = 'none'; }
+                }
 
             let dailyLabels = Object.keys(dailyMap);
             if(charts.daily) charts.daily.destroy();
@@ -7543,6 +7648,8 @@ async function currentUserId() {
                     const netColor = netTotal > 0 ? 'text-emerald-500' : (netTotal < 0 ? 'text-rose-500' : 'text-slate-400');
                     const netPrefix = netTotal > 0 ? '+' : (netTotal < 0 ? '-' : '');
 
+                    // HUD: bar nominal proporsional terhadap transaksi terbesar hari itu (akun ini).
+                    const accGrpMaxAmt = Math.max(...rows.map(r => Math.abs(Number(r.jumlah) || 0)), 1);
                     const rowsHtml = rows.map(row => {
                         let isTransferOut = row.jenis === 'Transfer' && row.akun === accName;
                         let isTransferIn = row.jenis === 'Transfer' && row.kategori === accName;
@@ -7557,7 +7664,7 @@ async function currentUserId() {
                         else if (isTransferIn) { iconStyle = { bg: style.bg, color: style.color, icon: 'fa-arrow-left' }; labelStr = 'Transfer dari ' + row.akun; }
 
                         return `
-                            <div class="flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
+                            <div class="hud-tx-row flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
                                 <div class="flex items-center min-w-0">
                                     ${categoryIconHtml(iconStyle, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
@@ -7566,10 +7673,11 @@ async function currentUserId() {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
-                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(isTransferIn ? transferTargetAmount(row) : row.jumlah)}</span>
+                                    <span class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(isTransferIn ? transferTargetAmount(row) : row.jumlah)}</span>
                                     <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
                                     <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
+                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(isTransferIn ? transferTargetAmount(row) : row.jumlah) || 0) / accGrpMaxAmt * 100))}%"></div></div>
                             </div>`;
                     }).join('');
 
@@ -7684,10 +7792,12 @@ async function currentUserId() {
                     const badgeClass = dow === 0 ? 'bg-rose-500 text-white' : (dow === 6 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500');
                     const dayTotal = rows.reduce((sum, row) => sum + txIdrAmount(row), 0);
 
+                    // HUD: bar nominal proporsional terhadap transaksi terbesar hari itu (kategori ini).
+                    const catGrpMaxAmt = Math.max(...rows.map(r => Math.abs(Number(r.jumlah) || 0)), 1);
                     const rowsHtml = rows.map(row => {
                         let style = getCategoryStyle(row.kategori, jenis);
                         return `
-                            <div class="flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
+                            <div class="hud-tx-row flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition">
                                 <div class="flex items-center min-w-0">
                                     ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
@@ -7696,8 +7806,9 @@ async function currentUserId() {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
-                                    <span class="text-xs md:text-sm font-bold ${color} whitespace-nowrap">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</span>
+                                    <span class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</span>
                                 </div>
+                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / catGrpMaxAmt * 100))}%"></div></div>
                             </div>`;
                     }).join('');
 
@@ -7858,6 +7969,15 @@ async function currentUserId() {
         // diparse -- kustomisasi ini (font, gaya tooltip, radius bar, animasi stagger)
         // diam-diam tidak pernah diterapkan lagi. Tipuan lama: beberapa nilai tampak
         // "sudah benar" karena applyTheme() kebetulan men-set ulang Chart.defaults.color.
+        // Plugin glow neon utk chart HUD: bayangan cyan di sekitar dataset. Dipasang
+        // per-chart lewat `plugins: [hudGlowPlugin]` (bukan global) supaya chart lain
+        // tidak ikut terpengaruh.
+        const hudGlowPlugin = {
+            id: 'hudGlow',
+            beforeDatasetsDraw(chart) { const c = chart.ctx; c.save(); c.shadowColor = 'rgba(34,211,238,0.50)'; c.shadowBlur = 14; },
+            afterDatasetsDraw(chart) { chart.ctx.restore(); }
+        };
+
         function applyChartStyleDefaults() {
             if (typeof Chart === 'undefined') return;
             if (typeof ChartDataLabels !== 'undefined') { try { Chart.register(ChartDataLabels); } catch (e) { /* idempoten */ } }

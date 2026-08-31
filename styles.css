@@ -467,3 +467,298 @@ body[data-theme-accent] .bg-\[\#151928\] { background-color: var(--accent-600); 
 @media (prefers-reduced-motion: reduce) {
     .mf-sync-logo, .mf-sync-ring, .mf-sync-ring-rev { animation: none; }
 }
+
+/* ==========================================================================
+   CYBERPUNK HUD LAYER (v27)
+   ==========================================================================
+   Transformasi antarmuka jadi HUD sci-fi: latar midnight + grid blueprint,
+   panel kaca neon (glassmorphism + chamfer + bracket sudut), angka monospace
+   bercahaya, sparkline gelombang neon, radar donat, log transaksi terminal,
+   LED status LIVE/SYNCING, dan micro-detail (dot array, barcode, hash line).
+   Rule ditulis SETELAH semua lapisan lama -> menang di cascade. Efek berat
+   (blink/sweep) dimatikan pada prefers-reduced-motion.
+   ========================================================================== */
+
+:root {
+    --hud-cyan: #22d3ee;
+    --hud-violet: #a78bfa;
+    --hud-magenta: #f472b6;
+    --hud-edge: rgba(34, 211, 238, 0.26);
+    --hud-edge-strong: rgba(34, 211, 238, 0.65);
+    --hud-panel-a: rgba(12, 19, 38, 0.80);
+    --hud-panel-b: rgba(7, 11, 24, 0.74);
+    --hud-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ---------- LATAR: midnight navy + grid blueprint dua skala ---------- */
+html.dark body {
+    background:
+        linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(167, 139, 250, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(167, 139, 250, 0.055) 1px, transparent 1px),
+        radial-gradient(1100px 520px at 82% -8%, rgba(167, 139, 250, 0.13), transparent 60%),
+        radial-gradient(900px 480px at 2% 108%, rgba(34, 211, 238, 0.10), transparent 55%),
+        radial-gradient(700px 400px at 50% 50%, rgba(244, 114, 182, 0.05), transparent 70%),
+        linear-gradient(180deg, #04060e 0%, #070c1c 45%, #04060e 100%);
+    background-size: 140px 140px, 140px 140px, 28px 28px, 28px 28px, auto, auto, auto, auto;
+}
+
+/* ---------- SCANLINE GLOBAL (tabung CRT halus) ---------- */
+#appShell::after, html.dark #loginView::after {
+    content: ""; position: fixed; inset: 0; z-index: 70; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(140, 210, 255, 0.028) 0 1px, transparent 1px 3px);
+}
+
+/* ---------- PANEL KACA BESAR: glass + tepi neon + chamfer + bracket ---------- */
+html.dark .bg-white.rounded-2xl,
+html.dark .bg-white.rounded-3xl,
+html.dark .bg-white.md\:rounded-2xl,
+html.dark .bg-white.md\:rounded-3xl,
+html.dark .bg-\[\#171a25\] {
+    background: linear-gradient(155deg, var(--hud-panel-a), var(--hud-panel-b)) !important;
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    border: 1px solid var(--hud-edge) !important;
+    border-radius: 10px !important;
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+    box-shadow: inset 0 0 34px -20px rgba(34, 211, 238, 0.30), 0 18px 44px -26px rgba(0, 0, 0, 0.85) !important;
+    filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.10));
+    position: relative;
+}
+/* bracket sudut (kiri-atas cyan, kanan-bawah magenta) */
+html.dark .bg-white.rounded-2xl::before,
+html.dark .bg-white.rounded-3xl::before,
+html.dark .bg-white.md\:rounded-2xl::before,
+html.dark .bg-white.md\:rounded-3xl::before,
+html.dark .bg-\[\#171a25\]::before {
+    content: ""; position: absolute; top: 4px; left: 4px; width: 14px; height: 14px;
+    border-top: 2px solid var(--hud-edge-strong); border-left: 2px solid var(--hud-edge-strong);
+    filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.8)); pointer-events: none; z-index: 3;
+}
+html.dark .bg-white.rounded-2xl::after,
+html.dark .bg-white.rounded-3xl::after,
+html.dark .bg-white.md\:rounded-2xl::after,
+html.dark .bg-white.md\:rounded-3xl::after,
+html.dark .bg-\[\#171a25\]::after {
+    content: ""; position: absolute; bottom: 4px; right: 4px; width: 14px; height: 14px;
+    border-bottom: 2px solid rgba(244, 114, 182, 0.55); border-right: 2px solid rgba(244, 114, 182, 0.55);
+    filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.6)); pointer-events: none; z-index: 3;
+}
+
+/* ---------- PANEL KECIL (kartu akun, baris log, chip): kaca tipis ---------- */
+html.dark .bg-white.rounded-xl:not(.md\:rounded-2xl):not(.md\:rounded-3xl) {
+    background: linear-gradient(155deg, rgba(12, 19, 38, 0.66), rgba(7, 11, 24, 0.58)) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-color: rgba(34, 211, 238, 0.14) !important;
+}
+html.dark .bg-slate-50 {
+    background: rgba(10, 16, 32, 0.6) !important;
+}
+
+/* ---------- HERO CARD: hologram saldo ---------- */
+html.dark .bg-\[\#171a25\] {
+    background:
+        radial-gradient(circle at 88% 8%, rgba(34, 211, 238, 0.22), transparent 40%),
+        radial-gradient(circle at 4% 96%, rgba(167, 139, 250, 0.20), transparent 44%),
+        linear-gradient(rgba(125, 211, 252, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(125, 211, 252, 0.05) 1px, transparent 1px),
+        linear-gradient(135deg, #060b1a 0%, #0c1430 55%, #060a18 100%) !important;
+    background-size: auto, auto, 22px 22px, 22px 22px, auto !important;
+    border: 1px solid rgba(34, 211, 238, 0.35) !important;
+    box-shadow: inset 0 0 60px -30px rgba(34, 211, 238, 0.5), 0 0 42px -18px rgba(34, 211, 238, 0.35) !important;
+}
+html.dark .bg-\[\#171a25\] .bg-indigo-500\/20 {
+    background: rgba(34, 211, 238, 0.08) !important;
+    border: 1px solid rgba(34, 211, 238, 0.30) !important;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+/* ---------- LED STATUS (LIVE / SYNCING / OFFLINE) ---------- */
+.hud-status {
+    display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px;
+    border: 1px solid rgba(34, 211, 238, 0.35); background: rgba(4, 10, 20, 0.65);
+    font-family: var(--hud-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.22em;
+    color: #7dd3fc; text-transform: uppercase; white-space: nowrap;
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.hud-led {
+    width: 6px; height: 6px; border-radius: 9999px; flex-shrink: 0;
+    background: var(--hud-cyan); box-shadow: 0 0 8px var(--hud-cyan), 0 0 16px rgba(34, 211, 238, 0.5);
+    animation: hudBlink 2.2s ease-in-out infinite;
+}
+.hud-status[data-state="sync"] { color: #fda4af; border-color: rgba(251, 113, 133, 0.45); }
+.hud-status[data-state="sync"] .hud-led { background: #fb7185; box-shadow: 0 0 8px #fb7185; animation-duration: 0.7s; }
+.hud-status[data-state="error"] { color: #fca5a5; border-color: rgba(248, 113, 113, 0.5); }
+.hud-status[data-state="error"] .hud-led { background: #f87171; box-shadow: 0 0 10px #f87171; animation-duration: 0.45s; }
+@keyframes hudBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.22; } }
+
+/* ---------- ANGKA MONOSPACE BERCAHAYA ---------- */
+html.dark #dash-total, html.dark #dash-in, html.dark #dash-out, html.dark #dash-saldo,
+html.dark #dash-total-aset, html.dark #health-score-number, html.dark #insight-tx-count,
+html.dark #insight-avg-daily, .hud-mono {
+    font-family: var(--hud-mono); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+}
+html.dark #dash-total { color: #e6feff; text-shadow: 0 0 18px rgba(34, 211, 238, 0.7), 0 0 46px rgba(34, 211, 238, 0.35); }
+html.dark #dash-in { text-shadow: 0 0 14px rgba(52, 211, 153, 0.6); }
+html.dark #dash-out { text-shadow: 0 0 14px rgba(251, 113, 133, 0.6); }
+html.dark #dash-saldo { text-shadow: 0 0 14px rgba(56, 189, 248, 0.6); }
+html.dark #dash-total-aset { color: #d9f7ff; text-shadow: 0 0 16px rgba(34, 211, 238, 0.55); }
+html.dark #health-score-number { text-shadow: 0 0 18px rgba(167, 139, 250, 0.6); }
+html.dark #insight-tx-count, html.dark #insight-avg-daily { text-shadow: 0 0 10px rgba(148, 163, 255, 0.45); }
+.hud-coord { font-size: 9px; letter-spacing: 0.18em; color: rgba(125, 211, 252, 0.55); }
+
+/* ---------- SPARKLINE (gelombang neon di kartu hero) ---------- */
+.hud-spark { margin-top: 7px; line-height: 0; opacity: 0.95; }
+.hud-spark svg { display: block; max-width: 100%; }
+
+/* ---------- LOG TRANSAKSI: terminal data ---------- */
+html.dark #recent-transactions-list > div {
+    background: linear-gradient(150deg, rgba(12, 19, 38, 0.74), rgba(7, 11, 24, 0.66)) !important;
+    border: 1px solid rgba(34, 211, 238, 0.16) !important;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    position: relative; overflow: hidden;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+html.dark #recent-transactions-list > div::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--hud-cyan), var(--hud-violet), var(--hud-magenta));
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.65);
+}
+.hud-tx-id { font-size: 8px; letter-spacing: 0.2em; color: rgba(125, 211, 252, 0.55); }
+.hud-bar { position: relative; height: 3px; width: 100%; background: rgba(148, 163, 255, 0.10); overflow: hidden; }
+.hud-bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; min-width: 2px;
+    background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6);
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+html.dark #table-body .stagger-row { position: relative; }
+html.dark #table-body .stagger-row:hover { background: rgba(34, 211, 238, 0.05); }
+.hud-rowbar { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; pointer-events: none; }
+
+/* ---------- RADAR / REAKTOR DONAT ---------- */
+.hud-radar { position: absolute; inset: -7px; pointer-events: none; z-index: 1; }
+.hud-radar-sweep {
+    position: absolute; inset: 0; border-radius: 9999px;
+    background: conic-gradient(from 0deg, rgba(34, 211, 238, 0) 0deg, rgba(34, 211, 238, 0) 240deg, rgba(34, 211, 238, 0.25) 325deg, rgba(34, 211, 238, 0.9) 358deg, rgba(34, 211, 238, 0) 360deg);
+    -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%, #000 100%);
+    mask: radial-gradient(circle, transparent 60%, #000 62%, #000 100%);
+    animation: hudSpin 5.5s linear infinite;
+}
+.hud-radar-ring {
+    position: absolute; inset: 1px; border-radius: 9999px;
+    border: 1px dashed rgba(34, 211, 238, 0.40);
+    animation: hudSpin 24s linear infinite reverse;
+}
+.hud-radar-ticks {
+    position: absolute; inset: -4px; border-radius: 9999px; opacity: 0.75;
+    background: repeating-conic-gradient(from 0deg, rgba(125, 211, 252, 0.55) 0deg 0.8deg, rgba(0, 0, 0, 0) 0.8deg 9deg);
+    -webkit-mask: radial-gradient(circle, transparent 90%, #000 91%, #000 100%);
+    mask: radial-gradient(circle, transparent 90%, #000 91%, #000 100%);
+}
+.hud-radar-pct {
+    position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: var(--hud-mono);
+}
+.hud-radar-pct b { font-size: clamp(12px, 3.4vw, 16px); color: #e6feff; text-shadow: 0 0 12px rgba(34, 211, 238, 0.9); line-height: 1.1; }
+.hud-radar-pct span { font-size: 7px; letter-spacing: 0.22em; color: rgba(125, 211, 252, 0.75); margin-top: 1px; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes hudSpin { to { transform: rotate(360deg); } }
+
+/* ---------- MICRO-DETAIL: dots array, barcode, hash line ---------- */
+.hud-dots { background-image: radial-gradient(rgba(34, 211, 238, 0.55) 1px, transparent 1px); background-size: 7px 7px; }
+.hud-barcode {
+    background: repeating-linear-gradient(90deg,
+        rgba(125, 211, 252, 0.85) 0 1px, transparent 1px 3px,
+        rgba(244, 114, 182, 0.55) 3px 4px, transparent 4px 7px,
+        rgba(125, 211, 252, 0.4) 7px 9px, transparent 9px 11px);
+    opacity: 0.85;
+}
+.hud-hash { height: 1px; background: repeating-linear-gradient(90deg, rgba(148, 163, 255, 0.4) 0 8px, transparent 8px 14px); }
+
+/* ---------- TOMBOL: chamfered + tepi neon ---------- */
+html.dark .bg-\[\#151928\] {
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(167, 139, 250, 0.16)) !important;
+    border: 1px solid rgba(34, 211, 238, 0.45);
+    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    box-shadow: inset 0 0 18px -8px rgba(34, 211, 238, 0.5);
+    transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+html.dark button.bg-\[\#151928\]:hover {
+    border-color: rgba(34, 211, 238, 0.9);
+    box-shadow: inset 0 0 22px -6px rgba(34, 211, 238, 0.8), 0 0 24px -6px rgba(34, 211, 238, 0.55);
+}
+html.dark #fabDesktopCatat, html.dark #fabMobileCatat {
+    border-color: rgba(34, 211, 238, 0.7) !important;
+    box-shadow: inset 0 0 20px -8px rgba(34, 211, 238, 0.7), 0 0 26px -8px rgba(34, 211, 238, 0.6) !important;
+}
+html.dark button.bg-blue-50, html.dark .bg-indigo-50.hover\:bg-indigo-100 {
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+
+/* ---------- SIDEBAR: rel kontrol modular ---------- */
+html.dark #sidebar { border-right: 1px solid rgba(34, 211, 238, 0.22) !important; }
+html.dark #sidebar .menu-active {
+    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    text-shadow: 0 0 12px rgba(34, 211, 238, 0.65);
+}
+html.dark #sidebar .menu-active i { filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.8)); }
+html.dark #sidebar .menu-inactive:hover i { filter: drop-shadow(0 0 5px rgba(167, 139, 250, 0.7)); }
+html.dark #sidebar h1 { letter-spacing: 0.14em; text-shadow: 0 0 16px rgba(34, 211, 238, 0.5); }
+
+/* ---------- TOPBAR & NAV BAWAH MOBILE ---------- */
+html.dark .bg-white.border-b { 
+    background: rgba(6, 10, 22, 0.85) !important;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(34, 211, 238, 0.22) !important;
+}
+html.dark .liquid-glass-nav {
+    border: 1px solid rgba(34, 211, 238, 0.30);
+    box-shadow: 0 0 28px -10px rgba(34, 211, 238, 0.45), inset 0 0 24px -16px rgba(34, 211, 238, 0.4);
+}
+
+/* ---------- SKOR KESEHATAN: bar neon ---------- */
+html.dark #health-score-bar {
+    background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6) !important;
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.55);
+}
+
+/* ---------- LOGIN: gerbang HUD ---------- */
+html.dark #loginView, html.dark #authGate {
+    background:
+        linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+        radial-gradient(900px 500px at 80% 0%, rgba(167, 139, 250, 0.14), transparent 60%),
+        radial-gradient(800px 500px at 10% 100%, rgba(34, 211, 238, 0.12), transparent 55%),
+        #04060e !important;
+    background-size: 140px 140px, 140px 140px, auto, auto, auto !important;
+}
+
+/* ---------- SENTUHAN HALUS ---------- */
+html.dark ::selection { background: rgba(34, 211, 238, 0.32); color: #f0fdff; }
+html.dark .content-area::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #164e63, #22d3ee, #a78bfa) !important;
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+}
+html.dark .chart-card:hover, html.dark .account-card:hover {
+    border-color: rgba(34, 211, 238, 0.75) !important;
+    box-shadow: inset 0 0 34px -20px rgba(34, 211, 238, 0.4), 0 0 30px -10px rgba(34, 211, 238, 0.4) !important;
+}
+
+/* ---------- AKSESIBILITAS: hormati prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .hud-led, .hud-radar-sweep, .hud-radar-ring { animation: none; }
+    html.dark .bg-white.rounded-2xl, html.dark .bg-white.rounded-3xl,
+    html.dark .bg-white.md\:rounded-2xl, html.dark .bg-white.md\:rounded-3xl,
+    html.dark .bg-\[\#171a25\] { filter: none; }
+}
+
+/* Baris log transaksi di view detail (akun/kategori) butuh posisi relatif utk bar bawah. */
+.hud-tx-row { position: relative; }
+html.dark .hud-tx-row:hover { background: rgba(34, 211, 238, 0.05); }
+
+/* Chip status di header dashboard: desktop saja (header mobile sudah punya di topbar). */
+.hud-status-desk { display: none; }
+@media (min-width: 768px) { .hud-status-desk { display: inline-flex; } }
