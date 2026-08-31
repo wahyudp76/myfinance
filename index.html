@@ -325,11 +325,12 @@
 
     <!-- Loading Overlay -->
     <div id="loading" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] hidden items-center justify-center flex-col transition-all duration-300">
-        <div class="relative flex justify-center items-center">
-            <div class="absolute animate-ping w-28 h-28 rounded-full bg-indigo-400 opacity-50"></div>
+        <div class="relative flex justify-center items-center w-44 h-44">
+            <div class="absolute animate-ping w-36 h-36 rounded-full bg-indigo-400 opacity-30"></div>
+            <svg class="mf-sync-ring absolute inset-0 w-full h-full" viewBox="0 0 176 176" aria-hidden="true" focusable="false"><circle cx="88" cy="88" r="82" fill="none" stroke="#6366f1" stroke-width="4" stroke-dasharray="42 28" stroke-linecap="round"/></svg>
+            <svg class="mf-sync-ring-rev absolute inset-0 w-full h-full" viewBox="0 0 176 176" aria-hidden="true" focusable="false"><circle cx="88" cy="88" r="70" fill="none" stroke="#a5b4fc" stroke-width="2.5" stroke-dasharray="6 22" stroke-linecap="round"/></svg>
             <div class="relative bg-white rounded-full w-32 h-32 shadow-2xl flex items-center justify-center z-10 border-4 border-indigo-50">
-                <svg class="mf-sync-ring absolute inset-0 w-full h-full p-1" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="46" fill="none" stroke="#6366f1" stroke-width="3" stroke-dasharray="14 10" stroke-linecap="round"/></svg>
-                <svg class="mf-sync-logo w-14 h-14" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><defs><linearGradient id="lgO-bodyGrad" x1="20%" y1="0%" x2="75%" y2="100%"><stop offset="0%" stop-color="#8d8af3"/><stop offset="45%" stop-color="#6c4ee4"/><stop offset="100%" stop-color="#6a3de0"/></linearGradient><linearGradient id="lgO-coinGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f9d68a"/><stop offset="100%" stop-color="#e8a93a"/></linearGradient><clipPath id="lgO-bodyClip"><rect x="0" y="0" width="512" height="512" rx="112"/></clipPath></defs><rect x="0" y="0" width="512" height="512" rx="112" fill="url(#lgO-bodyGrad)"/><g clip-path="url(#lgO-bodyClip)"><path d="M0,120 Q256,168 512,120 V0 H0 Z" fill="#ffffff" opacity="0.15"/></g><circle cx="196" cy="292" r="34" fill="#211c3a"/><circle cx="316" cy="292" r="34" fill="#211c3a"/><circle cx="184" cy="280" r="9" fill="#ffffff"/><circle cx="304" cy="280" r="9" fill="#ffffff"/><circle cx="138" cy="316" r="24" fill="#b06fce" opacity="0.85"/><circle cx="374" cy="316" r="24" fill="#b06fce" opacity="0.85"/><path d="M182 340 Q256 384 330 340" stroke="#211c3a" stroke-width="16" stroke-linecap="round" fill="none"/><circle cx="382" cy="118" r="60" fill="#ffffff"/><circle cx="382" cy="118" r="48" fill="url(#lgO-coinGrad)"/><text x="382" y="134" font-family="Arial, sans-serif" font-size="40" font-weight="800" fill="#8a5a12" text-anchor="middle">Rp</text></svg>
+                <svg class="mf-sync-logo w-16 h-16" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><defs><linearGradient id="lgO-bodyGrad" x1="20%" y1="0%" x2="75%" y2="100%"><stop offset="0%" stop-color="#8d8af3"/><stop offset="45%" stop-color="#6c4ee4"/><stop offset="100%" stop-color="#6a3de0"/></linearGradient><linearGradient id="lgO-coinGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f9d68a"/><stop offset="100%" stop-color="#e8a93a"/></linearGradient><clipPath id="lgO-bodyClip"><rect x="0" y="0" width="512" height="512" rx="112"/></clipPath></defs><rect x="0" y="0" width="512" height="512" rx="112" fill="url(#lgO-bodyGrad)"/><g clip-path="url(#lgO-bodyClip)"><path d="M0,120 Q256,168 512,120 V0 H0 Z" fill="#ffffff" opacity="0.15"/></g><circle cx="196" cy="292" r="34" fill="#211c3a"/><circle cx="316" cy="292" r="34" fill="#211c3a"/><circle cx="184" cy="280" r="9" fill="#ffffff"/><circle cx="304" cy="280" r="9" fill="#ffffff"/><circle cx="138" cy="316" r="24" fill="#b06fce" opacity="0.85"/><circle cx="374" cy="316" r="24" fill="#b06fce" opacity="0.85"/><path d="M182 340 Q256 384 330 340" stroke="#211c3a" stroke-width="16" stroke-linecap="round" fill="none"/><circle cx="382" cy="118" r="60" fill="#ffffff"/><circle cx="382" cy="118" r="48" fill="url(#lgO-coinGrad)"/><text x="382" y="134" font-family="Arial, sans-serif" font-size="40" font-weight="800" fill="#8a5a12" text-anchor="middle">Rp</text></svg>
             </div>
         </div>
         <p class="mt-6 text-white font-bold tracking-widest text-sm uppercase animate-pulse">Menyinkronkan Data...</p>
@@ -2834,11 +2835,14 @@ async function currentUserId() {
             const dashVisible = !!(dash && dash.classList.contains('block'));
             if (active) {
                 document.body.dataset.syncLoading = '1';
+                // Overlay logo berputar di TENGAH kini tampil utk SEMUA tab (revisi
+                // slice sync-logo: permintaan pemilik -- animasi loading terpusat &
+                // jelas terlihat). Skeleton Dashboard tetap diisi di belakang overlay
+                // (lapisan struktural, siap dipakai bila overlay tidak diinginkan).
+                showLoading(true);
                 if (skel && dashVisible) {
                     if (!skel.dataset.ready) { skel.innerHTML = servicesModule.dashboardSkeletonHtml(); skel.dataset.ready = '1'; }
                     skel.classList.remove('hidden');
-                } else {
-                    showLoading(true);
                 }
             } else {
                 delete document.body.dataset.syncLoading;
