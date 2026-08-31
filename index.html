@@ -130,6 +130,7 @@
         import { renderAssetView as renderAssetViewUI } from './src/ui/assets.js';
         import { renderBudgetView as renderBudgetViewUI, renderBudgetModalList as renderBudgetModalListUI } from './src/ui/budgets.js';
         import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI, renderCategorySubProportion } from './src/ui/categories.js';
+        import { pickChartPalette, chartPaletteLabel } from './src/domain/chart-palette.js';
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
         import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
@@ -191,6 +192,7 @@
             // renderCategoryDetailMonthDataUI: idem, fungsi UI/render bagian
             // bulan-spesifik halaman Kategori Detail (src/ui/categories.js).
             renderCategoryDetailMonthDataUI, renderCategorySubProportion,
+            pickChartPalette, chartPaletteLabel,
             aggregateSubCategoryShares,
             // updateCalendarSummaryUI/renderCalendarUI/openCalendarDetailUI: idem,
             // fungsi UI/render tab Kalender & modal detail tanggal (src/ui/calendar.js).
@@ -1159,6 +1161,16 @@
                         <button id="theme-btn-system" onclick="setThemePref('system')" aria-label="Ikuti Sistem" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
                             <i class="fas fa-desktop text-slate-500"></i>
                             <span class="text-[10px] font-semibold text-slate-600">Sistem</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <button id="chart-palette-btn-default" onclick="setChartPalette('default')" aria-label="Palet Grafik Standar" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full" style="background:#6366f1"></span><span class="w-2 h-2 rounded-full" style="background:#06b6d4"></span><span class="w-2 h-2 rounded-full" style="background:#10b981"></span><span class="w-2 h-2 rounded-full" style="background:#f59e0b"></span></span>
+                            <span class="text-[10px] font-semibold text-slate-600">Standar</span>
+                        </button>
+                        <button id="chart-palette-btn-colorblind" onclick="setChartPalette('colorblind')" aria-label="Palet Grafik Ramah Buta Warna" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full" style="background:#0173B2"></span><span class="w-2 h-2 rounded-full" style="background:#DE8F05"></span><span class="w-2 h-2 rounded-full" style="background:#029E73"></span><span class="w-2 h-2 rounded-full" style="background:#D55E00"></span></span>
+                            <span class="text-[10px] font-semibold text-slate-600">Ramah Buta Warna</span>
                         </button>
                     </div>
                     <!-- Warna Aksen (fitur tema warna) -- swatch dirender oleh renderThemePicker() -->
@@ -2662,6 +2674,9 @@ async function currentUserId() {
             // null = belum pernah digenerate; { insights/summary, timestamp } = hasil terakhir.
             if (appSettings.ai_insight_cache === undefined) appSettings.ai_insight_cache = null;
             if (appSettings.monthly_summary_cache === undefined) appSettings.monthly_summary_cache = null;
+            // Tier-3 #11: palet grafik proporsi -- 'default' | 'colorblind' (Okabe-Ito)
+            if (typeof appSettings.chartPalette !== 'string' || !['default', 'colorblind'].includes(appSettings.chartPalette)) appSettings.chartPalette = 'default';
+            updateChartPaletteButtonsUI(appSettings.chartPalette);
         }
         ensureSettingsShape();
 
@@ -4165,6 +4180,27 @@ async function currentUserId() {
                 const btn = document.getElementById('theme-btn-' + p);
                 if (btn) btn.classList.toggle('theme-btn-active', p === pref);
             });
+        }
+
+        // Tier-3 #11: palet grafik proporsi (Standar | Ramah Buta Warna / Okabe-Ito).
+        function updateChartPaletteButtonsUI(pref) {
+            ['default', 'colorblind'].forEach(p => {
+                const btn = document.getElementById('chart-palette-btn-' + p);
+                if (btn) btn.classList.toggle('theme-btn-active', p === pref);
+            });
+        }
+
+        function setChartPalette(pref) {
+            appSettings.chartPalette = (pref === 'colorblind') ? 'colorblind' : 'default';
+            updateChartPaletteButtonsUI(appSettings.chartPalette);
+            persistSettings();
+            // Donat proporsi ikut di-render ulang bila sedang terlihat (rerenderVisibleCharts
+            // tidak mencakup view kategori-detail).
+            if (document.getElementById('view-kategori-detail') && !document.getElementById('view-kategori-detail').classList.contains('hidden')) {
+                renderCategoryDetailMonthData();
+            }
+            rerenderVisibleCharts();
+            showInfoToast('Palet grafik: ' + servicesModule.chartPaletteLabel(appSettings.chartPalette));
         }
 
         function rerenderVisibleCharts() {
@@ -7699,6 +7735,7 @@ async function currentUserId() {
                 categoryName: document.getElementById('detail-category-name').innerText,
                 specificData: categoryDetailSpecificData,
                 aggregateSubCategoryShares: servicesModule.aggregateSubCategoryShares,
+                chartPalette: servicesModule.pickChartPalette(appSettings.chartPalette), // Tier-3 #11: palet pilihan pengguna
                 parseTgl, txIdrAmount, formatRp, escapeHtml, chartBorderColor,
                 Chart, charts,
                 requestAnimationFrame,
@@ -8049,6 +8086,7 @@ async function currentUserId() {
             setupResponsiveRerender();
             updateOfflineBanner();
             updateThemeButtonsUI(getStoredThemePref());
+            updateChartPaletteButtonsUI(appSettings.chartPalette || 'default');
             updateNominalToggleUI();
             setupPullToRefresh();
             setupScrollToTopButton();

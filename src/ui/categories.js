@@ -125,15 +125,16 @@ export function renderCategoryDetailMonthData({
   });
 }
 
+import { pickChartPalette } from "../domain/chart-palette.js";
+
 /**
- * Palet warna proporsi sub-kategori (estetik futuristik, siklis).
+ * Palet warna proporsi sub-kategori -- sumber kebenaran kini di
+ * domain/chart-palette.js (Tier-3 #11); ekspor ini dipertahankan sbg
+ * fallback bawaan (kompatibilitas pemanggil lama + unit test).
  * Urutan: indigo -> violet -> cyan -> fuchsia -> emerald -> amber ->
  * rose -> blue -> teal -> slate.
  */
-export const SUB_SHARE_COLORS = [
-  "#6366f1", "#8b5cf6", "#06b6d4", "#d946ef", "#10b981",
-  "#f59e0b", "#fb7185", "#3b82f6", "#14b8a6", "#94a3b8",
-];
+export const SUB_SHARE_COLORS = pickChartPalette("default");
 
 /**
  * Render kartu "Proporsi Sub-Kategori" (slice proporsi sub): donat Chart.js
@@ -195,6 +196,7 @@ export function buildSubTipHtml(it, { formatRp, fmtPct, color, escapeHtml }) {
 }
 
 export function renderCategorySubProportion({
+  chartPalette = null,
   document, year, month, jenis, categoryName, specificData,
   aggregateSubCategoryShares, parseTgl, txIdrAmount,
   formatRp, escapeHtml, chartBorderColor, Chart, charts, requestAnimationFrame,
@@ -219,7 +221,10 @@ export function renderCategorySubProportion({
     return;
   }
 
-  const colors = items.map((_, i) => SUB_SHARE_COLORS[i % SUB_SHARE_COLORS.length]);
+  // Tier-3 #11: palet bisa dioverride pemanggil (pilihan pengguna di Pengaturan);
+  // fallback tetap palet lama demi kompatibilitas.
+  const palette = (Array.isArray(chartPalette) && chartPalette.length) ? chartPalette : SUB_SHARE_COLORS;
+  const colors = items.map((_, i) => palette[i % palette.length]);
   const labelOf = (it) =>
     categoryName && it.name === categoryName ? `${it.name} (langsung)` : it.name;
 
