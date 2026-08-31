@@ -80,6 +80,25 @@ jobs:
           npm run build:css
           git diff --exit-code -- css/tailwind.css
 
+  lighthouse:
+    name: Lighthouse (pagar performa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium (untuk Lighthouse)
+        run: npx playwright install --with-deps chromium
+      - name: Jalankan Lighthouse & cek ambang
+        run: node scripts/lighthouse/run.mjs
+
   parity:
     name: Parity + headless (live Supabase)
     runs-on: ubuntu-latest
