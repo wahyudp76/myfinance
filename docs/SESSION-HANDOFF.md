@@ -7,7 +7,7 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v27` (sinkron lokal). Suite: **444 unit + 1 smoke, semua hijau**.
+- Service worker live: `myfinance-v28` (sinkron lokal). Suite: **444 unit + 1 smoke, semua hijau**.
 - Semua tier improvement selesai (Tier 1–3), seluruh temuan audit (F1–F4) CLOSED.
 - Worktree bersih; tidak ada pekerjaan menggantung.
 
@@ -34,10 +34,11 @@
   `src/services/supabase/*` (adapter; supabase-js dimuat dari **esm.sh**), `scripts/` (lighthouse, rls-audit,
   `verify-hud.mjs` = verify browser nyata via stub Supabase di Playwright, TANPA service key),
   `sql/` (migrasi & referensi), `tests/unit/` (node:test).
-- **Tema**: "Cyberpunk HUD" (v27, default gelap utk semua pengguna; hanya `pref='light'` eksplisit
+- **Tema**: "Cyberpunk HUD" (v27 desktop, v28 paritas mobile/Android; default gelap utk semua pengguna; hanya `pref='light'` eksplisit
   yang keluar). Lapisan CSS di AKHIR `styles.css` ("CYBERPUNK HUD LAYER"): grid blueprint, panel kaca
   chamfer + bracket sudut, LED `LIVE/SYNCING/OFFLINE` (`setHudStatus()`), angka monospace glow,
-  radar donat (`.hud-radar*`), bar nominal log transaksi. Kontrak visual lama tetap: tooltip #000,
+  radar donat (`.hud-radar*`), bar nominal log transaksi; lapisan "MOBILE HUD PARITY" (drawer/
+  bottom-sheet kaca neon, FAB chamfered, `color-scheme: dark` utk kontrol native). Kontrak visual lama tetap: tooltip #000,
   palet colorblind, Ctrl+K.
 - **Supabase**: project `uxfngmxghupdlwoeoxgh`; 10 tabel, RLS semua aktif; **event trigger `ensure_rls`
   otomatis meng-ENABLE RLS tabel baru** (JANGAN di-drop — lihat `sql/event_trigger_ensure_rls.sql`);
