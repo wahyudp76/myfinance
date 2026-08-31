@@ -138,3 +138,39 @@ menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
   Eksekusi anon tetap tertolak (42501) sehingga tidak ada risiko sementara.
   Tindak lanjut: baca WARNING di output SQL Editor (atau query inspeksi di
   §3 F1), lalu drop manual bila definisinya memang helper yang aman.
+
+---
+
+## Addendum — audit & pembersihan live (sesi 2026-08-31, pasca-migrasi Tailwind)
+
+Lingkup: inventaris penuh memakai service key (read-only), kecuali satu
+tindakan tulis yang tercantat di bawah.
+
+**Edge functions (live):** tepat 5 — `analyze-finance`, `get-exchange-rate`,
+`refresh-asset-price`, `scan-receipt`, `whatsapp-webhook`; semuanya terpakai
+(4 dipanggil app via functions.invoke, 1 webhook eksternal). `smooth-processor`
+**sudah tidak ada di live** (404) — source-nya dihapus dari repo di `d47d87a`.
+
+**Storage:** 0 bucket (memang by-design; ikon/foto = base64 di kolom jsonb).
+
+**Tabel:** tepat 10, sesuai dokumentasi; totals global identik dengan audit
+awal bulan ini (105/33/3/4/17/0/2/0/12/0) — nol junk baru.
+
+**Auth users — DIBERSIHKAN:** 3 sisa user audit RLS (`skel-*@audit.local`,
+`repro-theme-mtg5og05@`, `repro-theme-mtg5nyqd@`, dibuat 2026-08-30)
+terverifikasi **nol baris di seluruh tabel data** sebelum dihapus lewat
+Auth Admin API (200×3; totals tabel terbukti tak berubah setelahnya).
+Cleanup yang bocor dari audit awal kini tuntas. Tersisa 5 user:
+1 akun aktif pemilik data utama (99/27/15/2 baris), 1 akun lama
+near-empty (1 settings), 1 akun uji awal ber-data kecil (10 baris),
+1 akun berisi 5 transaksi, 1 akun kosong tanpa login — keempat yang
+terakhir menunggu keputusan pemilik akun, tidak disentuh.
+
+**TEMUAN TERBUKA — migrasi `sql/migration_rls_hardening_2026-08-31.sql`
+BELUM dijalankan di live DB:** `rls_auto_enable` masih muncul di spec
+PostgREST (F1 belum didrop), dan konsekuensinya F2 (default
+`auth.uid()` di `whatsapp_link_codes.user_id`) + F3 (revoke execute anon
+di 3 RPC invoker) juga belum diterapkan. DDL tidak dapat dijalankan
+lewat REST/service key — jalankan file migrasi tersebut sekali lewat
+Dashboard → SQL Editor, lalu verifikasi dengan
+`scripts/rls-audit/rls-audit2.mjs`.
