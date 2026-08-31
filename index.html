@@ -8111,6 +8111,12 @@ async function currentUserId() {
         // berkali-kali kalau user login/logout beberapa kali dalam satu sesi tab yang sama.
         function initStaticUIListeners() {
             document.querySelectorAll('[data-logout-btn]').forEach(el => {
+                // Tier-3 #10: saat keluar, minta service worker membuang cache data
+                // (GET /rest/v1) supaya sesi berikutnya di perangkat ini tidak bisa
+                // membaca sisa data akun lama.
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'MYFINANCE_CLEAR_DATA_CACHE' });
+                }
                 el.addEventListener('click', () => auth.signOut());
             });
         }

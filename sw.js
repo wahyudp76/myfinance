@@ -22,7 +22,10 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v17';
+const CACHE_VERSION = 'myfinance-v19';
+// Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
+// tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
+const DATA_CACHE = 'myfinance-data-v1';
 
 // App shell + file vendor CDN yang dipakai index.html -- disimpan ke cache saat
 // service worker pertama kali terpasang, supaya kunjungan berikutnya (termasuk saat
@@ -72,6 +75,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Logout (atau ganti akun): buang seluruh cache data user supaya tidak pernah
+// bisa dibaca oleh sesi berikutnya di perangkat yang sama.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'MYFINANCE_CLEAR_DATA_CACHE') {
+    caches.delete(DATA_CACHE);
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return; // POST/PUT/dst (mis. ke Supabase) dibiarkan lewat apa adanya
@@ -85,8 +96,30 @@ self.addEventListener('fetch', (event) => {
   // sekali, jadi paling aman dibiarkan lewat apa adanya tanpa campur tangan service worker.
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  // Jangan PERNAH campur tangan panggilan ke Supabase (data selalu harus fresh/real-time,
-  // dan sebagian bisa berupa auth/session yg tidak boleh ke-cache).
+  // ============ DATA OFFLINE (Tier-3 #10): GET /rest/v1/* Supabase ============
+  // NETWORK-FIRST + fallback cache saat offline (bukan SWR buta: angka keuangan
+  // TIDAK boleh basi saat online). Cache key di-scope PER-TOKEN (segmen akhir header
+  // Authorization = sub user) supaya 2 akun di perangkat sama TIDAK pernah berbagi
+  // data; logout membuang seluruh cache data (pesan MYFINANCE_CLEAR_DATA_CACHE).
+  if (url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/rest/v1/') && req.method === 'GET') {
+    const auth = req.headers.get('authorization') || '';
+    if (auth) {
+      const scope = encodeURIComponent(auth.slice(-24));
+      const key = new Request(url.pathname + url.search + (url.search ? '&' : '?') + 'u=' + scope, { method: 'GET' });
+      event.respondWith(
+        fetch(req).then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(DATA_CACHE).then((cache) => cache.put(key, copy));
+          }
+          return res;
+        }).catch(() => caches.match(key).then((cached) => cached || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' } })))
+      );
+      return;
+    }
+  }
+
+  // Panggilan Supabase LAINNYA (auth/session/rpc) jangan pernah di-cache.
   if (url.hostname.endsWith('.supabase.co')) return;
 
   // Dokumen HTML utama (navigasi) -- NETWORK-FIRST. Ini kunci supaya update selalu
