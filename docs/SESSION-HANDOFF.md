@@ -94,6 +94,8 @@
 
 `4470191` tooltip #000 → `4587467` Lighthouse CI → `00268bb` onboarding → `8ac3e9d` palette Ctrl+K →
 `e7598ed` data offline SW → `b220022` palet colorblind → `d2d33c9` dark menyeluruh + tooltip konsisten →
-`c7f849c` meta CSP + esm.sh fix → `583b2bc` penutupan F1 (event trigger auto-RLS).
+`c7f849c` meta CSP + esm.sh fix → `583b2bc` penutupan F1 (event trigger auto-RLS) →
+`336d236` tema Neon Cyber → `a06579e` UI Cyberpunk HUD v27 (grid blueprint, panel kaca chamfer, radar
+donat, sparkline neon, LED status, log terminal; suite 444+1; verify-hud.mjs 11 cek hijau).
 
 Audit lengkap: `docs/AUDIT_REPORT_2026-08.md` + `docs/rls-grants-audit-2026-08-31.md`.
