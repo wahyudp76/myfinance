@@ -80,6 +80,8 @@
  * @param {Function} ctx.Chart - kelas Chart.js (global browser, di-inject supaya testable).
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan).
  */
+import { hudLineDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud.js";
+
 export function renderAccountDetailCharts({
   document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
   buildAccountBalanceSeries, computeAccountChartSeries, isChartNarrow, selectSparseLabelIndices,
@@ -109,8 +111,8 @@ export function renderAccountDetailCharts({
         labels: balanceLabels,
         datasets: [{
           label: "Saldo", data: balanceChartData,
-          borderColor: "#3b82f6", backgroundColor: "rgba(59, 130, 246, 0.08)",
-          borderWidth: 3, fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: "#3b82f6"
+          // DNA grafik "Tren Saldo Kas & Rekening" (src/domain/chart-hud.js).
+          ...hudLineDataset({ from: "#3b82f6", to: "#22d3ee", fill: "#3b82f6", points: balanceLabels.length })
         }]
       },
       options: {
@@ -119,11 +121,9 @@ export function renderAccountDetailCharts({
           legend: { display: false }, datalabels: { display: false },
           tooltip: { callbacks: { label: (ctx) => "Saldo: Rp " + formatRp(ctx.raw) } }
         },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 9, weight: "bold" }, maxTicksLimit: 8, autoSkip: true } },
-          y: { grid: { color: chartGridColor(), drawBorder: false }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-        }
-      }
+        scales: hudLineScales(balanceLabels, formatShortVal, { yGrid: chartGridColor() })
+      },
+      plugins: [hudGlowPlugin]
     });
   }
 

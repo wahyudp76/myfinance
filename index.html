@@ -148,6 +148,7 @@
         import { renderCategoryDetailMonthData as renderCategoryDetailMonthDataUI, renderCategorySubProportion } from './src/ui/categories.js';
         import { pickChartPalette, chartPaletteLabel } from './src/domain/chart-palette.js';
         import { buildDailyFlow, sparklineSvg } from './src/domain/sparkline.js';
+        import * as chartHud from './src/domain/chart-hud.js';
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
         import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
@@ -171,6 +172,7 @@
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
             buildDailyFlow, sparklineSvg, // sparkline HUD (src/domain/sparkline.js) -- domain murni
+            chartHud, // DNA grafik garis HUD (src/domain/chart-hud.js)
             // aggregateDashboardData: domain logic murni juga (src/domain/dashboard.js), sama
             // seperti 3 fungsi di atas -- ditumpangkan di bag yang sama dengan alasan yang sama.
             aggregateDashboardData,
@@ -6080,7 +6082,7 @@ async function currentUserId() {
             const labelIndicesToShow = chartIsNarrow ? servicesModule.selectSparseLabelIndices(chartNet, 5) : null;
 
             charts.txTrend = new Chart(document.getElementById('txTrendChart').getContext('2d'), {
-                plugins: [hudGlowPlugin],
+                plugins: [servicesModule.chartHud.hudGlowPlugin],
                 type: 'bar',
                 data: { labels: chartLabels, datasets: [{
                     label: 'Arus Kas Bersih',
@@ -6203,7 +6205,7 @@ async function currentUserId() {
             if (document.getElementById('cashflow7Chart')) {
                 let labels7 = last7Order.map(k => last7Map[k].dateObj.toLocaleDateString('id-ID', { weekday: 'short' }));
                 charts.cashflow7 = new Chart(document.getElementById('cashflow7Chart').getContext('2d'), {
-                    plugins: [hudGlowPlugin],
+                    plugins: [servicesModule.chartHud.hudGlowPlugin],
                     type: 'bar',
                     data: {
                         labels: labels7,
@@ -6702,7 +6704,7 @@ async function currentUserId() {
                             y: { grid: { color: chartGridColor() }, ticks: { font: { size: 9 }, callback: (v) => 'Y·' + formatShortVal(v) } }
                         }
                     },
-                    plugins: [hudGlowPlugin]
+                    plugins: [servicesModule.chartHud.hudGlowPlugin]
                 });
             }
         }
@@ -7256,8 +7258,7 @@ async function currentUserId() {
                     labels: history.map(h => new Date(h.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })),
                     datasets: [{
                         data: history.map(h => h.nilai),
-                        borderColor: lineColor, backgroundColor: lineColor + '1a', fill: true,
-                        tension: 0.3, pointRadius: history.length > 1 ? 3 : 5, pointBackgroundColor: lineColor, pointBorderColor: chartBorderColor(), pointBorderWidth: 2, borderWidth: 2.5
+                        ...servicesModule.chartHud.hudLineDataset({ from: lineColor, to: isUp ? '#a78bfa' : '#fb7185', fill: lineColor, points: history.length })
                     }]
                 },
                 options: {
@@ -7266,11 +7267,9 @@ async function currentUserId() {
                         legend: { display: false }, datalabels: { display: false },
                         tooltip: { callbacks: { label: (ctx) => 'Rp ' + formatRp(ctx.parsed.y) } }
                     },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' } } },
-                        y: { grid: { color: chartGridColor() }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-                    }
-                }
+                    scales: servicesModule.chartHud.hudLineScales(history.map(h => new Date(h.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })), formatShortVal, { yGrid: chartGridColor() })
+                },
+                plugins: [servicesModule.chartHud.hudGlowPlugin]
             });
         }
 
@@ -7456,8 +7455,9 @@ async function currentUserId() {
             if(charts.daily) charts.daily.destroy();
             charts.daily = new Chart(document.getElementById('dailyChart').getContext('2d'), { 
                 type: 'line', 
-                data: { labels: dailyLabels, datasets: [{ label: 'Pemasukan', data: dailyLabels.map(d=>dailyMap[d].in), borderColor: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 3, fill: true, tension: 0.4, pointRadius: 2 }, { label: 'Pengeluaran', data: dailyLabels.map(d=>dailyMap[d].out), borderColor: '#F43F5E', backgroundColor: 'rgba(244, 63, 94, 0.1)', borderWidth: 3, fill: true, tension: 0.4, pointRadius: 2 }] }, 
-                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: {position: 'top', labels:{boxWidth:12, font:{size:11, weight: 'bold'}}}, datalabels: { display: false } }, scales: { x:{grid:{display:false}, ticks:{font:{size:10, weight: 'bold'}}}, y:{grid:{color: chartGridColor(), drawBorder: false}, ticks:{font:{size:10}, callback: function(v){ return formatShortVal(v); }}} } } 
+                data: { labels: dailyLabels, datasets: [{ label: 'Pemasukan', data: dailyLabels.map(d=>dailyMap[d].in), ...servicesModule.chartHud.hudLineDataset({ from: '#10b981', to: '#34d399', fill: '#10b981', points: dailyLabels.length, gradient: false }) }, { label: 'Pengeluaran', data: dailyLabels.map(d=>dailyMap[d].out), ...servicesModule.chartHud.hudLineDataset({ from: '#f43f5e', to: '#fb7185', fill: '#f43f5e', points: dailyLabels.length, gradient: false }) }] }, 
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: {position: 'top', labels:{boxWidth:12, font:{size:11, weight: 'bold'}}}, datalabels: { display: false } }, scales: servicesModule.chartHud.hudLineScales(dailyLabels, formatShortVal, { yGrid: chartGridColor() }) },
+                plugins: [servicesModule.chartHud.hudGlowPlugin]
             });
 
             // Tren kategori TIDAK ikut filter bulan di atas (selalu 6 bulan terakhir dari HARI INI),
@@ -7493,9 +7493,7 @@ async function currentUserId() {
                     labels,
                     datasets: series.map((s, i) => ({
                         label: s.label, data: s.data,
-                        borderColor: cutePaletteOut[i % cutePaletteOut.length],
-                        backgroundColor: cutePaletteOut[i % cutePaletteOut.length] + '20',
-                        borderWidth: 2.5, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, fill: false
+                        ...servicesModule.chartHud.hudLineDataset({ from: cutePaletteOut[i % cutePaletteOut.length], gradient: false, points: labels.length })
                     }))
                 },
                 options: {
@@ -7505,11 +7503,9 @@ async function currentUserId() {
                         datalabels: { display: false },
                         tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: Rp ${formatRp(ctx.raw)}` } }
                     },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } },
-                        y: { grid: { color: chartGridColor(), drawBorder: false }, ticks: { font: { size: 10 }, callback: (v) => formatShortVal(v) } }
-                    }
-                }
+                    scales: servicesModule.chartHud.hudLineScales(labels, formatShortVal, { yGrid: chartGridColor() })
+                },
+                plugins: [servicesModule.chartHud.hudGlowPlugin]
             });
         }
 
@@ -7969,14 +7965,8 @@ async function currentUserId() {
         // diparse -- kustomisasi ini (font, gaya tooltip, radius bar, animasi stagger)
         // diam-diam tidak pernah diterapkan lagi. Tipuan lama: beberapa nilai tampak
         // "sudah benar" karena applyTheme() kebetulan men-set ulang Chart.defaults.color.
-        // Plugin glow neon utk chart HUD: bayangan cyan di sekitar dataset. Dipasang
-        // per-chart lewat `plugins: [hudGlowPlugin]` (bukan global) supaya chart lain
-        // tidak ikut terpengaruh.
-        const hudGlowPlugin = {
-            id: 'hudGlow',
-            beforeDatasetsDraw(chart) { const c = chart.ctx; c.save(); c.shadowColor = 'rgba(34,211,238,0.50)'; c.shadowBlur = 14; },
-            afterDatasetsDraw(chart) { chart.ctx.restore(); }
-        };
+        // Plugin glow neon kini SATU sumber kebenaran di src/domain/chart-hud.js
+        // (servicesModule.chartHud.hudGlowPlugin) -- dipasang per-chart, bukan global.
 
         function applyChartStyleDefaults() {
             if (typeof Chart === 'undefined') return;

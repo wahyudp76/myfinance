@@ -120,7 +120,17 @@ ok("radar laporan (expense) tampil", await page.evaluate(() => {
   const p = document.getElementById("exp-radar-pct");
   return p && p.style.display !== "none" && /^\d+%$/.test(p.querySelector("b").textContent);
 }));
+ok("grafik garis laporan ber-DNA balanceTrend (crosshair+glow+glowPlugin)", await page.evaluate(() => {
+  const d = typeof charts !== "undefined" && charts.daily && charts.daily.config;
+  const t = typeof charts !== "undefined" && charts.catTrend && charts.catTrend.config;
+  return d && d.data.datasets.every((ds) => ds.pointStyle === "crossRot" && ds.tension === 0.45 && ds.fill === true) &&
+    (d.plugins || []).some((p) => p.id === "hudGlow") &&
+    t && t.data.datasets[0].tension === 0.45 && (t.plugins || []).some((p) => p.id === "hudGlow");
+}));
 await page.screenshot({ path: `${SHOTS}/03-laporan.png`, fullPage: false });
+await page.locator("#dailyChart").scrollIntoViewIfNeeded();
+await page.waitForTimeout(900);
+await page.screenshot({ path: `${SHOTS}/08-laporan-daily.png` });
 
 // ---------- kontrak: command palette Ctrl+K ----------
 await page.evaluate(() => switchView("dashboard"));

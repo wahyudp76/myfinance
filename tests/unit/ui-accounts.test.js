@@ -114,9 +114,13 @@ test("renderAccountDetailCharts: chart Saldo -> line, label/data domain, tooltip
   assert.equal(deps.charts.accBalance, balance);
   assert.deepEqual(balance.config.data.labels, ["a", "b", "c"]);
   assert.deepEqual(balance.config.data.datasets[0].data, [1, 2, 3]);
-  assert.equal(balance.config.data.datasets[0].borderColor, "#3b82f6");
+  // DNA HUD (src/domain/chart-hud.js): stroke gradasi scriptable, crosshair, glow.
+  assert.equal(typeof balance.config.data.datasets[0].borderColor, "function");
+  assert.equal(balance.config.data.datasets[0].pointStyle, "crossRot");
+  assert.equal(balance.config.data.datasets[0].tension, 0.45);
+  assert.ok(balance.config.plugins.some((p) => p.id === "hudGlow"));
   assert.equal(balance.config.options.plugins.tooltip.callbacks.label({ raw: 1500 }), "Saldo: Rp 1.500");
-  assert.equal(balance.config.options.scales.y.ticks.callback(1500), "2K");
+  assert.equal(balance.config.options.scales.y.ticks.callback(1500), "Y·2K");
 });
 
 // ===================== chart arus kas (bar, sparse label) =====================
