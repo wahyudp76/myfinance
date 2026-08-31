@@ -114,6 +114,7 @@
         import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
         import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
+        import { buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows } from './src/domain/backup.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
@@ -146,6 +147,7 @@
         window.dispatchEvent(new Event('myfinance:auth-ready'));
 
         window.__myfinanceServices = {
+            buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows,
             createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
@@ -3311,19 +3313,21 @@ async function currentUserId() {
         }
 
         // ========================== BACKUP & RESTORE ==========================
+        // Bentuk payload, validasi file, ringkasan jumlah & pemetaan baris restore
+        // kini di src/domain/backup.js (murni, ter-unit-test); bagian DOM/unduh/
+        // FileReader/insert Supabase tetap di sini.
         // Ekspor: satu file JSON berisi SEMUA data (pengaturan + transaksi + aset + berulang) --
         // murni baca dari state yg sudah ada di memori (appSettings/globalData/globalAssets/
         // globalRecurring), tanpa fetch tambahan.
         function exportFullBackup() {
-            const backup = {
-                app: 'MyFinance',
-                backup_version: 1,
-                exported_at: new Date().toISOString(),
+            // bentuk payload kini di src/domain/backup.js (slice backup); `now`
+            // tidak dikirim -> default new Date(), persis perilaku lama.
+            const backup = servicesModule.buildBackupPayload({
                 settings: appSettings,
                 transactions: globalData,
                 assets: globalAssets,
                 recurring: globalRecurring,
-            };
+            });
             const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -3342,22 +3346,23 @@ async function currentUserId() {
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => {
-                let backup;
-                try { backup = JSON.parse(e.target.result); }
+                let parsed;
+                try { parsed = JSON.parse(e.target.result); }
                 catch (err) { showErrorToast('Gagal membaca file -- pastikan file JSON backup yang benar.'); return; }
-                if (!backup || backup.app !== 'MyFinance' || !backup.settings) {
+                // aturan validasi (app==='MyFinance' + wajib .settings) kini di
+                // src/domain/backup.js -- hasil identik dengan cek inline lama.
+                const v = servicesModule.validateBackupFile(parsed);
+                if (!v.ok) {
                     showErrorToast('File ini bukan file backup MyFinance yang valid.');
                     return;
                 }
-                confirmAndRestoreBackup(backup);
+                confirmAndRestoreBackup(v.backup);
             };
             reader.readAsText(file);
         }
 
         function confirmAndRestoreBackup(backup) {
-            const txCount = (backup.transactions || []).length;
-            const assetCount = (backup.assets || []).length;
-            const recurCount = (backup.recurring || []).length;
+            const { txCount, assetCount, recurCount } = servicesModule.summarizeBackupCounts(backup);
             showConfirm(
                 `File ini berisi pengaturan (akun/kategori/tujuan/utang), ${txCount} transaksi, ${assetCount} aset, dan ${recurCount} transaksi berulang.\n\nPengaturan akan MENIMPA yang sekarang. Transaksi/aset/berulang akan DITAMBAHKAN (bukan menimpa) -- kalau file ini pernah diimpor sebelumnya, datanya bisa dobel. Lanjutkan?`,
                 () => restoreBackup(backup)
@@ -3380,17 +3385,17 @@ async function currentUserId() {
                 //    id lama & user_id lama dibuang, diganti id baru (auto) & user_id akun ini,
                 //    supaya restore ke akun BERBEDA pun aman (tidak nabrak/klaim data user lain).
                 if (backup.transactions && backup.transactions.length > 0) {
-                    const rows = backup.transactions.map(({ id, user_id: _uid, ...rest }) => ({ ...rest, user_id }));
+                    const rows = servicesModule.mapRestoreRows(backup.transactions, user_id);
                     const { error } = await supabaseClient.from('transactions').insert(rows);
                     if (error) throw error;
                 }
                 if (backup.assets && backup.assets.length > 0) {
-                    const rows = backup.assets.map(({ id, user_id: _uid, ...rest }) => ({ ...rest, user_id }));
+                    const rows = servicesModule.mapRestoreRows(backup.assets, user_id);
                     const { error } = await supabaseClient.from('assets').insert(rows);
                     if (error) throw error;
                 }
                 if (backup.recurring && backup.recurring.length > 0) {
-                    const rows = backup.recurring.map(({ id, user_id: _uid, ...rest }) => ({ ...rest, user_id }));
+                    const rows = servicesModule.mapRestoreRows(backup.recurring, user_id);
                     const { error } = await supabaseClient.from('recurring_transactions').insert(rows);
                     if (error) throw error;
                 }
