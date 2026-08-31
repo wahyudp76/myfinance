@@ -139,6 +139,16 @@ menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
   Tindak lanjut: baca WARNING di output SQL Editor (atau query inspeksi di
   §3 F1), lalu drop manual bila definisinya memang helper yang aman.
 
+  **Update 2026-08-31 (sesi lanjutan):** tindak lanjut itu kini dibekukan jadi
+  file siap-jalankan **`sql/migration_f1_rls_auto_enable_2026-08-31.sql`** --
+  mencetak definisi lengkap di pane hasil, drop hanya bila lolos whitelist
+  ketat (murni `enable row level security`, bebas verb berbahaya), plus baris
+  drop manual terkomentar untuk kasus "sudah dibaca manusia dan aman". Probe
+  ulang sesi ini: fungsi MASIH ada di spec service-role (signature tanpa
+  argumen), anon tetap tertolak, dan F3 spot-check (`replace_month_budgets`
+  + `check_and_consume_rate_limit` utk anon) tetap PGRST202/tak-terlihat --
+  revoke F3 masih hidup. DDL tetap harus lewat Dashboard → SQL Editor.
+
 ---
 
 ## Addendum — audit & pembersihan live (sesi 2026-08-31, pasca-migrasi Tailwind)

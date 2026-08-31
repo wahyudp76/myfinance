@@ -23,6 +23,20 @@
          orang lain. Lihat juga robots.txt yang disertakan sebagai lapisan tambahan. -->
     <meta name="robots" content="noindex, nofollow, noarchive">
 
+    <!-- KEAMANAN via <meta> (2026-08-31): GitHub Pages TIDAK bisa mengirim header
+         keamanan kustom (file _headers diabaikan), jadi kebijakan yang sama
+         diterapkan lewat meta tag supaya aktif DI HOSTING APA PUN.
+         - Content-Security-Policy: sumber daya yang diizinkan PERSIS domain yang
+           dipakai app: self + cdn.jsdelivr.net (Chart.js/DataLabels/FullCalendar)
+           + esm.sh (@supabase/supabase-js) + Supabase (https/wss). SELALU sinkron
+           dengan versi header di file _headers (utk hosting Netlify/Cloudflare).
+           CATATAN: frame-ancestors sengaja TIDAK ada di sini (diabaikan browser
+           bila lewat meta) -- pelindung anti-embed tetap X-Frame-Options/frame-
+           ancestors di _headers saat hosting pindah ke platform yang mendukung.
+         - Referrer-Policy: meta ekuivalen header, aktif di mana pun. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
     <!-- PWA: bisa di-"Add to Home Screen" dari Android/iOS -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#151928">

@@ -1,14 +1,19 @@
-# Header keamanan untuk hosting Netlify (file ini dibaca otomatis oleh Netlify,
-# tidak berpengaruh apa-apa kalau kamu hosting di tempat lain kecuali platform
-# itu juga mendukung format "_headers" yang sama seperti Netlify).
+# Header keamanan untuk hosting yang mendukung format "_headers" (Netlify dan
+# Cloudflare Pages membacanya otomatis; GitHub Pages MENGABAIKANNYA -- di GitHub
+# Pages pelindung setara diterapkan lewat <meta> Content-Security-Policy +
+# Referrer-Policy di index.html, KECUALI X-Frame-Options/frame-ancestors yang
+# memang mustahil via meta). JAGA KEDUANYA TETAP SINKRON bila domain berubah.
 #
 # CATATAN: Content-Security-Policy di bawah ini sudah disesuaikan persis dengan
 # domain yang benar-benar dipakai index.html (jsdelivr utk Chart.js, dan
 # Supabase). Tailwind di-build sendiri (css/tailwind.css), font Plus Jakarta
 # Sans + Font Awesome + logo bank/e-wallet semuanya self-hosted (fonts/,
 # webfonts/, icons/) -- cdnjs/Google Fonts/Wikimedia tidak dipakai lagi. Kalau nanti
-# kamu menambah CDN/domain baru di index.html, tambahkan juga domainnya di sini,
-# atau header ini akan memblokirnya secara diam-diam. Kalau ragu / curiga ada
+# kamu menambah CDN/domain baru di index.html, tambahkan juga domainnya di sini
+# (DAN di meta CSP index.html), atau kebijakan ini akan memblokirnya secara
+# diam-diam. 2026-08-31: esm.sh ditambahkan ke script-src -- @supabase/supabase-js
+# dimuat dari sana (src/services/supabase/client.js); tanpa ini, pindah hosting
+# ke platform yang menerapkan file ini akan MEMATAHKAN alur login. Kalau ragu / curiga ada
 # yang aneh setelah deploy, coba hapus dulu file ini untuk isolasi masalah.
 
 /*
@@ -17,4 +22,4 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
   X-Robots-Tag: noindex, nofollow, noarchive
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'
