@@ -2242,7 +2242,14 @@
             s1.onload = () => {
                 const s2 = document.createElement('script');
                 s2.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0';
-                s2.onload = resolve;
+                s2.onload = () => {
+                    // Tier-1 #2: kustomisasi Chart.defaults diterapkan SETELAH lib nyata
+                    // termuat (blok app script dijaga typeof-check yang false saat parse).
+                    if (typeof applyChartStyleDefaults === 'function') {
+                        try { applyChartStyleDefaults(); } catch (err) { console.error('applyChartStyleDefaults gagal:', err); }
+                    }
+                    resolve();
+                };
                 s2.onerror = () => reject(new Error('chartjs-plugin-datalabels gagal dimuat'));
                 document.head.appendChild(s2);
             };
@@ -4209,6 +4216,12 @@ async function currentUserId() {
             if (document.getElementById('view-laporan').classList.contains('block')) { renderReportTab(); }
             if (document.getElementById('view-akun-detail').classList.contains('block')) { renderAccountDetailCharts(); }
             if (document.getElementById('view-kalender').classList.contains('block')) { renderCalendar(globalData); }
+            // Tier-1 #2 (dark mode menyeluruh): view dg chart sendiri JUGA wajib
+            // di-render ulang saat ganti tema, kalau tidak grid/sumbunya masih
+            // memakai warna tema lama (terlihat jelas terang-di-gelap / sebaliknya).
+            if (document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }
+            if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
+            if (document.getElementById('view-kategori-detail') && !document.getElementById('view-kategori-detail').classList.contains('hidden')) { renderCategoryDetailMonthData(); }
         }
 
         function applyTheme(pref, rerenderCharts) {
@@ -7824,12 +7837,22 @@ async function currentUserId() {
         // seluruh script di bawahnya secara diam-diam -- termasuk alur bootstrap login yang harusnya
         // menyembunyikan layar "Memeriksa sesi login...". Sekarang kalau Chart.js tidak tersedia,
         // aplikasi tetap lanjut jalan (cuma tampilan chart yang tidak dapat tema kustom).
-        if (typeof Chart !== 'undefined') {
-            if (typeof ChartDataLabels !== 'undefined') { Chart.register(ChartDataLabels); }
+        // Tier-1 #2: dijadikan FUNGSI idempoten + dipanggil ulang oleh loader lazy
+        // (__mfChartLibReady) setelah Chart.js benar-benar termuat. Sejak #5 memindahkan
+        // Chart.js ke loader dinamis, typeof-check di bawah selalu FALSE saat app script
+        // diparse -- kustomisasi ini (font, gaya tooltip, radius bar, animasi stagger)
+        // diam-diam tidak pernah diterapkan lagi. Tipuan lama: beberapa nilai tampak
+        // "sudah benar" karena applyTheme() kebetulan men-set ulang Chart.defaults.color.
+        function applyChartStyleDefaults() {
+            if (typeof Chart === 'undefined') return;
+            if (typeof ChartDataLabels !== 'undefined') { try { Chart.register(ChartDataLabels); } catch (e) { /* idempoten */ } }
             Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
             Chart.defaults.color = '#94a3b8';
-            Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 23, 42, 0.9)'; Chart.defaults.plugins.tooltip.padding = 12; Chart.defaults.plugins.tooltip.cornerRadius = 8;
-            Chart.defaults.plugins.tooltip.titleFont = { size: 13, weight: 'bold' }; Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
+            Chart.defaults.plugins.tooltip.backgroundColor = '#000000'; // hitam murni -- konsisten dgn kartu tooltip eksternal chart proporsi (kontrak #000)
+            Chart.defaults.plugins.tooltip.padding = 12;
+            Chart.defaults.plugins.tooltip.cornerRadius = 8;
+            Chart.defaults.plugins.tooltip.titleFont = { size: 13, weight: 'bold' };
+            Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
             Chart.defaults.elements.bar.borderRadius = 8; Chart.defaults.elements.bar.borderSkipped = false;
 
             // Animasi masuk yang lebih halus & "muncul satu-satu" (stagger) utk semua chart —
@@ -7845,6 +7868,7 @@ async function currentUserId() {
                 return delay;
             };
         }
+        applyChartStyleDefaults(); // kompatibilitas kalau Chart suatu saat kembali dimuat sinkron
         
         const cutePaletteOut = ['#F472B6', '#A78BFA', '#60A5FA', '#FBBF24', '#F87171', '#38BDF8', '#818CF8', '#FB923C', '#C084FC'];
 

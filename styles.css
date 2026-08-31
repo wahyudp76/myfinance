@@ -387,6 +387,13 @@
 
         /* -- Layar Login -- */
         .dark #loginView { background: #0f172a; }
+        /* Tier-1 #2: gerbang autentikasi (authGate) memakai style inline terang --
+           tanpa override !important, pengguna tema gelap melihat kilatan layar
+           PUTIH penuh setiap cold boot sebelum sesi selesai diperiksa. */
+        .dark #authGate { background: #0f172a !important; }
+        /* Tier-1 #2: gradien latar gelap untuk area body yang tak tertutup view
+           (overscroll, celah transparan) -- selama ini hanya versi terang. */
+        html.dark body { background: linear-gradient(180deg, #0b1220 0%, #0d1526 45%, #0b1120 100%); }
         .dark .tab-btn { color: #94a3b8; }
         .dark .profile-avatar-frame { background: #334155; }
 
