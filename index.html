@@ -108,6 +108,7 @@
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         import { buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows } from './src/domain/backup.js';
         import { buildDemoTransactions, isDemoTransaction, DEMO_MARKER } from './src/domain/demo-data.js';
+        import { buildCommandIndex, searchCommands } from './src/domain/command-palette.js';
         import { pruneAccountKeyedMaps } from './src/domain/settings.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
@@ -142,6 +143,7 @@
         window.__myfinanceServices = {
             buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows,
             buildDemoTransactions, isDemoTransaction, DEMO_MARKER,
+            buildCommandIndex, searchCommands,
             createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
@@ -445,6 +447,9 @@
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Overview</h2>
                     <p id="currentDate" class="text-slate-500 text-xs md:text-sm mt-1"></p>
                 </div>
+                <button onclick="openCommandPalette()" class="hidden md:flex text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition items-center gap-2 shadow-sm" aria-label="Pencarian cepat (Ctrl K)">
+                    <i class="fas fa-magnifying-glass"></i><span>Cari</span><kbd class="text-[10px] font-bold text-slate-400 border border-slate-200 rounded px-1">Ctrl K</kbd>
+                </button>
                 <button onclick="loadData()" class="text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition flex items-center shadow-sm">
                     <i class="fas fa-sync-alt md:mr-1"></i> <span class="hidden md:inline">Sinkronisasi</span>
                 </button>
@@ -2195,6 +2200,20 @@
     </div>
 
 
+    <!-- COMMAND PALETTE (Tier-3 #9): Ctrl/Cmd+K -- pencarian global transaksi,
+         kategori, akun, navigasi. role=dialog+aria-modal -> otomatis ikut focus-trap/Esc
+         infra modal-a11y; controller & markup hasil di app script bawah. -->
+    <div id="modalPalette" role="dialog" aria-modal="true" aria-label="Pencarian cepat" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[105] hidden p-4 pt-[12vh] justify-center items-start">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
+            <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+                <i class="fas fa-magnifying-glass text-slate-400 text-sm"></i>
+                <input id="paletteInput" type="text" autocomplete="off" placeholder="Cari transaksi, kategori, akun, atau halaman..." class="w-full bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400" />
+                <kbd class="hidden sm:inline-block text-[10px] font-bold text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">Esc</kbd>
+            </div>
+            <div id="paletteResults" class="max-h-[50vh] overflow-y-auto p-2" role="listbox"></div>
+        </div>
+    </div>
+
     <!-- Chart.js & DataLabels: LAZY + PARALEL (Tier-2 struktural #5).
          Versi lama: 2 classic script blocking di sini -- parser harus menyelesaikan
          unduhan ~205KB chart.js SEBELU app script di bawahnya dieksekusi, jadi
@@ -3476,6 +3495,90 @@ async function currentUserId() {
                 showErrorToast('Gagal menyimpan pengaturan ke Supabase. Periksa koneksi internet kamu.');
             });
         }
+
+        // ==================== COMMAND PALETTE (Tier-3 #9, Ctrl/Cmd+K) ====================
+        // Indeks & pencarian murni di src/domain/command-palette.js (ter-unit-test);
+        // controller DOM/keyboard di sini. Modal memakai role=dialog+aria-modal sehingga
+        // otomatis dikelola infra modal-a11y (focus-trap). Kategori/akun/transaksi diambil
+        // dari state global saat palette DIBUKA (segar tanpa langkah sinkron tambahan).
+        let _paletteIndex = [], _paletteResults = [], _paletteSel = 0;
+        const PALETTE_ICON = { view: 'fa-location-arrow', category: 'fa-tag', account: 'fa-wallet', transaction: 'fa-receipt' };
+        function paletteEnsureIndex() {
+            const views = [
+                { name: 'dashboard', label: 'Dashboard' }, { name: 'transaksi', label: 'Riwayat Transaksi' },
+                { name: 'budget', label: 'Budget' }, { name: 'laporan', label: 'Analisis' },
+                { name: 'aset', label: 'Aset' }, { name: 'kalender', label: 'Kalender' },
+                { name: 'pengaturan', label: 'Pengaturan' },
+            ];
+            const recentTx = [...(globalData || [])].sort((a, b) => String(b.tanggal || '').localeCompare(String(a.tanggal || ''))).slice(0, 200);
+            _paletteIndex = servicesModule.buildCommandIndex({ views, categoryDict, accounts: appSettings.accounts || [], transactions: recentTx });
+        }
+        function paletteRender() {
+            const box = document.getElementById('paletteResults');
+            if (!_paletteResults.length) {
+                box.innerHTML = '<p class="text-center text-xs text-slate-400 py-6">Tidak ada hasil. Coba kata kunci lain.</p>';
+                return;
+            }
+            box.innerHTML = _paletteResults.map((c, i) => `
+                <button type="button" role="option" aria-selected="${i === _paletteSel}" onclick="palettePick(${i})" onmousemove="paletteHover(${i})" class="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${i === _paletteSel ? 'bg-indigo-50' : 'hover:bg-slate-50'}">
+                    <span class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0"><i class="fas ${PALETTE_ICON[c.type] || 'fa-circle'} text-slate-500 text-xs"></i></span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(c.label)}</span>
+                        <span class="block text-[10px] text-slate-400 truncate">${escapeHtml(c.sub || '')}</span>
+                    </span>
+                </button>`).join('');
+            const el = box.querySelector('[aria-selected="true"]');
+            if (el) el.scrollIntoView({ block: 'nearest' });
+        }
+        function paletteSearch(q) {
+            _paletteResults = servicesModule.searchCommands(_paletteIndex, q, { limit: 10 });
+            _paletteSel = 0;
+            paletteRender();
+        }
+        function openCommandPalette() {
+            paletteEnsureIndex();
+            document.getElementById('modalPalette').classList.remove('hidden');
+            const input = document.getElementById('paletteInput');
+            input.value = '';
+            paletteSearch('');
+            input.focus();
+        }
+        function closeCommandPalette() { document.getElementById('modalPalette').classList.add('hidden'); }
+        function paletteHover(i) { if (i >= 0 && i !== _paletteSel) { _paletteSel = i; paletteRender(); } }
+        function palettePick(i) {
+            const c = _paletteResults[i];
+            if (!c) return;
+            closeCommandPalette();
+            if (c.type === 'view') switchView(c.view);
+            else if (c.type === 'category') openCategoryDetail(c.catName, c.jenis);
+            else if (c.type === 'account') openAccountDetail(c.accountName);
+            else if (c.type === 'transaction') {
+                switchView('transaksi');
+                const inp = document.getElementById('txSearchInput');
+                if (inp) { inp.value = c.label; debouncedFilterTransactions(); }
+            }
+        }
+        // Wire input sekali (markup palette ada sebelum blok script ini dieksekusi).
+        (function () {
+            const inp = document.getElementById('paletteInput');
+            if (inp) inp.addEventListener('input', (e) => paletteSearch(e.target.value));
+        })();
+
+        document.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') {
+                e.preventDefault();
+                const m = document.getElementById('modalPalette');
+                if (m && !m.classList.contains('hidden')) closeCommandPalette();
+                else openCommandPalette();
+                return;
+            }
+            const m = document.getElementById('modalPalette');
+            if (!m || m.classList.contains('hidden')) return;
+            if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeCommandPalette(); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); _paletteSel = Math.min(_paletteSel + 1, _paletteResults.length - 1); paletteRender(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); _paletteSel = Math.max(_paletteSel - 1, 0); paletteRender(); }
+            else if (e.key === 'Enter') { e.preventDefault(); palettePick(_paletteSel); }
+        });
 
         // ==================== DATA CONTOH (onboarding Tier-3 #8) ====================
         // Seeder memakai src/domain/demo-data.js (murni, deterministik, ter-unit-test):
