@@ -550,7 +550,7 @@
 
             <div class="mb-6 md:mb-8">
                 <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 md:mb-4">Saldo Per Akun (Klik untuk detail)</h4>
-                <div id="dashboard-accounts-container" class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4"></div>
+                <div id="dashboard-accounts-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4"></div>
             </div>
 
             <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8">
@@ -717,8 +717,10 @@
                 </div>
             </div>
 
+            <!-- Slice design #4 (desktop): chart & perincian bersebelahan mulai lg -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8 items-start">
             <!-- Budget Chart -->
-            <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8 h-64 md:h-80 flex flex-col relative">
+            <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm h-64 md:h-80 lg:h-auto flex flex-col relative">
                 <h4 class="text-sm font-bold text-slate-700 mb-1">Bagan Komparasi Budget</h4>
                 <p class="text-xs text-slate-400 mb-3">Rencana vs realisasi pengeluaran bulanan</p>
                 <div class="flex-1 relative min-h-0"><canvas id="budgetCompareChart"></canvas></div>
@@ -729,10 +731,11 @@
             </div>
 
             <!-- Per Category List -->
-            <div class="mb-6 md:mb-8">
+            <div>
                 <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 md:mb-4">Perincian Budget per Kategori</h4>
                 <div id="budget-category-list" class="space-y-3"></div>
             </div>
+            </div><!-- /grid lg budget -->
             
             <!-- Categories without budget yet -->
             <div id="budget-unset-wrap" class="mb-8 hidden">

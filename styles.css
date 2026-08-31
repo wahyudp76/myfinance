@@ -482,3 +482,15 @@ body[data-theme-accent] .bg-\[\#151928\] { background-color: var(--accent-600); 
    modal, di atas konten). Warna menyatu dgn latar app di kedua mode. */
 #dashboard-skeleton { background-color: #f8fafc; }
 .dark #dashboard-skeleton { background-color: #0f172a; }
+
+/* ==========================================================================
+   MEASURE KONTEN DESKTOP (slice design #4)
+   ==========================================================================
+   Di monitor lebar (>=1152px area konten), konten view dibatasi 72rem dan
+   dipusatkan supaya baris teks/grid tidak merenggang absurd ke tepi -- konsisten
+   dgn max-w-6xl skeleton. Layer skeleton dikecualikan (absolute inset-0 harus
+   tetap menutup penuh area scroll). Tidak berpengaruh di mobile/tablet. */
+.content-area > *:not(#dashboard-skeleton) {
+    max-width: 72rem;
+    margin-inline: auto;
+}
