@@ -18,7 +18,7 @@ export const HUD_COLORS = {
   pointCore: "rgba(4,10,20,0.92)",
   pointEdge: "#67e8f9",
   gridX: "rgba(34,211,238,0.07)",
-  shadow: "rgba(34,211,238,0.50)",
+  glow: "rgba(34,211,238,0.50)", // nama "glow" dipilih agar tidak memicu utilitas bayangan Tailwind
 };
 
 /** Plugin glow neon: bayangan cyan di sekitar dataset garis/batang. */
@@ -27,7 +27,7 @@ export const hudGlowPlugin = {
   beforeDatasetsDraw(chart) {
     const c = chart.ctx;
     c.save();
-    c.shadowColor = HUD_COLORS.shadow;
+    c.shadowColor = HUD_COLORS.glow;
     c.shadowBlur = 14;
   },
   afterDatasetsDraw(chart) {
