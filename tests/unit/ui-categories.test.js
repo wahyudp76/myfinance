@@ -204,11 +204,15 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.ok(doc.host.innerHTML.includes("2x"));
   // datalabels: WAJIB display:false (plugin global; label segmen menabrak teks pusat)
   assert.equal(cfg.options.plugins.datalabels.display, false);
-  // tooltip: nilai penuh + persen, tanpa duplikat nama
+  // tooltip: nilai penuh + persen + HITAM SOLID (opaque, bukan transparan)
+  const tt2 = cfg.options.plugins.tooltip;
   assert.equal(
-    cfg.options.plugins.tooltip.callbacks.label({ parsed: 120000, dataIndex: 0 }),
+    tt2.callbacks.label({ parsed: 120000, dataIndex: 0 }),
     " Rp 120000 \u2022 66,7%"
   );
+  assert.equal(tt2.backgroundColor, "#0f172a");
+  assert.equal(tt2.displayColors, false);
+  assert.ok(tt2.padding >= 10);
 });
 
 // ===================== formatRupiahShort (slice polish angka) =====================

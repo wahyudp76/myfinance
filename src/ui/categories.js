@@ -274,6 +274,18 @@ export function renderCategorySubProportion({
         // + tooltip; donat kini murni bentuk visual proporsi.
         datalabels: { display: false },
         tooltip: {
+          // Hitam SOLID (permintaan pemilik): default Chart.js rgba(0,0,0,.8)
+          // transparan -- teks kurang kontras di atas chart berwarna.
+          // slate-900 opaque + teks putih tebal + sudut membulat.
+          backgroundColor: "#0f172a",
+          titleColor: "#ffffff",
+          titleFont: { weight: "800" },
+          bodyColor: "#f1f5f9",
+          bodyFont: { weight: "700" },
+          cornerRadius: 10,
+          padding: 12,
+          displayColors: false,
+          caretSize: 6,
           callbacks: {
             // title default Chart.js sudah menampilkan nama; label cukup nilai.
             label: (c) => {
