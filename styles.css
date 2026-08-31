@@ -762,3 +762,81 @@ html.dark .hud-tx-row:hover { background: rgba(34, 211, 238, 0.05); }
 /* Chip status di header dashboard: desktop saja (header mobile sudah punya di topbar). */
 .hud-status-desk { display: none; }
 @media (min-width: 768px) { .hud-status-desk { display: inline-flex; } }
+
+/* ==========================================================================
+   MOBILE / ANDROID HUD PARITY (v28)
+   Menyamakan tampilan ponsel dgn HUD web: drawer/bottom-sheet kaca neon,
+   FAB chamfered (menggantikan border putih), nav bawah neon, dan kontrol
+   native Android (picker tanggal/select/scrollbar) ikut skema gelap.
+   ========================================================================== */
+
+/* Kontrol native (date/month picker, select, scrollbar) jadi gelap di Android. */
+html.dark { color-scheme: dark; }
+
+/* ---------- Drawer penuh (Catat Transaksi, Aset, Goal, dst.) ---------- */
+html.dark .bg-white.h-full.shadow-2xl {
+    background:
+        linear-gradient(rgba(125, 211, 252, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(125, 211, 252, 0.04) 1px, transparent 1px),
+        linear-gradient(160deg, #0a1020 0%, #060a16 55%, #081020 100%) !important;
+    background-size: 26px 26px, 26px 26px, auto !important;
+    border-left: 1px solid rgba(34, 211, 238, 0.35);
+    box-shadow: -14px 0 70px -24px rgba(34, 211, 238, 0.4), inset 0 0 70px -46px rgba(34, 211, 238, 0.45) !important;
+}
+
+/* ---------- Bottom-sheet: kaca gelap + chamfer atas + handle neon ---------- */
+html.dark .bg-slate-50.rounded-t-3xl,
+html.dark .bg-slate-50.md\:rounded-3xl {
+    background: linear-gradient(168deg, rgba(10, 16, 32, 0.97), rgba(5, 8, 18, 0.97)) !important;
+    border: 1px solid rgba(34, 211, 238, 0.30);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    box-shadow: 0 -12px 70px -24px rgba(34, 211, 238, 0.35), inset 0 0 46px -30px rgba(34, 211, 238, 0.4) !important;
+    clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%, 0 20px);
+    position: relative;
+}
+html.dark .bg-slate-50.rounded-t-3xl::before,
+html.dark .bg-slate-50.md\:rounded-3xl::before {
+    content: ""; position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 64px; height: 3px; border-radius: 2px; z-index: 6;
+    background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6);
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.85);
+}
+/* Header & footer sheet (dulu putih polos) -> kaca neon gelap */
+html.dark .bg-white.rounded-t-3xl,
+html.dark .bg-white.rounded-b-3xl {
+    background: linear-gradient(155deg, rgba(12, 19, 38, 0.95), rgba(7, 11, 24, 0.90)) !important;
+    border-color: rgba(34, 211, 238, 0.22) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+/* ---------- FAB mobile: chamfered neon menggantikan border-4 putih ---------- */
+html.dark #fabMobileCatat {
+    border: 1px solid rgba(34, 211, 238, 0.8) !important;
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.25), rgba(167, 139, 250, 0.28)) !important;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    box-shadow: 0 0 20px -4px rgba(34, 211, 238, 0.75), inset 0 0 16px -6px rgba(34, 211, 238, 0.9) !important;
+    color: #e0fbff;
+}
+html.dark #fabMobileCatat + span {
+    color: #7dd3fc !important;
+    font-family: var(--hud-mono); letter-spacing: 0.18em;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+}
+
+/* ---------- Nav bawah: item aktif = chip neon (paritas sidebar) ---------- */
+html.dark .liquid-glass-nav {
+    background: rgba(5, 9, 20, 0.90) !important;
+    border: 1px solid rgba(34, 211, 238, 0.32);
+}
+html.dark .liquid-glass-nav-active {
+    color: #67e8f9 !important;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.75);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+html.dark .liquid-glass-nav-active i { filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.85)); }
+
+/* ---------- Topbar mobile: hairline glow bawah ---------- */
+html.dark .bg-white.border-b { box-shadow: 0 8px 26px -14px rgba(34, 211, 238, 0.45); }
+html.dark .bg-white.border-b h1 { text-shadow: 0 0 14px rgba(34, 211, 238, 0.55); letter-spacing: 0.12em; }

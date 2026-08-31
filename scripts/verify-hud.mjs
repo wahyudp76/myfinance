@@ -142,6 +142,28 @@ await mobile.goto(URL_, { waitUntil: "domcontentloaded" });
 await mobile.waitForSelector("#appShell:not(.hidden)", { timeout: 45000 });
 await mobile.waitForFunction(() => document.querySelectorAll("#recent-transactions-list > div").length > 0, null, { timeout: 45000 });
 await mobile.waitForTimeout(2000);
+
+// ---------- paritas HUD mobile (Android) ----------
+ok("mobile: FAB chamfered neon (bukan border putih)", await mobile.evaluate(() => {
+  const f = document.getElementById("fabMobileCatat");
+  const cs = getComputedStyle(f);
+  return cs.clipPath !== "none" && cs.borderTopWidth === "1px";
+}));
+ok("mobile: nav bawah item aktif neon cyan", await mobile.evaluate(() => {
+  const el = document.querySelector(".liquid-glass-nav-active");
+  return el && getComputedStyle(el).color === "rgb(103, 232, 249)";
+}));
+ok("mobile: kontrol native ikut skema gelap", await mobile.evaluate(() =>
+  getComputedStyle(document.documentElement).colorScheme.includes("dark")));
+await mobile.click("#fabMobileCatat");
+await mobile.waitForTimeout(900);
+ok("mobile: drawer Catat Transaksi kaca neon", await mobile.evaluate(() => {
+  const c = document.getElementById("modalFormContent");
+  return c && getComputedStyle(c).backgroundImage.includes("linear-gradient");
+}));
+await mobile.screenshot({ path: `${SHOTS}/05-mobile-drawer.png` });
+await mobile.evaluate(() => closeModal());
+await mobile.waitForTimeout(600);
 await mobile.screenshot({ path: `${SHOTS}/04-dashboard-mobile.png`, fullPage: true });
 
 // ---------- ringkasan ----------
