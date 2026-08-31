@@ -37,7 +37,6 @@
          benar-benar mengambil resource-nya, koneksinya sudah siap (tidak perlu nunggu handshake dulu). -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.tailwindcss.com">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <!-- Font Plus Jakarta Sans: sengaja pakai <link rel="stylesheet"> di sini (bukan @import di dalam
@@ -46,14 +45,17 @@
          teks tampil dengan font yang benar. <link> di <head> membuat browser menemukan & mulai
          mengambil font ini jauh lebih awal, paralel dengan resource lain. -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // darkMode:'class' -- tema diatur manual lewat class "dark" di <html> (skrip di atas +
-        // menu Pengaturan), BUKAN otomatis murni dari prefers-color-scheme browser, supaya
-        // pengguna tetap bisa memilih Terang/Gelap secara eksplisit selain opsi "Sistem".
-        tailwind.config = { darkMode: 'class' };
-    </script>
+    <!-- Tailwind CSS -- build statis: css/tailwind.css dibangun oleh `npm run build:css`
+         (input css/tailwind.src.css + tailwind.config.js) dan HASILNYA DI-COMMIT ke repo,
+         supaya GitHub Pages tetap hosting statis murni tanpa langkah build di server.
+         Ini menggantikan Play CDN yang men-generate style saat runtime (warning console,
+         flash gaya saat first paint, varian dark:/arbitrary tak tersedia penuh).
+         darkMode:'class' kini di tailwind.config.js -- tema tetap manual lewat class "dark"
+         di <html> (skrip tema + menu Pengaturan), bukan prefers-color-scheme murni.
+         PENTING: link ini harus tetap DI SEBELUM styles.css agar rule custom di styles.css
+         menang saat specificity sama. Setelah ubah kelas Tailwind di markup/modul, jalankan
+         `npm run build:css` lalu commit ulang css/tailwind.css (CI menjaga drift ini). -->
+    <link rel="stylesheet" href="css/tailwind.css">
     <!-- Chart.js & DataLabels Plugin -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>

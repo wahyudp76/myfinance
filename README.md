@@ -429,13 +429,14 @@ miliknya sendiri, walau key-nya identik.
   lewat key khusus berawalan `__myfinance_category_style__`, sama seperti
   foto profil pakai `__myfinance_profile_avatar__`. Jadi **tidak perlu
   migrasi SQL tambahan** kalau kamu sudah menjalankan skema di bawah ini.
-- **Tailwind CSS dimuat dari CDN** (`cdn.tailwindcss.com`), yang menurut
-  dokumentasi Tailwind sendiri **tidak disarankan untuk produksi jangka
-  panjang** (lebih lambat, ukuran file CSS tidak teroptimasi) — dipilih di
-  sini demi kemudahan "1 file, tanpa proses build". Kalau nanti mau upgrade
-  ke setup build Tailwind yang proper (di komputer kamu sendiri, karena
-  butuh `npm`/koneksi internet saat build), tanya saja dan bisa disiapkan
-  konfigurasinya.
+- **Tailwind CSS di-build statis** (`css/tailwind.css`, ~50KB minified,
+  di-commit ke repo) — menggantikan Play CDN lama yang men-generate style
+  saat runtime (warning console + flash gaya saat first paint). Setelah
+  mengubah kelas Tailwind di `index.html`/`src/`, jalankan
+  `npm run build:css` lalu commit ulang `css/tailwind.css`-nya; job CI
+  "Tailwind build drift guard" akan gagal kalau CSS yang di-commit
+  kadaluarsa. Konfigurasi di `tailwind.config.js` (darkMode class,
+  content: index.html + src).
 
 ## 10. Kalau ada error saat login/memuat data
 

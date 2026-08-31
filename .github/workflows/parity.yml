@@ -61,6 +61,25 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+  css-drift:
+    name: Tailwind build drift guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build & pastikan css/tailwind.css hasil commit tidak kadaluarsa
+        run: |
+          npm run build:css
+          git diff --exit-code -- css/tailwind.css
+
   parity:
     name: Parity + headless (live Supabase)
     runs-on: ubuntu-latest

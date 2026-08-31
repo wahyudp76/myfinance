@@ -7,7 +7,8 @@
     "test": "npm run test:unit && npm run test:parity",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:parity": "node --test tests/parity/*.test.js",
-    "test:legacy-read": "node tests/parity/headless-browser-legacy.mjs"
+    "test:legacy-read": "node tests/parity/headless-browser-legacy.mjs",
+    "build:css": "tailwindcss -c tailwind.config.js -i css/tailwind.src.css -o css/tailwind.css --minify"
   },
   "engines": {
     "node": ">=22 <23"
@@ -15,5 +16,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
     "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
   }
 }
