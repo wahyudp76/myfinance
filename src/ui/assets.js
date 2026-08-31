@@ -96,7 +96,7 @@ export function renderAssetView({
         <div class="py-12 text-center text-slate-400">
             <i class="fas fa-gem text-4xl mb-3 opacity-30"></i>
             <p class="text-sm font-bold text-slate-500">Belum ada aset</p>
-            <p class="text-[10px]">Silakan catat investasi Anda melalui tombol Tambah Aset.</p>
+            <p class="text-[10px]">Silakan catat investasi kamu melalui tombol Tambah Aset.</p>
         </div>
     `;
   } else {

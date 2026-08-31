@@ -670,7 +670,7 @@
         <div id="view-budget" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
-                    <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Anggaran Bulanan</h2>
+                    <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Budget Bulanan</h2>
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Kelola batas pengeluaran kategori dan sub-kategori secara real-time 🎯</p>
                 </div>
                 <div class="flex items-center gap-2">
@@ -726,7 +726,7 @@
                 <div class="flex-1 relative min-h-0"><canvas id="budgetCompareChart"></canvas></div>
                 <div id="budgetCompareEmpty" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center px-6 bg-white/90">
                     <p class="text-2xl mb-1">📊</p>
-                    <p class="text-xs text-slate-400">Grafik akan muncul setelah Anda mengatur budget di bulan ini</p>
+                    <p class="text-xs text-slate-400">Grafik akan muncul setelah kamu mengatur budget di bulan ini</p>
                 </div>
             </div>
 
@@ -749,7 +749,7 @@
             <header class="mb-6 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Laporan Analisis</h2>
-                    <p class="text-slate-500 text-xs md:text-sm mt-1">Visualisasi data keuangan Anda</p>
+                    <p class="text-slate-500 text-xs md:text-sm mt-1">Visualisasi data keuangan kamu</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 transition">
                     <label for="reportFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
@@ -884,7 +884,7 @@
             <header class="mb-6 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Portofolio Aset</h2>
-                    <p class="text-slate-500 text-xs md:text-sm mt-1">Pantau nilai investasi dan pertumbuhan aset Anda secara komprehensif.</p>
+                    <p class="text-slate-500 text-xs md:text-sm mt-1">Pantau nilai investasi dan pertumbuhan aset kamu secara komprehensif.</p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
                     <button onclick="exportAssetsCsv()" aria-label="Ekspor aset ke file CSV" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
@@ -963,7 +963,7 @@
                     <h4 class="text-sm font-bold text-slate-700">Alokasi per Kategori</h4>
                     <span id="assetAllocationChart-total" class="text-sm md:text-base font-extrabold text-slate-800"></span>
                 </div>
-                <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi Anda</p>
+                <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi kamu</p>
                 <div class="flex items-center gap-4 md:gap-6">
                     <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas></div>
                     <div id="assetAllocationChart-legend" class="flex-1 min-w-0"></div>
@@ -1021,7 +1021,7 @@
         <div id="view-kalender" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8">
                 <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Kalender Transaksi</h2>
-                <p class="text-slate-500 text-xs md:text-sm mt-1">Pantau & evaluasi arus kas bulanan Anda secara visual.</p>
+                <p class="text-slate-500 text-xs md:text-sm mt-1">Pantau & evaluasi arus kas bulanan kamu secara visual.</p>
             </header>
 
             <div class="grid grid-cols-2 gap-3 md:gap-6 mb-6">
@@ -2132,7 +2132,7 @@
         <div class="bg-slate-50 w-full md:max-w-lg mx-auto h-[85vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalBudgetContent">
             <div class="flex items-center justify-between p-5 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl md:rounded-t-3xl">
                 <div>
-                    <h3 class="font-bold text-slate-800 text-base">Atur Anggaran Bulanan 🎯</h3>
+                    <h3 class="font-bold text-slate-800 text-base">Atur Budget Bulanan 🎯</h3>
                     <p class="text-[11px] text-slate-400">Nominal kategori utama terakumulasi otomatis dari sub-kategorinya</p>
                 </div>
                 <button onclick="closeBudgetModal()" aria-label="Tutup" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition flex-shrink-0"><i class="fas fa-xmark"></i></button>
@@ -3416,7 +3416,7 @@ async function currentUserId() {
             // Pensyahan api.run (slice settings+icons): service langsung, callback persis versi lama.
             servicesModule.saveSettings(supabaseClient, settingsForCloud).catch((err) => {
                 console.error('api.run.saveSettingsCloud gagal:', err);
-                showErrorToast('Gagal menyimpan pengaturan ke Supabase. Periksa koneksi internet Anda.');
+                showErrorToast('Gagal menyimpan pengaturan ke Supabase. Periksa koneksi internet kamu.');
             });
         }
 
@@ -4875,7 +4875,7 @@ async function currentUserId() {
                 mata_uang: currentTxMataUang, kurs: currentTxMataUang ? currentTxKurs : 1,
                 jumlah_idr: currentTxMataUang ? Math.round(jumlahNum * currentTxKurs) : jumlahNum
             };
-            const onSaveFail = () => { showErrorToast('Gagal menyimpan transaksi. Periksa koneksi internet Anda lalu coba lagi.'); showLoading(false); };
+            const onSaveFail = () => { showErrorToast('Gagal menyimpan transaksi. Periksa koneksi internet kamu lalu coba lagi.'); showLoading(false); };
             // Ambil status budget SEBELUM transaksi ini masuk (cuma relevan utk Pengeluaran) -- dibandingkan
             // lagi SETELAH data ke-refresh, buat deteksi baru saja lewat ambang 80%/100% (lihat penjelasan
             // di notifyIfBudgetThresholdCrossed).
@@ -5043,7 +5043,7 @@ async function currentUserId() {
                 data.value_history = [{ tanggal: todayStr, nilai: newNilai }];
             }
 
-            const onAssetSaveFail = () => { showErrorToast('Gagal menyimpan aset. Periksa koneksi internet Anda lalu coba lagi.'); showLoading(false); };
+            const onAssetSaveFail = () => { showErrorToast('Gagal menyimpan aset. Periksa koneksi internet kamu lalu coba lagi.'); showLoading(false); };
             const onAssetSaveOk = () => { closeAssetModal(); refreshAssetsOnly(); showSuccessToast(wasEdit ? 'Aset berhasil diperbarui.' : 'Aset berhasil ditambahkan.'); };
             if(currentAssetEditId) {
                 // Pensyahan api.run (slice assets): service langsung (adapter memang cuma
@@ -5097,7 +5097,7 @@ async function currentUserId() {
                 if (typeof afterCallback === 'function') afterCallback();
             }).catch((err) => {
                 console.error('api.run.getTransactionsOnly gagal:', err);
-                showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
+                showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
                 showLoading(false);
             });
         }
@@ -5138,7 +5138,7 @@ async function currentUserId() {
                 showLoading(false);
             }).catch((err) => {
                 console.error('api.run.getAssetsOnly gagal:', err);
-                showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
+                showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
                 showLoading(false);
             });
         }
@@ -5237,7 +5237,7 @@ async function currentUserId() {
                 processDueRecurring();
             }).catch((err) => {
                 console.error('api.run.getSyncData gagal:', err);
-                showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet Anda, lalu coba muat ulang halaman.');
+                showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
                 setSyncLoading(false);
             });
         }
