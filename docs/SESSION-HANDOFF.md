@@ -7,7 +7,12 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v41` (sinkron lokal). Suite: **494 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 43 cek.
+- Service worker live: `myfinance-v42` (sinkron lokal). Suite: **495 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 45 cek.
+- Bug-fix 2026-09 (v42): **nama aset tujuan transfer terdaftar sbg akun** (kasus "shopee
+  merchant") -- self-heal `pruneAssetShadowAccounts()` di `src/domain/asset-flows.js`
+  (murni, teruji): buang entri akun yg cocok nama aset, tak pernah dipakai sbg `akun`
+  di transaksi, & punya jejak Transfer-tujuan; dipanggil di kedua loop sinkronisasi
+  settings (loadData & refresh). Data user yg sudah tercemar sembuh otomatis saat muat.
 - Fitur 2026-09 (v41): **sync nilai reksadana dari data pasar riil** -- kategori Reksadana di
   form aset kini punya kolom "Nama Dana di Bibit" + "Jumlah Unit" (sumber_harga
   `reksadana_bibit`); Edge Function `refresh-asset-price` mendapat fetcher Bibit

@@ -135,7 +135,7 @@
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
-        import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx } from './src/domain/asset-flows.js';
+        import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts } from './src/domain/asset-flows.js';
         import * as chartsUi from './src/ui/charts.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
@@ -171,7 +171,7 @@
             createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
-            applyAssetDeposit, findAssetByName, resolveAssetDepositTx, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
+            applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
             // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
@@ -5761,6 +5761,17 @@ async function currentUserId() {
                         appSettings.accounts.push(row.kategori); needsSettingUpdate = true;
                     }
                 });
+                // SELF-HEAL bug "shopee merchant": nama aset yang TELANJUR terdaftar
+                // sebagai akun (terdaftar sebelum asetnya ada / saat aset belum termuat)
+                // dibuang otomatis -- aturan ketat di pruneAssetShadowAccounts (murni,
+                // teruji unit): hanya nama yg cocok dgn aset, tak pernah dipakai sebagai
+                // `akun` di transaksi manapun, dan punya jejak Transfer-tujuan.
+                const shadowNames = servicesModule.pruneAssetShadowAccounts({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
+                if (shadowNames.length) {
+                    appSettings.accounts = appSettings.accounts.filter((n) => !shadowNames.includes(n));
+                    shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
+                    needsSettingUpdate = true;
+                }
                 if (needsSettingUpdate) { persistSettings(); renderSettings(); updateFormOptions(); }
 
                 filterTransactions();
@@ -5888,6 +5899,17 @@ async function currentUserId() {
                         appSettings.accounts.push(row.kategori); needsSettingUpdate = true;
                     }
                 });
+                // SELF-HEAL bug "shopee merchant": nama aset yang TELANJUR terdaftar
+                // sebagai akun (terdaftar sebelum asetnya ada / saat aset belum termuat)
+                // dibuang otomatis -- aturan ketat di pruneAssetShadowAccounts (murni,
+                // teruji unit): hanya nama yg cocok dgn aset, tak pernah dipakai sebagai
+                // `akun` di transaksi manapun, dan punya jejak Transfer-tujuan.
+                const shadowNames = servicesModule.pruneAssetShadowAccounts({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
+                if (shadowNames.length) {
+                    appSettings.accounts = appSettings.accounts.filter((n) => !shadowNames.includes(n));
+                    shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
+                    needsSettingUpdate = true;
+                }
 
                 if (needsSettingUpdate || !response.settings) {
                     persistSettings(); 

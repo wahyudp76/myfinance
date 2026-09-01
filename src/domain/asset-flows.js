@@ -61,3 +61,38 @@ export function resolveAssetDepositTx(tx, assets) {
   if (!tx || tx.jenis !== "Transfer") return null;
   return findAssetByName(assets, tx.kategori);
 }
+
+/**
+ * Self-healing bug "nama aset terbaca sebagai akun" (kasus: aset "shopee merchant"
+ * dibeli lewat pencatatan transfer ke aset, lalu muncul di daftar rekening).
+ *
+ * Akar masalah historis: nama tujuan Transfer pernah didaftarkan sebagai akun
+ * SEBELUM asetnya ada (atau saat globalAssets belum termuat), dan tidak ada jalur
+ * yang membuangnya kembali. Fungsi ini mengembalikan nama-nama di `accounts` yang
+ * sebenarnya BAYANGAN aset -- dengan aturan ketat supaya tidak pernah menyentuh
+ * akun sungguhan:
+ *   1. nama cocok (trim+lowercase) dengan salah satu aset, DAN
+ *   2. TIDAK ADA transaksi yang memakainya sebagai `akun` (akun sah pasti pernah
+ *      jadi sumber/penerima dana), DAN
+ *   3. ADA transaksi jenis Transfer yang memakainya sebagai `kategori`
+ *      (jejak khas setor-dana-ke-aset).
+ * Murni: tidak memutasi apa pun; pemanggil yang menyaring `accounts`.
+ */
+export function pruneAssetShadowAccounts({ accounts, transactions, assets } = {}) {
+  const acc = Array.isArray(accounts) ? accounts : [];
+  const txs = Array.isArray(transactions) ? transactions : [];
+  const norm = (v) => String(v == null ? "" : v).trim().toLowerCase();
+  const removed = [];
+  for (const name of acc) {
+    const n = norm(name);
+    if (!n) continue;
+    if (!findAssetByName(assets, name)) continue;
+    const usedAsAccount = txs.some((t) => norm(t && t.akun) === n);
+    if (usedAsAccount) continue;
+    const shadowOfSetor = txs.some(
+      (t) => t && String(t.jenis) === "Transfer" && norm(t.kategori) === n,
+    );
+    if (shadowOfSetor) removed.push(name);
+  }
+  return removed;
+}

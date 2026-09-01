@@ -28,6 +28,7 @@ const plan = [
   [3, "Pengeluaran", "Hiburan", "BCA", "95000", "[Demo] Streaming"],
   [4, "Pengeluaran", "Tagihan", "BCA", "385000", "[Demo] Listrik"],
   [5, "Pemasukan", "Gaji", "BCA", "4500000", "[Demo] Gaji bulanan"],
+  [6, "Transfer", "Shopee Merchant", "BCA", "100000", "[Demo] Beli aset Shopee Merchant"],
   [6, "Pengeluaran", "Transportasi", "BCA", "150000", "[Demo] Bensin"],
   [7, "Pengeluaran", "Makanan", "DANA", "56000", "[Demo] Makan malam"],
   [8, "Pengeluaran", "Belanja", "BCA", "310000", "[Demo] Baju"],
@@ -84,10 +85,11 @@ await context.route("**/rest/v1/transactions**", (r) => {
 // Aset demo utk E2E setor dana (akun -> Bibit). GET: satu aset Bibit 1jt; tulis: ditangkap.
 const budgetRows = [{ kategori: "Restoran", jumlah: 500000, bulan: "2026-08" }, { kategori: "Bensin", jumlah: 120000, bulan: "2026-08" }];
 await context.route("**/rest/v1/budgets**", (r) => (r.request().method() === "GET" ? r.fulfill(json(budgetRows)) : r.fulfill(json({}), 201)));
+const SHOPEE_SEED = { id: "asset-sm-1", user_id: "u1", nama: "Shopee Merchant", kategori: "Bisnis", platform: "Shopee", modal: 100000, nilai: 100000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 100000 }], simbol: null, jumlah_unit: null, sumber_harga: null };
 const BIBIT_SEED = { id: "asset-bibit-1", user_id: "u1", nama: "Bibit", kategori: "Reksadana", platform: "Bibit", modal: 1000000, nilai: 1000000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 1000000 }], simbol: null, jumlah_unit: null, sumber_harga: null };
 const assetWrites = [];
 await context.route("**/rest/v1/assets**", (r) => {
-  if (r.request().method() === "GET") return r.fulfill(json([BIBIT_SEED]));
+  if (r.request().method() === "GET") return r.fulfill(json([BIBIT_SEED, SHOPEE_SEED]));
   try { assetWrites.push({ method: r.request().method(), body: JSON.parse(r.request().postData() || "{}") }); } catch (e) { /* ignore */ }
   return r.fulfill(json({}));
 });
@@ -348,6 +350,16 @@ await page.waitForTimeout(900);
 const lastAssetWrite = assetWrites.length ? assetWrites[assetWrites.length - 1] : null;
 ok("aset Reksadana: tombol Sync NAB tampil & preview NAB x unit benar (Rp 150.000)", hasManualBtn && navPreview === "Rp 150.000");
 ok("aset Reksadana: sync manual menulis nilai 150000 + 100 unit ke cloud", !!lastAssetWrite && Number(lastAssetWrite.body.nilai) === 150000 && Number(lastAssetWrite.body.jumlah_unit) === 100);
+// ---------- E2E: self-heal akun-bayangan aset (bug "shopee merchant") ----------
+// Simulasikan polusi lama: nama aset pernah terdaftar sebagai akun. loadData()
+// harus membuangnya otomatis (aset ada + jejak Transfer-tujuan ada + tak pernah
+// dipakai sebagai akun), lalu persist.
+await page.evaluate(() => { appSettings.accounts.push("Shopee Merchant"); });
+await page.evaluate(() => loadData());
+await page.waitForTimeout(1800);
+ok("bug-fix: 'Shopee Merchant' (aset) dibuang dari daftar akun oleh self-heal", await page.evaluate(() => !appSettings.accounts.includes("Shopee Merchant")));
+ok("bug-fix: akun asli (BCA) tetap utuh pasca self-heal", await page.evaluate(() => appSettings.accounts.includes("BCA")));
+
 await page.screenshot({ path: `${SHOTS}/16-aset-reksadana.png` });
 await page.evaluate(() => { closeManualNavModal(); closeAssetDetailModal(); });
 await page.waitForTimeout(400);

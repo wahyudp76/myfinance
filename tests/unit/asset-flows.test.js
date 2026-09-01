@@ -1,7 +1,7 @@
 // Unit test domain asset-flows (src/domain/asset-flows.js) -- murni, tanpa DOM.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx } from "../../src/domain/asset-flows.js";
+import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts } from "../../src/domain/asset-flows.js";
 
 const BIBIT = { id: "a1", nama: "Bibit", kategori: "Reksadana", modal: 1000000, nilai: 1100000, value_history: [{ tanggal: "2026-08-01", nilai: 1100000 }] };
 
@@ -52,4 +52,24 @@ test("resolveAssetDepositTx: hanya Transfer dgn kategori = nama aset", () => {
   assert.equal(resolveAssetDepositTx({ jenis: "Transfer", kategori: "BCA" }, [BIBIT]), null);
   assert.equal(resolveAssetDepositTx({ jenis: "Pengeluaran", kategori: "Bibit" }, [BIBIT]), null);
   assert.equal(resolveAssetDepositTx(null, [BIBIT]), null);
+});
+
+test("pruneAssetShadowAccounts: buang akun-bayangan aset, amankan akun sah", () => {
+  const assets = [{ id: "a9", nama: "Shopee Merchant" }];
+  const txs = [
+    { jenis: "Transfer", kategori: "shopee merchant", akun: "BCA", jumlah: "100000" },
+    { jenis: "Pengeluaran", kategori: "Makanan", akun: "BCA", jumlah: "20000" },
+  ];
+  // kasus bug: nama aset terdaftar sebagai akun padahal tak pernah jadi akun transaksi
+  const r1 = pruneAssetShadowAccounts({ accounts: ["BCA", "Shopee Merchant"], transactions: txs, assets });
+  assert.deepEqual(r1, ["Shopee Merchant"]);
+  // akun yang benar-benar dipakai transaksi TIDAK disentuh walau sama dgn nama aset
+  const r2 = pruneAssetShadowAccounts({ accounts: ["BCA", "Shopee Merchant"], transactions: [...txs, { jenis: "Pemasukan", kategori: "x", akun: "Shopee Merchant", jumlah: "5" }], assets });
+  assert.deepEqual(r2, []);
+  // akun nganggur tanpa jejak transfer-tujuan TIDAK disentuh (bukan bayangan)
+  const r3 = pruneAssetShadowAccounts({ accounts: ["Shopee Merchant"], transactions: [{ jenis: "Pengeluaran", kategori: "Makanan", akun: "BCA", jumlah: "1" }], assets });
+  assert.deepEqual(r3, []);
+  // nama bukan aset TIDAK disentuh
+  const r4 = pruneAssetShadowAccounts({ accounts: ["Tunai"], transactions: txs, assets });
+  assert.deepEqual(r4, []);
 });
