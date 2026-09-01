@@ -66,7 +66,19 @@ await context.route("**/rest/v1/**", (r) => r.fulfill(json([])));
 await context.route("**/auth/v1/token**", (r) => r.fulfill(json(session)));
 await context.route("**/auth/v1/user**", (r) => r.fulfill(json(session.user)));
 await context.route("**/rest/v1/settings**", (r) => (r.request().method() === "GET" ? r.fulfill(json([])) : r.fulfill(json({}), 201)));
-await context.route("**/rest/v1/transactions**", (r) => r.fulfill(json(demoTx)));
+const txPosts = [];
+await context.route("**/rest/v1/transactions**", (r) => {
+  if (r.request().method() === "POST") { try { txPosts.push(JSON.parse(r.request().postData() || "{}")); } catch (e) { /* ignore */ } }
+  return r.fulfill(json(demoTx));
+});
+// Aset demo utk E2E setor dana (akun -> Bibit). GET: satu aset Bibit 1jt; tulis: ditangkap.
+const BIBIT_SEED = { id: "asset-bibit-1", user_id: "u1", nama: "Bibit", kategori: "Reksadana", platform: "Bibit", modal: 1000000, nilai: 1000000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 1000000 }], simbol: null, jumlah_unit: null, sumber_harga: null };
+const assetWrites = [];
+await context.route("**/rest/v1/assets**", (r) => {
+  if (r.request().method() === "GET") return r.fulfill(json([BIBIT_SEED]));
+  try { assetWrites.push({ method: r.request().method(), body: JSON.parse(r.request().postData() || "{}") }); } catch (e) { /* ignore */ }
+  return r.fulfill(json({}));
+});
 
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
@@ -136,6 +148,36 @@ ok("donut ber-DNA HUD (segmen gradasi scriptable + glow violet)", await page.eva
   return a && typeof a.data.datasets[0].backgroundColor === "function" &&
     (a.plugins || []).some((p) => p.id === "hudGlow" && p !== undefined) && a.data.datasets[0].hoverOffset === 8;
 }));
+// ---------- E2E: mekanisme setor dana akun -> aset (Bibit) ----------
+await page.evaluate(() => {
+  document.querySelector('input[name="jenis"][value="Transfer"]').checked = true;
+  handleFormTypeChange();
+});
+await page.evaluate(() => openCategorySelector());
+await page.waitForTimeout(300);
+await page.screenshot({ path: `${SHOTS}/13-selector-setor-aset.png` });
+ok("selector tujuan transfer punya seksi Aset (Setor Dana) + Bibit", await page.evaluate(() => {
+  const html = document.getElementById("categoryAccordionContainer").innerHTML;
+  closeCategorySelector();
+  return html.includes("Aset (Setor Dana)") && html.includes("Bibit");
+}));
+await page.evaluate(() => {
+  selectCategoryItem("Bibit", "Aset", "Aset");
+  document.getElementById("tanggal").value = "2026-08-15";
+  document.getElementById("jumlah").value = "500000";
+  document.getElementById("jumlah_display").value = "500.000";
+  document.getElementById("keterangan").value = "[Demo] Top up Bibit";
+  submitForm(null);
+});
+await page.waitForTimeout(400);
+// kalau saldo akun sumber kurang -> dialog konfirmasi muncul -> lanjutkan
+await page.evaluate(() => { const m = document.getElementById("modalConfirm"); if (m && !m.classList.contains("hidden")) _confirmYes(); });
+await page.waitForTimeout(1800);
+ok("setor ke aset: transaksi Transfer terkirim (kategori Bibit, 500rb)", () =>
+  txPosts.some((b) => b.jenis === "Transfer" && b.kategori === "Bibit" && Number(b.jumlah) === 500000));
+ok("setor ke aset: aset Bibit di-update (nilai+modal 1.5jt, riwayat 2026-08-15)", () =>
+  assetWrites.some((q) => Number(q.body.nilai) === 1500000 && Number(q.body.modal) === 1500000 &&
+    Array.isArray(q.body.value_history) && q.body.value_history.some((h) => h.tanggal === "2026-08-15" && h.nilai === 1500000)));
 await page.evaluate(() => switchView("aset"));
 await page.waitForTimeout(700);
 ok("tab Aset: donut alokasi ber-DNA HUD (segmen + glow)", await page.evaluate(() => {

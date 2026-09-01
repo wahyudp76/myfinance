@@ -132,6 +132,7 @@
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
+        import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx } from './src/domain/asset-flows.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
@@ -166,6 +167,7 @@
             createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
+            applyAssetDeposit, findAssetByName, resolveAssetDepositTx, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
             // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
@@ -4663,6 +4665,7 @@ async function currentUserId() {
             // Akun tujuan ikut direset di atas -> state kurs tujuannya juga harus ikut direset,
             // supaya tidak ada sisa kurs dari akun tujuan pilihan SEBELUMNYA yang nyangkut.
             currentTxMataUangTujuan = null; currentTxKursTujuan = 1;
+            currentTransferDestIsAsset = false; currentTransferDestAssetId = null; // tujuan direset -> bukan setor aset
             updateTransferDestCurrencyHintUI(currentTxMataUang, null, 1);
             
             let labelKat = document.getElementById('label-kategori');
@@ -4679,6 +4682,12 @@ async function currentUserId() {
         // memilih akun tujuan transfer lewat selector kategori (lihat selectCategoryItem()).
         let currentTxMataUangTujuan = null;
         let currentTxKursTujuan = 1;
+
+        // SETOR KE ASET: transfer yg tujuannya ASET (mis. Bibit), bukan akun. Di-set saat
+        // selector tujuan memilih aset; dipakai submitForm utk jalur setor -- transaksi
+        // Transfer biasa + update nilai/modal/value_history aset (src/domain/asset-flows.js).
+        let currentTransferDestIsAsset = false;
+        let currentTransferDestAssetId = null;
 
         // Nilai yang MASUK ke akun tujuan pada transaksi Transfer -- pakai transfer_jumlah_tujuan
         // (nominal dlm mata uang akun TUJUAN, sudah dikonversi) kalau ada (transfer lintas mata uang,
@@ -4863,7 +4872,15 @@ async function currentUserId() {
                         <div onclick="selectCategoryItem('${jsStr(acc)}', 'Transfer', 'Transfer')" class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-slate-300">
                             <div class="flex items-center"><div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-3">${getAccountLogo(acc)}</div><span class="font-bold text-sm text-slate-700">${escapeHtml(acc)}</span></div>
                         </div>`).join('');
-                container.innerHTML = `<div class="text-xs text-slate-400 font-bold uppercase mb-2">Pilih Akun Tujuan</div>` + rows;
+                // Seksi "ASET (SETOR DANA)": setor dari rekening sumber ke aset (mis. Bibit) --
+                // dicatat sbg Transfer dgn kategori = nama aset (lihat src/domain/asset-flows.js).
+                const assetRows = (globalAssets || []).map(a => `
+                        <div onclick="selectCategoryItem('${jsStr(a.nama)}', 'Aset', 'Aset')" class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-cyan-300">
+                            <div class="flex items-center"><div class="w-8 h-8 rounded-full bg-cyan-50 flex items-center justify-center mr-3"><i class="fas fa-chart-line text-cyan-500"></i></div><span class="font-bold text-sm text-slate-700">${escapeHtml(a.nama)}</span></div>
+                            <span class="text-[9px] font-black uppercase tracking-wider text-cyan-500 bg-cyan-50 px-2 py-1 rounded">Setor</span>
+                        </div>`).join('');
+                container.innerHTML = `<div class="text-xs text-slate-400 font-bold uppercase mb-2">Pilih Akun Tujuan</div>` + rows +
+                    (assetRows ? `<div class="text-xs text-slate-400 font-bold uppercase mb-2 mt-4">Aset (Setor Dana) -- saldo akun berkurang, nilai & modal aset bertambah</div>` + assetRows : '');
             } else {
                 let dict = activeCategoryTab === 'Pengeluaran' ? categoryDict.pengeluaran : categoryDict.pemasukan;
 
@@ -4959,7 +4976,18 @@ async function currentUserId() {
             hideCategorySuggestion(); // user sudah pilih sendiri, saran AI (kalau lagi tampil) tidak relevan lagi
             
             let displayUi = document.getElementById('selected-category-display');
+            if (type === 'Aset') {
+                // Setor ke aset: tujuan = aset (bukan akun). submitForm memakai flag ini utk
+                // jalur setor: transaksi Transfer + update nilai/modal/riwayat aset.
+                const assetPicked = servicesModule.findAssetByName(globalAssets, name);
+                currentTransferDestIsAsset = true;
+                currentTransferDestAssetId = assetPicked ? assetPicked.id : null;
+                displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-cyan-50 flex items-center justify-center mr-2"><i class="fas fa-chart-line text-cyan-500 text-[10px]"></i></div><span class="font-bold text-slate-800">${escapeHtml(name)}</span> <span class="text-[10px] text-cyan-500 font-bold ml-1">(setor ke aset)</span>`;
+                closeCategorySelector();
+                return;
+            }
             if (type === 'Transfer') {
+                currentTransferDestIsAsset = false; currentTransferDestAssetId = null; // tujuan akun biasa
                 displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(name)}</div><span class="font-bold text-slate-800">${escapeHtml(name)}</span>`;
                 // User AKTIF memilih akun tujuan (baik transaksi baru maupun ganti akun tujuan selagi
                 // edit) -- beda dari setCategoryUIFromValue() yg dipanggil saat form edit PERTAMA kali
@@ -4984,7 +5012,16 @@ async function currentUserId() {
             if(!val) { displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>Pilih Kategori`; return; }
 
             if(jenis === 'Transfer') {
-                displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(val)}</div><span class="font-bold text-slate-800">${escapeHtml(val)}</span>`;
+                const prefillAsset = servicesModule.findAssetByName(globalAssets, val);
+                if (prefillAsset) {
+                    // Transfer ini adalah "setor ke aset" -- tampilkan ikon aset + set flag
+                    // supaya penyimpanan edit memakai jalur setor (delta diterapkan ke aset).
+                    currentTransferDestIsAsset = true; currentTransferDestAssetId = prefillAsset.id;
+                    displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-cyan-50 flex items-center justify-center mr-2"><i class="fas fa-chart-line text-cyan-500 text-[10px]"></i></div><span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[10px] text-cyan-500 font-bold ml-1">(setor ke aset)</span>`;
+                } else {
+                    currentTransferDestIsAsset = false; currentTransferDestAssetId = null;
+                    displayUi.innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center mr-2">${getAccountLogo(val)}</div><span class="font-bold text-slate-800">${escapeHtml(val)}</span>`;
+                }
             } else {
                 let style = getCategoryStyle(val, jenis);
                 displayUi.innerHTML = `${categoryIconHtml(style, 'w-6 h-6 rounded-full flex items-center justify-center mr-2', 'text-[10px]')}<span class="font-bold text-slate-800">${escapeHtml(val)}</span> <span class="text-[10px] text-slate-400 ml-2">(${escapeHtml(style.parentName || style.parent)})</span>`;
@@ -5196,6 +5233,43 @@ async function currentUserId() {
                 showSuccessToast(wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.');
             };
 
+            if (jenisVal === 'Transfer' && currentTransferDestIsAsset) {
+                // SETOR KE ASET (mis. Bibit): transaksi baris biasa (jenis Transfer, kategori =
+                // nama aset -> saldo akun sumber berkurang lewat logika transfer yg ada) LALU
+                // nilai/modal/value_history aset di-update via applyAssetDeposit. BUKAN lewat
+                // RPC create_transfer_transaction -- RPC itu khusus transfer akun-ke-akun.
+                if (!(jumlahNum > 0)) { showErrorToast('Jumlah setoran harus lebih dari 0.'); showLoading(false); return; }
+                const assetTarget = globalAssets.find(a => a.id === currentTransferDestAssetId);
+                if (!assetTarget) { showErrorToast('Aset tujuan tidak ditemukan -- pilih ulang dari daftar tujuan.'); showLoading(false); return; }
+                const runDeposit = () => {
+                    showLoading(true);
+                    // Edit: terapkan SELISIH (jumlah baru - jumlah lama) ke aset; baru: jumlah penuh.
+                    const oldRow = wasEdit ? globalData.find(t => t.id === currentEditId) : null;
+                    const depositDelta = wasEdit ? (jumlahNum - (Number(oldRow && oldRow.jumlah) || 0)) : jumlahNum;
+                    const txPromise = wasEdit
+                        ? transactionService.update(currentEditId, servicesModule.toUpdateRecord(data))
+                        : transactionService.create(servicesModule.toCreateRecord(data));
+                    txPromise
+                        .then(() => servicesModule.updateAsset(supabaseClient, assetTarget.id, { ...assetTarget, ...servicesModule.applyAssetDeposit(assetTarget, depositDelta, data.tanggal) }))
+                        .then(() => {
+                            closeModal();
+                            refreshTransactionsOnly(() => refreshAssetsOnly());
+                            showSuccessToast('Setoran Rp ' + formatRp(jumlahNum) + ' ke ' + assetTarget.nama + ' berhasil dicatat.');
+                        })
+                        .catch((err) => { console.error('Setor ke aset gagal:', err); showErrorToast('Gagal menyimpan setoran. Periksa koneksi internet kamu lalu coba lagi.'); showLoading(false); });
+                };
+                // Cek lunak: peringatkan bila saldo akun sumber tidak cukup -- user boleh lanjut
+                // (konsisten dgn pengeluaran yg juga tidak memblokir saldo minus).
+                const saldoSumber = servicesModule.computeAccountTotals(globalData, data.akun, { transferTargetAmount }).balance;
+                if (!wasEdit && jumlahNum > saldoSumber) {
+                    showLoading(false);
+                    showConfirm('Saldo akun "' + data.akun + '" (Rp ' + formatRp(saldoSumber) + ') lebih kecil dari jumlah setoran. Tetap catat setorannya?', runDeposit);
+                    return;
+                }
+                runDeposit();
+                return;
+            }
+
             if (jenisVal === 'Transfer' && !wasEdit) {
                 // TRANSFER BARU -- selalu lewat RPC create_transfer_transaction(), bukan cuma saat
                 // lintas mata uang. RPC ini menangani kasus sama-mata-uang dgn benar juga (kurs
@@ -5236,7 +5310,18 @@ async function currentUserId() {
             else { transactionService.create(servicesModule.toCreateRecord(data)).then(onSaveOk).catch((err) => { console.error('api.run.addTransaction gagal:', err); onSaveFail(err); }); }
         }
 
-        function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true); transactionService.remove(id).then(() => { refreshTransactionsOnly(); showSuccessToast('Transaksi berhasil dihapus.'); }).catch((err) => { console.error('api.run.deleteTransaction gagal:', err); showErrorToast('Gagal menghapus transaksi. Coba lagi.'); showLoading(false); }); }); }
+        function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true);
+            // Setor ke aset: saat transaksi setor dihapus, nominalnya DITARIK KEMBALI dari
+            // nilai/modal aset (src/domain/asset-flows.js) supaya keduanya tetap sinkron.
+            const rowToDelete = globalData.find(t => t.id === id) || null;
+            const depositAsset = servicesModule.resolveAssetDepositTx(rowToDelete, globalAssets);
+            transactionService.remove(id).then(() => {
+                if (depositAsset) {
+                    servicesModule.updateAsset(supabaseClient, depositAsset.id, { ...depositAsset, ...servicesModule.applyAssetDeposit(depositAsset, -(Number(rowToDelete.jumlah) || 0), rowToDelete.tanggal) })
+                        .then(() => { refreshTransactionsOnly(() => refreshAssetsOnly()); showSuccessToast('Transaksi dihapus & nominal ditarik kembali dari aset ' + depositAsset.nama + '.'); })
+                        .catch(() => { refreshTransactionsOnly(); showErrorToast('Transaksi dihapus, tapi aset gagal diperbarui -- periksa tab Aset.'); showLoading(false); });
+                } else { refreshTransactionsOnly(); showSuccessToast('Transaksi berhasil dihapus.'); }
+            }).catch((err) => { console.error('api.run.deleteTransaction gagal:', err); showErrorToast('Gagal menghapus transaksi. Coba lagi.'); showLoading(false); }); }); }
 
         // ========================== FORM ASET ACTIONS ==========================
         // Section "Simbol/ID" + "Jumlah Unit" cuma relevan buat kategori yang punya sumber harga
@@ -5389,7 +5474,8 @@ async function currentUserId() {
                 let needsSettingUpdate = false;
                 globalData.forEach(row => {
                     if (row.akun && !appSettings.accounts.includes(row.akun)) { appSettings.accounts.push(row.akun); needsSettingUpdate = true; }
-                    if (row.jenis === 'Transfer' && row.kategori && !appSettings.accounts.includes(row.kategori)) {
+                    // Nama aset tujuan setor (mis. Bibit) BUKAN akun -- jangan didaftarkan otomatis.
+                    if (row.jenis === 'Transfer' && row.kategori && !appSettings.accounts.includes(row.kategori) && !servicesModule.findAssetByName(globalAssets, row.kategori)) {
                         appSettings.accounts.push(row.kategori); needsSettingUpdate = true;
                     }
                 });
@@ -5515,7 +5601,8 @@ async function currentUserId() {
                 let needsSettingUpdate = false;
                 globalData.forEach(row => {
                     if (row.akun && !appSettings.accounts.includes(row.akun)) { appSettings.accounts.push(row.akun); needsSettingUpdate = true; }
-                    if (row.jenis === 'Transfer' && row.kategori && !appSettings.accounts.includes(row.kategori)) {
+                    // Nama aset tujuan setor (mis. Bibit) BUKAN akun -- jangan didaftarkan otomatis.
+                    if (row.jenis === 'Transfer' && row.kategori && !appSettings.accounts.includes(row.kategori) && !servicesModule.findAssetByName(globalAssets, row.kategori)) {
                         appSettings.accounts.push(row.kategori); needsSettingUpdate = true;
                     }
                 });

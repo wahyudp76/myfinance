@@ -7,7 +7,7 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v32` (sinkron lokal). Suite: **456 unit + 1 smoke, semua hijau**.
+- Service worker live: `myfinance-v34` (sinkron lokal). Suite: **462 unit + 1 smoke, semua hijau**.
 - Semua tier improvement selesai (Tier 1–3), seluruh temuan audit (F1–F4) CLOSED.
 - Worktree bersih; tidak ada pekerjaan menggantung.
 
@@ -31,7 +31,8 @@
   `sw.js` (navigate network-first; statis cache; GET `/rest/v1` network-first + fallback per-token;
   logout membuang cache data), `src/domain/*` (murni, selalu dgn unit test; termasuk `sparkline.js` (gelombang neon HUD) &
   `chart-hud.js` (DNA HUD semua chart: garis ala balanceTrend, batang gradasi
-  neon + casing, segmen donut komet + glow violet, sumbu teknis), `src/ui/*` (render),
+  neon + casing, segmen donut komet + glow violet, sumbu teknis) &
+  `asset-flows.js` (mekanisme setor dana akun -> aset: nilai+modal+riwayat), `src/ui/*` (render),
   `src/services/supabase/*` (adapter; supabase-js dimuat dari **esm.sh**), `scripts/` (lighthouse, rls-audit,
   `verify-hud.mjs` = verify browser nyata via stub Supabase di Playwright, TANPA service key),
   `sql/` (migrasi & referensi), `tests/unit/` (node:test).
