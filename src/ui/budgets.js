@@ -215,8 +215,8 @@ export function renderBudgetView({
         data: {
           labels: entries.map(e => e.name),
           datasets: [
-            { label: "Budget", data: entries.map(e => e.budget), ...hudBarDataset({ from: "#c7d2fe", barPercentage: 0.55 }) },
-            { label: "Realisasi", data: entries.map(e => e.actual), ...hudBarDataset({ from: realisasiColors, barPercentage: 0.55 }) }
+            { label: "Budget", data: entries.map(e => e.budget), ...hudBarDataset({ from: "#c7d2fe" }) },
+            { label: "Realisasi", data: entries.map(e => e.actual), ...hudBarDataset({ from: realisasiColors }) }
           ]
         },
         options: {

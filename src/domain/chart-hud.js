@@ -135,21 +135,27 @@ export function hudBarDataset(opts = {}) {
     to = null, // default: sama dgn from (gradasi satu hue)
     borderRadius = 6,
     borderSkipped = false,
-    barPercentage,
+    // Default 0.92: jarak antar batang lebih rapat (permintaan pemilik) -- boleh dioverride.
+    barPercentage = 0.92,
+    categoryPercentage = 0.92,
     maxBarThickness
   } = opts;
   return {
     backgroundColor: (ctx) => {
-      const el = ctx.element;
       const base = resolveHudColor(from, ctx.dataIndex);
       const tip = to == null ? base : resolveHudColor(to, ctx.dataIndex);
-      if (!el || typeof el.y !== "number" || typeof el.base !== "number" || !ctx.chart || !ctx.chart.ctx || !ctx.chart.ctx.createLinearGradient) {
-        return base;
-      }
-      const top = Math.min(el.y, el.base);
-      const bottom = Math.max(el.y, el.base);
-      if (bottom - top < 0.5) return tip;
-      const g = ctx.chart.ctx.createLinearGradient(0, top, 0, bottom);
+      const chart = ctx.chart;
+      if (!chart || !chart.ctx || !chart.ctx.createLinearGradient) return base;
+      // PENTING: gradien dihitung dari AREA PLOT (chartArea), bukan element.y/base.
+      // Pada resolve pertama, elemen bar masih di posisi awal animasi (y == base)
+      // sehingga gradien berbasis geometri jatuh ke fallback solid dan gradasi baru
+      // "muncul" setelah hover/klik me-resolve ulang opsi. chartArea/height sudah
+      // stabil sejak render pertama -> gradasi langsung aktif tanpa interaksi.
+      const area = chart.chartArea;
+      const top = area ? area.top : 0;
+      const bottom = area ? area.bottom : (chart.height || 300);
+      if (!(bottom - top > 0.5)) return tip;
+      const g = chart.ctx.createLinearGradient(0, top, 0, bottom);
       g.addColorStop(0, tip);
       g.addColorStop(1, hudAlpha(base, 0.32));
       return g;
@@ -159,7 +165,8 @@ export function hudBarDataset(opts = {}) {
     hoverBackgroundColor: (ctx) => resolveHudColor(to == null ? from : to, ctx.dataIndex),
     borderRadius,
     borderSkipped,
-    ...(barPercentage != null ? { barPercentage } : {}),
+    barPercentage,
+    categoryPercentage,
     ...(maxBarThickness != null ? { maxBarThickness } : {})
   };
 }
@@ -172,21 +179,34 @@ export function hudBarDataset(opts = {}) {
 export function hudDonutSegment(palette) {
   const list = Array.isArray(palette) && palette.length ? palette : ["#22d3ee"];
   return (ctx) => {
-    const el = ctx.element;
     const base = list[ctx.dataIndex % list.length];
-    if (!el || typeof el.x !== "number" || typeof el.startAngle !== "number" || typeof el.endAngle !== "number" ||
-        typeof el.outerRadius !== "number" || !ctx.chart || !ctx.chart.ctx || !ctx.chart.ctx.createLinearGradient) {
-      return base;
-    }
-    const r = (el.outerRadius + (el.innerRadius || 0)) / 2 || el.outerRadius;
-    const x1 = el.x + Math.cos(el.startAngle) * r;
-    const y1 = el.y + Math.sin(el.startAngle) * r;
-    const x2 = el.x + Math.cos(el.endAngle) * r;
-    const y2 = el.y + Math.sin(el.endAngle) * r;
+    const chart = ctx.chart;
+    if (!chart || !chart.ctx || !chart.ctx.createLinearGradient) return base;
+    // PENTING: sudut komet dihitung dari DATA dataset (stabil di resolve pertama),
+    // bukan element.startAngle/endAngle -- elemen arc belum ber-geometri final saat
+    // render pertama sehingga gradasi dulunya baru muncul setelah diklik. Asumsi:
+    // rotasi default Chart.js (mulai jam 12, searah jarum jam) -- semua donut app
+    // ini memakai default. Fallback solid bila data kosong/rusak.
+    const data = (ctx.dataset && ctx.dataset.data) || [];
+    const vals = data.map((v) => Math.max(0, Number(v) || 0));
+    const total = vals.reduce((a, v) => a + v, 0);
+    const area = chart.chartArea;
+    const cx = area ? (area.left + area.right) / 2 : (chart.width || 300) / 2;
+    const cy = area ? (area.top + area.bottom) / 2 : (chart.height || 300) / 2;
+    const r = Math.max(8, Math.min(chart.width || 300, chart.height || 300) / 2 - 4);
+    let frac = 0;
+    if (total > 0) { for (let i = 0; i < ctx.dataIndex; i++) frac += vals[i] / total; }
+    const span = total > 0 ? (vals[ctx.dataIndex] || 0) / total : 1 / list.length;
+    const a1 = -Math.PI / 2 + frac * 2 * Math.PI;
+    const a2 = a1 + Math.max(span, 0.02) * 2 * Math.PI;
+    const x1 = cx + Math.cos(a1) * r;
+    const y1 = cy + Math.sin(a1) * r;
+    const x2 = cx + Math.cos(a2) * r;
+    const y2 = cy + Math.sin(a2) * r;
     if (!isFinite(x1) || !isFinite(y1) || !isFinite(x2) || !isFinite(y2) || (Math.abs(x2 - x1) < 0.01 && Math.abs(y2 - y1) < 0.01)) {
       return base;
     }
-    const g = ctx.chart.ctx.createLinearGradient(x1, y1, x2, y2);
+    const g = chart.ctx.createLinearGradient(x1, y1, x2, y2);
     g.addColorStop(0, base);
     g.addColorStop(1, hudAlpha(base, 0.5));
     return g;

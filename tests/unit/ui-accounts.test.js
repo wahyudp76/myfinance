@@ -136,7 +136,7 @@ test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Ke
   // DNA batang HUD: backgroundColor scriptable -- fallback solid = warna sumber lama.
   const dsIn = cashflow.config.data.datasets[0], dsOut = cashflow.config.data.datasets[1];
   assert.deepEqual({ label: dsIn.label, data: dsIn.data, borderRadius: dsIn.borderRadius, barPercentage: dsIn.barPercentage },
-    { label: "Masuk", data: [100000, 0, 250000], borderRadius: 4, barPercentage: 0.7 });
+    { label: "Masuk", data: [100000, 0, 250000], borderRadius: 4, barPercentage: 0.92 }); // default rapat
   assert.equal(dsIn.backgroundColor({ dataIndex: 0, element: null, chart: null }), "#34d399");
   assert.equal(dsOut.backgroundColor({ dataIndex: 0, element: null, chart: null }), "#fb7185");
   assert.equal(dsOut.borderSkipped, false);

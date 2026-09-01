@@ -193,7 +193,7 @@ export function renderAssetView({
         data: catLabels.length ? catData : [1],
         // DNA donut HUD (src/domain/chart-hud.js): segmen gradasi komet; palet tetap sumber warna.
         backgroundColor: hudDonutSegment(catLabels.length ? modernPalette : [chartEmptyColor()]),
-        borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8
+        borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8
       }]
     },
     options: {

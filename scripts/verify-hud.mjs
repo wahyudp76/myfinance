@@ -143,6 +143,13 @@ ok("grafik batang ber-DNA HUD (gradasi scriptable + casing + glow)", await page.
   const ok1 = (c) => c && c.data.datasets.every((ds) => typeof ds.backgroundColor === "function" && ds.borderSkipped === false) && (c.plugins || []).some((p) => p.id === "hudGlow");
   return typeof charts !== "undefined" && ok1(charts.cashflow7 && charts.cashflow7.config) && ok1(charts.monthly && charts.monthly.config);
 }));
+ok("gradasi batang & donut AKTIF sejak render pertama (tanpa klik/hover)", await page.evaluate(() => {
+  // Nilai opsi yang sudah di-resolve Chart.js harus CanvasGradient -- bukan string solid.
+  const isGrad = (v) => !!(v && typeof v === "object" && typeof v.addColorStop === "function");
+  const barEl = typeof charts !== "undefined" && charts.cashflow7 && charts.cashflow7.getDatasetMeta(0).data.find((el) => el && el.options);
+  const arcEl = typeof charts !== "undefined" && charts.asset && charts.asset.getDatasetMeta(0).data.find((el) => el && el.options);
+  return !!(barEl && isGrad(barEl.options.backgroundColor) && arcEl && isGrad(arcEl.options.backgroundColor));
+}));
 ok("donut ber-DNA HUD (segmen gradasi scriptable + glow violet)", await page.evaluate(() => {
   const a = typeof charts !== "undefined" && charts.asset && charts.asset.config;
   return a && typeof a.data.datasets[0].backgroundColor === "function" &&

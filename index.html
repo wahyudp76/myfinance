@@ -6175,7 +6175,7 @@ async function currentUserId() {
                     label: 'Arus Kas Bersih',
                     data: chartNet,
                     // DNA batang HUD: gradasi neon per batang (hijau utk net +, merah utk net -).
-                    ...servicesModule.chartHud.hudBarDataset({ from: chartNet.map(v => v >= 0 ? (themeAccentColor('income500') || '#10b981') : '#f43f5e'), borderRadius: 3, barPercentage: 0.55 })
+                    ...servicesModule.chartHud.hudBarDataset({ from: chartNet.map(v => v >= 0 ? (themeAccentColor('income500') || '#10b981') : '#f43f5e'), borderRadius: 3 })
                 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
@@ -6295,8 +6295,8 @@ async function currentUserId() {
                         labels: labels7,
                         datasets: [
                             // DNA batang HUD (src/domain/chart-hud.js): gradasi neon + casing tipis.
-                            { label: 'Masuk', data: last7Order.map(k => last7Map[k].in), ...servicesModule.chartHud.hudBarDataset({ from: (themeAccentColor('incomeBar') || '#34d399'), barPercentage: 0.6 }) },
-                            { label: 'Keluar', data: last7Order.map(k => last7Map[k].out), ...servicesModule.chartHud.hudBarDataset({ from: '#fb7185', barPercentage: 0.6 }) }
+                            { label: 'Masuk', data: last7Order.map(k => last7Map[k].in), ...servicesModule.chartHud.hudBarDataset({ from: (themeAccentColor('incomeBar') || '#34d399') }) },
+                            { label: 'Keluar', data: last7Order.map(k => last7Map[k].out), ...servicesModule.chartHud.hudBarDataset({ from: '#fb7185' }) }
                         ]
                     },
                     options: {
@@ -6359,7 +6359,7 @@ async function currentUserId() {
             if(document.getElementById('assetChart')) {
                 charts.asset = new Chart(document.getElementById('assetChart').getContext('2d'), { 
                     type: 'doughnut', 
-                    data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: servicesModule.chartHud.hudDonutSegment(assetData[0]===1&&assetLabels[0]==='Kosong' ? [chartEmptyColor()] : modernPalette), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
+                    data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: servicesModule.chartHud.hudDonutSegment(assetData[0]===1&&assetLabels[0]==='Kosong' ? [chartEmptyColor()] : modernPalette), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] }, 
                     options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, datalabels: { display: false } } },
                     plugins: [servicesModule.chartHud.hudDonutGlowPlugin]
                 });
@@ -7435,7 +7435,7 @@ async function currentUserId() {
             const monthLabels = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
             charts.yearlyNet = new Chart(document.getElementById('yearlyNetChart').getContext('2d'), {
                 type: 'bar',
-                data: { labels: monthLabels, datasets: [{ data: monthlyNet, ...servicesModule.chartHud.hudBarDataset({ from: monthlyNet.map(v => v >= 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185'), maxBarThickness: 28 }) }] },
+                data: { labels: monthLabels, datasets: [{ data: monthlyNet, ...servicesModule.chartHud.hudBarDataset({ from: monthlyNet.map(v => v >= 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185'), maxBarThickness: 44 }) }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false }, datalabels: { display: false },
@@ -7461,7 +7461,7 @@ async function currentUserId() {
             if(charts.catOut) charts.catOut.destroy(); let hasOutCat = outEntries.length > 0;
             charts.catOut = new Chart(document.getElementById('expenseCategoryChart').getContext('2d'), { 
                 type: 'doughnut', 
-                data: { labels: hasOutCat ? outEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasOutCat ? outEntries.map(e=>e.val) : [1], backgroundColor: servicesModule.chartHud.hudDonutSegment(hasOutCat ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
+                data: { labels: hasOutCat ? outEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasOutCat ? outEntries.map(e=>e.val) : [1], backgroundColor: servicesModule.chartHud.hudDonutSegment(hasOutCat ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '70%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },
@@ -7501,7 +7501,7 @@ async function currentUserId() {
             if(charts.catIn) charts.catIn.destroy(); let hasInCat = inEntries.length > 0;
             charts.catIn = new Chart(document.getElementById('incomeCategoryChart').getContext('2d'), { 
                 type: 'doughnut', 
-                data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: servicesModule.chartHud.hudDonutSegment(hasInCat ? getCutePaletteIn() : [chartEmptyColor()]), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
+                data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: servicesModule.chartHud.hudDonutSegment(hasInCat ? getCutePaletteIn() : [chartEmptyColor()]), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, cutout: '70%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },

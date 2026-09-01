@@ -108,40 +108,41 @@ test("hudBarDataset: bentuk dasar + fallback warna solid tanpa geometri", () => 
   assert.equal(ds.backgroundColor({ dataIndex: 0, element: null, chart: null }), "#34d399");
   assert.equal(ds.hoverBackgroundColor({ dataIndex: 0 }), "#34d399");
   assert.equal(ds.borderColor({ dataIndex: 0 }), "rgba(52,211,153,0.9)");
-  assert.equal(ds.barPercentage, undefined);
+  assert.equal(ds.barPercentage, 0.92); // default rapat (permintaan pemilik)
+  assert.equal(ds.categoryPercentage, 0.92);
   const ds2 = hudBarDataset({ from: "#22d3ee", barPercentage: 0.6, maxBarThickness: 28 });
   assert.equal(ds2.barPercentage, 0.6);
   assert.equal(ds2.maxBarThickness, 28);
 });
 
-test("hudBarDataset: gradasi vertikal puncak terang -> dasar memudar + array per batang", () => {
+test("hudBarDataset: gradasi vertikal dari chartArea (aktif sejak render pertama) + array per batang", () => {
   const { g, stops } = fakeGradient();
-  const chart = { ctx: { createLinearGradient: (...a) => { g._args = a; return g; } } };
+  const chart = { ctx: { createLinearGradient: (...a) => { g._args = a; return g; } }, chartArea: { top: 20, bottom: 120 }, width: 200, height: 150 };
   const ds = hudBarDataset({ from: ["#34d399", "#fb7185"] });
-  const fill = ds.backgroundColor({ dataIndex: 1, element: { y: 10, base: 90 }, chart });
+  const fill = ds.backgroundColor({ dataIndex: 1, chart });
   assert.equal(fill, g);
-  assert.deepEqual(g._args, [0, 10, 0, 90]);
+  assert.deepEqual(g._args, [0, 20, 0, 120]); // chartArea, bukan geometri elemen
   assert.deepEqual(stops, [[0, "#fb7185"], [1, "rgba(251,113,133,0.32)"]]);
-  // batang negatif: gradasi tetap dihitung dari ujung atas ke bawah
+  // tanpa chartArea (resolve paling awal) -> pakai tinggi kanvas, tetap gradasi
   const { g: g2 } = fakeGradient();
-  const chart2 = { ctx: { createLinearGradient: () => g2 } };
-  const fillNeg = ds.backgroundColor({ dataIndex: 0, element: { y: 90, base: 20 }, chart: chart2 });
-  assert.equal(fillNeg, g2);
+  const chart2 = { ctx: { createLinearGradient: (...a) => { g2._args = a; return g2; } }, height: 150 };
+  assert.equal(ds.backgroundColor({ dataIndex: 0, chart: chart2 }), g2);
+  assert.deepEqual(g2._args, [0, 0, 0, 150]);
 });
 
-test("hudDonutSegment: gradasi sepanjang sudut + fallback palet solid", () => {
+test("hudDonutSegment: sudut komet dari data (aktif tanpa klik) + fallback palet solid", () => {
   const fn = hudDonutSegment(["#22d3ee", "#a78bfa"]);
-  assert.equal(fn({ dataIndex: 1, element: null, chart: null }), "#a78bfa");
+  assert.equal(fn({ dataIndex: 1, chart: null, dataset: { data: [30, 70] } }), "#a78bfa");
   const { g, stops } = fakeGradient();
   let args = null;
-  const chart = { ctx: { createLinearGradient: (...a) => { args = a; return g; } } };
-  const fill = fn({ dataIndex: 0, element: { x: 100, y: 100, startAngle: 0, endAngle: Math.PI / 2, outerRadius: 50, innerRadius: 30 }, chart });
+  const chart = { ctx: { createLinearGradient: (...a) => { args = a; return g; } }, chartArea: { left: 0, top: 0, right: 200, bottom: 200 }, width: 200, height: 200 };
+  const fill = fn({ dataIndex: 0, chart, dataset: { data: [30, 70] } });
   assert.equal(fill, g);
   assert.deepEqual(stops, [[0, "#22d3ee"], [1, "rgba(34,211,238,0.5)"]]);
   assert.ok(args.every((v) => Number.isFinite(v)));
   // palet rusak -> cyan default
   const fb = hudDonutSegment(null);
-  assert.equal(fb({ dataIndex: 3, element: null, chart: null }), "#22d3ee");
+  assert.equal(fb({ dataIndex: 3, chart: null, dataset: { data: [1] } }), "#22d3ee");
 });
 
 test("hudDonutGlowPlugin: id 'hudGlow', glow violet, save/restore", () => {

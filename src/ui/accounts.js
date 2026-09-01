@@ -152,8 +152,8 @@ export function renderAccountDetailCharts({
       data: {
         labels: bucketLabels,
         datasets: [
-          { label: "Masuk", data: cashInData, ...hudBarDataset({ from: (accentColor && accentColor("incomeBar")) || "#34d399", borderRadius: 4, barPercentage: 0.7 }) },
-          { label: "Keluar", data: cashOutData, ...hudBarDataset({ from: "#fb7185", borderRadius: 4, barPercentage: 0.7 }) }
+          { label: "Masuk", data: cashInData, ...hudBarDataset({ from: (accentColor && accentColor("incomeBar")) || "#34d399", borderRadius: 4 }) },
+          { label: "Keluar", data: cashOutData, ...hudBarDataset({ from: "#fb7185", borderRadius: 4 }) }
         ]
       },
       options: {
@@ -194,7 +194,7 @@ export function renderAccountDetailCharts({
       data: {
         labels: hasCatData ? catEntries.map(e => e.label) : ["Belum ada pengeluaran"],
         // DNA donut HUD: segmen gradasi komet (palet colorblind tetap sumber warna).
-        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasCatData ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }]
+        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasCatData ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }]
       },
       options: {
         // Opsi disamakan dgn donut "Komposisi Kas & Rekening" (cutout 70%).

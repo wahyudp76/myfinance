@@ -276,7 +276,7 @@ export function renderCategorySubProportion({
         // Opsi disamakan dgn donut "Komposisi Kas & Rekening" (cutout 70%, spacing 4, radius 5).
         backgroundColor: hudDonutSegment(colors),
         borderWidth: 0,
-        spacing: 4,
+        spacing: 6,
         borderRadius: 5,
         hoverOffset: 8,
       }],
