@@ -128,6 +128,7 @@
         import { pruneAccountKeyedMaps, validatePasswordChange } from './src/domain/settings.js';
         import { buildTransactionsCsv, csvFileName, filterTransactionsForRange } from './src/domain/export-csv.js';
         import { summarizeAppData, formatBytes } from './src/domain/app-info.js';
+        import { computeMarketValue, withSyncedValue, describeSyncSource } from './src/domain/market-sync.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
         import { dashboardSkeletonHtml } from './src/ui/skeletons.js';
@@ -177,6 +178,7 @@
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
             buildTransactionsCsv, csvFileName, filterTransactionsForRange, summarizeAppData, formatBytes, validatePasswordChange,
+            computeMarketValue, withSyncedValue, describeSyncSource,
             buildDailyFlow, sparklineSvg, // sparkline HUD (src/domain/sparkline.js) -- domain murni
             chartHud, // DNA grafik garis HUD (src/domain/chart-hud.js)
             chartsUi, // builder config semua Chart.js (src/ui/charts.js) -- slice monolith 2026-09
@@ -1937,6 +1939,7 @@
             </div>
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl space-y-2">
                 <button type="button" id="asset-detail-refresh-btn" onclick="handleRefreshAssetPrice()" class="hidden w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-indigo-600/30"><i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis</button>
+                <button type="button" id="asset-detail-manualnav-btn" onclick="openManualNavModal()" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-emerald-600/30"><i class="fas fa-satellite-dish mr-2"></i>Sync NAB/UP Pasar (Reksadana)</button>
                 <button type="button" onclick="closeAssetDetailModal(); openAssetModal(true, currentAssetDetailId)" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-pencil mr-2"></i>Perbarui Nilai / Edit</button>
             </div>
         </div>
@@ -2081,6 +2084,38 @@
     </div>
 
     <!-- MODAL EDIT PROFIL (foto, nama, data diri) -->
+    <!-- MODAL SYNC NAB/UP MANUAL (reksadana: salin NAB/UP terkini dari app Bibit/Bareksa) -->
+    <div id="modalManualNav" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[96] hidden flex justify-center items-end md:items-center">
+        <div class="bg-slate-50 w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalManualNavContent">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Sync NAB/UP Pasar</h3>
+                    <p class="text-[11px] text-slate-400">Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa</p>
+                </div>
+                <button type="button" onclick="closeManualNavModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="manual-nav-value" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">NAB/UP terkini (Rp per unit)</label>
+                    <input type="number" step="any" min="0" id="manual-nav-value" placeholder="Contoh: 1465.82" oninput="previewManualNav()"
+                        class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
+                </div>
+                <div>
+                    <label for="manual-nav-units" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah unit dimiliki</label>
+                    <input type="number" step="any" min="0" id="manual-nav-units" placeholder="Contoh: 120.5" oninput="previewManualNav()"
+                        class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
+                </div>
+                <div class="bg-emerald-50 rounded-2xl p-3 flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Nilai baru</span>
+                    <span id="manual-nav-preview" class="text-sm font-bold text-emerald-700 font-mono">Rp 0</span>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl">
+                <button type="button" onclick="submitManualNav()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-rotate mr-2"></i>Terapkan Nilai Pasar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="modalProfile" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[92vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalProfileContent">
 
@@ -5041,6 +5076,7 @@ async function currentUserId() {
                 ['modalGoalContribute', closeGoalContributeModal],   // slice a11y: sebelumnya TIDAK ada di peta ESC
                 ['modalDebtPay', closeDebtPayModal],                // idem
                 ['modalProfile', closeProfileModal],
+                ['modalManualNav', closeManualNavModal],
                 ['modalAccount', closeAccountModal],
                 ['modalCategoryStyle', closeCategoryStyleModal],    // idem
                 ['modalBudget', closeBudgetModal],
@@ -5561,9 +5597,11 @@ async function currentUserId() {
 
         // ========================== FORM ASET ACTIONS ==========================
         // Section "Simbol/ID" + "Jumlah Unit" cuma relevan buat kategori yang punya sumber harga
-        // otomatis (lihat fitur Growth "Auto-update harga aset"). Kripto -> CoinGecko (solid).
-        // Saham -> Yahoo Finance (TIDAK RESMI, eksperimental, bisa berhenti berfungsi sewaktu2).
-        // Reksadana & Emas belum didukung -- belum ada sumber data gratis yang cukup diyakini akurat.
+        // otomatis. Kripto -> CoinGecko (solid). Saham -> Yahoo Finance (TIDAK RESMI,
+        // eksperimental). REKSADANA -> NAB/UP pasar riil dari API publik Bibit (2026-09,
+        // terverifikasi; eksekusi di Edge Function refresh-asset-price krn CORS Bibit
+        // terpatri ke origin mereka) + jalur "Sync NAB Manual" yang selalu berfungsi.
+        // Emas belum didukung -- belum ada sumber data gratis yang cukup diyakini akurat.
         const ASSET_AUTO_UPDATE_CONFIG = {
             'Kripto': {
                 sumber_harga: 'coingecko',
@@ -5580,6 +5618,14 @@ async function currentUserId() {
                 simbolHint: 'Kode 4 huruf di Bursa Efek Indonesia, tanpa akhiran .JK',
                 unitLabel: 'Jumlah Lembar Saham',
                 desc: '<i class="fas fa-triangle-exclamation mr-1"></i>Opsional & EKSPERIMENTAL -- sumber data Yahoo Finance (tidak resmi, bisa berhenti berfungsi sewaktu-waktu tanpa pemberitahuan).'
+            },
+            'Reksadana': {
+                sumber_harga: 'reksadana_bibit',
+                simbolLabel: 'Nama Dana di Bibit',
+                simbolPlaceholder: 'Contoh: Sucorinvest Stable Fund',
+                simbolHint: 'Salin nama reksadana PERSIS seperti tertera di aplikasi Bibit/Bareksa (atau isi ID produk Bibit berupa angka)',
+                unitLabel: 'Jumlah Unit Dimiliki',
+                desc: '<i class="fas fa-satellite-dish mr-1"></i>Opsional -- isi dua kolom ini supaya nilai aset bisa di-sync otomatis dari NAB/UP pasar riil (sumber: Bibit, via server). Bila sync otomatis belum aktif di proyek Anda, tombol "Sync NAB/UP Pasar" di Detail Aset selalu tersedia.'
             }
         };
 
@@ -7471,6 +7517,10 @@ async function currentUserId() {
             const supportsAutoUpdate = !!(asset.simbol && asset.jumlah_unit && asset.sumber_harga);
             refreshBtn.classList.toggle('hidden', !supportsAutoUpdate);
             refreshBtn.disabled = false; refreshBtn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
+            // Jalur sync reksadana: tombol manual selalu ada utk kategori Reksadana
+            // (berfungsi bahkan sebelum Edge Function di-deploy ulang / tanpa simbol).
+            const manualNavBtn = document.getElementById('asset-detail-manualnav-btn');
+            if (manualNavBtn) manualNavBtn.classList.toggle('hidden', asset.kategori !== 'Reksadana');
 
             const modal = document.getElementById('modalAssetDetail'); const content = document.getElementById('modalAssetDetailContent');
             modal.classList.remove('hidden');
@@ -7505,9 +7555,67 @@ async function currentUserId() {
                 })
                 .catch((err) => {
                     console.error('api.run.refreshAssetPrice gagal:', err);
-                    showErrorToast(err && err.message ? err.message : 'Gagal mengambil harga terkini. Coba lagi.');
+                    const msg = (err && err.message) ? err.message : 'Gagal mengambil harga terkini. Coba lagi.';
+                    showErrorToast(msg);
+                    // Edge Function versi lama (sebelum deploy ulang) belum mengenal sumber
+                    // reksadana_bibit -> arahkan ke jalur manual yang selalu berfungsi.
+                    if (/belum didukung/i.test(msg)) {
+                        showInfoToast('Sync otomatis butuh deploy ulang Edge Function (lihat docs). Sementara pakai "Sync NAB/UP Pasar".');
+                        openManualNavModal();
+                    }
                     btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
                 });
+        }
+
+        // ---------- SYNC NAB/UP MANUAL (reksadana) ----------
+        // Jalur yang SELALU berfungsi tanpa ketergantungan server: user menyalin NAB/UP
+        // terkini dari aplikasi Bibit/Bareksa (data pasar riil), aplikasi menghitung
+        // nilai = NAB x unit via helper murni (src/domain/market-sync.js, teruji unit)
+        // dgn aturan value_history yang sama persis dgn submitAsset/Edge Function.
+        function openManualNavModal() {
+            const asset = globalAssets.find(a => a.id === currentAssetDetailId);
+            if (!asset) { showErrorToast('Aset tidak ditemukan.'); return; }
+            document.getElementById('manual-nav-value').value = '';
+            document.getElementById('manual-nav-units').value = (asset.jumlah_unit != null && asset.jumlah_unit !== '') ? asset.jumlah_unit : '';
+            previewManualNav();
+            const modal = document.getElementById('modalManualNav'); const content = document.getElementById('modalManualNavContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => { content.classList.remove('translate-y-full', 'md:scale-95', 'opacity-0'); }, 10);
+        }
+        function closeManualNavModal() {
+            const content = document.getElementById('modalManualNavContent');
+            content.classList.add('translate-y-full', 'md:scale-95', 'opacity-0');
+            setTimeout(() => { document.getElementById('modalManualNav').classList.add('hidden'); }, 300);
+        }
+        function previewManualNav() {
+            const v = servicesModule.computeMarketValue(
+                document.getElementById('manual-nav-value').value,
+                document.getElementById('manual-nav-units').value
+            );
+            document.getElementById('manual-nav-preview').textContent = 'Rp ' + formatRp(v || 0);
+        }
+        async function submitManualNav() {
+            const asset = globalAssets.find(a => a.id === currentAssetDetailId);
+            if (!asset) { showErrorToast('Aset tidak ditemukan.'); return; }
+            const nav = Number(document.getElementById('manual-nav-value').value);
+            const units = Number(document.getElementById('manual-nav-units').value);
+            const nilaiBaru = servicesModule.computeMarketValue(nav, units);
+            if (!nilaiBaru) { showErrorToast('NAB/UP dan jumlah unit harus lebih dari 0.'); return; }
+            try {
+                const patch = servicesModule.withSyncedValue(asset, { nilaiBaru, today: todayDateStr() });
+                await servicesModule.updateAsset(supabaseClient, asset.id, { ...asset, ...patch, jumlah_unit: units });
+                closeManualNavModal();
+                showSuccessToast('Nilai pasar diterapkan: Rp ' + formatRp(nilaiBaru) + ' (' + servicesModule.describeSyncSource('manual_nav') + ').');
+                servicesModule.listAssets(supabaseClient).then((assets) => {
+                    globalAssets = assets || [];
+                    processDataForUI(globalData);
+                    if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
+                    openAssetDetailModal(currentAssetDetailId);
+                }).catch((e2) => { console.error('refresh aset pasca-sync gagal:', e2); });
+            } catch (e) {
+                console.error('submitManualNav gagal:', e);
+                showErrorToast('Gagal menyimpan nilai baru. Periksa koneksi internet kamu.');
+            }
         }
 
         function renderAssetDetailChart(history) {
@@ -8276,7 +8384,7 @@ async function currentUserId() {
             // Modal-modal ini menutupi seluruh layar tapi BUKAN bagian dari .content-area manapun --
             // tanpa pengecekan ini, menggeser jari di dalam modal yang sedang terbuka bisa salah
             // kepicu jadi gestur pull-to-refresh untuk konten DI BALIK modal itu.
-            const MODAL_IDS = ['modalConfirm', 'modalCalendarDetail', 'modalCategorySelector', 'modalRecurringForm', 'modalRecurringList', 'modalAssetDetail', 'modalProfile', 'modalAccount', 'modalBudget', 'modalAsset', 'modalForm'];
+            const MODAL_IDS = ['modalConfirm', 'modalCalendarDetail', 'modalCategorySelector', 'modalRecurringForm', 'modalRecurringList', 'modalAssetDetail', 'modalProfile', 'modalAccount', 'modalBudget', 'modalAsset', 'modalManualNav', 'modalForm'];
             function isAnyModalOpen() {
                 return MODAL_IDS.some(function (id) { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); });
             }

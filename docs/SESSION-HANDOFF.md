@@ -7,7 +7,17 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v40` (sinkron lokal). Suite: **484 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 38 cek.
+- Service worker live: `myfinance-v41` (sinkron lokal). Suite: **494 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 43 cek.
+- Fitur 2026-09 (v41): **sync nilai reksadana dari data pasar riil** -- kategori Reksadana di
+  form aset kini punya kolom "Nama Dana di Bibit" + "Jumlah Unit" (sumber_harga
+  `reksadana_bibit`); Edge Function `refresh-asset-price` mendapat fetcher Bibit
+  (API publik api.bibit.id, payload AES-256-CBC; helper murni di
+  `supabase/functions/_shared/bibit.js` teruji unit + diverifikasi LIVE). AKTIF setelah
+  `supabase functions deploy refresh-asset-price` (kredensial deploy hanya milik user).
+  Jalur klien yg selalu berfungsi: tombol "Sync NAB/UP Pasar" di Detail Aset
+  (NAB manual = data pasar riil dari app Bibit/Bareksa; hitung via
+  `src/domain/market-sync.js`, aturan value_history identik submitAsset/Edge).
+  CORS Bibit terpatri ke origin mereka -> fetch otomatis wajib via server, bukan browser.
 - Fitur 2026-09 (v40): **perombakan tab Pengaturan + Edit Profil** -- kartu duplikat "Cadangan Data"
   (ber-tombol mati `downloadFullBackup`) dilebur ke **Data & Cadangan** (+ **ekspor CSV transaksi** per
   rentang, builder murni `src/domain/export-csv.js`); kartu baru **Preferensi** (sembunyikan nominal,

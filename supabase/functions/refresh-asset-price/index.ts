@@ -19,11 +19,19 @@
 // CARA DEPLOY (sama seperti analyze-finance, tidak butuh secret baru):
 //   supabase functions deploy refresh-asset-price
 //
-// Setelah itu tombol "Refresh Harga" di Detail Aset (untuk aset berkategori Kripto yang sudah
-// diisi "ID CoinGecko" & "Jumlah Koin Dimiliki" di form Tambah/Edit Aset) akan berfungsi.
+// Setelah itu tombol "Refresh Harga" di Detail Aset akan berfungsi utk semua sumber:
+// Kripto (ID CoinGecko + Jumlah Koin), Saham IDX (kode + jumlah lembar), dan REKSADANA
+// (nama dana di Bibit + jumlah unit, sumber_harga "reksadana_bibit" -- NAB/UP pasar riil).
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildBibitListUrl,
+  decryptBibitPayload,
+  extractBibitItems,
+  pickBibitFundMatch,
+  listSimilarFundNames,
+} from "../_shared/bibit.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
@@ -97,12 +105,58 @@ async function fetchYahooIdStockPriceIdr(kodeSaham: string): Promise<number> {
   return harga;
 }
 
-// Registry sumber harga -- tambah entry baru di sini kalau nanti ada sumber utk Reksadana/Emas
-// yang sudah terverifikasi reliable (lihat catatan di readme/chat: belum ada yang cukup diyakini
-// saat fitur ini dibuat).
+// REKSADANA (sumber "reksadana_bibit", ditambah 2026-09): NAB/UP terkini dari API publik
+// Bibit -- diverifikasi hidup & stabil (payload terenkripsi AES-256-CBC; helper dekripsi,
+// pencocokan nama, dan pesan kandidat mirip di ../_shared/bibit.js, teruji unit).
+// `simbol` = nama dana (persis seperti di aplikasi Bibit/Bareksa) ATAU ID produk Bibit.
+// KENAPA harus dari Edge Function: API Bibit mengirim Access-Control-Allow-Origin terpatri
+// ke https://bibit.id, jadi browser aplikasi pasti diblok CORS; server-ke-server aman.
+async function fetchBibitFundNavIdr(simbol: string): Promise<number> {
+  const headers = {
+    Accept: "application/json",
+    Pragma: "no-cache",
+    "User-Agent": "Mozilla/5.0 (compatible; MyFinanceApp/1.0; +refresh-asset-price)",
+    Origin: "https://bibit.id",
+    Referer: "https://bibit.id/",
+  };
+  const fetchItems = async (query: string, limit: number) => {
+    const resp = await fetch(buildBibitListUrl(query, limit), { headers });
+    if (!resp.ok) {
+      throw new Error(`API Bibit error (status ${resp.status}). Coba lagi sebentar lagi.`);
+    }
+    const body = await resp.json();
+    return decryptBibitPayload(extractBibitItems(body));
+  };
+
+  let items: unknown[];
+  try {
+    items = await fetchItems(simbol, 20);
+  } catch (e) {
+    // Pencarian nama penuh kosong (API Bibit ketat): coba lagi dgn token pertama
+    // (mis. "Bahana") lalu cocokkan ulang dgn nama lengkap.
+    const firstToken = String(simbol).trim().split(/\s+/)[0];
+    if (!firstToken || firstToken === String(simbol).trim()) throw e;
+    items = await fetchItems(firstToken, 50);
+  }
+
+  const match = pickBibitFundMatch(items, simbol);
+  if (!match) {
+    const mirip = listSimilarFundNames(items, simbol);
+    throw new Error(
+      mirip.length
+        ? `Nama dana "${simbol}" tidak persis/ambigu. Dana mirip di Bibit: ${mirip.join(" | ")}. Salin salah satu nama persis ke kolom Simbol, lalu refresh lagi.`
+        : `Dana "${simbol}" tidak ditemukan di Bibit. Periksa ejaan nama dana (persis seperti di aplikasi Bibit).`,
+    );
+  }
+  return match.navValue;
+}
+
+// Registry sumber harga -- tambah entry baru di sini kalau nanti ada sumber lain
+// (mis. Emas) yang sudah terverifikasi reliable.
 const PRICE_FETCHERS: Record<string, (simbol: string) => Promise<number>> = {
   coingecko: fetchCoinGeckoPriceIdr,
   yahoo_id_stock: fetchYahooIdStockPriceIdr,
+  reksadana_bibit: fetchBibitFundNavIdr,
 };
 
 Deno.serve(async (req: Request) => {

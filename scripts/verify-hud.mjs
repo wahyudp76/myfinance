@@ -312,6 +312,46 @@ ok("profil: validasi kata sandi murni menolak konfirmasi beda", await page.evalu
   const v = window.__myfinanceServices.validatePasswordChange("rahasia123", "salah");
   return v.valid === false && /tidak sama/.test(v.error);
 }));
+// ---------- E2E: sync nilai reksadana dari data pasar (v41) ----------
+ok("aset: config auto-update Reksadana terdaftar (sumber reksadana_bibit)", await page.evaluate(() => {
+  return !!ASSET_AUTO_UPDATE_CONFIG["Reksadana"] && ASSET_AUTO_UPDATE_CONFIG["Reksadana"].sumber_harga === "reksadana_bibit";
+}));
+ok("aset: form kategori Reksadana memunculkan kolom Nama Dana + Jumlah Unit", await page.evaluate(() => {
+  openAssetModal(false);
+  document.getElementById("aset_kategori").value = "Reksadana";
+  toggleAssetAutoUpdateSection();
+  const label = document.getElementById("aset-simbol-label").textContent;
+  const hidden = document.getElementById("aset-auto-update-section").classList.contains("hidden");
+  closeAssetModal();
+  return !hidden && label.includes("Nama Dana di Bibit");
+}));
+ok("aset: helper murni NAB x unit + aturan value_history", await page.evaluate(() => {
+  const s2 = window.__myfinanceServices;
+  const v = s2.computeMarketValue(1465.82, 100);
+  const p = s2.withSyncedValue({ nilai: 1000000, value_history: [] }, { nilaiBaru: v, today: todayDateStr() });
+  return v === 146582 && p.nilai === 146582 && p.value_history.length === 1;
+}));
+const reksaAsset = await page.evaluate(() => { const a = globalAssets.find(x => x.kategori === "Reksadana"); return a ? a.id : null; });
+await page.evaluate((id) => openAssetDetailModal(id), reksaAsset);
+await page.waitForTimeout(500);
+const hasManualBtn = await page.evaluate(() => !document.getElementById("asset-detail-manualnav-btn").classList.contains("hidden"));
+await page.evaluate(() => openManualNavModal());
+await page.waitForTimeout(400);
+await page.evaluate(() => {
+  document.getElementById("manual-nav-value").value = "1500";
+  document.getElementById("manual-nav-units").value = "100";
+  previewManualNav();
+});
+const navPreview = await page.evaluate(() => document.getElementById("manual-nav-preview").textContent);
+await page.evaluate(() => submitManualNav());
+await page.waitForTimeout(900);
+const lastAssetWrite = assetWrites.length ? assetWrites[assetWrites.length - 1] : null;
+ok("aset Reksadana: tombol Sync NAB tampil & preview NAB x unit benar (Rp 150.000)", hasManualBtn && navPreview === "Rp 150.000");
+ok("aset Reksadana: sync manual menulis nilai 150000 + 100 unit ke cloud", !!lastAssetWrite && Number(lastAssetWrite.body.nilai) === 150000 && Number(lastAssetWrite.body.jumlah_unit) === 100);
+await page.screenshot({ path: `${SHOTS}/16-aset-reksadana.png` });
+await page.evaluate(() => { closeManualNavModal(); closeAssetDetailModal(); });
+await page.waitForTimeout(400);
+
 await page.screenshot({ path: `${SHOTS}/15-pengaturan.png` });
 await page.evaluate(() => switchView("dashboard"));
 await page.waitForTimeout(300);
