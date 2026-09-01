@@ -79,5 +79,6 @@ paths = [
   '''^node_modules/''',
   '''^css/tailwind\.css$''',
   '''^css/fontawesome-all\.min\.css$''',
+  '''^css/_full/''',
   '''^package-lock\.json$''',
 ]

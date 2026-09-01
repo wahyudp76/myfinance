@@ -158,3 +158,58 @@
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.
 - Test akun Supabase: signup butuh toggle `mailer_autoconfirm` (balikkan + verifikasi!) — hapus user hanya bisa via dashboard/Mgmt UI.
 - Jangan commit kredensial; remote disimpan plain URL, PAT hanya via set-url sesaat.
+
+## v51 — Subset Font Awesome (perf) + perbaikan race di verify-hud
+
+**Konteks.** Diminta fokus performa & UX. Baseline Lighthouse mobile (server
+lokal, tanpa gzip): performance 58, FCP 7,2 s, LCP 8,9 s, TBT 50 ms, CLS 0.
+
+**Diagnosis.** TBT rendah + CLS nol ⇒ bukan masalah eksekusi JS, tapi payload.
+Penting: GitHub Pages SUDAH mengaktifkan gzip, jadi `index.html` 640 KB hanya
+~144 KB di kabel — memangkas HTML nilainya kecil. Yang TIDAK bisa dikompresi
+lagi adalah woff2: `fa-solid-900` 150 KB + `fa-brands-400` 108 KB + CSS Font
+Awesome 100 KB = ~358 KB untuk aplikasi yang cuma memakai 193 ikon.
+
+**Yang dikerjakan.**
+1. `scripts/subset-fontawesome.py` — subset reproducible. Sumber penuh disimpan
+   di `css/_full/` + `webfonts/_full/` supaya subset bisa dibangun ulang saat
+   daftar ikon bertambah. CSS tidak ditulis ulang dari nol; hanya rule
+   `.fa-x:before{content:...}` yang tidak terpakai yang dibuang, jadi seluruh
+   utility class (`fa-spin`, `fa-fw`, `fa-2x`, …) dijamin utuh.
+   Hasil: CSS 99,6→24,6 KB · fa-solid 146,6→17,8 KB · fa-brands 105,5→1,1 KB.
+2. `tests/unit/icon-subset.test.js` — gerbang wajib. Tanpa ini, menambah ikon
+   baru tanpa menjalankan ulang subset akan menghasilkan kotak kosong di
+   produksi TANPA error apa pun. Sudah diuji negatif: `fa-igloo` (terbuang) dan
+   `fa-sparkles` (ikon Pro) sama-sama membuat test merah.
+3. Bug UX lama ketemu: tombol "Isi Data Contoh" memakai `fa-sparkles`, yang
+   **ikon Pro** dan tidak ada di Font Awesome Free — selama ini tampil kosong.
+   Diganti ke `fa-wand-magic-sparkles`.
+4. `CACHE_VERSION` → `myfinance-v51` + snapshot SW diperbarui (aset berubah).
+5. `.gitleaks.toml`: `^css/_full/` masuk allowlist paths (artefak vendor).
+
+**Hasil.** FCP 7,2→6,2 s · LCP 8,9→7,7 s · TBT 50→10 ms · performance 58→60
+(lokal tanpa gzip; di produksi porsi hematnya lebih besar karena woff2 kebal
+gzip). 502 unit test hijau, lint 0, verify-hud 49/49, gitleaks bersih.
+
+### JEBAKAN: `SAFELIST` di scripts/subset-fontawesome.py
+`index.html` merakit nama ikon saat runtime:
+`<i class="fas fa-arrow-${up ? 'up' : 'down'}">`. Scanner hanya melihat token
+`fa-arrow`, sehingga `fa-arrow-up`/`fa-arrow-down` nyaris ikut terbuang.
+**Setiap kali menambah nama ikon dinamis, daftarkan semua hasilnya di
+`SAFELIST`.** Test gerbang tidak bisa menangkap kasus ini (ia memakai scanner
+yang sama).
+
+### Race di scripts/verify-hud.mjs (bukan flaky biasa)
+Cek "komposisi kas: hover memunculkan garis aksen kiri" mulai gagal 2 dari 3
+run setelah subset. Sempat terlihat seperti flaky, tapi baseline lolos 3/3 —
+jadi ini regresi yang harus dijelaskan, bukan diabaikan. Diagnostik menunjukkan
+baris yang sama berpindah dari `y=843` ke `y=421` antar-run: daftar masih
+bergeser saat `hover()` dipanggil, kursor mendarat di koordinat lama, `:hover`
+tidak pernah aktif, `::before` tetap opacity 0. Halaman yang lebih cepat hanya
+mengubah timing sehingga race lama lebih sering kalah.
+
+Perbaikan: tunggu posisi baris DIAM (3 frame beruntun dengan `top` sama)
+sebelum hover, lalu `waitForFunction` sampai opacity `1` alih-alih menebak
+lewat `waitForTimeout(350)`. 5/5 run hijau setelahnya.
+Pelajaran sama seperti v50: **tunggu kondisi nyata, jangan tambah sleep atau
+`{force:true}`.**

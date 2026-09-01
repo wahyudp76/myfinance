@@ -386,8 +386,35 @@ ok("aset kripto: fallback manual + baris sumber CoinGecko + label harga per koin
 await page.evaluate(() => switchView("dashboard"));
 await page.waitForTimeout(200);
 const breakdownRow = page.locator("#assetChart-list .hud-breakdown-row").first();
+// Daftar komposisi kas masih bergeser sesaat setelah render (chart + relayout):
+// pernah terpantau baris yang sama pindah dari y=843 ke y=421 antar-run. Kalau
+// hover() dipanggil saat itu, kursor mendarat di koordinat lama dan baris tidak
+// pernah ber-:hover, jadi ::before tetap opacity 0 -- tes gagal dengan alasan
+// yang menyesatkan. Jadi: tunggu posisi baris DIAM dulu (3 frame beruntun
+// dengan top yang sama), baru hover.
+await breakdownRow.evaluate((el) => new Promise((resolve) => {
+  let last = null;
+  let stable = 0;
+  const tick = () => {
+    const top = el.getBoundingClientRect().top;
+    if (last !== null && Math.abs(top - last) < 0.5) {
+      if (++stable >= 3) return resolve();
+    } else {
+      stable = 0;
+    }
+    last = top;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}));
 await breakdownRow.hover();
-await page.waitForTimeout(350);
+// Tunggu transisi opacity 0.25s benar-benar tuntas, bukan menebak lewat sleep.
+await page
+  .waitForFunction(() => {
+    const el = document.querySelector("#assetChart-list .hud-breakdown-row");
+    return el && getComputedStyle(el, "::before").opacity === "1";
+  }, null, { timeout: 5000 })
+  .catch(() => {}); // sengaja diserap: biar assert di bawah yang melaporkan nilai asli
 const hoverState = await breakdownRow.evaluate((el) => {
   const cs = getComputedStyle(el);
   const before = getComputedStyle(el, "::before");
