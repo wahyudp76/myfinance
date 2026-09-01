@@ -12,8 +12,11 @@
   form aset kini punya kolom "Nama Dana di Bibit" + "Jumlah Unit" (sumber_harga
   `reksadana_bibit`); Edge Function `refresh-asset-price` mendapat fetcher Bibit
   (API publik api.bibit.id, payload AES-256-CBC; helper murni di
-  `supabase/functions/_shared/bibit.js` teruji unit + diverifikasi LIVE). AKTIF setelah
-  `supabase functions deploy refresh-asset-price` (kredensial deploy hanya milik user).
+  `supabase/functions/_shared/bibit.js` teruji unit + diverifikasi LIVE). **TER-DEPLOY
+  2026-09-01 (versi 17)** via Supabase CLI + access token user (sesi agen), dan terbukti
+  E2E di produksi: login uji -> insert aset -> invoke -> `{harga_per_unit: 1465.82,
+  nilai_baru: 14658}` -> riwayat tersimpan -> aset uji dihapus. Auto-confirm email
+  ditoggle sebentar lalu DIKEMBALIKAN false (terverifikasi).
   Jalur klien yg selalu berfungsi: tombol "Sync NAB/UP Pasar" di Detail Aset
   (NAB manual = data pasar riil dari app Bibit/Bareksa; hitung via
   `src/domain/market-sync.js`, aturan value_history identik submitAsset/Edge).
