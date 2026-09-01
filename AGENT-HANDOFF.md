@@ -121,6 +121,26 @@
   (performance 58 / accessibility 97 / best-practices 100). CACHE_VERSION tetap v46 -- tidak ada
   aset precache yang berubah (murni perkakas dev + workflow).
 
+## v49 — Auto-merge Dependabot
+- Workflow baru `.github/workflows/dependabot-auto-merge.yml`: PR Dependabot yang LULUS CI penuh
+  di-merge (squash + hapus branch) tanpa campur tangan manusia.
+- **JANGAN ganti dgn `gh pr merge --auto`.** Dua alasan: (1) fitur itu butuh Settings > General >
+  "Allow auto-merge" yang belum dinyalakan; (2) lebih penting -- auto-merge bawaan hanya MENUNGGU
+  bila ada required status check di branch protection, dan repo ini TIDAK punya branch protection,
+  jadi `--auto` justru me-merge SEKETIKA tanpa menunggu CI. Karena itu workflow ini dipicu oleh
+  `workflow_run` (selesainya CI) lalu memeriksa sendiri seluruh check-run di head SHA.
+- Syarat merge (semua wajib): penulis `dependabot[bot]`, PR OPEN & bukan draft, branch `dependabot/*`,
+  tidak berlabel `no-auto-merge`, dan SETIAP check-run di head SHA berstatus completed dgn
+  conclusion success/skipped/neutral (skipped diizinkan krn job parity memang di-skip pada PR).
+- Logika gerbang diuji thd data check-run NYATA sebelum dipasang: head PR #8 (hijau + parity
+  skipped) -> LOLOS; head PR #6 pra-rebase (parity failure) -> TOLAK.
+- Cara uji tanpa menunggu PR nyata: Actions > "Dependabot auto-merge" > Run workflow, isi nomor PR,
+  biarkan `dry_run` = true -> mencetak keputusan tanpa merge apa pun.
+- Membatalkan utk SATU PR: beri label `no-auto-merge`.
+- CELAH YANG DISADARI (didokumentasikan di header workflow): job parity di-skip pada PR, jadi bump
+  @supabase/supabase-js lolos ke main hanya bermodal unit test; uji live-nya baru jalan SETELAH
+  merge. Dampak terburuk = CI main merah (bukan pengguna terdampak), pemulihan = `git revert`.
+
 ## Gotcha lingkungan
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.
 - Test akun Supabase: signup butuh toggle `mailer_autoconfirm` (balikkan + verifikasi!) — hapus user hanya bisa via dashboard/Mgmt UI.

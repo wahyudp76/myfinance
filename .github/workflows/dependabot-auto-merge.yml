@@ -1,0 +1,166 @@
+# ============================================================================
+# Dependabot auto-merge
+# ============================================================================
+# TUJUAN: PR dependensi yang LULUS CI penuh di-merge sendiri, supaya tidak ada
+# antrean PR yang menunggu klik manusia setiap bulan.
+#
+# KENAPA TIDAK PAKAI `gh pr merge --auto` (cara yang biasa disarankan):
+#   1. Fitur auto-merge bawaan GitHub harus dinyalakan dulu di Settings →
+#      General → "Allow auto-merge". Repo ini belum menyalakannya.
+#   2. Lebih penting: auto-merge bawaan hanya MENUNGGU kalau ada yang menahan
+#      PR-nya, yaitu required status checks di branch protection. Repo ini
+#      tidak punya branch protection, jadi `--auto` justru akan me-merge
+#      SEKETIKA tanpa menunggu CI sama sekali -- kebalikan dari yang kita mau.
+# Karena itu workflow ini dipicu oleh SELESAINYA workflow CI dan memeriksa
+# sendiri hasilnya sebelum memutuskan merge. Tidak butuh pengaturan repo
+# apa pun, dan tidak bisa merge sebelum CI benar-benar hijau.
+#
+# PENILAIAN RISIKO (kenapa auto-merge masuk akal DI SINI, tidak di semua repo):
+#   - Tidak ada satu pun paket npm yang sampai ke browser pengguna. `dependencies`
+#     sengaja dikosongkan sejak v45; supabase-js dimuat dari esm.sh, Chart.js &
+#     FullCalendar dari jsdelivr. Semua paket npm murni perkakas dev/CI, jadi
+#     bump yang buruk membuat CI merah -- bukan membuat aplikasi keuangan
+#     pengguna rusak.
+#   - Gerbang CI-nya tidak main-main: ESLint, 500 unit test, secret-scan,
+#     Tailwind drift, dan ambang Lighthouse.
+#
+# SATU CELAH YANG DIKETAHUI, ditulis terbuka supaya tidak jadi kejutan:
+# job `parity` (uji terhadap Supabase live) SENGAJA di-skip pada event
+# pull_request sejak v47 -- lihat alasannya di parity.yml. Artinya bump
+# @supabase/supabase-js lolos ke main hanya dengan modal unit test; uji live-nya
+# baru berjalan SETELAH merge. Kalau bump itu ternyata bermasalah, yang terjadi
+# adalah CI main merah (bukan pengguna terdampak), dan pemulihannya
+# `git revert`. Itu trade-off yang diterima secara sadar, bukan kelalaian.
+#
+# CARA MENGUJI TANPA MENUNGGU PR NYATA: jalankan manual lewat tab Actions
+# (workflow_dispatch), isi nomor PR, biarkan dry_run = true. Workflow akan
+# mencetak keputusannya tanpa me-merge apa pun.
+#
+# CARA MEMBATALKAN untuk SATU PR: beri label `no-auto-merge` pada PR itu.
+
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Nomor PR yang mau dievaluasi"
+        required: true
+        type: string
+      dry_run:
+        description: "Hanya cetak keputusan, jangan merge"
+        required: false
+        default: true
+        type: boolean
+
+# Hak minimum yang dibutuhkan: membaca+menggabungkan PR, dan menulis ke branch
+# saat merge. TIDAK ada akses ke secrets repo mana pun di sini.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    # Saring sedini mungkin supaya runner tidak dipakai untuk hal yang jelas
+    # tidak relevan (CI dari push ke main, CI yang merah, branch non-Dependabot).
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'dependabot/'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Tentukan PR yang dievaluasi
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            PR="$INPUT_PR"
+          else
+            # workflow_run tidak selalu membawa nomor PR, jadi dicari lewat
+            # nama branch head -- itu yang paling andal untuk PR in-repo.
+            PR=$(gh pr list --head "$HEAD_BRANCH" --state open --json number \
+                   --jq '.[0].number // empty')
+          fi
+          if [ -z "${PR:-}" ]; then
+            echo "Tidak ada PR terbuka untuk branch ini -- tidak ada yang dikerjakan."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+          echo "PR yang dievaluasi: #$PR"
+
+      - name: Periksa syarat kelayakan
+        id: gate
+        if: steps.find.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.find.outputs.pr }}
+        run: |
+          set -euo pipefail
+          gh pr view "$PR" --json number,author,state,isDraft,headRefName,headRefOid,labels > pr.json
+          AUTHOR=$(jq -r '.author.login' pr.json)
+          STATE=$(jq -r '.state' pr.json)
+          DRAFT=$(jq -r '.isDraft' pr.json)
+          BRANCH=$(jq -r '.headRefName' pr.json)
+          SHA=$(jq -r '.headRefOid' pr.json)
+          BLOCKED=$(jq -r '[.labels[].name] | index("no-auto-merge") // empty' pr.json)
+
+          echo "author=$AUTHOR state=$STATE draft=$DRAFT branch=$BRANCH sha=${SHA:0:7}"
+
+          fail() { echo "TIDAK LAYAK: $1"; echo "ok=false" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          [ "$AUTHOR" = "dependabot[bot]" ] || fail "penulis PR bukan dependabot[bot] (=$AUTHOR)"
+          [ "$STATE" = "OPEN" ]             || fail "PR tidak terbuka (=$STATE)"
+          [ "$DRAFT" = "false" ]            || fail "PR masih draft"
+          case "$BRANCH" in dependabot/*) ;; *) fail "branch bukan milik Dependabot (=$BRANCH)";; esac
+          [ -z "$BLOCKED" ]                 || fail "PR diberi label no-auto-merge"
+
+          # Jangan hanya percaya pada satu workflow yang memicu job ini --
+          # pastikan TIDAK ADA check lain di commit yang sama yang gagal atau
+          # masih berjalan. (skipped/neutral dianggap boleh: job parity memang
+          # sengaja di-skip pada PR.)
+          gh api "repos/$GH_REPO/commits/$SHA/check-runs" --paginate \
+            --jq '.check_runs[] | "\(.name)\t\(.status)\t\(.conclusion)"' > checks.tsv
+          echo "--- check runs pada $SHA ---"; cat checks.tsv
+
+          if awk -F'\t' '$2 != "completed"' checks.tsv | grep -q .; then
+            fail "masih ada check yang berjalan"
+          fi
+          if awk -F'\t' '$3 != "success" && $3 != "skipped" && $3 != "neutral"' checks.tsv | grep -q .; then
+            fail "ada check yang tidak hijau"
+          fi
+
+          echo "SEMUA SYARAT TERPENUHI."
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Merge (squash)
+        if: steps.gate.outputs.ok == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.find.outputs.pr }}
+        run: |
+          set -euo pipefail
+          gh pr merge "$PR" --squash --delete-branch
+          echo "PR #$PR ter-merge."
+
+      - name: Ringkasan (mode dry-run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        env:
+          OK: ${{ steps.gate.outputs.ok }}
+          PR: ${{ steps.find.outputs.pr }}
+        run: |
+          echo "DRY RUN -- tidak ada yang di-merge."
+          echo "Keputusan untuk PR #${PR:-<tidak ada>}: layak-merge = ${OK:-false}"
