@@ -105,6 +105,22 @@
   `npm audit fix` tetap benar (remediasinya downgrade), tapi jalur yang benar adalah NAIK ke
   lighthouse 13 lewat PR Dependabot, bukan turun ke 12.6.1.
 
+## v48 — Bump dependensi (menuntaskan seluruh temuan npm audit)
+- lighthouse 12.8.2 -> **13.4.1**, @supabase/supabase-js ^2.57.0 -> **^2.112.4**,
+  actions/checkout & actions/setup-node **v5 -> v7**. Isinya identik dgn PR Dependabot #8/#7/#6;
+  diterapkan langsung ke main (PR-nya auto-close sbg superseded).
+- **`npm audit` kini "found 0 vulnerabilities"** (sebelumnya 20: 16 moderate + 4 high, semua dari
+  rantai lighthouse -> puppeteer-core -> extract-zip). Ini menutup catatan v45: menolak
+  `npm audit fix` memang benar (remediasinya downgrade ke 12.6.1), jalan keluarnya NAIK ke 13.x.
+- Kenapa lewat commit langsung, bukan tombol merge PR: sejak v47 job `parity` di-skip pada event
+  pull_request, jadi bump supabase-js TIDAK pernah teruji thd Supabase live selama masih berupa
+  PR -- validasi sesungguhnya baru terjadi setelah mendarat di main. Lewat commit langsung, CI
+  penuh (termasuk parity live) langsung berjalan pada commit-nya sendiri.
+- Verifikasi v48: lint 0 (ESLint 10.9.1), unit 500/500, verify-hud 49/49 PASS (0 error halaman),
+  gitleaks bersih, build:css tanpa drift, `node scripts/lighthouse/run.mjs` dgn LH13 lolos
+  (performance 58 / accessibility 97 / best-practices 100). CACHE_VERSION tetap v46 -- tidak ada
+  aset precache yang berubah (murni perkakas dev + workflow).
+
 ## Gotcha lingkungan
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.
 - Test akun Supabase: signup butuh toggle `mailer_autoconfirm` (balikkan + verifikasi!) — hapus user hanya bisa via dashboard/Mgmt UI.
