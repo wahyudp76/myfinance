@@ -194,13 +194,25 @@ export function renderAccountDetailCharts({
       data: {
         labels: hasCatData ? catEntries.map(e => e.label) : ["Belum ada pengeluaran"],
         // DNA donut HUD: segmen gradasi komet (palet colorblind tetap sumber warna).
-        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasCatData ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, borderRadius: 6, hoverOffset: 8 }]
+        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasCatData ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: "65%",
+        // Opsi disamakan dgn donut "Komposisi Kas & Rekening" (cutout 70%).
+        responsive: true, maintainAspectRatio: false, cutout: "70%",
         plugins: { legend: { display: false }, datalabels: { display: false } }
       }
     });
+    // HUD radar: persen kategori terbesar di tengah cincin (pola "Komposisi Kas & Rekening").
+    const accCatRadarEl = document.getElementById("accountCat-radar-pct");
+    if (accCatRadarEl) {
+      const accCatTot = catEntries.reduce((a, e) => a + Number(e.val || 0), 0);
+      const accCatTop = catEntries.reduce((m, e) => (Number(e.val) > Number(m ? m.val : -1) ? e : m), null);
+      if (hasCatData && accCatTot > 0 && accCatTop) {
+        accCatRadarEl.querySelector("b").textContent = Math.round((Number(accCatTop.val) / accCatTot) * 100) + "%";
+        accCatRadarEl.querySelector("span").textContent = String(accCatTop.label).toUpperCase().slice(0, 10);
+        accCatRadarEl.style.display = "flex";
+      } else { accCatRadarEl.style.display = "none"; }
+    }
   }
   renderDonutBreakdown({
     legendEl: document.getElementById("accountCatChart-legend"),

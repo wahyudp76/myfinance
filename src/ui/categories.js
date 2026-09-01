@@ -135,7 +135,7 @@ export const SUB_SHARE_COLORS = pickChartPalette("default");
 
 /**
  * Render kartu "Proporsi Sub-Kategori" (slice proporsi sub): donat Chart.js
- * (cutout 72%, glow lembut, total di tengah) + daftar bar proporsi beranimasi
+ * (cutout 70%, glow lembut, total di tengah) + daftar bar proporsi beranimasi
  * per sub-kategori bulan aktif. Konten diarahkan ke #cat-sub-proportion
  * (kartu statisnya ada di markup index.html); instance chart disimpan di
  * ctx.charts.catSubDonut (di-destroy tiap render ulang, pola chart lain).
@@ -173,7 +173,7 @@ export function formatRupiahShort(n) {
 
 /**
  * Render kartu "Proporsi Sub-Kategori" (slice proporsi sub + polish angka):
- * donat Chart.js (cutout 72%, glow, PERSSEN di tiap segmen via datalabels --
+ * donat Chart.js (cutout 70%, glow, PERSSEN di tiap segmen via datalabels --
  * wajib dikonfigurasi eksplisit karena plugin DataLabels ter-register GLOBAL
  * di app; tanpa ini angka mentah bakal numpuk di segmen) + total ringkas di
  * pusat (formatRupiahShort besar + nilai penuh kecil) + daftar bar proporsi
@@ -251,6 +251,7 @@ export function renderCategorySubProportion({
       <div class="lg:col-span-2 flex flex-col items-center">
         <div class="relative w-44 h-44 md:w-52 md:h-52" style="filter:drop-shadow(0 8px 24px rgba(99,102,241,.28))">
           <canvas id="catSubDonut" class="absolute inset-0 w-full h-full"></canvas>
+          <div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div>
           <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding:0 30px">
             <p class="text-[10px] font-bold uppercase tracking-widest" style="color:#6366f1">Total ${escapeHtml(jenis === "Pemasukan" ? "Masuk" : "Keluar")}</p>
             <p class="text-xl md:text-2xl font-extrabold text-slate-800 leading-tight tabular-nums">${formatRupiahShort(totalMonth)}</p>
@@ -272,15 +273,18 @@ export function renderCategorySubProportion({
       datasets: [{
         data: items.map((it) => it.total),
         // DNA donut HUD: segmen gradasi komet (palet colorblind tetap sumber warna).
+        // Opsi disamakan dgn donut "Komposisi Kas & Rekening" (cutout 70%, spacing 4, radius 5).
         backgroundColor: hudDonutSegment(colors),
         borderWidth: 0,
+        spacing: 4,
+        borderRadius: 5,
         hoverOffset: 8,
       }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: "72%",
+      cutout: "70%",
       animation: { animateRotate: true, duration: 900 },
       plugins: {
         legend: { display: false },

@@ -184,6 +184,12 @@ ok("tab Aset: donut alokasi ber-DNA HUD (segmen + glow)", await page.evaluate(()
   const c = typeof charts !== "undefined" && charts.assetAlloc && charts.assetAlloc.config;
   return c && typeof c.data.datasets[0].backgroundColor === "function" && (c.plugins || []).some((p) => p.id === "hudGlow");
 }));
+ok("tab Aset: donut alokasi radar overlay + badge persen ala Komposisi", await page.evaluate(() => {
+  const wrap = document.getElementById("assetAllocationChart").parentElement;
+  const badge = document.getElementById("assetAlloc-radar-pct");
+  return !!(wrap.querySelector(".hud-radar-sweep") && wrap.querySelector(".hud-radar-ticks") && wrap.querySelector(".hud-radar-ring") &&
+    badge && (badge.style.display === "none" || /^\d+%$/.test(badge.querySelector("b").textContent)));
+}));
 await page.screenshot({ path: `${SHOTS}/10-tab-aset.png` });
 await page.evaluate(() => { try { openCategoryDetail("Makanan", "Pengeluaran"); } catch (e) { /* seed tanpa kategori tsb */ } });
 await page.waitForTimeout(900);
@@ -194,7 +200,10 @@ ok("detail Kategori: batang tren + donut sub ber-DNA HUD", await page.evaluate((
     (b.plugins || []).some((p) => p.id === "hudGlow");
   const s = charts.catSubDonut && charts.catSubDonut.config;
   const subOk = !s || (typeof s.data.datasets[0].backgroundColor === "function" && (s.plugins || []).some((p) => p.id === "hudGlow"));
-  return barsOk && subOk;
+  // donut sub (bila ter-render) wajib punya overlay radar ala Komposisi
+  const host = document.getElementById("cat-sub-proportion");
+  const subRadarOk = !host || !host.querySelector("#catSubDonut") || !!host.querySelector(".hud-radar-sweep");
+  return barsOk && subOk && subRadarOk;
 }));
 await page.screenshot({ path: `${SHOTS}/11-kategori-detail.png` });
 await page.evaluate(() => switchView("budget"));

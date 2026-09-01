@@ -193,7 +193,7 @@ export function renderAssetView({
         data: catLabels.length ? catData : [1],
         // DNA donut HUD (src/domain/chart-hud.js): segmen gradasi komet; palet tetap sumber warna.
         backgroundColor: hudDonutSegment(catLabels.length ? modernPalette : [chartEmptyColor()]),
-        borderWidth: 0, borderRadius: 6, hoverOffset: 6
+        borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8
       }]
     },
     options: {
@@ -201,6 +201,19 @@ export function renderAssetView({
       plugins: { legend: { display: false }, datalabels: { display: false } }
     }
   });
+  // HUD radar: persen kategori terbesar di tengah cincin alokasi (pola
+  // "Komposisi Kas & Rekening" -- ticks/sweep/ring ada di markup index.html).
+  const allocRadarEl = document.getElementById("assetAlloc-radar-pct");
+  if (allocRadarEl) {
+    const allocTot = catData.reduce((a, v) => a + Number(v || 0), 0);
+    let allocTopIdx = -1;
+    catData.forEach((v, i) => { if (allocTopIdx < 0 || Number(v) > Number(catData[allocTopIdx])) allocTopIdx = i; });
+    if (catLabels.length && allocTot > 0 && allocTopIdx >= 0) {
+      allocRadarEl.querySelector("b").textContent = Math.round((Number(catData[allocTopIdx]) / allocTot) * 100) + "%";
+      allocRadarEl.querySelector("span").textContent = String(catLabels[allocTopIdx]).toUpperCase().slice(0, 10);
+      allocRadarEl.style.display = "flex";
+    } else { allocRadarEl.style.display = "none"; }
+  }
   renderDonutBreakdown({
     legendEl: document.getElementById("assetAllocationChart-legend"),
     listEl: document.getElementById("assetAllocationChart-list"),

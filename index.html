@@ -1023,7 +1023,7 @@
                 </div>
                 <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi kamu</p>
                 <div class="flex items-center gap-4 md:gap-6">
-                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas></div>
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="assetAlloc-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
                     <div id="assetAllocationChart-legend" class="flex-1 min-w-0"></div>
                 </div>
                 <div id="assetAllocationChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
@@ -1459,7 +1459,7 @@
                 </div>
                 <div class="p-4 md:p-6">
                     <div class="flex items-center gap-4 md:gap-6">
-                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="accountCatChart"></canvas></div>
+                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="accountCatChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="accountCat-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
                         <div id="accountCatChart-legend" class="flex-1 min-w-0"></div>
                     </div>
                     <div id="accountCatChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
@@ -7463,7 +7463,7 @@ async function currentUserId() {
                 type: 'doughnut', 
                 data: { labels: hasOutCat ? outEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasOutCat ? outEntries.map(e=>e.val) : [1], backgroundColor: servicesModule.chartHud.hudDonutSegment(hasOutCat ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
                 options: { 
-                    responsive: true, maintainAspectRatio: false, cutout: '65%',
+                    responsive: true, maintainAspectRatio: false, cutout: '70%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },
                     onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
                     onClick: (e, elements, chart) => {
@@ -7503,7 +7503,7 @@ async function currentUserId() {
                 type: 'doughnut', 
                 data: { labels: hasInCat ? inEntries.map(e=>e.label) : ['Kosong'], datasets: [{ data: hasInCat ? inEntries.map(e=>e.val) : [1], backgroundColor: servicesModule.chartHud.hudDonutSegment(hasInCat ? getCutePaletteIn() : [chartEmptyColor()]), borderWidth: 0, spacing: 4, borderRadius: 5, hoverOffset: 8 }] }, 
                 options: { 
-                    responsive: true, maintainAspectRatio: false, cutout: '65%',
+                    responsive: true, maintainAspectRatio: false, cutout: '70%',
                     plugins: { legend: { display: false }, datalabels: { display: false } },
                     onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
                     onClick: (e, elements, chart) => {

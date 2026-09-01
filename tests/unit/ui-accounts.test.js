@@ -198,7 +198,7 @@ test("renderAccountDetailCharts: doughnut kategori dgn data -> label per entry +
   assert.equal(donut.config.data.datasets[0].backgroundColor({ dataIndex: 1, element: null, chart: null }), PALETTE[1]);
   assert.equal(donut.config.data.datasets[0].borderWidth, 0);
   assert.ok(donut.config.plugins.some((p) => p.id === "hudGlow"));
-  assert.equal(donut.config.options.cutout, "65%");
+  assert.equal(donut.config.options.cutout, "70%");
 
   const empty = makeDeps({ aggregateAccountExpenseByCategory: () => ({ entries: [] }) });
   renderAccountDetailCharts(empty.deps);

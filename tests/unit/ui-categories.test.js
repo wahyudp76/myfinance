@@ -192,7 +192,7 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.equal(chartInstances.length, 1);
   const cfg = chartInstances[0].config;
   assert.equal(cfg.type, "doughnut");
-  assert.equal(cfg.options.cutout, "72%");
+  assert.equal(cfg.options.cutout, "70%");
   assert.deepEqual(cfg.data.labels, ["Makanan (langsung)", "Katering"]);
   assert.deepEqual(cfg.data.datasets[0].data, [120000, 60000]);
   // DNA donut HUD: segmen gradasi scriptable (palet colorblind tetap sumber warna).
