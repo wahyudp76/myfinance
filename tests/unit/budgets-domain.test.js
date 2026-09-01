@@ -5,6 +5,7 @@ import {
   classifyBudgetUsage,
   summarizeBudgets,
   detectBudgetThresholdCrossing,
+  shiftMonthStr,
 } from "../../src/domain/budgets.js";
 
 const parseTgl = (tanggalStr) => new Date(String(tanggalStr).split("T")[0] + "T00:00:00");
@@ -175,4 +176,13 @@ test("detectBudgetThresholdCrossing: ambang notifikasi (100/80) SENGAJA beda dar
   // ambang notifikasi 80%, jadi tidak ada toast yang dipicu di sini.
   assert.equal(classifyBudgetUsage(75), "warning");
   assert.equal(detectBudgetThresholdCrossing(0.7, 0.75), null);
+});
+
+test("shiftMonthStr: geser bulan lintas tahun + input rusak", () => {
+  assert.equal(shiftMonthStr("2026-09", -1), "2026-08");
+  assert.equal(shiftMonthStr("2026-01", -1), "2025-12");
+  assert.equal(shiftMonthStr("2025-12", 1), "2026-01");
+  assert.equal(shiftMonthStr("2026-03", -13), "2025-02");
+  assert.equal(shiftMonthStr("bukan-bulan", -1), null);
+  assert.equal(shiftMonthStr(null, -1), null);
 });

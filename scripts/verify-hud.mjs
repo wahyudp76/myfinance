@@ -42,6 +42,16 @@ plan.forEach(([off, jenis, kategori, akun, jumlah, ket], i) => {
     jenis, kategori, akun, jumlah, keterangan: ket, mata_uang: "IDR", user_id: USER_ID,
   });
 });
+// Tx bulan SEBELUMNYA utk E2E salin realisasi: offset dinamis (tanggal hari ini + 5
+// hari ke belakang = selalu jatuh di bulan sebelumnya, apa pun tanggal run-nya).
+{
+  const offPrev = new Date().getDate() + 5;
+  demoTx.push({
+    id: "demo-prev", created_at: `${localKey(offPrev)}T09:00:00Z`, tanggal: localKey(offPrev),
+    jenis: "Pengeluaran", kategori: "Restoran", akun: "DANA", jumlah: "77000",
+    keterangan: "[Demo] Makan keluarga bulan lalu (E2E salin realisasi)", mata_uang: "IDR", user_id: USER_ID,
+  });
+}
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -72,6 +82,8 @@ await context.route("**/rest/v1/transactions**", (r) => {
   return r.fulfill(json(demoTx));
 });
 // Aset demo utk E2E setor dana (akun -> Bibit). GET: satu aset Bibit 1jt; tulis: ditangkap.
+const budgetRows = [{ kategori: "Restoran", jumlah: 500000, bulan: "2026-08" }, { kategori: "Bensin", jumlah: 120000, bulan: "2026-08" }];
+await context.route("**/rest/v1/budgets**", (r) => (r.request().method() === "GET" ? r.fulfill(json(budgetRows)) : r.fulfill(json({}), 201)));
 const BIBIT_SEED = { id: "asset-bibit-1", user_id: "u1", nama: "Bibit", kategori: "Reksadana", platform: "Bibit", modal: 1000000, nilai: 1000000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 1000000 }], simbol: null, jumlah_unit: null, sumber_harga: null };
 const assetWrites = [];
 await context.route("**/rest/v1/assets**", (r) => {
@@ -220,6 +232,33 @@ ok("tab Anggaran: bar perbandingan ber-DNA HUD (bila ada data budget)", await pa
   if (!c) return true; // seed tanpa budget -> chart memang tidak dibuat
   return c.data.datasets.every((ds) => typeof ds.backgroundColor === "function") && (c.plugins || []).some((p) => p.id === "hudGlow");
 }));
+// ---------- E2E: salin budget/realisasi bulan lalu (modal Atur Budget) ----------
+await page.evaluate(() => { switchView("budget"); openBudgetModal(); });
+await page.waitForTimeout(600);
+ok("modal budget: tombol Salin Budget & Salin Realisasi tersedia", await page.evaluate(() => {
+  const txt = document.getElementById("modalBudgetContent").textContent;
+  return txt.includes("Salin Budget Bulan Lalu") && txt.includes("Salin Realisasi Bulan Lalu");
+}));
+await page.evaluate(() => copyPrevMonthBudget("realisasi"));
+await page.waitForTimeout(400);
+await page.evaluate(() => { const m = document.getElementById("modalConfirm"); if (m && !m.classList.contains("hidden")) _confirmYes(); });
+await page.waitForTimeout(400);
+ok("salin realisasi: input Restoran terisi pengeluaran riil bulan lalu (77.000)", await page.evaluate(() => {
+  const el = document.querySelector('.budget-input[data-category="Restoran"]');
+  return !!el && el.value.replace(/[^0-9]/g, "") === "77000";
+}));
+await page.evaluate(() => copyPrevMonthBudget("budget"));
+await page.waitForTimeout(700);
+// form sudah terisi -> dialog konfirmasi timpa muncul -> lanjutkan
+await page.evaluate(() => { const m = document.getElementById("modalConfirm"); if (m && !m.classList.contains("hidden")) _confirmYes(); });
+await page.waitForTimeout(400);
+ok("salin budget bulan lalu (via konfirmasi): Restoran 500.000 + Bensin 120.000", await page.evaluate(() => {
+  const a = document.querySelector('.budget-input[data-category="Restoran"]');
+  const b = document.querySelector('.budget-input[data-category="Bensin"]');
+  return !!a && !!b && a.value.replace(/[^0-9]/g, "") === "500000" && b.value.replace(/[^0-9]/g, "") === "120000";
+}));
+await page.screenshot({ path: `${SHOTS}/14-modal-budget-salin.png` });
+await page.evaluate(() => closeBudgetModal());
 await page.evaluate(() => { try { openAccountDetail("BCA"); } catch (e) { /* seed tanpa akun tsb */ } });
 await page.waitForTimeout(900);
 ok("detail Akun: bar cashflow + donut kategori ber-DNA HUD (bila terbuka)", await page.evaluate(() => {

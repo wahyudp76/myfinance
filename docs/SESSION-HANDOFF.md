@@ -7,7 +7,11 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v38` (sinkron lokal). Suite: **472 unit + 1 smoke, semua hijau**.
+- Service worker live: `myfinance-v39` (sinkron lokal). Suite: **473 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 30 cek.
+- Fitur 2026-09: **salin budget/realisasi bulan lalu** di modal Atur Budget — dua tombol prefill
+  (`copyPrevMonthBudget('budget'|'realisasi')`): salin SETTING budget bulan lalu (fetch cloud) atau
+  jadikan PENGELUARAN RIIL bulan lalu (`aggregateActualByCategory`) sebagai nominal; tidak auto-save,
+  konfirmasi bila form terisi; helper murni `shiftMonthStr()` di `src/domain/budgets.js` (rollover tahun).
 - Audit 2026-09: precache sw.js dilengkapi 40 modul runtime; file mati
   `src/data/generation.js` dihapus; bug konsistensi edit setor-aset diperbaiki
   (ganti aset tujuan / ubah jadi non-setor -> aset lama dipulihkan).

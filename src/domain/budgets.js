@@ -154,3 +154,21 @@ export function detectBudgetThresholdCrossing(beforePct, afterPct) {
   if (beforePct < 0.8 && afterPct >= 0.8) return "warning";
   return null;
 }
+
+/**
+ * Geser string bulan 'YYYY-MM' sebanyak delta bulan (negatif = mundur).
+ * Dipakai fitur "Salin Budget/Realisasi Bulan Lalu" (audit kebutuhan 2026-09).
+ * Return null bila format input tidak valid.
+ * @param {string} ym - 'YYYY-MM'
+ * @param {number} delta - jumlah bulan (mis. -1 = bulan sebelumnya)
+ * @returns {string|null} 'YYYY-MM' hasil pergeseran
+ */
+export function shiftMonthStr(ym, delta) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || "").trim());
+  if (!m) return null;
+  let year = Number(m[1]);
+  let month = Number(m[2]) - 1 + (Number(delta) || 0);
+  year += Math.floor(month / 12);
+  month = ((month % 12) + 12) % 12;
+  return year + "-" + String(month + 1).padStart(2, "0");
+}
