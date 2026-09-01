@@ -264,3 +264,45 @@ export function computeDayNetTotal(rows, { txIdrAmount }) {
   });
   return netTotal;
 }
+
+/**
+ * Urutan globalData = urutan yang dikembalikan server oleh list():
+ * tanggal DESC, id ASC. Baris baru (id-nya pasti lebih besar dari baris
+ * se-tanggal yang sudah ada) diapit TEPAT SETELAH baris se-tanggal terakhir,
+ * dan SEBELUM baris dengan tanggal lebih lama.
+ *
+ * Murni & bebas efek samping (mengembalikan array baru) -- dipakai echo lokal
+ * pasca-simpan di index.html supaya state lokal identik dengan hasil fetch
+ * ulang, TANPA request tambahan.
+ */
+export function insertTransactionRow(rows, row) {
+  const list = Array.isArray(rows) ? rows.slice() : [];
+  if (!row) return list;
+  if (row.tanggal == null) {
+    list.push(row);
+    return list;
+  }
+  let idx = list.findIndex((r) => String(r.tanggal) < String(row.tanggal));
+  if (idx === -1) idx = list.length;
+  list.splice(idx, 0, row);
+  return list;
+}
+
+/**
+ * Ganti baris transaksi berdasarkan id (hasil UPDATE), atau sisipkan sebagai
+ * baris baru kalau id-nya belum ada. Kalau tanggalnya berubah, baris
+ * dikeluarkan lalu disisipkan ulang di posisi urutan server yang benar.
+ */
+export function replaceTransactionRow(rows, row) {
+  const list = Array.isArray(rows) ? rows.slice() : [];
+  if (!row || row.id == null) return list;
+  const idx = list.findIndex((r) => String(r.id) === String(row.id));
+  if (idx === -1) return insertTransactionRow(list, row);
+  const sameDate = String(list[idx].tanggal) === String(row.tanggal);
+  list[idx] = row;
+  if (!sameDate) {
+    const moved = list.splice(idx, 1);
+    return insertTransactionRow(list, moved[0]);
+  }
+  return list;
+}

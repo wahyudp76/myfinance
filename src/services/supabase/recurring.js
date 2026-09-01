@@ -1,4 +1,5 @@
 /** Supabase recurring transaction service boundary. */
+import { getCurrentUserId } from "../user-id.js";
 
 function requireClient(client) {
   if (!client || typeof client.rpc !== "function") {
@@ -79,12 +80,6 @@ async function fetchAllRows(client, buildQuery, pageSize = 1000) {
     if (data.length < pageSize) break;
   }
   return rows;
-}
-
-async function getCurrentUserId(client) {
-  const { data, error } = await requireClient(client).auth.getUser();
-  if (error || !data.user) throw new Error("Sesi login tidak ditemukan. Silakan login ulang.");
-  return data.user.id;
 }
 
 /**

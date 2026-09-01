@@ -1,14 +1,9 @@
 /** Supabase custom-icon service boundary (tabel: custom_icons, 1 baris per akun per user). */
+import { getCurrentUserId } from "../user-id.js";
 
 function requireClient(client) {
   if (!client) throw new Error("Supabase client belum diberikan.");
   return client;
-}
-
-async function getCurrentUserId(client) {
-  const { data, error } = await requireClient(client).auth.getUser();
-  if (error || !data.user) throw new Error("Sesi login tidak ditemukan. Silakan login ulang.");
-  return data.user.id;
 }
 
 /** @returns {Record<string, object>} peta nama akun -> data ikon kustomnya */

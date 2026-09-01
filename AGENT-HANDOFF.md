@@ -213,3 +213,90 @@ sebelum hover, lalu `waitForFunction` sampai opacity `1` alih-alih menebak
 lewat `waitForTimeout(350)`. 5/5 run hijau setelahnya.
 Pelajaran sama seperti v50: **tunggu kondisi nyata, jangan tambah sleep atau
 `{force:true}`.**
+
+## v52 — Percepatan input transaksi ke database (echo lokal + sesi tanpa RTT)
+
+Permintaan owner: "lakukan improvement pada peningkatan kecepatan input data
+transaksi ke database". Tidak menyentuh Paket B/Phase 4 (split monolit ditolak
+owner sebagai berisiko). Tujuan: memangkas round-trip jaringan & waktu antara
+"klik Simpan" sampai data tampil di UI, untuk SEMUA jalur penyimpanan transaksi.
+
+### Temuan diagnosis (mengapa simpan terasa lambat)
+1. **1 RTT sia-sia per operasi tulis**: setiap service (transactions, assets,
+   settings, custom-icons, recurring) punya `getCurrentUserId()` sendiri yang
+   memanggil `auth.getUser()` = query ke server Auth, padahal user.id SUDAH ada
+   di sesi lokal. Jadi simpan transaksi = getUser() + insert = 2 RTT berurutan.
+2. **Re-fetch seluruh tabel setelah simpan**: `onSaveOk` lama memanggil
+   `refreshTransactionsOnly()` = `list()` seluruh tabel transaksi (paging 1000
+   baris per request, BERURUTAN) + render ulang penuh (filter, daftar, dashboard,
+   chart, laporan) sebelum modal ditutup.
+3. Setor ke aset = 2-3 request berurutan (insert/update + updateAsset), plus
+   refresh aset & transaksi. Transfer baru sudah atomik (RPC) — jalur terbaik.
+
+### Yang diubah
+- **`src/services/user-id.js` (BARU)** — resolver `getCurrentUserId` SATU untuk
+  semua service: `auth.getSession()` dulu (baca storage lokal, TANPA jaringan;
+  dipakai bila `expires_at` masih > 30 detik lagi), fallback `auth.getUser()`
+  untuk sesi hilang/token hampir kedaluwarsa/mock lama. Perilaku error sama
+  persis ("Sesi login tidak ditemukan...").
+- **`src/services/transactions.js`** — `mapTransactionRow()` (bentuk kanonik
+  baris, dipakai list & write) + `TX_SELECT`. `create()` sekarang
+  `.insert().select(TX_SELECT).single()` dan `update()` `.eq(id).eq(user_id)
+  .select(TX_SELECT).maybeSingle()` — KEDUANYA mengembalikan baris ASLI dari
+  server (update: null bila baris hilang, bukan error — perilaku lama dijaga).
+- **`src/domain/transactions.js`** + `insertTransactionRow` (posisi urutan
+  server: tanggal DESC, lalu id ASC) & `replaceTransactionRow` (by id, pindah
+  posisi bila tanggal berubah) — murni, teruji unit.
+- **`src/domain/asset-flows.js`** + `syncAccountsFromTransactions` — pendaftaran
+  akun baru + self-heal "akun bayangan aset" (logika yang dulu inline di
+  index.html) dipakai refresh penuh DAN echo lokal, jadi tidak mungkin beda.
+- **`index.html`** — `applyLocalTxEcho(mode, txRow, assetPatches, afterCb)`:
+  update `globalData` (insert/replace), merge patch aset, sinkron akun, lalu
+  pipeline render IDENTIK dengan `refreshTransactionsOnly`. Error apapun ->
+  fallback `refreshTransactionsOnly()` (perilaku lama). `finishSave` mengatur
+  close modal (atau buka ulang utk "Simpan & Catat Lagi") + toast + notif budget.
+  RPC transfer: `result.data` di-map via `mapTransactionRow` (RPC memang
+  `RETURNS public.transactions`). Setor-ke-aset: patch aset yang dikirim ke
+  `updateAsset` dipakai juga utk echo lokal (tidak perlu refreshAssetsOnly).
+  Tombol **"Simpan & Catat Lagi"** (`btnSubmitFormRepeat`,
+  `submitFormNewAndRepeat`, flag `_pendingRepeatSave` di-reset di awal submit)
+  + autofocus kolom Jumlah saat modal baru (desktop saja).
+- **`scripts/verify-hud.mjs`** — stub `/rest/v1/transactions` kini membalas
+  OBJEK (bukan array) untuk POST/PATCH karena `.single()`/`.maybeSingle()`
+  mengirim `Accept: application/vnd.pgrst.object+json`; counter `txGets`,
+  `authUserGets`, `txPosts`, `txUpdates`; 10 cek baru "simpan cepat": payload
+  POST benar + user_id dari sesi lokal (tanpa GET /auth/v1/user) + TANPA refetch
+  seluruh tabel + modal tertutup/toast + baris baru tampil via echo + repeat
+  modal tetap terbuka form kosong + PATCH edit + nominal baru di tabel.
+- **`sw.js`** CACHE_VERSION `myfinance-v51` -> `myfinance-v52` (snapshot
+  di-update lewat `node tests/unit/update-sw-cache-snapshot.mjs` — hash aset
+  berubah karena index.html & src/*).
+- **`scripts/bench-save-latency.mjs` (BARU)** — ukur RTT nyata ke Supabase
+  (median 10), bandingkan jumlah & perkiraan ms alur lama vs baru; `ROWS=`
+  untuk simulasi ukuran data. Contoh nyata dari sandbox (RTT ke `uxfngmxghupdlwoeoxgh`
+  ~17-28 ms): 300 baris -> 63 ms -> 17 ms (3 RTT -> 1); 5000 baris -> 153 ms
+  -> 20 ms (7 RTT -> 1). Di jaringan pengguna (Indonesia, RTT 50-150 ms)
+  penghematannya proporsional & lebih terasa.
+
+### Hasil verifikasi (semua hijau)
+- `npm run lint` OK; `npm run test:unit` = **533 pass / 0 fail** (dari 502; +31
+  test baru: user-id 8, tx-echo 8, accounts-sync 6, service payload 9).
+- `scripts/verify-hud.mjs` = **59/59 PASS**, `Error halaman: 0` (v51: 49 cek).
+- `scripts/lighthouse/run.mjs` = performance 58 / a11y 97 / best-practices 100
+  (pagar 55/85/90 — 58 vs 60 di v51 adalah noise server lokal, bukan regresi).
+- Belum ada perubahan database/SQL — murni sisi klien; RLS & RPC tidak disentuh.
+
+### Perangkap & catatan
+- **Jangan kembalikan array di stub POST/PATCH** untuk `.single()`/`.maybeSingle()`:
+  klien kirim `Accept: vnd.pgrst.object+json`, PostgREST asli membalas OBJEK.
+  Array membuat `mapTransactionRow` menerima array -> id hilang -> echo gagal
+  (kelihatannya "flaky", padahal stub).
+- Test gerbang `index-inline-scripts.test.js` tetap valid: blok inline 4000-an
+  baris masih lolos `node --check` via masker komentar.
+- `pruneAssetShadowAccounts` tetap diekspor & dipakai (di dalam
+  `syncAccountsFromTransactions`); pemanggil inline index.html yang lama
+  dihapus.
+- Echo lokal memakai baris hasil simpan DI SERVER — bukan baris rekaan klien,
+  jadi tidak ada risiko divergensi data. Trade-off yang disadari: perubahan dari
+  perangkat LAIN tidak ikut tampil sampai load/refresh berikutnya (sebelumnya
+  re-fetch penuh menangkapnya).

@@ -123,7 +123,7 @@
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
             onAuthStateChange, requireUser,
         } from './src/auth/index.js';
-        import { createTransactionService, toCreateRecord, toUpdateRecord } from './src/services/transactions.js';
+        import { createTransactionService, toCreateRecord, toUpdateRecord, mapTransactionRow } from './src/services/transactions.js';
         import { createTransfer, toTransferParams } from './src/services/supabase/transfers.js';
         import { createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate } from './src/services/supabase/recurring.js';
         import { replaceMonthBudgets, fetchMonthBudgets } from './src/services/supabase/budgets.js';
@@ -144,14 +144,14 @@
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
-        import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts } from './src/domain/asset-flows.js';
+        import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions } from './src/domain/asset-flows.js';
         import * as chartsUi from './src/ui/charts.js';
         import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
         import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart, aggregateSubCategoryShares } from './src/domain/categories.js';
-        import { matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal } from './src/domain/transactions.js';
+        import { matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal, insertTransactionRow, replaceTransactionRow } from './src/domain/transactions.js';
         import { isChartNarrow, selectSparseLabelIndices } from './src/domain/chart-labels.js';
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr } from './src/domain/budgets.js';
         import { renderRecurringSummary as renderRecurringSummaryUI, renderRecurringListModal as renderRecurringListModalUI } from './src/ui/recurring.js';
@@ -177,10 +177,10 @@
             buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows,
             buildDemoTransactions, isDemoTransaction, DEMO_MARKER,
             buildCommandIndex, searchCommands,
-            createTransactionService, toCreateRecord, toUpdateRecord, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
+            createTransactionService, toCreateRecord, toUpdateRecord, mapTransactionRow, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
-            applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
+            applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
             // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
@@ -208,7 +208,7 @@
             computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend,
             computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates,
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
-            matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal,
+            matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal, insertTransactionRow, replaceTransactionRow,
             isChartNarrow, selectSparseLabelIndices,
             aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr,
             // renderRecurringSummaryUI/renderRecurringListModalUI: BUKAN domain/service, ini fungsi
@@ -1674,6 +1674,9 @@
                 <button type="button" id="btnSubmitForm" onclick="submitForm(new Event('submit'))" class="w-full bg-[#151928] hover:bg-black text-white font-medium py-3 rounded-xl transition shadow-lg shadow-slate-300 text-sm md:text-base">
                     Simpan Data
                 </button>
+                <button type="button" id="btnSubmitFormRepeat" onclick="submitFormNewAndRepeat()" class="hidden w-full mt-2 bg-white hover:bg-slate-100 text-[#151928] font-medium py-3 rounded-xl transition border border-slate-200 text-sm md:text-base">
+                    Simpan &amp; Catat Lagi
+                </button>
             </div>
         </div>
     </div>
@@ -2773,6 +2776,9 @@ async function currentUserId() {
         let currentAccountDetail = null;
         let currentEditId = null; 
         let currentAssetEditId = null;
+        // Flag "Simpan & Catat Lagi": diset oleh tombol repeat, dibaca & langsung di-reset
+        // di awal submitForm() -- jadi tidak pernah "nyangkut" ke submit berikutnya.
+        let _pendingRepeatSave = false;
         let activeCategoryTab = 'Pengeluaran'; 
         let activeFormType = 'Pengeluaran';
         let currentSession = null; // Sesi Supabase yang sedang aktif, diisi oleh applySessionToUI()
@@ -4342,8 +4348,9 @@ async function currentUserId() {
                 };
                 // Pensyahan api.run (slice transactions): service langsung, mapping payload di
                 // servicesModule.toCreateRecord (body addTransactionRemote adapter lama), callback persis.
+                // Tidak perlu refresh penuh: baris hasil simpan (dari server) dipakai echo lokal.
                 transactionService.create(servicesModule.toCreateRecord(data))
-                    .then(() => { refreshTransactionsOnly(); })
+                    .then((row) => { applyLocalTxEcho('insert', row, null, null); })
                     .catch((err) => {
                         console.error('api.run.addTransaction gagal:', err);
                         showErrorToast('Akun tersimpan, tapi gagal mencatat saldo awal. Silakan tambahkan manual lewat menu Tambah Transaksi.');
@@ -5428,7 +5435,23 @@ async function currentUserId() {
                 document.querySelector(`input[name="jenis"][value="Pengeluaran"]`).checked = true; handleFormTypeChange();
                 document.getElementById('btnScanStruk').classList.remove('hidden');
                 categorySuggestionLastQuery = ''; hideCategorySuggestion();
-            } else { document.getElementById('modalTitle').innerText = "Edit Transaksi"; document.getElementById('btnSubmitForm').innerText = "Simpan Perubahan"; document.getElementById('btnScanStruk').classList.add('hidden'); }
+                // Tombol "Simpan & Catat Lagi" cuma relevan untuk entri BARU (edit = 1 baris selesai).
+                document.getElementById('btnSubmitFormRepeat').classList.remove('hidden');
+                // Fokus ke kolom Jumlah supaya entri berikutnya langsung bisa ketik nominal.
+                // Desktop saja: di layar sentuh, keyboard yang muncul sendiri bisa lebih
+                // mengganggu daripada membantu (user bisa tap kolom Jumlah sendiri).
+                if (window.matchMedia('(min-width: 768px)').matches) {
+                    setTimeout(() => {
+                        if (document.getElementById('modalForm').classList.contains('hidden') === false) {
+                            document.getElementById('jumlah_display').focus();
+                            document.getElementById('jumlah_display').select();
+                        }
+                    }, 350); // selesai animasi slide-in (300 ms)
+                }
+            } else {
+                document.getElementById('modalTitle').innerText = "Edit Transaksi"; document.getElementById('btnSubmitForm').innerText = "Simpan Perubahan"; document.getElementById('btnScanStruk').classList.add('hidden');
+                document.getElementById('btnSubmitFormRepeat').classList.add('hidden');
+            }
         }
         function closeModal() {
             const content = document.getElementById('modalFormContent'); content.classList.add('translate-x-full');
@@ -5464,6 +5487,15 @@ async function currentUserId() {
             openModal(true);
         }
 
+        // "Simpan & Catat Lagi": set flag repeat lalu jalankan submitForm yang sama persis
+        // (validasi & jalur simpan identik) -- bedanya cuma finishSave membuka ulang form
+        // kosong alih-alih menutup modal, jadi entri transaksi beruntun tidak perlu
+        // buka-tutup modal berkali-kali.
+        function submitFormNewAndRepeat() {
+            _pendingRepeatSave = true;
+            submitForm(new Event('submit'));
+        }
+
         function submitForm(e) {
             if(e) e.preventDefault();
             const form = document.getElementById('formInput'); 
@@ -5493,11 +5525,18 @@ async function currentUserId() {
             // lagi SETELAH data ke-refresh, buat deteksi baru saja lewat ambang 80%/100% (lihat penjelasan
             // di notifyIfBudgetThresholdCrossed).
             const budgetBefore = data.jenis === 'Pengeluaran' ? getCategoryBudgetStatus(catVal) : null;
-            const onSaveOk = () => {
-                closeModal();
-                refreshTransactionsOnly(() => { if (budgetBefore) notifyIfBudgetThresholdCrossed(catVal, budgetBefore); });
-                showSuccessToast(wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.');
+            // repeatSave: tombol "Simpan & Catat Lagi" -> begitu simpan sukses, form dibuka lagi dalam
+            // keadaan kosong (tanpa menutup modal), supaya entri transaksi beruntun jauh lebih cepat.
+            const repeatSave = _pendingRepeatSave; _pendingRepeatSave = false;
+            // finishSave(txRow, assetPatches, pesan): txRow = baris ASLI dari server (bentuk kanonik
+            // mapTransactionRow, sama seperti list()) -- dipakai ECHO LOKAL pasca-simpan, TANPA
+            // menarik ulang seluruh tabel transaksi (lihat applyLocalTxEcho di bawah).
+            const finishSave = (txRow, assetPatches, successMsg) => {
+                if (repeatSave) openModal(false); else closeModal();
+                applyLocalTxEcho(wasEdit ? 'update' : 'insert', txRow, assetPatches, () => { if (budgetBefore) notifyIfBudgetThresholdCrossed(catVal, budgetBefore); });
+                showSuccessToast(successMsg);
             };
+            const onSaveOk = (txRow, assetPatches) => finishSave(txRow, assetPatches, wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.');
 
             if (jenisVal === 'Transfer' && currentTransferDestIsAsset) {
                 // SETOR KE ASET (mis. Bibit): transaksi baris biasa (jenis Transfer, kategori =
@@ -5519,18 +5558,24 @@ async function currentUserId() {
                     const txPromise = wasEdit
                         ? transactionService.update(currentEditId, servicesModule.toUpdateRecord(data))
                         : transactionService.create(servicesModule.toCreateRecord(data));
-                    let chain = txPromise;
+                    // Baris transaksi hasil simpan (dari server, bukan rekaan klien) dipakai utk
+                    // echo lokal pasca-simpan -- tidak perlu fetch ulang seluruh tabel.
+                    let savedTxRow = null;
+                    let chain = txPromise.then((row) => { savedTxRow = row; });
+                    // Patch aset yang SAMA PERSIS dengan payload updateAsset (plus terakhir segar)
+                    // dipakai juga untuk echo lokal baris aset, supaya tab Aset langsung benar
+                    // tanpa refreshAssetsOnly().
+                    const assetPatches = [];
                     if (wasEdit && oldDepositAsset && !sameAsset) {
-                        chain = chain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositAsset.id,
-                            { ...oldDepositAsset, ...servicesModule.applyAssetDeposit(oldDepositAsset, -(Number(oldRow.jumlah) || 0), oldRow.tanggal) }));
+                        const oldAssetPatch = { id: oldDepositAsset.id, terakhir: new Date().toISOString(), ...servicesModule.applyAssetDeposit(oldDepositAsset, -(Number(oldRow.jumlah) || 0), oldRow.tanggal) };
+                        assetPatches.push(oldAssetPatch);
+                        chain = chain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositAsset.id, oldAssetPatch));
                     }
+                    const targetAssetPatch = { id: assetTarget.id, terakhir: new Date().toISOString(), ...servicesModule.applyAssetDeposit(assetTarget, depositDelta, data.tanggal) };
+                    assetPatches.push(targetAssetPatch);
                     chain
-                        .then(() => servicesModule.updateAsset(supabaseClient, assetTarget.id, { ...assetTarget, ...servicesModule.applyAssetDeposit(assetTarget, depositDelta, data.tanggal) }))
-                        .then(() => {
-                            closeModal();
-                            refreshTransactionsOnly(() => refreshAssetsOnly());
-                            showSuccessToast('Setoran Rp ' + formatRp(jumlahNum) + ' ke ' + assetTarget.nama + ' berhasil dicatat.');
-                        })
+                        .then(() => servicesModule.updateAsset(supabaseClient, assetTarget.id, targetAssetPatch))
+                        .then(() => finishSave(savedTxRow, assetPatches, 'Setoran Rp ' + formatRp(jumlahNum) + ' ke ' + assetTarget.nama + ' berhasil dicatat.'))
                         .catch((err) => { console.error('Setor ke aset gagal:', err); showErrorToast('Gagal menyimpan setoran. Periksa koneksi internet kamu lalu coba lagi.'); showLoading(false); });
                 };
                 // Cek lunak: peringatkan bila saldo akun sumber tidak cukup -- user boleh lanjut
@@ -5560,7 +5605,13 @@ async function currentUserId() {
                     kurs_tujuan: currentTxMataUangTujuan ? currentTxKursTujuan : 1,
                     keterangan: data.keterangan || null
                 }))
-                    .then(onSaveOk)
+                    // RPC create_transfer_transaction RETURNS baris transaksi baru (RETURNS
+                    // public.transactions) -- dipakai utk echo lokal seperti jalur insert biasa.
+                    .then((result) => {
+                        const rpcData = result && result.data;
+                        const rpcRow = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+                        onSaveOk(rpcRow ? servicesModule.mapTransactionRow(rpcRow) : null, null);
+                    })
                     .catch((err) => { console.error('api.run.createTransferTransaction gagal:', err); onSaveFail(err); });
                 return;
             }
@@ -5587,14 +5638,16 @@ async function currentUserId() {
                 // dari aset lama supaya nilai/modal aset tidak menggantung (audit 2026-09).
                 const oldRowEdit = globalData.find(t => t.id === currentEditId) || null;
                 const oldDepositEdit = oldRowEdit ? servicesModule.resolveAssetDepositTx(oldRowEdit, globalAssets) : null;
+                const editPatches = [];
                 let editChain = transactionService.update(currentEditId, servicesModule.toUpdateRecord(data));
                 if (oldDepositEdit) {
-                    editChain = editChain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositEdit.id,
-                        { ...oldDepositEdit, ...servicesModule.applyAssetDeposit(oldDepositEdit, -(Number(oldRowEdit.jumlah) || 0), oldRowEdit.tanggal) }));
+                    const oldEditPatch = { id: oldDepositEdit.id, terakhir: new Date().toISOString(), ...servicesModule.applyAssetDeposit(oldDepositEdit, -(Number(oldRowEdit.jumlah) || 0), oldRowEdit.tanggal) };
+                    editPatches.push(oldEditPatch);
+                    editChain = editChain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositEdit.id, oldEditPatch));
                 }
-                editChain.then(onSaveOk).catch((err) => { console.error('api.run.editTransaction gagal:', err); onSaveFail(err); });
+                editChain.then((row) => onSaveOk(row, editPatches.length ? editPatches : null)).catch((err) => { console.error('api.run.editTransaction gagal:', err); onSaveFail(err); });
             }
-            else { transactionService.create(servicesModule.toCreateRecord(data)).then(onSaveOk).catch((err) => { console.error('api.run.addTransaction gagal:', err); onSaveFail(err); }); }
+            else { transactionService.create(servicesModule.toCreateRecord(data)).then((row) => onSaveOk(row, null)).catch((err) => { console.error('api.run.addTransaction gagal:', err); onSaveFail(err); }); }
         }
 
         function hapusData(id) { showConfirm('Yakin ingin menghapus transaksi ini?', () => { showLoading(true);
@@ -5768,23 +5821,14 @@ async function currentUserId() {
             transactionService.list().then((transactions) => {
                 globalData = transactions || [];
 
+                // Pendaftaran akun baru + self-heal "nama aset bayangan" -- SATU sumber
+                // kebenaran (src/domain/asset-flows.js, syncAccountsFromTransactions), dipakai
+                // juga oleh echo lokal pasca-simpan supaya perilakunya identik.
+                const accSync = servicesModule.syncAccountsFromTransactions({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
                 let needsSettingUpdate = false;
-                globalData.forEach(row => {
-                    if (row.akun && !appSettings.accounts.includes(row.akun)) { appSettings.accounts.push(row.akun); needsSettingUpdate = true; }
-                    // Nama aset tujuan setor (mis. Bibit) BUKAN akun -- jangan didaftarkan otomatis.
-                    if (row.jenis === 'Transfer' && row.kategori && !appSettings.accounts.includes(row.kategori) && !servicesModule.findAssetByName(globalAssets, row.kategori)) {
-                        appSettings.accounts.push(row.kategori); needsSettingUpdate = true;
-                    }
-                });
-                // SELF-HEAL bug "shopee merchant": nama aset yang TELANJUR terdaftar
-                // sebagai akun (terdaftar sebelum asetnya ada / saat aset belum termuat)
-                // dibuang otomatis -- aturan ketat di pruneAssetShadowAccounts (murni,
-                // teruji unit): hanya nama yg cocok dgn aset, tak pernah dipakai sebagai
-                // `akun` di transaksi manapun, dan punya jejak Transfer-tujuan.
-                const shadowNames = servicesModule.pruneAssetShadowAccounts({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
-                if (shadowNames.length) {
-                    appSettings.accounts = appSettings.accounts.filter((n) => !shadowNames.includes(n));
-                    shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
+                if (accSync.added.length || accSync.shadowNames.length) {
+                    appSettings.accounts = accSync.accounts;
+                    accSync.shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
                     needsSettingUpdate = true;
                 }
                 if (needsSettingUpdate) { persistSettings(); renderSettings(); updateFormOptions(); }
@@ -5804,6 +5848,60 @@ async function currentUserId() {
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
                 showLoading(false);
             });
+        }
+
+        // ========================== ECHO LOKAL PASCA-SIMPAN (kecepatan simpan) ==========================
+        // Setelah INSERT/UPDATE sukses di server, baris yang DIKEMBALIKAN PostgREST (bentuk kanonik
+        // sama persis dengan list()) dipakai untuk memperbarui state lokal secara langsung -- TANPA
+        // menarik ulang SELURUH tabel transaksi. Dulu setiap simpan menunggu: getUser() + insert +
+        // fetch penuh semua baris (berurutan, 1 request per 1000 baris) + render ulang total.
+        // Sekarang: insert (1 request, sekalian mengembalikan barisnya) + update render lokal saja.
+        //
+        // Hasil di layar identik dengan refresh penuh (baris yang dipakai adalah baris ASLI dari
+        // server, bukan hasil reka-reka klien). Kalau ada hal tak terduga (baris hilang, bentuk
+        // aneh, dsb), fungsi ini melempar -> fallback ke refreshTransactionsOnly() = perilaku lama
+        // persis, jadi tidak ada state yang bisa "nyangkut".
+        //
+        // assetPatches: array { id, ...patch } optional utk setor-ke-aset -- nilai/modal aset yang
+        // BARU SAJA diupdate di server (objek yg sama persis dengan yang dikirim ke updateAsset)
+        // dipakai juga untuk meng-cache baris aset lokal, sehingga tidak perlu refreshAssetsOnly().
+        function applyLocalTxEcho(mode, txRow, assetPatches, afterCallback) {
+            try {
+                if (!txRow || txRow.id == null) throw new Error('Baris hasil simpan tidak tersedia.');
+                if (mode === 'insert') globalData = servicesModule.insertTransactionRow(globalData, txRow);
+                else if (mode === 'update') globalData = servicesModule.replaceTransactionRow(globalData, txRow);
+                else throw new Error('Mode echo tidak dikenal: ' + mode);
+                if (Array.isArray(assetPatches)) {
+                    let assetsMerged = globalAssets.slice();
+                    assetPatches.forEach((patch) => {
+                        const assetIdx = assetsMerged.findIndex((a) => String(a.id) === String(patch.id));
+                        if (assetIdx === -1) throw new Error('Aset target echo tidak ditemukan di state lokal: ' + patch.id);
+                        assetsMerged[assetIdx] = { ...assetsMerged[assetIdx], ...patch };
+                    });
+                    globalAssets = assetsMerged;
+                }
+                // Pendaftaran akun baru + self-heal -- helper yang SAMA dengan refresh penuh.
+                const accSync = servicesModule.syncAccountsFromTransactions({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
+                if (accSync.added.length || accSync.shadowNames.length) {
+                    appSettings.accounts = accSync.accounts;
+                    accSync.shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
+                    persistSettings(); renderSettings(); updateFormOptions();
+                }
+                // Pipeline render yang sama persis dengan refreshTransactionsOnly().
+                filterTransactions();
+                renderRecentList(globalData);
+                processDataForUI(globalData);
+                renderReportTab();
+                if (document.getElementById('view-akun-detail').classList.contains('block')) { openAccountDetail(document.getElementById('detail-account-name').innerText); }
+                if (document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }
+                showLoading(false);
+                if (typeof afterCallback === 'function') afterCallback();
+            } catch (err) {
+                // Fallback: perilaku lama persis (fetch ulang semua tabel yang terpengaruh).
+                console.error('Echo lokal pasca-simpan gagal -- fallback refresh penuh:', err);
+                if (Array.isArray(assetPatches) && assetPatches.length) refreshTransactionsOnly(() => refreshAssetsOnly());
+                else refreshTransactionsOnly(afterCallback);
+            }
         }
 
         // ========================== NOTIFIKASI BUDGET MEPET LIMIT (Quick win) ==========================
@@ -5906,23 +6004,14 @@ async function currentUserId() {
                 }
                 if (!appSettings.accountIcons) appSettings.accountIcons = {};
 
+                // Pendaftaran akun baru + self-heal "nama aset bayangan" -- SATU sumber
+                // kebenaran (src/domain/asset-flows.js, syncAccountsFromTransactions), sama
+                // seperti di refreshTransactionsOnly().
+                const accSync = servicesModule.syncAccountsFromTransactions({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
                 let needsSettingUpdate = false;
-                globalData.forEach(row => {
-                    if (row.akun && !appSettings.accounts.includes(row.akun)) { appSettings.accounts.push(row.akun); needsSettingUpdate = true; }
-                    // Nama aset tujuan setor (mis. Bibit) BUKAN akun -- jangan didaftarkan otomatis.
-                    if (row.jenis === 'Transfer' && row.kategori && !appSettings.accounts.includes(row.kategori) && !servicesModule.findAssetByName(globalAssets, row.kategori)) {
-                        appSettings.accounts.push(row.kategori); needsSettingUpdate = true;
-                    }
-                });
-                // SELF-HEAL bug "shopee merchant": nama aset yang TELANJUR terdaftar
-                // sebagai akun (terdaftar sebelum asetnya ada / saat aset belum termuat)
-                // dibuang otomatis -- aturan ketat di pruneAssetShadowAccounts (murni,
-                // teruji unit): hanya nama yg cocok dgn aset, tak pernah dipakai sebagai
-                // `akun` di transaksi manapun, dan punya jejak Transfer-tujuan.
-                const shadowNames = servicesModule.pruneAssetShadowAccounts({ accounts: appSettings.accounts, transactions: globalData, assets: globalAssets });
-                if (shadowNames.length) {
-                    appSettings.accounts = appSettings.accounts.filter((n) => !shadowNames.includes(n));
-                    shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
+                if (accSync.added.length || accSync.shadowNames.length) {
+                    appSettings.accounts = accSync.accounts;
+                    accSync.shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
                     needsSettingUpdate = true;
                 }
 

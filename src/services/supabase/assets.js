@@ -1,16 +1,11 @@
 /** Supabase asset/investment service boundary (tabel: assets). */
+import { getCurrentUserId } from "../user-id.js";
 
 const DEFAULT_PAGE_SIZE = 1000;
 
 function requireClient(client) {
   if (!client) throw new Error("Supabase client belum diberikan.");
   return client;
-}
-
-async function getCurrentUserId(client) {
-  const { data, error } = await requireClient(client).auth.getUser();
-  if (error || !data.user) throw new Error("Sesi login tidak ditemukan. Silakan login ulang.");
-  return data.user.id;
 }
 
 // PostgREST (di balik layar Supabase) membatasi maksimal ~1000 baris per response secara

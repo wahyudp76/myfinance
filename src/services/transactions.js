@@ -1,14 +1,36 @@
+import { getCurrentUserId } from "./user-id.js";
+
 const DEFAULT_PAGE_SIZE = 1000;
+
+// Kolom transaksi yang dipilih -- dipakai list() DAN hasil create()/update(),
+// supaya baris yang dikembalikan punya bentuk kanonik yang SAMA. Hasil
+// create()/update() ini dipakai index.html untuk "echo lokal pasca-simpan"
+// (tidak perlu menarik ulang seluruh tabel transaksi setelah setiap simpan).
+const TX_SELECT =
+  "id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr";
 
 function requireClient(client) {
   if (!client) throw new Error("Supabase client belum diberikan.");
   return client;
 }
 
-async function getCurrentUserId(client) {
-  const { data, error } = await requireClient(client).auth.getUser();
-  if (error || !data.user) throw new Error("Sesi login tidak ditemukan. Silakan login ulang.");
-  return data.user.id;
+/**
+ * Pemetaan baris mentah PostgREST -> baris kanonik aplikasi (koersi Number pada
+ * kolom nominal; null dipertahankan null). Satu-satunya sumber kebenaran bentuk
+ * baris transaksi di sisi service -- dipakai list(), create(), dan update().
+ */
+export function mapTransactionRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    jumlah: Number(row.jumlah),
+    jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
+    // Sisi TUJUAN transfer lintas mata uang -- null utk transaksi non-Transfer &
+    // transfer historis dari sebelum fitur ini ada.
+    transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
+    transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
+    transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null,
+  };
 }
 
 async function fetchAllRows(client, buildQuery, pageSize = DEFAULT_PAGE_SIZE) {
@@ -33,24 +55,19 @@ export function createTransactionService(client) {
         supabase,
         (from, to) => supabase
           .from("transactions")
-          .select("id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr")
+          .select(TX_SELECT)
           .order("tanggal", { ascending: false })
           .order("id", { ascending: true })
           .range(from, to)
       );
 
-      return rows.map((row) => ({
-        ...row,
-        jumlah: Number(row.jumlah),
-        jumlah_idr: row.jumlah_idr != null ? Number(row.jumlah_idr) : null,
-        // Sisi TUJUAN transfer lintas mata uang -- null utk transaksi non-Transfer & transfer
-        // historis dari sebelum fitur ini ada.
-        transfer_jumlah_tujuan: row.transfer_jumlah_tujuan != null ? Number(row.transfer_jumlah_tujuan) : null,
-        transfer_kurs_tujuan: row.transfer_kurs_tujuan != null ? Number(row.transfer_kurs_tujuan) : null,
-        transfer_jumlah_tujuan_idr: row.transfer_jumlah_tujuan_idr != null ? Number(row.transfer_jumlah_tujuan_idr) : null,
-      }));
+      return rows.map(mapTransactionRow);
     },
 
+    // MENGEMBALIKAN baris yang baru disimpan (select().single() -- tetap 1
+    // request yang sama dengan insert), supaya pemanggil bisa update state lokal
+    // tanpa fetch ulang seluruh tabel. Bentuk baris = mapTransactionRow, sama
+    // persis dengan list().
     async create(data) {
       const user_id = await getCurrentUserId(supabase);
       const { data: inserted, error } = await supabase
@@ -67,15 +84,19 @@ export function createTransactionService(client) {
           kurs: data.kurs || 1,
           jumlah_idr: data.jumlah_idr != null ? data.jumlah_idr : data.jumlah,
         })
-        .select("id")
+        .select(TX_SELECT)
         .single();
       if (error) throw error;
-      return inserted;
+      return mapTransactionRow(inserted);
     },
 
+    // MENGEMBALIKAN baris hasil update, atau null kalau barisnya tidak ketemu
+    // (mis. sudah dihapus di perangkat lain -- pemanggil boleh fallback ke
+    // refresh penuh). maybeSingle() supaya 0 baris tidak dilempar sebagai error
+    // (perilaku update() lama: tidak error kalau 0 baris terpengaruh).
     async update(id, data) {
       const user_id = await getCurrentUserId(supabase);
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("transactions")
         .update({
           jenis: data.jenis,
@@ -96,8 +117,11 @@ export function createTransactionService(client) {
           transfer_jumlah_tujuan_idr: data.transfer_jumlah_tujuan_idr != null ? Number(data.transfer_jumlah_tujuan_idr) : null,
         })
         .eq("id", id)
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .select(TX_SELECT)
+        .maybeSingle();
       if (error) throw error;
+      return mapTransactionRow(updated);
     },
 
     async remove(id) {
@@ -116,7 +140,7 @@ export function createTransactionService(client) {
  * Normalisasi data form transaksi -> payload INSERT (kolom tabel transactions).
  * Dulunya body addTransactionRemote() di adapter `api` (index.html) -- dipindah
  * ke sini saat pensyahan api.run (slice transactions) supaya pemanggilan service
- * langsung tetap punya SATU sumber kebenangan koersi yang sama: jumlah selalu
+ * langsung tetap punya SATU sumber kebenaran koersi yang sama: jumlah selalu
  * Number (form mengirim string), keterangan/mata_uang kosong jadi null, kurs
  * kosong jadi null (service create meneruskan apa adanya; default || 1 di
  * service hanya berlaku utk nilai falsy yang lolos), dan jumlah_idr fallback

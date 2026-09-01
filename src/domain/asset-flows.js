@@ -96,3 +96,45 @@ export function pruneAssetShadowAccounts({ accounts, transactions, assets } = {}
   }
   return removed;
 }
+
+/**
+ * Sinkronisasi daftar akun dari baris transaksi: setiap akun yang dipakai
+ * transaksi (baris .akun, atau kategori tujuan Transfer yang bukan nama aset
+ * yang dikenal) didaftarkan bila belum ada, lalu self-heal "nama aset bayangan"
+ * dijalankan (pruneAssetShadowAccounts). Dipakai refreshTransactionsOnly() DAN
+ * echo lokal pasca-simpan (applyLocalTxEcho di index.html) supaya keduanya
+ * memakai logika yang sama persis.
+ *
+ * Murni & tanpa efek samping -- mengembalikan daftar akun baru + nama yang baru
+ * ditambahkan + nama bayangan yang perlu dipangkas (pemanggil yang memutuskan
+ * kapan persistSettings/renderSettings dijalankan).
+ *
+ * @returns {{ accounts: string[], added: string[], shadowNames: string[] }}
+ */
+export function syncAccountsFromTransactions({ accounts, transactions, assets } = {}) {
+  let result = Array.isArray(accounts) ? accounts.slice() : [];
+  const added = [];
+  const txs = Array.isArray(transactions) ? transactions : [];
+  const assetList = Array.isArray(assets) ? assets : [];
+
+  for (const row of txs) {
+    if (row.akun && !result.includes(row.akun)) {
+      result.push(row.akun);
+      added.push(row.akun);
+    }
+    // Nama aset tujuan setor (mis. Bibit) BUKAN akun -- jangan didaftarkan otomatis.
+    if (row.jenis === "Transfer" && row.kategori && !result.includes(row.kategori) && !findAssetByName(assetList, row.kategori)) {
+      result.push(row.kategori);
+      added.push(row.kategori);
+    }
+  }
+
+  // Self-heal "shopee merchant" (lihat pruneAssetShadowAccounts) -- dipakai di
+  // refresh penuh dan echo lokal sama-sama, supaya hasilnya tidak pernah beda.
+  const shadowNames = pruneAssetShadowAccounts({ accounts: result, transactions: txs, assets: assetList });
+  if (shadowNames.length) {
+    result = result.filter((n) => !shadowNames.includes(n));
+  }
+
+  return { accounts: result, added, shadowNames };
+}

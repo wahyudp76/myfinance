@@ -75,12 +75,48 @@ const json = (body, status = 200) => ({ status, contentType: "application/json",
 await context.route("**/functions/v1/**", (r) => r.fulfill(json({ ok: true })));
 await context.route("**/rest/v1/**", (r) => r.fulfill(json([])));
 await context.route("**/auth/v1/token**", (r) => r.fulfill(json(session)));
-await context.route("**/auth/v1/user**", (r) => r.fulfill(json(session.user)));
+let authUserGets = 0;
+await context.route("**/auth/v1/user**", (r) => { authUserGets += 1; return r.fulfill(json(session.user)); });
 await context.route("**/rest/v1/settings**", (r) => (r.request().method() === "GET" ? r.fulfill(json([])) : r.fulfill(json({}), 201)));
+// Stub tabel transaksi: GET = seed demo (paging), POST = insert (v52: harus
+// mengembalikan baris yang DISIMPAN untuk echo lokal), PATCH = update (sama),
+// DELETE = sukses. txGets/txPosts/txUpdates dipakai asserts kontrak simpan cepat.
 const txPosts = [];
+const txUpdates = [];
+let txGets = 0;
+let txWriteSeq = 0;
+function savedTxRow(payload, idOverride) {
+  txWriteSeq += 1;
+  const id = idOverride || `tx-echo-${txWriteSeq}`;
+  return {
+    id, jenis: payload.jenis || "Pengeluaran", tanggal: payload.tanggal || localKey(0),
+    jumlah: payload.jumlah != null ? String(payload.jumlah) : "0",
+    akun: payload.akun || "BCA", kategori: payload.kategori || "Makanan",
+    keterangan: payload.keterangan ?? null, mata_uang: payload.mata_uang ?? null,
+    kurs: payload.kurs ?? 1, jumlah_idr: payload.jumlah_idr != null ? String(payload.jumlah_idr) : "0",
+    transfer_jumlah_tujuan: null, transfer_mata_uang_tujuan: null,
+    transfer_kurs_tujuan: null, transfer_jumlah_tujuan_idr: null,
+  };
+}
 await context.route("**/rest/v1/transactions**", (r) => {
-  if (r.request().method() === "POST") { try { txPosts.push(JSON.parse(r.request().postData() || "{}")); } catch { /* ignore */ } }
-  return r.fulfill(json(demoTx));
+  const m = r.request().method();
+  if (m === "GET") { txGets += 1; return r.fulfill(json(demoTx)); }
+  if (m === "POST") {
+    let payload = {};
+    try { payload = JSON.parse(r.request().postData() || "{}"); } catch { /* ignore */ }
+    txPosts.push(payload);
+    // .single() mengirim Accept: application/vnd.pgrst.object+json -> PostgREST
+    // asli membalas OBJEK (bukan array) -- stub harus meniru itu.
+    return r.fulfill(json(savedTxRow(payload), 201));
+  }
+  if (m === "PATCH") {
+    let payload = {};
+    try { payload = JSON.parse(r.request().postData() || "{}"); } catch { /* ignore */ }
+    txUpdates.push(payload);
+    const idMatch = /id=eq\.([^&]+)/.exec(r.request().url());
+    return r.fulfill(json(savedTxRow(payload, idMatch ? decodeURIComponent(idMatch[1]) : undefined), 200));
+  }
+  return r.fulfill(json([]));
 });
 // Aset demo utk E2E setor dana (akun -> Bibit). GET: satu aset Bibit 1jt; tulis: ditangkap.
 const budgetRows = [{ kategori: "Restoran", jumlah: 500000, bulan: "2026-08" }, { kategori: "Bensin", jumlah: 120000, bulan: "2026-08" }];
@@ -463,6 +499,96 @@ ok("command palette Ctrl+K terbuka", await page.evaluate(() => {
   return !!el && !el.classList.contains("hidden");
 }));
 await page.keyboard.press("Escape");
+
+// ---------- kontrak: alur SIMPAN CEPAT v52 (echo lokal, tanpa refetch penuh) ----------
+// 1) POST harus memakai user_id dari SESI LOKAL -- tidak ada GET /auth/v1/user
+//    tambahan (hemat 1 round-trip), 2) selesai simpan TANPA GET /rest/v1/transactions
+//    lagi (baris hasil insert dipakai echo lokal), 3) modal tertutup & baris baru
+//    langsung tampil di HUD (bukan nunggu fetch + render ulang penuh).
+await page.evaluate(() => switchView("dashboard"));
+await page.waitForTimeout(500);
+// Baseline RELATIF: bagian-bagian di atas sudah boleh memakai POST/PATCH
+// (mis. E2E setor ke aset) -- assertions di sini cuma soal SELISIH-nya.
+const txGetsBaseline = txGets;
+const authUserBaseline = authUserGets;
+const txPostsBaseline = txPosts.length;
+const txUpdatesBaseline = txUpdates.length;
+const fillTransactionForm = (amount, kategori, akun) => page.evaluate(([amt, kat, acc]) => {
+  document.getElementById('tanggal').valueAsDate = new Date();
+  document.getElementById('akun').value = acc;
+  document.getElementById('akun').dispatchEvent(new Event('change'));
+  document.getElementById('jumlah').value = amt;
+  document.getElementById('jumlah_display').value = Number(amt).toLocaleString('id-ID');
+  document.getElementById('keterangan').value = '[Demo] Cepat';
+  const k = document.getElementById('kategori');
+  k.value = kat;
+  document.getElementById('selected-category-display').textContent = kat;
+}, [amount, kategori, akun]);
+
+// --- jalur 1: simpan BARU (insert + echo) ---
+await page.click("#fabDesktopCatat");
+await page.waitForSelector("#modalForm:not(.hidden)", { timeout: 15000 });
+await page.waitForTimeout(450); // animasi slide-in
+await fillTransactionForm("25000", "Makanan", "BCA");
+await page.click("#btnSubmitForm");
+await page.waitForFunction(() => document.getElementById("modalForm").classList.contains("hidden"), null, { timeout: 15000 });
+await page.waitForTimeout(900);
+ok("simpan cepat: POST /rest/v1/transactions 1x, payload benar (jenis/jumlah/id user)", () => {
+  const last = txPosts[txPosts.length - 1];
+  return txPosts.length === txPostsBaseline + 1 && last && last.user_id === USER_ID &&
+    Number(last.jumlah) === 25000 && last.jenis === "Pengeluaran" && last.keterangan === "[Demo] Cepat" && last.akun === "BCA";
+});
+ok("simpan cepat: user_id dari sesi LOKAL (tidak ada GET /auth/v1/user tambahan)", authUserGets === authUserBaseline);
+ok("simpan cepat: TANPA refetch seluruh tabel (GET /rest/v1/transactions tidak bertambah)", txGets === txGetsBaseline);
+ok("simpan cepat: modal tertutup + toast sukses", await page.evaluate(() => {
+  const m = document.getElementById("modalForm");
+  const toastWrap = document.getElementById("errorToast");
+  const msg = document.getElementById("errorToastMsg");
+  return m.classList.contains("hidden") && toastWrap && !toastWrap.classList.contains("hidden") &&
+    /berhasil dicatat/.test(msg.textContent || "");
+}));
+ok("simpan cepat: baris baru tampil di HUD via echo lokal", await page.evaluate(() => {
+  const items = [...document.querySelectorAll("#recent-transactions-list > div")];
+  return items.some((el) => /25\.000/.test(el.textContent) && /\[Demo\] Cepat/.test(el.textContent));
+}));
+await page.screenshot({ path: `${SHOTS}/14-simpan-cepat.png` });
+
+// --- jalur 2: "Simpan & Catat Lagi" (repeat: modal tetap terbuka, form dikosongkan) ---
+await page.click("#fabDesktopCatat");
+await page.waitForSelector("#modalForm:not(.hidden)", { timeout: 15000 });
+await page.waitForTimeout(450);
+await fillTransactionForm("12000", "Transportasi", "DANA");
+await page.click("#btnSubmitFormRepeat");
+await page.waitForTimeout(1200);
+ok("simpan lagi: POST kedua tercatat + modal TETAP terbuka & form dikosongkan", () =>
+  txPosts.length === 2 && Number(txPosts[1].jumlah) === 12000);
+ok("simpan lagi: form langsung siap entri berikutnya (jumlah kosong, modal terbuka)", await page.evaluate(() => {
+  const m = document.getElementById("modalForm");
+  const j = document.getElementById("jumlah_display");
+  return !m.classList.contains("hidden") && j.value === "";
+}));
+await page.evaluate(() => closeModal());
+await page.waitForTimeout(600);
+
+// --- jalur 3: EDIT baris (update().eq() + echo, tanpa refetch) ---
+await page.evaluate(() => switchView("transaksi"));
+await page.waitForTimeout(700);
+await page.locator('#table-body button[aria-label="Ubah transaksi"]').first().click();
+await page.waitForSelector("#modalForm:not(.hidden)", { timeout: 15000 });
+await page.waitForTimeout(450);
+await page.fill("#jumlah_display", "99999"); // fill memicu input -> #jumlah ikut ter-update
+await page.click("#btnSubmitForm");
+await page.waitForFunction(() => document.getElementById("modalForm").classList.contains("hidden"), null, { timeout: 15000 });
+await page.waitForTimeout(900);
+ok("edit cepat: PATCH /rest/v1/transactions tercatat (update().eq() benar)", () => {
+  const last = txUpdates[txUpdates.length - 1];
+  return txUpdates.length === txUpdatesBaseline + 1 && last && Number(last.jumlah) === 99999 && authUserGets === authUserBaseline;
+});
+ok("edit cepat: TANPA refetch seluruh tabel setelah edit", txGets === txGetsBaseline);
+ok("edit cepat: nominal baru tampil di tabel Riwayat via echo", await page.evaluate(() =>
+  (document.getElementById("table-body").textContent || "").includes("99.999")));
+await page.evaluate(() => switchView("dashboard"));
+await page.waitForTimeout(400);
 
 // ---------- screenshot desktop + mobile ----------
 await page.waitForTimeout(400);

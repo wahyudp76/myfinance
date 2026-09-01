@@ -5,7 +5,7 @@
 // tabel butuh number & null yang benar.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toCreateRecord, toUpdateRecord, createTransactionService } from "../../src/services/transactions.js";
+import { toCreateRecord, toUpdateRecord, createTransactionService, mapTransactionRow } from "../../src/services/transactions.js";
 import { toTransferParams } from "../../src/services/supabase/transfers.js";
 
 // ===================== toCreateRecord =====================
@@ -96,45 +96,169 @@ test("toTransferParams: lintas mata uang -- semua nilai diteruskan apa adanya (k
   assert.equal(params.description, "top up");
 });
 
-// ===================== rantai: mapper -> service kirim persis payload lama =====================
+// ===================== mock client Supabase (chainable) =====================
+// Meniru perilaku yang dipakai service: insert().select().single() /
+// update().eq().eq().select().maybeSingle() / delete().eq().eq().
+// auth.getSession() menyediakan sesi lokal (user u1) -- jalur CEPAT tanpa
+// jaringan; auth.getUser() hanya dipanggil sebagai fallback.
 
-function mockInsertClient() {
-  const calls = [];
+const INSERTED_ROW = {
+  id: "new-id", jenis: "Pemasukan", tanggal: "2026-08-30", jumlah: "11500",
+  akun: "Tunai (Cash)", kategori: "Saldo Awal", keterangan: null,
+  mata_uang: null, kurs: 1, jumlah_idr: "11500",
+  transfer_jumlah_tujuan: null, transfer_mata_uang_tujuan: null,
+  transfer_kurs_tujuan: null, transfer_jumlah_tujuan_idr: null,
+};
+
+function mockSupabaseClient({ noSession = false, updateRow = INSERTED_ROW, getUserError = false } = {}) {
+  const log = { getSession: 0, getUser: 0, ops: [] };
+  const chain = {
+    then(onFulfilled) { return Promise.resolve({ data: null, error: null }).then(onFulfilled); },
+    insert(payload) { const cur = log.ops[log.ops.length - 1]; cur.op = "insert"; cur.payload = payload; return chain; },
+    update(payload) { const cur = log.ops[log.ops.length - 1]; cur.op = "update"; cur.payload = payload; return chain; },
+    delete() { const cur = log.ops[log.ops.length - 1]; cur.op = "delete"; cur.payload = null; return chain; },
+    eq() { chain.eqCount = (chain.eqCount || 0) + 1; return chain; },
+    select() { return chain; },
+    range() { return chain; },
+    order() { return chain; },
+    single() { return Promise.resolve({ data: updateRow, error: null }); },
+    maybeSingle() { return Promise.resolve({ data: updateRow, error: null }); },
+  };
   const client = {
-    calls,
-    auth: { getUser: async () => ({ data: { user: { id: "u1" } }, error: null }) },
+    log,
+    auth: {
+      async getSession() {
+        log.getSession += 1;
+        if (noSession) return { data: { session: null }, error: null };
+        return {
+          data: { session: { user: { id: "u1" }, expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+          error: null,
+        };
+      },
+      async getUser() {
+        log.getUser += 1;
+        if (getUserError) return { data: { user: null }, error: new Error("invalid token") };
+        return { data: { user: { id: "u1" } }, error: null };
+      },
+    },
     from(table) {
-      calls.push({ table, op: null, payload: null });
-      const cur = calls[calls.length - 1];
-      const step = {
-        insert(payload) { cur.op = "insert"; cur.payload = payload; return step2; },
-        update(payload) { cur.op = "update"; cur.payload = payload; return step2; },
-      };
-      const step2 = {
-        select() { return this; },
-        single() { return Promise.resolve({ data: { id: "new-id" }, error: null }); },
-        eq() { return this instanceof Promise ? this : Promise.resolve({ data: null, error: null }); },
-      };
-      return step;
+      log.ops.push({ table, op: null, payload: null });
+      return chain;
     },
   };
-  return client;
+  return { client, log };
 }
 
+// ===================== rantai: mapper -> service kirim persis payload lama =====================
+
 test("rantai: create(toCreateRecord(form)) mengirim insert dgn jumlah number & keterangan null -- persis alur adapter lama", async () => {
-  const client = mockInsertClient();
+  const { client, log } = mockSupabaseClient();
   const svc = createTransactionService(client);
   await svc.create(toCreateRecord({
     jenis: "Pemasukan", tanggal: "2026-08-30", jumlah: "11500",
     akun: "Tunai (Cash)", kategori: "Saldo Awal", keterangan: "",
   }));
-  assert.equal(client.calls[0].table, "transactions");
-  assert.equal(client.calls[0].op, "insert");
-  const payload = client.calls[0].payload;
+  assert.equal(log.ops[0].table, "transactions");
+  assert.equal(log.ops[0].op, "insert");
+  const payload = log.ops[0].payload;
   assert.equal(payload.jumlah, 11500);
   assert.equal(payload.keterangan, null);
   assert.equal(payload.mata_uang, null);
   assert.equal(payload.kurs, 1); // service: data.kurs || 1 (null -> 1), sama seperti insert adapter lama
   assert.equal(payload.jumlah_idr, 11500);
   assert.equal(payload.user_id, "u1");
+  // Jalur cepat: user_id dari sesi LOKAL -- tidak boleh ada panggilan getUser().
+  assert.equal(log.getUser, 0, "getUser() tidak boleh dipanggil ketika sesi lokal masih berlaku");
+  assert.equal(log.getSession, 1);
+});
+
+test("create: mengembalikan baris kanonik (mapTransactionRow) untuk echo lokal pasca-simpan", async () => {
+  const { client } = mockSupabaseClient();
+  const svc = createTransactionService(client);
+  const row = await svc.create(toCreateRecord({
+    jenis: "Pemasukan", tanggal: "2026-08-30", jumlah: "11500", akun: "A", kategori: "B", keterangan: "",
+  }));
+  assert.equal(row.id, "new-id");
+  assert.equal(typeof row.jumlah, "number");
+  assert.equal(row.jumlah, 11500); // jumlah_idr string dari PostgREST -> Number
+  assert.equal(typeof row.jumlah_idr, "number");
+});
+
+test("create: fallback ke getUser() saat sesi lokal tidak ada (getSession -> null)", async () => {
+  const { client, log } = mockSupabaseClient({ noSession: true });
+  const svc = createTransactionService(client);
+  const row = await svc.create(toCreateRecord({
+    jenis: "Pemasukan", tanggal: "2026-08-30", jumlah: "5", akun: "A", kategori: "B", keterangan: null,
+  }));
+  assert.equal(row.id, "new-id");
+  assert.equal(log.getUser, 1, "fallback getUser() dipanggil");
+  assert.equal(log.getSession, 1);
+});
+
+test("create: sesi lokal kedaluwarsa -> fallback getUser() (token tinggal < 30 detik tidak dipakai)", async () => {
+  const { client, log } = mockSupabaseClient();
+  // Override sesi: expires_at hampir lewat.
+  client.auth.getSession = async () => ({
+    data: { session: { user: { id: "u1" }, expires_at: Math.floor(Date.now() / 1000) + 5 } },
+    error: null,
+  });
+  const svc = createTransactionService(client);
+  const row = await svc.create(toCreateRecord({
+    jenis: "Pemasukan", tanggal: "2026-08-30", jumlah: "5", akun: "A", kategori: "B", keterangan: null,
+  }));
+  assert.equal(row.id, "new-id");
+  assert.equal(log.getUser, 1);
+});
+
+test("create: getUser() error tetap melempar pesan sesi tidak ditemukan (perilaku lama)", async () => {
+  const { client } = mockSupabaseClient({ noSession: true, getUserError: true });
+  const svc = createTransactionService(client);
+  await assert.rejects(
+    () => svc.create(toCreateRecord({ jenis: "Pemasukan", tanggal: "2026-08-30", jumlah: "5", akun: "A", kategori: "B", keterangan: null })),
+    /Sesi login tidak ditemukan/
+  );
+});
+
+test("update: mengembalikan baris hasil update (select().maybeSingle()) untuk echo lokal", async () => {
+  const { client, log } = mockSupabaseClient({ updateRow: { ...INSERTED_ROW, id: "tx-9", jumlah: "25000" } });
+  const svc = createTransactionService(client);
+  const row = await svc.update("tx-9", toUpdateRecord({
+    jenis: "Pengeluaran", tanggal: "2026-08-30", jumlah: "25000", akun: "A", kategori: "B", keterangan: "",
+  }));
+  assert.equal(row.id, "tx-9");
+  assert.equal(row.jumlah, 25000);
+  assert.equal(log.ops[0].op, "update");
+  assert.equal(log.getUser, 0);
+});
+
+test("update: baris tidak ketemu -> mengembalikan null (BUKAN error) -- perilaku update lama tetap", async () => {
+  const { client } = mockSupabaseClient({ updateRow: null });
+  const svc = createTransactionService(client);
+  const row = await svc.update("missing-id", toUpdateRecord({
+    jenis: "Pengeluaran", tanggal: "2026-08-30", jumlah: "1", akun: "A", kategori: "B", keterangan: "",
+  }));
+  assert.equal(row, null);
+});
+
+test("remove: delete().eq(id).eq(user_id) -- sama seperti dulu, user_id dari sesi lokal", async () => {
+  const { client, log } = mockSupabaseClient();
+  const svc = createTransactionService(client);
+  await svc.remove("tx-1");
+  assert.equal(log.ops[0].op, "delete");
+  assert.equal(log.getUser, 0);
+});
+
+test("mapTransactionRow: kolom null dipertahankan null, kolom nominal dikersi Number", () => {
+  const row = mapTransactionRow({
+    id: "x", tanggal: "2026-08-30", jumlah: "100", jumlah_idr: null,
+    transfer_jumlah_tujuan: null, transfer_kurs_tujuan: "2", transfer_jumlah_tujuan_idr: "500",
+    transfer_mata_uang_tujuan: "USD",
+  });
+  assert.equal(row.jumlah, 100);
+  assert.equal(row.jumlah_idr, null);
+  assert.equal(row.transfer_jumlah_tujuan, null);
+  assert.equal(row.transfer_kurs_tujuan, 2);
+  assert.equal(row.transfer_jumlah_tujuan_idr, 500);
+  assert.equal(row.transfer_mata_uang_tujuan, "USD");
+  assert.equal(mapTransactionRow(null), null);
 });
