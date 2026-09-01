@@ -259,6 +259,62 @@ ok("salin budget bulan lalu (via konfirmasi): Restoran 500.000 + Bensin 120.000"
 }));
 await page.screenshot({ path: `${SHOTS}/14-modal-budget-salin.png` });
 await page.evaluate(() => closeBudgetModal());
+// ---------- E2E: perombakan tab Pengaturan (v40) ----------
+await page.evaluate(() => switchView("pengaturan"));
+await page.waitForTimeout(600);
+ok("pengaturan: kartu Data & Cadangan ada; kartu duplikat+tombol mati hilang", await page.evaluate(() => {
+  const txt = document.getElementById("view-pengaturan").textContent;
+  return txt.includes("Data & Cadangan") && txt.includes("Ekspor Semua Data (JSON)") && !txt.includes("Unduh Cadangan (JSON)");
+}));
+ok("pengaturan: builder CSV menghasilkan BOM+header+baris dari data seed", await page.evaluate(() => {
+  const svc = window.__myfinanceServices;
+  const csv = svc.buildTransactionsCsv(globalData.slice(0, 3), { txIdrAmount });
+  return csv.startsWith("\uFEFFTanggal,Jenis,Kategori,Akun,Nominal,Keterangan,Mata Uang") && csv.split("\r\n").length === 4;
+}));
+ok("pengaturan: filter rentang CSV 'month' konsisten domain", await page.evaluate(() => {
+  const svc = window.__myfinanceServices;
+  const month = svc.filterTransactionsForRange(globalData, "month", todayDateStr());
+  const all = svc.filterTransactionsForRange(globalData, "all", todayDateStr());
+  return month.length > 0 && all.length === globalData.length && month.length <= all.length;
+}));
+ok("pengaturan: kartu Tentang Aplikasi menampilkan jumlah data nyata", await page.evaluate(() => {
+  const el = document.getElementById("appinfo-tx");
+  return !!el && Number(el.textContent) === globalData.length;
+}));
+ok("preferensi: toggle sembunyikan nominal -> localStorage + kembali normal", await page.evaluate(() => {
+  const cb = document.getElementById("pref-hide-nominal");
+  cb.click();
+  const on = localStorage.getItem("myfinance-hide-nominal") === "1" && cb.checked;
+  cb.click();
+  return on && localStorage.getItem("myfinance-hide-nominal") === "0" && !cb.checked;
+}));
+ok("preferensi: tampilan awal tersimpan & diterapkan sekali", await page.evaluate(() => {
+  setDefaultView("budget");
+  const saved = appSettings.default_view === "budget";
+  window.__defaultViewApplied = false;
+  applyDefaultViewOnce();
+  const applied = document.getElementById("view-budget").classList.contains("block");
+  setDefaultView("dashboard");
+  window.__defaultViewApplied = false;
+  applyDefaultViewOnce(); // "dashboard" bukan target pindah -> no-op by design (uji guard)
+  const stillBudget = document.getElementById("view-budget").classList.contains("block");
+  switchView("dashboard"); // reset eksplisit utk skenario berikutnya
+  return saved && applied && stillBudget && document.getElementById("view-dashboard").classList.contains("block");
+}));
+ok("profil: email akun tampil + seksi ganti kata sandi tersedia", await page.evaluate(() => {
+  openProfileModal();
+  const email = document.getElementById("profile-modal-email").textContent;
+  const hasPw = !!document.getElementById("profile-modal-password") && !!document.getElementById("profile-modal-password-confirm");
+  closeProfileModal();
+  return email.includes("@") && hasPw;
+}));
+ok("profil: validasi kata sandi murni menolak konfirmasi beda", await page.evaluate(() => {
+  const v = window.__myfinanceServices.validatePasswordChange("rahasia123", "salah");
+  return v.valid === false && /tidak sama/.test(v.error);
+}));
+await page.screenshot({ path: `${SHOTS}/15-pengaturan.png` });
+await page.evaluate(() => switchView("dashboard"));
+await page.waitForTimeout(300);
 await page.evaluate(() => { try { openAccountDetail("BCA"); } catch (e) { /* seed tanpa akun tsb */ } });
 await page.waitForTimeout(900);
 ok("detail Akun: bar cashflow + donut kategori ber-DNA HUD (bila terbuka)", await page.evaluate(() => {

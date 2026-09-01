@@ -33,3 +33,17 @@ export function pruneAccountKeyedMaps(appSettings, removedName) {
   }
   return hadEntry;
 }
+
+/**
+ * Validasi form ganti kata sandi (modal Edit Profil). Murni: tanpa network --
+ * pemanggil (index.html) yang melanjutkan ke supabase.auth.updateUser().
+ * Mengembalikan { valid, error } -- error selalu string|null.
+ */
+export function validatePasswordChange(password, confirm, { minLength = 8 } = {}) {
+  const pw = String(password == null ? "" : password);
+  const cf = String(confirm == null ? "" : confirm);
+  if (!pw) return { valid: false, error: "Kata sandi baru tidak boleh kosong." };
+  if (pw.length < minLength) return { valid: false, error: `Kata sandi minimal ${minLength} karakter.` };
+  if (pw !== cf) return { valid: false, error: "Konfirmasi kata sandi tidak sama." };
+  return { valid: true, error: null };
+}

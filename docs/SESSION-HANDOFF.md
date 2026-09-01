@@ -7,7 +7,14 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v39` (sinkron lokal). Suite: **473 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 30 cek.
+- Service worker live: `myfinance-v40` (sinkron lokal). Suite: **484 unit + 1 smoke, semua hijau**; `verify-hud.mjs` 38 cek.
+- Fitur 2026-09 (v40): **perombakan tab Pengaturan + Edit Profil** -- kartu duplikat "Cadangan Data"
+  (ber-tombol mati `downloadFullBackup`) dilebur ke **Data & Cadangan** (+ **ekspor CSV transaksi** per
+  rentang, builder murni `src/domain/export-csv.js`); kartu baru **Preferensi** (sembunyikan nominal,
+  tampilan awal `default_view` tersinkron cloud, diterapkan sekali via `applyDefaultViewOnce`) &
+  **Tentang Aplikasi** (versi dari cache SW, hitungan data `summarizeAppData`, storage estimate);
+  modal profil + email/since + **ganti kata sandi** (`validatePasswordChange` di settings.js,
+  eksekusi `auth.updateUser`).
 - Fitur 2026-09: **salin budget/realisasi bulan lalu** di modal Atur Budget — dua tombol prefill
   (`copyPrevMonthBudget('budget'|'realisasi')`): salin SETTING budget bulan lalu (fetch cloud) atau
   jadikan PENGELUARAN RIIL bulan lalu (`aggregateActualByCategory`) sebagai nominal; tidak auto-save,
