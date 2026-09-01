@@ -7,7 +7,7 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v37` (sinkron lokal). Suite: **462 unit + 1 smoke, semua hijau**.
+- Service worker live: `myfinance-v38` (sinkron lokal). Suite: **472 unit + 1 smoke, semua hijau**.
 - Audit 2026-09: precache sw.js dilengkapi 40 modul runtime; file mati
   `src/data/generation.js` dihapus; bug konsistensi edit setor-aset diperbaiki
   (ganti aset tujuan / ubah jadi non-setor -> aset lama dipulihkan).
@@ -35,7 +35,9 @@
   logout membuang cache data), `src/domain/*` (murni, selalu dgn unit test; termasuk `sparkline.js` (gelombang neon HUD) &
   `chart-hud.js` (DNA HUD semua chart: garis ala balanceTrend, batang gradasi
   neon + casing, segmen donut komet + glow violet, sumbu teknis) &
-  `asset-flows.js` (mekanisme setor dana akun -> aset: nilai+modal+riwayat), `src/ui/*` (render),
+  `asset-flows.js` (mekanisme setor dana akun -> aset: nilai+modal+riwayat) &
+  `src/ui/charts.js` (builder config SEMUA Chart.js -- slice monolith 2026-09;
+  new Chart() tetap di index.html, config murni teruji di modul), `src/ui/*` (render),
   `src/services/supabase/*` (adapter; supabase-js dimuat dari **esm.sh**), `scripts/` (lighthouse, rls-audit,
   `verify-hud.mjs` = verify browser nyata via stub Supabase di Playwright, TANPA service key),
   `sql/` (migrasi & referensi), `tests/unit/` (node:test).
