@@ -20,6 +20,11 @@
 //
 // Jalankan: `npm run lint` (atau `npm run lint:fix`).
 
+// CATATAN DEPENDENSI: `@eslint/js` WAJIB terdaftar eksplisit di devDependencies,
+// bukan mengandalkan hoisting dari paket `eslint`. Sampai ESLint 9 paket ini
+// kebetulan ikut ter-install sebagai dependensi transitif sehingga import ini
+// jalan; ESLint 10 tidak lagi begitu, dan CI langsung mati dengan
+// ERR_MODULE_NOT_FOUND. Ketahuan dari PR Dependabot yang menaikkan ESLint ke 10.
 import js from "@eslint/js";
 import globals from "globals";
 

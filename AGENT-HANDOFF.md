@@ -88,6 +88,23 @@
 - CACHE_VERSION v45 -> v46 (index.html berubah). Verifikasi v46: lint 0, unit 500/500,
   verify-hud 49/49 PASS (0 error halaman), gitleaks bersih, build:css tanpa drift.
 
+## v47 — Perbaikan CI yang tersingkap oleh Dependabot
+- **BUG CI (laten, lama)**: job `parity` dipasang `on: pull_request` padahal ia menguji SITUS
+  TER-DEPLOY dan menunggu workflow "pages build and deployment" utk SHA-nya. GitHub Pages hanya
+  men-deploy `main`, jadi untuk SHA branch PR penunggu itu PASTI timeout ~3 menit lalu exit 1.
+  Tidak pernah terlihat karena belum pernah ada PR; keempat PR Dependabot pertama langsung merah
+  semua. Fix: `if: github.event_name != 'pull_request'` pada job parity. PR tetap dijaga unit +
+  lint + secret-scan + css-drift + lighthouse; uji live tetap penuh saat mendarat di main.
+  (Alasan kedua: PR Dependabot memang tidak diberi akses repository secrets oleh GitHub.)
+- **`@eslint/js` kini devDependency EKSPLISIT.** eslint.config.js mengimpornya sejak v45 tapi
+  paketnya hanya ikut lewat hoisting dari `eslint` -- ESLint 10 menghentikan itu dan CI mati
+  ERR_MODULE_NOT_FOUND. Ketahuan dari PR Dependabot. Sekalian ESLint dinaikkan 9 -> 10.9.1
+  (diuji lokal: 0 masalah, konfigurasi flat config tidak perlu diubah sama sekali).
+- Catatan buat sesi berikutnya: **lighthouse 13.4.1 menuntaskan SELURUH 20 temuan `npm audit`**
+  (diuji di project bersih: "found 0 vulnerabilities"). Jadi rekomendasi v45 utk TIDAK menjalankan
+  `npm audit fix` tetap benar (remediasinya downgrade), tapi jalur yang benar adalah NAIK ke
+  lighthouse 13 lewat PR Dependabot, bukan turun ke 12.6.1.
+
 ## Gotcha lingkungan
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.
 - Test akun Supabase: signup butuh toggle `mailer_autoconfirm` (balikkan + verifikasi!) — hapus user hanya bisa via dashboard/Mgmt UI.

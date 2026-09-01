@@ -158,8 +158,27 @@ jobs:
       - name: Jalankan Lighthouse & cek ambang
         run: node scripts/lighthouse/run.mjs
 
+  # HANYA berjalan di push ke branch, TIDAK PERNAH di pull_request.
+  #
+  # Alasannya struktural, bukan preferensi: job ini menguji SITUS YANG SUDAH
+  # TER-DEPLOY (lihat step "Tunggu deploy GitHub Pages" di bawah), sedangkan
+  # GitHub Pages hanya men-deploy `main`. Untuk SHA milik branch PR, workflow
+  # "pages build and deployment" tidak akan pernah ada, jadi step penunggu itu
+  # PASTI habis waktu ~3 menit lalu exit 1 -- bukan karena ada yang rusak,
+  # melainkan karena yang ditunggu memang tidak mungkin terjadi.
+  #
+  # Ini laten sejak lama (`on: pull_request` sudah ada di file ini) dan baru
+  # terlihat 2026-09-01 ketika Dependabot mulai membuka PR: keempat PR-nya
+  # merah di job ini padahal tidak ada satu pun yang salah dengan isinya.
+  # Tambahan: PR dari Dependabot memang TIDAK diberi akses ke repository
+  # secrets oleh GitHub, jadi SUPABASE_URL/ANON_KEY di job ini akan kosong --
+  # alasan kedua kenapa uji live tidak mungkin bermakna di konteks PR.
+  #
+  # PR tetap terjaga oleh: unit, lint, secret-scan, css-drift, lighthouse.
+  # Uji paritas live tetap jalan penuh saat perubahan mendarat di main.
   parity:
     name: Parity + headless (live Supabase)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
