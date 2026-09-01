@@ -1,0 +1,83 @@
+# ============================================================================
+# gitleaks — konfigurasi gerbang secret-scanning MyFinance
+# ============================================================================
+# KENAPA ADA: repo ini menyimpan kredensial HANYA lewat GitHub Actions secrets
+# dan Supabase dashboard, tidak pernah di dalam kode (lihat "Jangan commit
+# kredensial" di AGENT-HANDOFF.md). Sampai sebelum ini aturan tersebut murni
+# bergantung pada kedisiplinan manusia -- tidak ada mekanisme apa pun yang
+# benar-benar MENOLAK commit berisi key. File ini + job `secret-scan` di
+# .github/workflows/parity.yml mengubahnya jadi gerbang otomatis.
+#
+# CAKUPAN, supaya tidak memberi rasa aman palsu: gerbang ini mencegah kebocoran
+# BARU masuk ke repo. Ia tidak bisa menarik kembali key yang sudah pernah
+# dibagikan di luar git (chat, email, screenshot) -- key semacam itu tetap
+# WAJIB dirotasi lewat dashboard penerbitnya.
+
+[extend]
+# Pakai seluruh ruleset bawaan gitleaks (ratusan pola: AWS, GCP, Stripe,
+# GitHub PAT, private key, dst), lalu dipersempit oleh allowlist di bawah.
+useDefault = true
+
+# ============================================================================
+# ALLOWLIST
+# ============================================================================
+# CATATAN PENTING soal cara kerja allowlist global (hasil uji langsung pada
+# gitleaks 8.28, jangan diubah tanpa menguji ulang):
+#
+#   1. Beberapa kondisi di dalam SATU blok allowlist digabung dengan OR,
+#      bukan AND. Jadi menulis `paths` + `regexes` bersamaan TIDAK berarti
+#      "file ini DAN pola ini" -- `paths` sendirian sudah cukup meloloskan
+#      APA PUN di file tersebut. Itu kebalikan dari yang kita mau.
+#   2. Kunci `condition`/`matchCondition` untuk memaksa AND TIDAK berpengaruh
+#      di level allowlist global (sudah dicoba keduanya; hasilnya tetap OR).
+#   3. Kunci `targetRules` justru membuat seluruh blok allowlist tidak berefek.
+#
+# Konsekuensi desain: pengecualian di bawah dikunci ke POLA ISI (`regexes`)
+# saja, TANPA `paths`. Ini justru lebih kuat -- yang dimaafkan adalah nilai
+# spesifik yang memang publik, di mana pun ia muncul; bukan "seluruh isi file
+# tertentu". Sudah diverifikasi dengan uji negatif: menyisipkan service_role
+# JWT ke index.html maupun GitHub PAT ke file baru tetap TERDETEKSI.
+
+[[allowlists]]
+description = """
+Supabase ANON key — publik by design.
+
+Kunci anon memang HARUS ada di kode client; yang menjaga privasi data tiap
+user adalah Row Level Security, bukan kerahasiaan key ini (lihat komentar
+panjang di index.html tepat di atas deklarasinya).
+
+Perhatikan regex-nya: yang dimaafkan BUKAN "JWT apa pun", melainkan hanya
+token yang segmen payload-nya memuat `cm9sZSI6ImFub24` -- itu base64url dari
+`role":"anon`. Artinya kalau suatu saat ada yang tidak sengaja menempelkan
+SERVICE_ROLE key (payload-nya berbunyi `role":"service_role`), token itu tidak
+cocok dengan pola ini dan CI tetap GAGAL. Persis perilaku yang kita inginkan,
+karena service_role key melewati seluruh policy RLS.
+"""
+regexes = ['''eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*cm9sZSI6ImFub24[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+''']
+
+[[allowlists]]
+description = """
+Kunci AES fixture di tests/unit/bibit-market.test.js.
+
+Bukan kredensial: konstanta dummy ("0123456789abcdef" diulang dua kali) yang
+dipakai encryptLikeBibit() untuk MEMBUAT payload uji, lalu didekripsi lagi di
+test yang sama -- murni round-trip supaya decryptBibitPayload() bisa diuji
+tanpa memanggil API Bibit sungguhan. Tidak membuka akses ke apa pun.
+
+Dikunci ke nilai literalnya, jadi kunci lain yang muncul di file itu tetap
+akan ditandai.
+"""
+regexes = ['''0123456789abcdef0123456789abcdef''']
+
+[[allowlists]]
+description = """
+Artefak build & dependensi -- bukan kode yang kita tulis. Memindainya hanya
+menghasilkan derau dari bundle terminifikasi. Di sini `paths` memang tepat:
+kita sungguh-sungguh ingin mengabaikan SELURUH isi file/direktori ini.
+"""
+paths = [
+  '''^node_modules/''',
+  '''^css/tailwind\.css$''',
+  '''^css/fontawesome-all\.min\.css$''',
+  '''^package-lock\.json$''',
+]

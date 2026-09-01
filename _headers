@@ -15,6 +15,10 @@
 # dimuat dari sana (src/services/supabase/client.js); tanpa ini, pindah hosting
 # ke platform yang menerapkan file ini akan MEMATAHKAN alur login. Kalau ragu / curiga ada
 # yang aneh setelah deploy, coba hapus dulu file ini untuk isolasi masalah.
+# 2026-09-01: 'unsafe-eval' dihapus dari script-src di SINI dan di meta CSP
+# index.html (dua-duanya, supaya tetap sinkron). Kode sendiri tidak memakai
+# eval()/new Function(), dan Chart.js + FullCalendar + supabase-js sudah diuji
+# di browser tanpa direktif itu -- nol pelanggaran CSP.
 
 /*
   X-Frame-Options: DENY
@@ -22,4 +26,4 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
   X-Robots-Tag: noindex, nofollow, noarchive
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'

@@ -3,7 +3,9 @@
 -- ============================================================================
 -- STATUS: SUDAH DITERAPKAN ke database live (project "My Finance",
 -- uxfngmxghupdlwoeoxgh) tanggal 25 Agustus 2026 lewat akses Supabase MCP langsung -- BEDA dari
--- migrasi lain di repo ini yang masih menunggu dijalankan manual. File ini disimpan sebagai
+-- migrasi lain di repo ini. KOREKSI 2026-09-01: kalimat itu kini usang -- audit skema live
+-- (docs/db-migration-status-2026-09-01.md) membuktikan SELURUH migrasi di sql/ sudah
+-- diterapkan, tidak ada lagi yang "menunggu dijalankan manual". File ini disimpan sebagai
 -- catatan/riwayat definisi lengkapnya, dan sebagai referensi kalau perlu setup project Supabase
 -- BARU dari nol (mis. staging/development). Sudah diuji fungsional langsung ke live sebelum
 -- dianggap selesai: akumulasi hitungan 3x panggilan berturut-turut, reset otomatis setelah

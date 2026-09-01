@@ -1,4 +1,10 @@
 # Audit Menyeluruh — MyFinance
+> **CATATAN TINDAK LANJUT 2026-09-01.** Kolom "Butuh aksi Anda" di tabel §1 sudah
+> TIDAK berlaku untuk baris migrasi & RLS: audit skema live membuktikan seluruh
+> migrasi di `sql/` sudah diterapkan ke produksi. Jangan menjalankan ulang file
+> mana pun di `sql/` berdasarkan dokumen ini. Sumber kebenaran terbaru:
+> [`docs/db-migration-status-2026-09-01.md`](db-migration-status-2026-09-01.md).
+
 **Tanggal:** 22 Agustus 2026
 **Cakupan:** Struktur repo, kode `index.html` (client), edge functions, skema SQL, dan pengecekan langsung ke project Supabase live (`My Finance`, `uxfngmxghupdlwoeoxgh`).
 

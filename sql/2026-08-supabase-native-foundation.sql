@@ -1,5 +1,11 @@
 -- MyFinance — Supabase-native foundation migration
--- IMPORTANT: review and backup production before execution.
+-- >>> STATUS 2026-09-01: SUDAH DITERAPKAN DI DATABASE LIVE. JANGAN DIJALANKAN LAGI. <<<
+-- Diverifikasi lewat introspeksi skema live (semua objek yang dibuat file ini
+-- terbukti ada); lihat docs/db-migration-status-2026-09-01.md. File ini kini
+-- berstatus ARSIP/riwayat definisi -- berguna kalau perlu membangun project
+-- Supabase baru dari nol (staging), bukan instruksi kerja untuk produksi.
+--
+-- (Teks asli: "IMPORTANT: review and backup production before execution.")
 -- This migration is intentionally additive and does not delete or rewrite
 -- historical transaction rows.
 

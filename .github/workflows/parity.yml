@@ -61,6 +61,41 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+  # Gerbang kebocoran kredensial. Repo ini menyimpan SEMUA rahasia di GitHub
+  # Actions secrets & Supabase dashboard; job ini yang menegakkan aturan itu
+  # secara mekanis alih-alih mengandalkan kedisiplinan. Aturan pengecualian
+  # (anon key Supabase yang publik by design, fixture AES di unit test) ada di
+  # .gitleaks.toml -- dikunci ke pola isi, bukan ke nama file, supaya
+  # service_role key yang salah tempel TETAP menggagalkan CI.
+  #
+  # Binary diunduh langsung & di-pin versinya, bukan lewat marketplace action:
+  # gitleaks-action mensyaratkan lisensi untuk akun organisasi, dan versi
+  # ter-pin membuat hasil scan reprodusibel.
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # Ambil SELURUH riwayat -- `gitleaks git` di bawah memeriksa setiap
+          # commit, bukan cuma kondisi kerja terakhir, jadi rahasia yang sempat
+          # masuk lalu "dihapus" di commit berikutnya tetap ketahuan.
+          fetch-depth: 0
+      - name: Pasang gitleaks (versi ter-pin)
+        env:
+          GITLEAKS_VERSION: 8.28.0
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks version
+      - name: Pindai kondisi kerja saat ini
+        run: /tmp/gitleaks dir . -c .gitleaks.toml --redact --no-banner
+      - name: Pindai seluruh riwayat commit
+        run: /tmp/gitleaks git . -c .gitleaks.toml --redact --no-banner
+
   # Gerbang statis: menangkap kelas bug yang TIDAK terlihat oleh suite unit --
   # variabel salah ketik, import mati setelah refactor, `case` tanpa `break`,
   # perbandingan longgar di kode finansial. Konfigurasinya (eslint.config.js)

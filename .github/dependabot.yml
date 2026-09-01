@@ -1,0 +1,48 @@
+# ============================================================================
+# Dependabot — update dependensi otomatis lewat Pull Request
+# ============================================================================
+# KENAPA ADA: seluruh dependensi repo ini adalah perkakas dev/CI (lihat
+# devDependencies di package.json -- `dependencies` sengaja kosong karena tidak
+# ada paket npm yang sampai ke browser user). Perkakas yang basi tidak langsung
+# membahayakan pengguna, tapi ia PELAN-PELAN membusuk: lighthouse/playwright
+# yang ketinggalan beberapa versi mulai gagal jalan di runner GitHub yang terus
+# diperbarui, dan itu baru ketahuan saat CI tiba-tiba merah di tengah pekerjaan
+# lain yang tidak ada hubungannya.
+#
+# CARA PAKAI: Dependabot membuka PR, CI penuh berjalan di PR itu (lint, unit,
+# secret-scan, css-drift, lighthouse, parity). Kalau semua hijau, merge. Kalau
+# merah, PR-nya justru sudah mengerjakan tugasnya -- jangan di-merge.
+#
+# CATATAN: PR Dependabot TIDAK menyentuh css/tailwind.css. Kalau nanti ada
+# update Tailwind yang mengubah output build, job `css-drift` akan merah dan
+# Anda perlu menjalankan `npm run build:css` + `node tests/unit/
+# update-sw-cache-snapshot.mjs` lalu commit hasilnya ke branch PR tersebut.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Update patch/minor digabung jadi SATU PR supaya tidak membanjiri repo
+      # dengan PR sepele. Update MAJOR sengaja dikeluarkan dari grup ini --
+      # yang itu perlu dibaca satu per satu (mis. Tailwind 3 -> 4 mengubah
+      # format konfigurasi dan akan memicu css-drift).
+      dev-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]

@@ -60,6 +60,34 @@
 - Verifikasi v45: lint 0 masalah, unit 500/500, `verify-hud.mjs` 49/49 PASS (0 error halaman),
   `build:css` tanpa drift, snapshot SW disinkronkan.
 
+## v46 — Keamanan & higiene repo (Paket C)
+- **Gerbang secret-scanning** (`.gitleaks.toml` + job CI `secret-scan`, gitleaks 8.28 ter-pin,
+  binary diunduh langsung karena gitleaks-action butuh lisensi utk akun organisasi). Memindai
+  kondisi kerja DAN seluruh riwayat commit (`fetch-depth: 0`). Riwayat penuh dipindai 2026-09-01:
+  **bersih, tidak pernah ada kredensial ter-commit**.
+- GOTCHA allowlist gitleaks (sudah diuji langsung, jangan diubah tanpa uji ulang): kondisi dalam
+  satu blok allowlist digabung **OR**, bukan AND -- menulis `paths` + `regexes` bersamaan berarti
+  `paths` SENDIRIAN sudah meloloskan seluruh isi file itu. Kunci `condition`/`matchCondition`
+  tidak berefek di allowlist global, dan `targetRules` malah membuat blok allowlist mati total.
+  Karena itu pengecualian dikunci ke **pola isi saja, tanpa paths**. Anon key dimaafkan lewat
+  pola `cm9sZSI6ImFub24` (base64url `role":"anon`), sehingga **service_role key yang salah tempel
+  TETAP menggagalkan CI** -- sudah dibuktikan dgn uji negatif.
+- **Dependabot** (`.github/dependabot.yml`): npm + github-actions, bulanan, minor/patch digrup
+  jadi 1 PR, major sengaja dipisah (mis. Tailwind 3->4 akan memicu css-drift dan perlu dibaca
+  manual). Kalau PR Dependabot bikin css-drift merah: jalankan build:css + update snapshot SW,
+  commit ke branch PR itu.
+- **CSP: `'unsafe-eval'` DIHAPUS** dari script-src di index.html DAN _headers (dua-duanya, wajib
+  sinkron). Alasan: tidak ada eval()/new Function() di kode sendiri, dan ketiga library vendor
+  diuji langsung di browser dgn CSP baru (Chart.js instantiate, FullCalendar render, supabase-js
+  createClient dari esm.sh) -> **0 pelanggaran CSP**. Catatan: `verify-hud.mjs` TIDAK pernah
+  membuka tab Kalender, jadi FullCalendar harus diuji terpisah -- itu yang dilakukan saat ini.
+  Jangan kembalikan 'unsafe-eval' tanpa membuktikan library mana yang butuh.
+- Utang dokumentasi dilunasi: 3 header di `sql/` yang masih berbunyi "menunggu dijalankan"/
+  "DO NOT RUN" diberi banner STATUS SUDAH DITERAPKAN, dan `docs/AUDIT_REPORT_2026-08.md` diberi
+  catatan tindak lanjut supaya kolom "Butuh aksi Anda"-nya tidak menyesatkan.
+- CACHE_VERSION v45 -> v46 (index.html berubah). Verifikasi v46: lint 0, unit 500/500,
+  verify-hud 49/49 PASS (0 error halaman), gitleaks bersih, build:css tanpa drift.
+
 ## Gotcha lingkungan
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.
 - Test akun Supabase: signup butuh toggle `mailer_autoconfirm` (balikkan + verifikasi!) — hapus user hanya bisa via dashboard/Mgmt UI.

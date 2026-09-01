@@ -1,7 +1,14 @@
 -- MYFINANCE — CROSS-CURRENCY TRANSFER SUPPORT (2026-08)
 --
--- Additive migration. DO NOT RUN in production until the browser write/read path
--- is updated in the same release.
+-- >>> STATUS 2026-09-01: SUDAH DITERAPKAN DI DATABASE LIVE. JANGAN DIJALANKAN LAGI. <<<
+-- Diverifikasi lewat introspeksi skema live (semua objek yang dibuat file ini
+-- terbukti ada); lihat docs/db-migration-status-2026-09-01.md. File ini kini
+-- berstatus ARSIP/riwayat definisi -- berguna kalau perlu membangun project
+-- Supabase baru dari nol (staging), bukan instruksi kerja untuk produksi.
+--
+-- (Teks asli: "Additive migration. DO NOT RUN in production until the browser
+--  write/read path is updated in the same release." — syarat itu sudah
+--  terpenuhi: jalur tulis/baca browser sudah memakai kolom-kolom ini.)
 --
 -- Model: one logical Transfer row stores both legs:
 --   source: jumlah + mata_uang + kurs + jumlah_idr

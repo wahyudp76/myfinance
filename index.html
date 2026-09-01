@@ -32,11 +32,20 @@
            dipakai app: self + cdn.jsdelivr.net (Chart.js/DataLabels/FullCalendar)
            + esm.sh (@supabase/supabase-js) + Supabase (https/wss). SELALU sinkron
            dengan versi header di file _headers (utk hosting Netlify/Cloudflare).
+           2026-09-01: 'unsafe-eval' DIHAPUS dari script-src. Sebelumnya ada tanpa
+           alasan yang tercatat; setelah diperiksa, tidak ada satu pun eval() atau
+           new Function() di kode kita SENDIRI, dan ketiga library vendor sudah
+           diuji langsung di browser dgn CSP baru ini (Chart.js instantiate,
+           FullCalendar render, supabase-js createClient dari esm.sh) -- nol
+           pelanggaran CSP. Menghapusnya menutup jalur eksekusi string-ke-kode,
+           yaitu bagian yang membuat celah XSS berubah dari "mengganggu" jadi
+           "eksekusi kode penuh". JANGAN menambahkannya kembali tanpa membuktikan
+           library mana yang benar-benar membutuhkannya.
            CATATAN: frame-ancestors sengaja TIDAK ada di sini (diabaikan browser
            bila lewat meta) -- pelindung anti-embed tetap X-Frame-Options/frame-
            ancestors di _headers saat hosting pindah ke platform yang mendukung.
          - Referrer-Policy: meta ekuivalen header, aktif di mana pun. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="referrer" content="strict-origin-when-cross-origin">
 
     <!-- PWA: bisa di-"Add to Home Screen" dari Android/iOS -->
