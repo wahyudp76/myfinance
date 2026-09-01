@@ -360,6 +360,28 @@ await page.waitForTimeout(1800);
 ok("bug-fix: 'Shopee Merchant' (aset) dibuang dari daftar akun oleh self-heal", await page.evaluate(() => !appSettings.accounts.includes("Shopee Merchant")));
 ok("bug-fix: akun asli (BCA) tetap utuh pasca self-heal", await page.evaluate(() => appSettings.accounts.includes("BCA")));
 
+// ---------- E2E: penyempurnaan refresh kripto/saham (v43) ----------
+ok("aset: tombol Refresh Harga (semua aset auto) ada di header tab Aset", await page.evaluate(() => {
+  switchView("aset");
+  return !!document.querySelector('#view-aset button[onclick="refreshAllAssetPrices()"]');
+}));
+const kriptoUi = await page.evaluate(async () => {
+  globalAssets.push({ id: "tmp-kripto", nama: "BTC Uji", kategori: "Kripto", platform: "Binance", modal: 1000000, nilai: 1380000, terakhir: new Date().toISOString(), value_history: [], simbol: "bitcoin", jumlah_unit: 0.001, sumber_harga: "coingecko" });
+  openAssetDetailModal("tmp-kripto");
+  await new Promise((r) => setTimeout(r, 300));
+  const manualShown = !document.getElementById("asset-detail-manualnav-btn").classList.contains("hidden");
+  const lineShown = !document.getElementById("asset-detail-market-line").classList.contains("hidden");
+  const lineTxt = document.getElementById("asset-detail-market-text").textContent;
+  openManualNavModal();
+  const lbl = document.getElementById("manual-nav-value-label").textContent;
+  const ttl = document.getElementById("manual-nav-title").textContent;
+  closeManualNavModal();
+  closeAssetDetailModal();
+  globalAssets = globalAssets.filter((a) => a.id !== "tmp-kripto");
+  return { manualShown, lineShown, coin: lineTxt.includes("CoinGecko"), koinLabel: /koin/i.test(lbl), kriptoTitle: /Kripto/i.test(ttl) };
+});
+ok("aset kripto: fallback manual + baris sumber CoinGecko + label harga per koin", kriptoUi.manualShown && kriptoUi.lineShown && kriptoUi.coin && kriptoUi.koinLabel && kriptoUi.kriptoTitle);
+
 await page.screenshot({ path: `${SHOTS}/16-aset-reksadana.png` });
 await page.evaluate(() => { closeManualNavModal(); closeAssetDetailModal(); });
 await page.waitForTimeout(400);

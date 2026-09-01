@@ -13,6 +13,7 @@ import {
   computeMarketValue,
   withSyncedValue,
   describeSyncSource,
+  isBibitNavDate,
 } from "../../src/domain/market-sync.js";
 
 // ---------- util fixture: enkripsi ala payload API Bibit (IV||ct||key, hex) ----------
@@ -128,4 +129,16 @@ test("pickBibitFundMatch: prefix & semua-token hanya bila kandidat tunggal", () 
   assert.equal(pickBibitFundMatch(items, "Bahana Dana"), null);
   // semua token tunggal: "bahana ekuitas" -> 1 kandidat
   assert.equal(pickBibitFundMatch(items, "bahana ekuitas").id, "3");
+});
+
+test("isBibitNavDate: valid kini, tolak format salah/masa depan/basi", () => {
+  const now = new Date("2026-09-01T12:00:00Z");
+  assert.equal(isBibitNavDate("2026-09-01", now), true);
+  assert.equal(isBibitNavDate("2026-08-15", now), true);
+  assert.equal(isBibitNavDate("2026-09-03", now), false);
+  assert.equal(isBibitNavDate("2026-07-01", now), false);
+  assert.equal(isBibitNavDate("01-09-2026", now), false);
+  assert.equal(isBibitNavDate("2026-02-30", now), false);
+  assert.equal(isBibitNavDate(null, now), false);
+  assert.equal(isBibitNavDate(20260901, now), false);
 });

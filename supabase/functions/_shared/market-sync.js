@@ -1,3 +1,7 @@
+// supabase/functions/_shared/market-sync.js
+// MIRROR dari src/domain/market-sync.js (modul murni, tanpa dependensi) --
+// disalin utuh agar Edge Function bisa bundle via import relatif.
+
 /**
  * Pure helpers utk sinkronisasi nilai aset dari data pasar (NAB/UP reksadana,
  * harga per unit lainnya). Tanpa DOM/network/localStorage.

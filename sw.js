@@ -22,7 +22,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v42';
+const CACHE_VERSION = 'myfinance-v43';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -64,6 +64,7 @@ const PRECACHE_URLS = [
   './src/domain/app-info.js',
   './src/domain/export-csv.js',
   './src/domain/market-sync.js',
+  './supabase/functions/_shared/price-sources.js',
   './src/domain/budgets.js',
   './src/domain/calendar.js',
   './src/domain/categories.js',

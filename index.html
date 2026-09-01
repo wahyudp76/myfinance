@@ -952,6 +952,9 @@
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Pantau nilai investasi dan pertumbuhan aset kamu secara komprehensif.</p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
+                    <button onclick="refreshAllAssetPrices()" aria-label="Refresh harga semua aset dari pasar" title="Perbarui nilai semua aset yg punya Simbol + Jumlah Unit dari harga pasar terkini" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
+                        <i class="fas fa-rotate mr-1.5 text-indigo-600"></i><span class="hidden sm:inline">Refresh Harga</span>
+                    </button>
                     <button onclick="exportAssetsCsv()" aria-label="Ekspor aset ke file CSV" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
                         <i class="fas fa-file-csv mr-1.5 text-emerald-600"></i><span class="hidden sm:inline">Ekspor</span> CSV
                     </button>
@@ -1928,6 +1931,9 @@
                         <p id="asset-detail-return" class="text-xs font-bold mt-0.5">0%</p>
                     </div>
                 </div>
+                <div id="asset-detail-market-line" class="hidden bg-indigo-50 rounded-2xl p-3 mb-3 text-[11px] text-indigo-700 font-semibold items-center gap-2">
+                    <i class="fas fa-satellite-dish"></i><span id="asset-detail-market-text"></span>
+                </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-100 h-56 flex flex-col">
                     <h4 class="text-xs font-bold text-slate-700 mb-1">Riwayat Nilai</h4>
                     <p id="asset-detail-since" class="text-[10px] text-slate-400 mb-3">-</p>
@@ -2089,19 +2095,19 @@
         <div class="bg-slate-50 w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalManualNavContent">
             <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl">
                 <div>
-                    <h3 class="text-base font-bold text-slate-800">Sync NAB/UP Pasar</h3>
-                    <p class="text-[11px] text-slate-400">Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa</p>
+                    <h3 class="text-base font-bold text-slate-800" id="manual-nav-title">Sync NAB/UP Pasar</h3>
+                    <p class="text-[11px] text-slate-400" id="manual-nav-sub">Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa</p>
                 </div>
                 <button type="button" onclick="closeManualNavModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 space-y-4">
                 <div>
-                    <label for="manual-nav-value" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">NAB/UP terkini (Rp per unit)</label>
+                    <label for="manual-nav-value" id="manual-nav-value-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">NAB/UP terkini (Rp per unit)</label>
                     <input type="number" step="any" min="0" id="manual-nav-value" placeholder="Contoh: 1465.82" oninput="previewManualNav()"
                         class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
                 </div>
                 <div>
-                    <label for="manual-nav-units" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah unit dimiliki</label>
+                    <label for="manual-nav-units" id="manual-nav-units-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah unit dimiliki</label>
                     <input type="number" step="any" min="0" id="manual-nav-units" placeholder="Contoh: 120.5" oninput="previewManualNav()"
                         class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
                 </div>
@@ -7539,10 +7545,27 @@ async function currentUserId() {
             const supportsAutoUpdate = !!(asset.simbol && asset.jumlah_unit && asset.sumber_harga);
             refreshBtn.classList.toggle('hidden', !supportsAutoUpdate);
             refreshBtn.disabled = false; refreshBtn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis';
-            // Jalur sync reksadana: tombol manual selalu ada utk kategori Reksadana
-            // (berfungsi bahkan sebelum Edge Function di-deploy ulang / tanpa simbol).
+            // Jalur manual (fallback & koreksi) tersedia utk SEMUA kategori yg punya
+            // sumber harga otomatis (Kripto/Saham/Reksadana) -- berfungsi bahkan saat
+            // Edge Function/sumber sedang tumbang.
             const manualNavBtn = document.getElementById('asset-detail-manualnav-btn');
-            if (manualNavBtn) manualNavBtn.classList.toggle('hidden', asset.kategori !== 'Reksadana');
+            if (manualNavBtn) manualNavBtn.classList.toggle('hidden', !ASSET_AUTO_UPDATE_CONFIG[asset.kategori]);
+            // Transparansi sumber: harga per unit + waktu pembaruan terakhir.
+            const marketLine = document.getElementById('asset-detail-market-line');
+            if (marketLine) {
+                if (supportsAutoUpdate) {
+                    const perUnit = Number(asset.jumlah_unit) ? (Number(asset.nilai) / Number(asset.jumlah_unit)) : null;
+                    const srcLabel = ({ coingecko: 'CoinGecko', yahoo_id_stock: 'Yahoo Finance (IDX)', reksadana_bibit: 'Bibit (NAB/UP)' })[asset.sumber_harga] || asset.sumber_harga;
+                    const when = asset.terakhir ? new Date(asset.terakhir).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+                    document.getElementById('asset-detail-market-text').textContent =
+                        'Sumber: ' + srcLabel + ' · 1 unit ≈ Rp ' + (perUnit ? formatRp(Math.round(perUnit)) : '-') + ' · Diperbarui ' + when;
+                    marketLine.classList.remove('hidden');
+                    marketLine.classList.add('flex');
+                } else {
+                    marketLine.classList.add('hidden');
+                    marketLine.classList.remove('flex');
+                }
+            }
 
             const modal = document.getElementById('modalAssetDetail'); const content = document.getElementById('modalAssetDetailContent');
             modal.classList.remove('hidden');
@@ -7567,7 +7590,9 @@ async function currentUserId() {
             // (src/services/supabase/assets.js), rantai nested & callback persis versi lama.
             servicesModule.refreshAssetPrice(supabaseClient, currentAssetDetailId)
                 .then((result) => {
-                    showSuccessToast('Harga diperbarui: Rp ' + formatRp(result.nilai_baru));
+                    const extra = ' (1 unit = Rp ' + formatRp(Math.round(Number(result.harga_per_unit) || 0)) +
+                        (result.tanggal_pasar ? ', data pasar ' + String(result.tanggal_pasar).slice(0, 10) : '') + ')';
+                    showSuccessToast('Harga diperbarui: Rp ' + formatRp(result.nilai_baru) + extra);
                     servicesModule.listAssets(supabaseClient).then((assets) => {
                         globalAssets = assets || [];
                         processDataForUI(globalData);
@@ -7597,6 +7622,16 @@ async function currentUserId() {
         function openManualNavModal() {
             const asset = globalAssets.find(a => a.id === currentAssetDetailId);
             if (!asset) { showErrorToast('Aset tidak ditemukan.'); return; }
+            // Label menyesuaikan kategori (NAB reksadana / harga koin / harga lembar).
+            const lbl = ({
+                'Reksadana': { t: 'Sync NAB/UP Pasar', sub: 'Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa', v: 'NAB/UP terkini (Rp per unit)', u: 'Jumlah unit dimiliki' },
+                'Kripto': { t: 'Sync Harga Kripto', sub: 'Masukkan harga per koin terkini dari exchange/aplikasi kamu', v: 'Harga terkini per koin (Rp)', u: 'Jumlah koin dimiliki' },
+                'Saham': { t: 'Sync Harga Saham', sub: 'Masukkan harga per lembar terkini (mis. harga penutupan) dari aplikasi sekuritas', v: 'Harga terkini per lembar (Rp)', u: 'Jumlah lembar dimiliki' },
+            })[asset.kategori] || { t: 'Sync Nilai Pasar', sub: 'Masukkan harga per unit terkini', v: 'Harga terkini per unit (Rp)', u: 'Jumlah unit dimiliki' };
+            document.getElementById('manual-nav-title').textContent = lbl.t;
+            document.getElementById('manual-nav-sub').textContent = lbl.sub;
+            document.getElementById('manual-nav-value-label').textContent = lbl.v;
+            document.getElementById('manual-nav-units-label').textContent = lbl.u;
             document.getElementById('manual-nav-value').value = '';
             document.getElementById('manual-nav-units').value = (asset.jumlah_unit != null && asset.jumlah_unit !== '') ? asset.jumlah_unit : '';
             previewManualNav();
@@ -7638,6 +7673,34 @@ async function currentUserId() {
                 console.error('submitManualNav gagal:', e);
                 showErrorToast('Gagal menyimpan nilai baru. Periksa koneksi internet kamu.');
             }
+        }
+
+        // ---------- REFRESH SEMUA ASET OTOMATIS (kripto/saham/reksadana) ----------
+        // Sekali klik: semua aset yg punya simbol+jumlah_unit+sumber_harga di-refresh
+        // berurutan (Edge Function menahan rate-limit 30/jam per user). Gagal per aset
+        // tidak menghentikan aset lain; ringkasan dilaporkan.
+        async function refreshAllAssetPrices() {
+            const targets = (globalAssets || []).filter(a => a.simbol && a.jumlah_unit && a.sumber_harga);
+            if (!targets.length) {
+                showInfoToast('Belum ada aset dengan Simbol + Jumlah Unit terisi. Isi lewat Tambah/Edit Aset dulu.');
+                return;
+            }
+            showLoading(true);
+            let okCount = 0;
+            const fails = [];
+            for (const a of targets) {
+                try { await servicesModule.refreshAssetPrice(supabaseClient, a.id); okCount++; }
+                catch (e) { fails.push(a.nama + ': ' + ((e && e.message) || e)); }
+            }
+            try {
+                const assets = await servicesModule.listAssets(supabaseClient);
+                globalAssets = assets || [];
+                processDataForUI(globalData);
+                if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
+            } catch (e) { console.error('muat ulang aset pasca-refresh gagal:', e); }
+            showLoading(false);
+            if (okCount) showSuccessToast(okCount + ' aset diperbarui dari harga pasar' + (fails.length ? '; ' + fails.length + ' gagal (lihat konsol)' : '') + '.');
+            if (fails.length) { fails.forEach((f) => console.error('refresh harga gagal:', f)); showErrorToast('Sebagian gagal: ' + fails[0]); }
         }
 
         function renderAssetDetailChart(history) {
