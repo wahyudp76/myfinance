@@ -92,14 +92,15 @@ export function renderCategoryDetailMonthData({
 
   if (charts.catTrend) charts.catTrend.destroy();
   charts.catTrend = new Chart(document.getElementById("catTrendChart").getContext("2d"), {
+    plugins: [hudGlowPlugin], // DNA batang HUD: glow cyan
     type: "bar",
     data: {
       labels: chartLabels,
       datasets: [{
         label: "Total",
         data: chartData,
-        backgroundColor: jenis === "Pemasukan" ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185",
-        borderRadius: 4
+        // DNA batang HUD: gradasi neon (warna jenis tetap sumber kebenaran).
+        ...hudBarDataset({ from: jenis === "Pemasukan" ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185", borderRadius: 4 })
       }]
     },
     options: {
@@ -115,17 +116,13 @@ export function renderCategoryDetailMonthData({
           color: jenis === "Pemasukan" ? ((accentColor && accentColor("incomeLabel")) || "#047857") : "#be123c", font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 2
         }
       },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 9, weight: "bold" } } },
-        // Grid putus-putus & elegan sebagai garis batas antar nilai (konsisten dgn
-        // chart "Tren Transaksi") -- lebih jelas terbaca dibanding garis solid polos.
-        y: { grid: { color: chartGridColor(), borderDash: [4, 4] }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-      }
+      scales: hudLineScales(chartLabels, formatShortVal, { yGrid: chartGridColor() })
     }
   });
 }
 
 import { pickChartPalette } from "../domain/chart-palette.js";
+import { hudBarDataset, hudLineScales, hudGlowPlugin, hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
 
 /**
  * Palet warna proporsi sub-kategori -- sumber kebenaran kini di
@@ -268,14 +265,15 @@ export function renderCategorySubProportion({
 
   if (charts.catSubDonut) charts.catSubDonut.destroy();
   charts.catSubDonut = new Chart(document.getElementById("catSubDonut").getContext("2d"), {
+    plugins: [hudDonutGlowPlugin], // DNA donut HUD: glow violet reactor
     type: "doughnut",
     data: {
       labels: items.map(labelOf),
       datasets: [{
         data: items.map((it) => it.total),
-        backgroundColor: colors,
-        borderColor: chartBorderColor(),
-        borderWidth: 3,
+        // DNA donut HUD: segmen gradasi komet (palet colorblind tetap sumber warna).
+        backgroundColor: hudDonutSegment(colors),
+        borderWidth: 0,
         hoverOffset: 8,
       }],
     },

@@ -80,7 +80,7 @@
  * @param {Function} ctx.Chart - kelas Chart.js (global browser, di-inject supaya testable).
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan).
  */
-import { hudLineDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud.js";
+import { hudLineDataset, hudLineScales, hudGlowPlugin, hudBarDataset, hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
 
 export function renderAccountDetailCharts({
   document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
@@ -147,12 +147,13 @@ export function renderAccountDetailCharts({
     const cashflowIndicesToShow = cashflowIsNarrow ? selectSparseLabelIndices(cashflowMagnitudes, 4) : null;
 
     charts.accCashflow = new Chart(document.getElementById("accountDetailChart").getContext("2d"), {
+      plugins: [hudGlowPlugin], // DNA batang HUD: glow cyan
       type: "bar",
       data: {
         labels: bucketLabels,
         datasets: [
-          { label: "Masuk", data: cashInData, backgroundColor: (accentColor && accentColor("incomeBar")) || "#34d399", borderRadius: 4, barPercentage: 0.7 },
-          { label: "Keluar", data: cashOutData, backgroundColor: "#fb7185", borderRadius: 4, barPercentage: 0.7 }
+          { label: "Masuk", data: cashInData, ...hudBarDataset({ from: (accentColor && accentColor("incomeBar")) || "#34d399", borderRadius: 4, barPercentage: 0.7 }) },
+          { label: "Keluar", data: cashOutData, ...hudBarDataset({ from: "#fb7185", borderRadius: 4, barPercentage: 0.7 }) }
         ]
       },
       options: {
@@ -165,14 +166,11 @@ export function renderAccountDetailCharts({
               if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
               return true;
             },
-            color: (ctx) => chartLabelColor(ctx.dataset.backgroundColor), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 2
+            color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 2
           },
           tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ": Rp " + formatRp(ctx.raw) } }
         },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 9, weight: "bold" }, maxTicksLimit: 8, autoSkip: true } },
-          y: { grid: { color: chartGridColor(), drawBorder: false }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-        }
+        scales: hudLineScales(bucketLabels, formatShortVal, { yGrid: chartGridColor() })
       }
     });
   }
@@ -191,10 +189,12 @@ export function renderAccountDetailCharts({
   if (charts.accCat) charts.accCat.destroy();
   if (document.getElementById("accountCatChart")) {
     charts.accCat = new Chart(document.getElementById("accountCatChart").getContext("2d"), {
+      plugins: [hudDonutGlowPlugin], // DNA donut HUD: glow violet reactor
       type: "doughnut",
       data: {
         labels: hasCatData ? catEntries.map(e => e.label) : ["Belum ada pengeluaran"],
-        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hasCatData ? cutePaletteOut : [chartEmptyColor()], borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 8 }]
+        // DNA donut HUD: segmen gradasi komet (palet colorblind tetap sumber warna).
+        datasets: [{ data: hasCatData ? catEntries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasCatData ? cutePaletteOut : [chartEmptyColor()]), borderWidth: 0, borderRadius: 6, hoverOffset: 8 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: "65%",

@@ -151,7 +151,11 @@ test("renderBudgetView: chart lama di-destroy dulu; chart baru bar dgn 2 dataset
   assert.deepEqual(cfg.data.labels, ["Makanan", "Hiburan"]);
   assert.deepEqual(cfg.data.datasets[0].data, [100000, 200000]); // Budget
   assert.deepEqual(cfg.data.datasets[1].data, [120000, 150000]); // Realisasi
-  assert.deepEqual(cfg.data.datasets[1].backgroundColor, ["#fb7185", "#34d399"]); // over, safe
+  // DNA batang HUD: scriptable -- fallback solid per batang = warna level (over, safe).
+  assert.equal(cfg.data.datasets[1].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#fb7185"); // over
+  assert.equal(cfg.data.datasets[1].backgroundColor({ dataIndex: 1, element: null, chart: null }), "#34d399"); // safe
+  assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#c7d2fe"); // Budget
+  assert.ok(cfg.plugins.some((p) => p.id === "hudGlow"));
 });
 
 test("renderBudgetView: daftar kategori -- badge & bar per level, width di-clamp, accordion + sub, stagger delay, format id-ID", () => {

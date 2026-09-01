@@ -57,6 +57,8 @@
  * @param {Function} ctx.Chart - kelas Chart.js (global browser, di-inject supaya testable).
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan karena bisa di-reassign utuh).
  */
+import { hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
+
 export function renderAssetView({
   document, globalAssets, appSettings,
   summarizeAssets, computeNetWorth,
@@ -183,13 +185,15 @@ export function renderAssetView({
 
   if (charts.assetAlloc) charts.assetAlloc.destroy();
   charts.assetAlloc = new Chart(document.getElementById("assetAllocationChart").getContext("2d"), {
+    plugins: [hudDonutGlowPlugin], // DNA donut HUD: glow violet reactor
     type: "doughnut",
     data: {
       labels: catLabels.length ? catLabels : ["Kosong"],
       datasets: [{
         data: catLabels.length ? catData : [1],
-        backgroundColor: catLabels.length ? modernPalette : [chartEmptyColor()],
-        borderWidth: 2, borderColor: chartBorderColor(), borderRadius: 6, hoverOffset: 6
+        // DNA donut HUD (src/domain/chart-hud.js): segmen gradasi komet; palet tetap sumber warna.
+        backgroundColor: hudDonutSegment(catLabels.length ? modernPalette : [chartEmptyColor()]),
+        borderWidth: 0, borderRadius: 6, hoverOffset: 6
       }]
     },
     options: {

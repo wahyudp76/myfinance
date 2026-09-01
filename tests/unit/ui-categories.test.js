@@ -121,25 +121,26 @@ test("renderCategoryDetailMonthData: chart lama di-destroy dulu; baru bar dgn la
   assert.equal(cfg.type, "bar");
   assert.deepEqual(cfg.data.labels, ["1", "2", "3"]);
   assert.deepEqual(cfg.data.datasets[0].data, [0, 500000, 0]);
-  assert.equal(cfg.data.datasets[0].backgroundColor, "#fb7185"); // Pengeluaran
+  assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#fb7185"); // Pengeluaran (fallback solid)
   assert.equal(cfg.options.plugins.datalabels.color, "#be123c"); // Pengeluaran
 });
 
 test("renderCategoryDetailMonthData: jenis Pemasukan -> hijau (#34d399 / label #047857)", () => {
   const { deps, chartInstances } = makeDeps({ jenis: "Pemasukan" });
   renderCategoryDetailMonthData(deps);
-  assert.equal(chartInstances[0].config.data.datasets[0].backgroundColor, "#34d399");
+  assert.equal(chartInstances[0].config.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#34d399");
   assert.equal(chartInstances[0].config.options.plugins.datalabels.color, "#047857");
 });
 
-test("renderCategoryDetailMonthData: grid y putus-putus dgn warna chartGridColor, grid x disembunyikan, formatter formatShortVal", () => {
+test("renderCategoryDetailMonthData: sumbu teknis HUD (grid cyan, tick T/Y) dgn warna chartGridColor + formatter formatShortVal", () => {
   const { deps, chartInstances } = makeDeps();
   renderCategoryDetailMonthData(deps);
   const scales = chartInstances[0].config.options.scales;
-  assert.equal(scales.x.grid.display, false);
+  // DNA HUD (chart-hud.hudLineScales): grid x cyan tipis, grid y = yGrid, tick berformat T/Y.
+  assert.equal(scales.x.grid.color, "rgba(34,211,238,0.07)");
   assert.equal(scales.y.grid.color, "#f1f5f9");
-  assert.deepEqual(scales.y.grid.borderDash, [4, 4]);
-  assert.equal(scales.y.ticks.callback(1500), "2K"); // formatShortVal stub (1500 -> 2K? tidak: 1500/1000=1.5 toFixed(0)='2')
+  assert.equal(scales.y.grid.borderDash, undefined);
+  assert.equal(scales.y.ticks.callback(1500), "Y·2K"); // formatShortVal stub (1500/1000=1.5 toFixed(0)='2')
   assert.equal(chartInstances[0].config.options.plugins.datalabels.formatter(500000), "500K");
 });
 
@@ -194,7 +195,12 @@ test("renderCategorySubProportion: donut + label (langsung) + angka % format id"
   assert.equal(cfg.options.cutout, "72%");
   assert.deepEqual(cfg.data.labels, ["Makanan (langsung)", "Katering"]);
   assert.deepEqual(cfg.data.datasets[0].data, [120000, 60000]);
-  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#22d3ee", "#f472b6"]);
+  // DNA donut HUD: segmen gradasi scriptable (palet colorblind tetap sumber warna).
+  assert.equal(typeof cfg.data.datasets[0].backgroundColor, "function");
+  assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#22d3ee");
+  assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 1, element: null, chart: null }), "#f472b6");
+  assert.equal(cfg.data.datasets[0].borderWidth, 0);
+  assert.ok(cfg.plugins.some((p) => p.id === "hudGlow"));
   assert.ok(doc.host.innerHTML.includes("66,7%"));
   assert.ok(doc.host.innerHTML.includes("33,3%"));
   assert.ok(doc.host.innerHTML.includes("Rp 180000"));

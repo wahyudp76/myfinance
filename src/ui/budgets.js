@@ -37,6 +37,8 @@
  * classifyBudgetUsage, commit 436e12c).
  */
 
+import { hudBarDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud.js";
+
 const BUDGET_USAGE_RING_COLOR = { over: "#fb7185", warning: "#fbbf24", safe: "#34d399" };
 const BUDGET_USAGE_BAR_COLOR = { over: "bg-rose-400", warning: "bg-amber-400", safe: "bg-emerald-400" };
 const BUDGET_USAGE_BADGE = {
@@ -204,13 +206,17 @@ export function renderBudgetView({
   } else {
     if (emptyOverlay) emptyOverlay.classList.add("hidden");
     if (chartCanvas) {
+      // Warna realisasi per kategori (safe/warning/over) dihitung sekali -- dipakai
+      // dataset (gradasi) & datalabel, karena backgroundColor kini scriptable.
+      const realisasiColors = entries.map(e => classifyBudgetUsage(e.pct) === "safe" ? safeColor : BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(e.pct)]);
       charts.budgetCompare = new Chart(chartCanvas.getContext("2d"), {
+        plugins: [hudGlowPlugin], // DNA batang HUD: glow cyan
         type: "bar",
         data: {
           labels: entries.map(e => e.name),
           datasets: [
-            { label: "Budget", data: entries.map(e => e.budget), backgroundColor: "#c7d2fe", borderRadius: 6, barPercentage: 0.55 },
-            { label: "Realisasi", data: entries.map(e => e.actual), backgroundColor: entries.map(e => classifyBudgetUsage(e.pct) === "safe" ? safeColor : BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(e.pct)]), borderRadius: 6, barPercentage: 0.55 }
+            { label: "Budget", data: entries.map(e => e.budget), ...hudBarDataset({ from: "#c7d2fe", barPercentage: 0.55 }) },
+            { label: "Realisasi", data: entries.map(e => e.actual), ...hudBarDataset({ from: realisasiColors, barPercentage: 0.55 }) }
           ]
         },
         options: {
@@ -219,15 +225,12 @@ export function renderBudgetView({
             legend: { position: "top", labels: { boxWidth: 10, font: { size: 10, weight: "bold" } } },
             datalabels: {
               display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
-              color: (ctx) => chartLabelColor(Array.isArray(ctx.dataset.backgroundColor) ? ctx.dataset.backgroundColor[ctx.dataIndex] : ctx.dataset.backgroundColor),
+              color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? "#c7d2fe" : realisasiColors[ctx.dataIndex]),
               font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 2
             },
             tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ": Rp " + formatRp(ctx.raw) } }
           },
-          scales: {
-            x: { grid: { display: false }, ticks: { font: { size: 9, weight: "bold" } } },
-            y: { grid: { color: chartGridColor() }, ticks: { font: { size: 9 }, callback: (v) => formatShortVal(v) } }
-          }
+          scales: hudLineScales(entries.map(e => e.name), formatShortVal, { yGrid: chartGridColor() })
         }
       });
     }

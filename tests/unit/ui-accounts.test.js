@@ -133,8 +133,14 @@ test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Ke
   assert.equal(domain.sparse, undefined);
   const cashflow = chartInstances.find(c => c.config.type === "bar");
   assert.deepEqual(cashflow.config.data.labels, ["Jun", "Jul", "Ags"]);
-  assert.deepEqual(cashflow.config.data.datasets[0], { label: "Masuk", data: [100000, 0, 250000], backgroundColor: "#34d399", borderRadius: 4, barPercentage: 0.7 });
-  assert.deepEqual(cashflow.config.data.datasets[1], { label: "Keluar", data: [50000, 0, 0], backgroundColor: "#fb7185", borderRadius: 4, barPercentage: 0.7 });
+  // DNA batang HUD: backgroundColor scriptable -- fallback solid = warna sumber lama.
+  const dsIn = cashflow.config.data.datasets[0], dsOut = cashflow.config.data.datasets[1];
+  assert.deepEqual({ label: dsIn.label, data: dsIn.data, borderRadius: dsIn.borderRadius, barPercentage: dsIn.barPercentage },
+    { label: "Masuk", data: [100000, 0, 250000], borderRadius: 4, barPercentage: 0.7 });
+  assert.equal(dsIn.backgroundColor({ dataIndex: 0, element: null, chart: null }), "#34d399");
+  assert.equal(dsOut.backgroundColor({ dataIndex: 0, element: null, chart: null }), "#fb7185");
+  assert.equal(dsOut.borderSkipped, false);
+  assert.ok(cashflow.config.plugins.some((p) => p.id === "hudGlow"));
   assert.equal(cashflow.config.options.plugins.tooltip.callbacks.label({ dataset: { label: "Masuk" }, raw: 2500 }), "Masuk: Rp 2.500");
 });
 
@@ -149,7 +155,7 @@ test("renderAccountDetailCharts: SEMPIT -> selectSparseLabelIndices(magnitudes g
   assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 1 }), false); // nilai 0
   assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 2 }), false); // >0 tapi di luar set
   const colorFn = cashflow.config.options.plugins.datalabels.color;
-  assert.equal(colorFn({ dataset: { backgroundColor: "#34d399" } }), "#047857"); // via chartLabelColor
+  assert.equal(colorFn({ datasetIndex: 0 }), "#047857"); // via chartLabelColor (dataset 0 = Masuk)
 });
 
 // ===================== filter kategori & doughnut =====================
@@ -187,7 +193,11 @@ test("renderAccountDetailCharts: doughnut kategori dgn data -> label per entry +
   const donut = withData.chartInstances.find(c => c.config.type === "doughnut");
   assert.deepEqual(donut.config.data.labels, ["Makanan", "Transport"]);
   assert.deepEqual(donut.config.data.datasets[0].data, [300000, 120000]);
-  assert.equal(donut.config.data.datasets[0].backgroundColor, PALETTE);
+  // DNA donut HUD: segmen gradasi scriptable -- fallback solid = warna palet per indeks.
+  assert.equal(typeof donut.config.data.datasets[0].backgroundColor, "function");
+  assert.equal(donut.config.data.datasets[0].backgroundColor({ dataIndex: 1, element: null, chart: null }), PALETTE[1]);
+  assert.equal(donut.config.data.datasets[0].borderWidth, 0);
+  assert.ok(donut.config.plugins.some((p) => p.id === "hudGlow"));
   assert.equal(donut.config.options.cutout, "65%");
 
   const empty = makeDeps({ aggregateAccountExpenseByCategory: () => ({ entries: [] }) });
@@ -195,7 +205,7 @@ test("renderAccountDetailCharts: doughnut kategori dgn data -> label per entry +
   const donut2 = empty.chartInstances.find(c => c.config.type === "doughnut");
   assert.deepEqual(donut2.config.data.labels, ["Belum ada pengeluaran"]);
   assert.deepEqual(donut2.config.data.datasets[0].data, [1]);
-  assert.deepEqual(donut2.config.data.datasets[0].backgroundColor, ["#f1f5f9"]);
+  assert.equal(donut2.config.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#f1f5f9");
 });
 
 // ===================== legenda donut & elemen opsional =====================

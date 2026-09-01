@@ -201,8 +201,11 @@ test("renderAssetView: chart lama di-destroy dulu, chart baru doughnut dgn label
   assert.equal(cfg.type, "doughnut");
   assert.deepEqual(cfg.data.labels, ["Emas", "Deposito"]);
   assert.deepEqual(cfg.data.datasets[0].data, [27800000, 15500000]);
-  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#22d3ee", "#34d399", "#a78bfa", "#f472b6", "#fbbf24", "#38bdf8", "#4ade80", "#e879f9"]); // modernPalette
-  assert.equal(cfg.data.datasets[0].borderColor, "#ffffff");
+  // DNA donut HUD: segmen gradasi scriptable (modernPalette tetap sumber warna), glow violet.
+  assert.equal(typeof cfg.data.datasets[0].backgroundColor, "function");
+  assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 2, element: null, chart: null }), "#a78bfa"); // modernPalette[2]
+  assert.equal(cfg.data.datasets[0].borderWidth, 0);
+  assert.ok(cfg.plugins.some((p) => p.id === "hudGlow"));
   assert.equal(cfg.options.cutout, "70%");
 });
 
@@ -212,7 +215,7 @@ test("renderAssetView: tanpa kategori -> chart 'Kosong' dgn warna chartEmptyColo
   const cfg = chartInstances[0].config;
   assert.deepEqual(cfg.data.labels, ["Kosong"]);
   assert.deepEqual(cfg.data.datasets[0].data, [1]);
-  assert.deepEqual(cfg.data.datasets[0].backgroundColor, ["#f1f5f9"]);
+  assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#f1f5f9");
 });
 
 test("renderAssetView: renderDonutBreakdown menerima elemen legenda/list/total, entries dgn ikon kategori, palette & emptyMessage", () => {

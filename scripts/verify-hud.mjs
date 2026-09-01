@@ -136,6 +136,45 @@ ok("donut ber-DNA HUD (segmen gradasi scriptable + glow violet)", await page.eva
   return a && typeof a.data.datasets[0].backgroundColor === "function" &&
     (a.plugins || []).some((p) => p.id === "hudGlow" && p !== undefined) && a.data.datasets[0].hoverOffset === 8;
 }));
+await page.evaluate(() => switchView("aset"));
+await page.waitForTimeout(700);
+ok("tab Aset: donut alokasi ber-DNA HUD (segmen + glow)", await page.evaluate(() => {
+  const c = typeof charts !== "undefined" && charts.assetAlloc && charts.assetAlloc.config;
+  return c && typeof c.data.datasets[0].backgroundColor === "function" && (c.plugins || []).some((p) => p.id === "hudGlow");
+}));
+await page.screenshot({ path: `${SHOTS}/10-tab-aset.png` });
+await page.evaluate(() => { try { openCategoryDetail("Makanan", "Pengeluaran"); } catch (e) { /* seed tanpa kategori tsb */ } });
+await page.waitForTimeout(900);
+ok("detail Kategori: batang tren + donut sub ber-DNA HUD", await page.evaluate(() => {
+  const b = typeof charts !== "undefined" && charts.catTrend && charts.catTrend.config;
+  if (!b || b.type !== "bar") return false;
+  const barsOk = b.data.datasets.every((ds) => typeof ds.backgroundColor === "function" && ds.borderSkipped === false) &&
+    (b.plugins || []).some((p) => p.id === "hudGlow");
+  const s = charts.catSubDonut && charts.catSubDonut.config;
+  const subOk = !s || (typeof s.data.datasets[0].backgroundColor === "function" && (s.plugins || []).some((p) => p.id === "hudGlow"));
+  return barsOk && subOk;
+}));
+await page.screenshot({ path: `${SHOTS}/11-kategori-detail.png` });
+await page.evaluate(() => switchView("budget"));
+await page.waitForTimeout(700);
+ok("tab Anggaran: bar perbandingan ber-DNA HUD (bila ada data budget)", await page.evaluate(() => {
+  const c = typeof charts !== "undefined" && charts.budgetCompare && charts.budgetCompare.config;
+  if (!c) return true; // seed tanpa budget -> chart memang tidak dibuat
+  return c.data.datasets.every((ds) => typeof ds.backgroundColor === "function") && (c.plugins || []).some((p) => p.id === "hudGlow");
+}));
+await page.evaluate(() => { try { openAccountDetail("BCA"); } catch (e) { /* seed tanpa akun tsb */ } });
+await page.waitForTimeout(900);
+ok("detail Akun: bar cashflow + donut kategori ber-DNA HUD (bila terbuka)", await page.evaluate(() => {
+  const b = typeof charts !== "undefined" && charts.accCashflow && charts.accCashflow.config;
+  const d = charts.accCat && charts.accCat.config;
+  if (!b && !d) return true;
+  const barOk = !b || (b.data.datasets.every((ds) => typeof ds.backgroundColor === "function") && (b.plugins || []).some((p) => p.id === "hudGlow"));
+  const donutOk = !d || (typeof d.data.datasets[0].backgroundColor === "function" && (d.plugins || []).some((p) => p.id === "hudGlow"));
+  return barOk && donutOk;
+}));
+await page.screenshot({ path: `${SHOTS}/12-akun-detail.png` });
+await page.evaluate(() => switchView("laporan"));
+await page.waitForTimeout(700);
 await page.screenshot({ path: `${SHOTS}/03-laporan.png`, fullPage: false });
 await page.locator("#dailyChart").scrollIntoViewIfNeeded();
 await page.waitForTimeout(900);
