@@ -22,7 +22,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v36';
+const CACHE_VERSION = 'myfinance-v37';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -55,6 +55,48 @@ const PRECACHE_URLS = [
   './src/auth/guards.js',
   './src/auth/lifecycle.js',
   './src/services/supabase/client.js',
+  // Semua modul runtime app (domain/ui/services) -- precache LENGKAP sejak install
+  // supaya app utuh walau kunjungan pertama langsung offline (audit 2026-09).
+  './src/domain/accounts.js',
+  './src/domain/asset-flows.js',
+  './src/domain/assets.js',
+  './src/domain/backup.js',
+  './src/domain/budgets.js',
+  './src/domain/calendar.js',
+  './src/domain/categories.js',
+  './src/domain/chart-hud.js',
+  './src/domain/chart-labels.js',
+  './src/domain/chart-palette.js',
+  './src/domain/command-palette.js',
+  './src/domain/dashboard.js',
+  './src/domain/demo-data.js',
+  './src/domain/finance.js',
+  './src/domain/goals-debts.js',
+  './src/domain/insights.js',
+  './src/domain/recurring.js',
+  './src/domain/reports.js',
+  './src/domain/settings.js',
+  './src/domain/sparkline.js',
+  './src/domain/theme.js',
+  './src/domain/transactions.js',
+  './src/services/supabase/assets.js',
+  './src/services/supabase/budgets.js',
+  './src/services/supabase/custom-icons.js',
+  './src/services/supabase/edge.js',
+  './src/services/supabase/recurring.js',
+  './src/services/supabase/settings.js',
+  './src/services/supabase/transfers.js',
+  './src/services/transactions.js',
+  './src/ui/accounts.js',
+  './src/ui/assets.js',
+  './src/ui/budgets.js',
+  './src/ui/calendar.js',
+  './src/ui/categories.js',
+  './src/ui/goals-debts.js',
+  './src/ui/insights.js',
+  './src/ui/modal-a11y.js',
+  './src/ui/recurring.js',
+  './src/ui/skeletons.js',
 ];
 
 self.addEventListener('install', (event) => {

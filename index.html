@@ -5243,13 +5243,22 @@ async function currentUserId() {
                 if (!assetTarget) { showErrorToast('Aset tujuan tidak ditemukan -- pilih ulang dari daftar tujuan.'); showLoading(false); return; }
                 const runDeposit = () => {
                     showLoading(true);
-                    // Edit: terapkan SELISIH (jumlah baru - jumlah lama) ke aset; baru: jumlah penuh.
+                    // Konsistensi aset saat edit:
+                    //  - setor baru / lama bukan setor / aset tujuan SAMA -> selisih (baru-lama).
+                    //  - aset tujuan DIGANTI -> aset lama dipulihkan penuh dulu, aset baru dapat penuh.
                     const oldRow = wasEdit ? globalData.find(t => t.id === currentEditId) : null;
-                    const depositDelta = wasEdit ? (jumlahNum - (Number(oldRow && oldRow.jumlah) || 0)) : jumlahNum;
+                    const oldDepositAsset = oldRow ? servicesModule.resolveAssetDepositTx(oldRow, globalAssets) : null;
+                    const sameAsset = !!(oldDepositAsset && oldDepositAsset.id === assetTarget.id);
+                    const depositDelta = sameAsset ? (jumlahNum - (Number(oldRow.jumlah) || 0)) : jumlahNum;
                     const txPromise = wasEdit
                         ? transactionService.update(currentEditId, servicesModule.toUpdateRecord(data))
                         : transactionService.create(servicesModule.toCreateRecord(data));
-                    txPromise
+                    let chain = txPromise;
+                    if (wasEdit && oldDepositAsset && !sameAsset) {
+                        chain = chain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositAsset.id,
+                            { ...oldDepositAsset, ...servicesModule.applyAssetDeposit(oldDepositAsset, -(Number(oldRow.jumlah) || 0), oldRow.tanggal) }));
+                    }
+                    chain
                         .then(() => servicesModule.updateAsset(supabaseClient, assetTarget.id, { ...assetTarget, ...servicesModule.applyAssetDeposit(assetTarget, depositDelta, data.tanggal) }))
                         .then(() => {
                             closeModal();
@@ -5306,7 +5315,19 @@ async function currentUserId() {
 
             // Pensyahan api.run (slice transactions): service langsung + normalizer payload
             // (toUpdateRecord/toCreateRecord = body edit/addTransactionRemote adapter lama), callback persis.
-            if(currentEditId) { transactionService.update(currentEditId, servicesModule.toUpdateRecord(data)).then(onSaveOk).catch((err) => { console.error('api.run.editTransaction gagal:', err); onSaveFail(err); }); } 
+            if(currentEditId) {
+                // Bila baris lama adalah setor ke aset dan hasil edit BUKAN lagi setor ke aset
+                // yang sama (jalur setor-aset sudah return di atas), nominal DITARIK KEMBALI
+                // dari aset lama supaya nilai/modal aset tidak menggantung (audit 2026-09).
+                const oldRowEdit = globalData.find(t => t.id === currentEditId) || null;
+                const oldDepositEdit = oldRowEdit ? servicesModule.resolveAssetDepositTx(oldRowEdit, globalAssets) : null;
+                let editChain = transactionService.update(currentEditId, servicesModule.toUpdateRecord(data));
+                if (oldDepositEdit) {
+                    editChain = editChain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositEdit.id,
+                        { ...oldDepositEdit, ...servicesModule.applyAssetDeposit(oldDepositEdit, -(Number(oldRowEdit.jumlah) || 0), oldRowEdit.tanggal) }));
+                }
+                editChain.then(onSaveOk).catch((err) => { console.error('api.run.editTransaction gagal:', err); onSaveFail(err); });
+            }
             else { transactionService.create(servicesModule.toCreateRecord(data)).then(onSaveOk).catch((err) => { console.error('api.run.addTransaction gagal:', err); onSaveFail(err); }); }
         }
 

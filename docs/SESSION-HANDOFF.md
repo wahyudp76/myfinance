@@ -7,7 +7,10 @@
 ## Status saat handoff
 
 - HEAD: lihat `git log` (commit HUD cyberpunk menyusul setelah `d349895`; main ter-push, CI ✓, Pages ✓). Live: <https://wahyudp76.github.io/myfinance/>
-- Service worker live: `myfinance-v36` (sinkron lokal). Suite: **462 unit + 1 smoke, semua hijau**.
+- Service worker live: `myfinance-v37` (sinkron lokal). Suite: **462 unit + 1 smoke, semua hijau**.
+- Audit 2026-09: precache sw.js dilengkapi 40 modul runtime; file mati
+  `src/data/generation.js` dihapus; bug konsistensi edit setor-aset diperbaiki
+  (ganti aset tujuan / ubah jadi non-setor -> aset lama dipulihkan).
 - Semua tier improvement selesai (Tier 1–3), seluruh temuan audit (F1–F4) CLOSED.
 - Worktree bersih; tidak ada pekerjaan menggantung.
 
