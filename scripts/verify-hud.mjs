@@ -382,6 +382,22 @@ const kriptoUi = await page.evaluate(async () => {
 });
 ok("aset kripto: fallback manual + baris sumber CoinGecko + label harga per koin", kriptoUi.manualShown && kriptoUi.lineShown && kriptoUi.coin && kriptoUi.koinLabel && kriptoUi.kriptoTitle);
 
+// ---------- E2E: hover baris "Komposisi Kas & Rekening" tetap terbaca (v44) ----------
+await page.evaluate(() => switchView("dashboard"));
+await page.waitForTimeout(200);
+const breakdownRow = page.locator("#assetChart-list .hud-breakdown-row").first();
+await breakdownRow.hover();
+await page.waitForTimeout(350);
+const hoverState = await breakdownRow.evaluate((el) => {
+  const cs = getComputedStyle(el);
+  const before = getComputedStyle(el, "::before");
+  return { bgImage: cs.backgroundImage, bgColor: cs.backgroundColor, beforeOpacity: before.opacity };
+});
+ok("komposisi kas: hover baris = sapuan gradasi lembut (bukan blok putih)",
+  hoverState.bgImage.includes("linear-gradient") &&
+  hoverState.bgColor !== "rgb(255, 255, 255)" && hoverState.bgColor !== "rgb(248, 250, 252)");
+ok("komposisi kas: hover memunculkan garis aksen kiri (neon)", hoverState.beforeOpacity === "1");
+
 await page.screenshot({ path: `${SHOTS}/16-aset-reksadana.png` });
 await page.evaluate(() => { closeManualNavModal(); closeAssetDetailModal(); });
 await page.waitForTimeout(400);

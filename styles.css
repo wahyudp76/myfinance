@@ -83,6 +83,18 @@
         .account-card:hover { transform: translateY(-5px); border-color: #67e8f9; box-shadow: 0 12px 26px -6px rgba(34, 211, 238, 0.35); }
         .chart-card:hover { border-color: #c4b5fd; box-shadow: 0 12px 26px -8px rgba(167, 139, 250, 0.30); }
 
+        /* Baris breakdown donat (renderDonutBreakdown -- dipakai "Komposisi Kas &
+           Rekening", Alokasi Aset, Laporan, detail akun): hover LEMBUT & futuristis.
+           Bug lama: utility Tailwind hover:bg-slate-50 tidak ikut ter-override tema
+           gelap (selector .dark .bg-slate-50 tak match token "hover:bg-slate-50"),
+           jadi baris mendadak putih & teks terangnya tak terbaca. Solusi: class
+           khusus bertema -- sapuan gradasi indigo->cyan + garis aksen kiri neon. */
+        .hud-breakdown-row { position: relative; transition: background 0.25s ease, box-shadow 0.25s ease; }
+        .hud-breakdown-row::before { content: ""; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 3px; background: linear-gradient(180deg, #6366f1, #22d3ee); opacity: 0; transition: opacity 0.25s ease; pointer-events: none; }
+        .hud-breakdown-row:hover { background: linear-gradient(90deg, rgba(99, 102, 241, 0.10), rgba(34, 211, 238, 0.05)); box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.14), 0 6px 18px -10px rgba(99, 102, 241, 0.35); }
+        .hud-breakdown-row:hover::before { opacity: 1; box-shadow: 0 0 8px rgba(34, 211, 238, 0.55); }
+        html.dark .hud-breakdown-row:hover { background: linear-gradient(90deg, rgba(34, 211, 238, 0.10), rgba(167, 139, 250, 0.08)); box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.20), 0 6px 22px -10px rgba(34, 211, 238, 0.45); }
+
         /* ================= ANIMASI INTERAKSI & PERPINDAHAN TAMPILAN ================= */
         /* Efek "spring" (sedikit overshoot lalu balik) khusus utk transform saat ditekan. */
         .active\:scale-90:active, .active\:scale-95:active,

@@ -4462,7 +4462,7 @@ async function currentUserId() {
                     const pct = Math.round(e.val / total * 100);
                     const chartColor = palette[i % palette.length];
                     const clickable = typeof onClickItem === 'function';
-                    return `<div ${clickable ? `onclick="${onClickItem(e.label)}"` : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hover:bg-slate-50 transition' : ''}">
+                    return `<div ${clickable ? `onclick="${onClickItem(e.label)}"` : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hud-breakdown-row transition' : ''}">
                         <span class="text-[10px] md:text-xs font-bold text-white rounded-lg px-2 py-1 flex-shrink-0 w-10 md:w-11 text-center" style="background:${chartColor}">${pct}%</span>
                         ${e.iconHtml}
                         <span class="text-xs md:text-sm font-bold text-slate-700 flex-1 min-w-0 truncate">${escapeHtml(e.label)}</span>
