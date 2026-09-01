@@ -42,6 +42,30 @@ page.on("response", async (response) => {
 try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
 
+  // TUNGGU OVERLAY authGate BENAR-BENAR HILANG SEBELUM MENYENTUH FORM.
+  //
+  // Kenapa ini perlu padahal di bawah sudah ada waitFor({state:"visible"}):
+  // input email/password sudah "visible" menurut Playwright JAUH sebelum layar
+  // "Memeriksa sesi login..." (#authGate) selesai. Selama overlay itu masih
+  // ada, ia MENANGKAP pointer event, jadi submit.click() di bawah akan berputar
+  // ulang terus sampai timeout 30 detik dengan pesan yang menyesatkan:
+  //   '<div id="authGate">…</div> intercepts pointer events'
+  // -- terlihat seperti tombolnya rusak, padahal cuma balapan waktu.
+  //
+  // Ini benar-benar terjadi di CI (run f558ceb, 2026-09-01): job parity merah
+  // sementara situs live-nya sendiri sehat (diperiksa langsung: authGate hilang
+  // dalam ~1,2 detik, tombol bisa diklik, 0 error). Menunggu kondisi yang
+  // SEBENARNYA jadi syarat membuat tes ini deterministik alih-alih flaky.
+  await page
+    .waitForFunction(() => {
+      const gate = document.getElementById("authGate");
+      return !gate || gate.classList.contains("hidden") || getComputedStyle(gate).display === "none";
+    }, null, { timeout: 60000 })
+    .catch(() => {
+      // Jangan gagal DI SINI: kalau gate memang macet, biarkan klik di bawah
+      // yang gagal supaya pesan error Playwright-nya tetap utuh & informatif.
+    });
+
   const emailInput = page.locator('input[type="email"]').first();
   const passwordInput = page.locator('input[type="password"]').first();
   await emailInput.waitFor({ state: "visible", timeout: 30000 });

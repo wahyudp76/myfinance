@@ -141,6 +141,19 @@
   @supabase/supabase-js lolos ke main hanya bermodal unit test; uji live-nya baru jalan SETELAH
   merge. Dampak terburuk = CI main merah (bukan pengguna terdampak), pemulihan = `git revert`.
 
+## v50 — Perbaikan flaky `headless-browser-legacy.mjs`
+- Gejala: job `parity` merah di main (run f558ceb) dgn `locator.click: Timeout 30000ms` dan
+  `<div id="authGate">…</div> intercepts pointer events`. Terlihat seperti tombol login rusak.
+- Diagnosis: **situs live SEHAT** (diprobe langsung: authGate hilang ~1,2 dtk, tombol submit bisa
+  diklik, 0 pelanggaran CSP, 0 error). Ini murni balapan waktu di harness -- ia menunggu input
+  email/password "visible", padahal input bisa visible SEMENTARA overlay #authGate masih menutupi
+  dan menangkap pointer event.
+- Fix: tunggu `#authGate` benar-benar hilang/hidden dulu (waitForFunction, 60 dtk) SEBELUM mengisi
+  form & klik. `.catch()` sengaja dipasang supaya kalau gate memang macet, yang gagal tetap klik-nya
+  agar pesan error Playwright tetap informatif.
+- PELAJARAN: `waitFor({state:"visible"})` TIDAK menjamin elemen bisa DIKLIK. Kalau ada overlay,
+  tunggu overlay-nya, bukan elemennya.
+
 ## Gotcha lingkungan
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.
 - Test akun Supabase: signup butuh toggle `mailer_autoconfirm` (balikkan + verifikasi!) — hapus user hanya bisa via dashboard/Mgmt UI.
