@@ -53,6 +53,13 @@ async function assertCleanup() {
   if (remaining.length) throw new Error(`Parity cleanup verification failed: ${remaining.length} seeded rows remain visible.`);
 }
 
+// KENAPA ADA `primaryError`: sebelumnya blok finally di bawah langsung
+// `throw cleanupError`, sehingga kalau tes paritas GAGAL dan cleanup JUGA gagal,
+// error cleanup MENIMPA kegagalan paritas yang sebenarnya -- CI melaporkan
+// "gagal menghapus baris" padahal masalah aslinya adalah data tidak cocok, dan
+// jejak debug yang benar hilang sama sekali. Sekarang kegagalan paritas selalu
+// menang; error cleanup hanya dilempar kalau tidak ada kegagalan lain.
+let primaryError;
 try {
   const { error } = await client.auth.signInWithPassword({ email, password });
   if (error) throw error;
@@ -99,11 +106,19 @@ try {
   }
 
   console.log(`Live data-rich parity: PASS (${actual.length} rows; pagination boundary + IDR/USD conversion + ordering verified)`);
-} finally {
-  let cleanupError;
-  try { await cleanup(); } catch (error) { cleanupError = error; }
-  try { await assertCleanup(); } catch (error) { cleanupError ??= error; }
-  try { await client.auth.signOut(); } finally {
-    if (cleanupError) throw cleanupError;
-  }
+} catch (error) {
+  primaryError = error;
 }
+
+// Cleanup SELALU dijalankan (badan try di atas sudah menangkap semua error),
+// jadi blok `finally` tidak diperlukan lagi -- dan karena tidak ada `throw`
+// di dalam finally, tidak ada risiko error tertelan diam-diam.
+let cleanupError;
+try { await cleanup(); } catch (error) { cleanupError = error; }
+try { await assertCleanup(); } catch (error) { cleanupError ??= error; }
+try { await client.auth.signOut(); } catch (error) { cleanupError ??= error; }
+
+// Urutan prioritas disengaja: kegagalan paritas yang asli DULU; error cleanup
+// hanya dilaporkan kalau tesnya sendiri sebenarnya lolos.
+const failure = primaryError ?? cleanupError;
+if (failure) throw failure;

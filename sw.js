@@ -22,7 +22,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v44';
+const CACHE_VERSION = 'myfinance-v45';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -48,7 +48,16 @@ const PRECACHE_URLS = [
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0',
   'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
+  // BUG FIX (2026-09-01): baris ini dulu menunjuk ke
+  //   https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm
+  // padahal app SAMA SEKALI tidak pernah meminta URL itu -- src/services/supabase/
+  // client.js (dan semua Edge Function) mengimpor dari esm.sh. Akibatnya dua-duanya
+  // rugi: (a) setiap instalasi SW mengunduh satu bundel besar yang tidak akan pernah
+  // dipakai, dan (b) library yang BENAR-BENAR dibutuhkan tidak pernah ikut precache,
+  // sehingga skenario "kunjungan pertama lalu langsung offline" -- yang justru jadi
+  // alasan blok precache ini ada -- tetap gagal boot karena client Supabase tak
+  // termuat. URL di bawah kini PERSIS sama dengan yang diimpor client.js.
+  'https://esm.sh/@supabase/supabase-js@2',
   './src/auth/index.js',
   './src/auth/client.js',
   './src/auth/session.js',

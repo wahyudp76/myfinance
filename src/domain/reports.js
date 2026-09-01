@@ -85,10 +85,14 @@ export function computeYearlySummary(transactions, { year, txIdrAmount, parseTgl
  * }}
  */
 export function computeMonthlyBreakdown(transactions, { year, month, txIdrAmount, parseTgl, categorizeParent }) {
+  // Sama seperti aggregateActualByCategory(): pemanggil bisa mengirim string
+  // atau number, jadi dinormalkan eksplisit sebelum dibandingkan ketat.
+  const yearNum = Number(year);
+  const monthNum = Number(month);
   const filteredData = transactions.filter((d) => {
     if (!d.tanggal) return false;
     const dDate = parseTgl(d.tanggal);
-    return dDate.getFullYear() == year && (dDate.getMonth() + 1) == month;
+    return dDate.getFullYear() === yearNum && dDate.getMonth() + 1 === monthNum;
   });
 
   const catOutMap = {};

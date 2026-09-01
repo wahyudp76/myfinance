@@ -6,7 +6,7 @@
 
 ## Peta cepat
 - App: SPA statis `index.html` + `src/**` (domain services, modul ES) + Tailwind build (`npm run build:css`) + service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build:css setiap kali aset berubah).
-- Verifikasi wajib: `npm test` (suite unit) + `node scripts/verify-hud.mjs` (47 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
+- Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (49 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; Edge Functions `analyze-finance`, `refresh-asset-price` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, 7 view (ringkasan/transaksi/akun/aset/budget/laporan/pengaturan), Ctrl/Cmd+K command palette.
 
@@ -25,7 +25,40 @@
 - Helper murni `supabase/functions/_shared/price-sources.js` (yahooChartUrls 2 mirror, pickYahooMarketPrice→{price,timeIso}|null, yahooFailureMessage) ↔ `tests/unit/price-sources.test.js` (4 kasus).
 - Edge v18: fetcher saham mencoba 2 mirror Yahoo berurutan; CoinGecko 429 pesan ramah; respons diperkaya `sumber` + `tanggal_pasar`; fetcher kini mengembalikan `{price, marketIso}`.
 - UI: baris info sumber di modal detail aset (sumber + 1 unit ≈ Rp + waktu diperbarui); tombol Sync Manual utk SEMUA kategori auto (label dinamis koin/lembar/unit); toast refresh menampilkan harga per unit + tanggal data pasar; tombol **Refresh Harga** (semua aset auto sekuensial, ringkasan hasil) di header tab Aset.
-- Rate limit Edge: 30 request/jam/user (tabel `refresh_price_rate_limits`, RLS).
+- Rate limit Edge: 30 request/jam/user. KOREKSI 2026-09-01: bukan tabel `refresh_price_rate_limits`
+  (tabel itu TIDAK ADA) -- Edge memanggil RPC `check_and_consume_rate_limit` dgn
+  `p_action='refresh-asset-price'`, tersimpan sbg baris di tabel `api_rate_limits`
+  (berbagi dgn analyze-finance). Lihat docs/db-migration-status-2026-09-01.md §3.
+
+## v45 — Gerbang statis ESLint, fix precache SW, kebersihan dependensi
+- **ESLint 9 flat config** (`eslint.config.js`) -- repo sebelumnya TANPA linter sama sekali.
+  Sengaja mengatur KEBENARAN saja (no-undef, no-unused-vars, eqeqeq, no-unsafe-finally,
+  require-atomic-updates), BUKAN gaya penulisan (tidak ada aturan indentasi/kutip/titik koma)
+  supaya tidak mengubur riwayat git. `npm run lint` / `lint:fix`; job CI `lint` ditambahkan;
+  `npm test` kini = lint + unit + parity. Status: **0 masalah**.
+- Daftar global aplikasi didaftar EKSPLISIT di eslint.config.js utk file harness E2E -- ini jadi
+  dokumentasi hidup permukaan `window.*` yang masih dipegang monolit index.html. Saat Phase 4
+  refactor memindahkan salah satunya, lint langsung memberi tahu.
+- **BUG FIX sw.js**: `PRECACHE_URLS` memuat `cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm`,
+  URL yang TIDAK PERNAH diminta app (client.js & semua Edge Function mengimpor dari `esm.sh`).
+  Akibatnya tiap install SW mengunduh bundel yang tak terpakai SEKALIGUS gagal men-cache library
+  yang sesungguhnya dibutuhkan -- skenario "kunjungan pertama lalu offline" tetap gagal boot.
+  Diganti ke `https://esm.sh/@supabase/supabase-js@2` (sudah diizinkan CSP). CACHE_VERSION v44→v45.
+- **BUG FIX tests/parity/live-data-rich-parity.mjs**: `throw` di dalam `finally` membuat error
+  cleanup MENIMPA kegagalan paritas yang asli (CI melaporkan gejala, bukan sebab). Direstrukturisasi
+  jadi `primaryError ?? cleanupError` tanpa throw-dalam-finally.
+- Perbandingan longgar `==` di src/domain/{transactions,budgets,reports}.js (string hasil split()
+  vs number dari getFullYear()) diganti koersi `Number()` EKSPLISIT + `===`. Perilaku identik,
+  500/500 unit test tetap hijau. JANGAN asal ganti `==`→`===` di sini tanpa koersi: akan rusak.
+- `dependencies` dikosongkan -> semua pindah ke `devDependencies`. Alasan: TIDAK ADA paket npm yang
+  sampai ke browser user (supabase-js dari esm.sh, Chart.js/FullCalendar dari jsdelivr); npm murni
+  perkakas dev/CI. Ini juga menjelaskan kenapa 20 temuan `npm audit` (rantai lighthouse→puppeteer→
+  extract-zip) TIDAK berdampak ke pengguna, dan kenapa "fix"-nya sengaja TIDAK dijalankan: satu-
+  satunya remediasi yg ditawarkan npm adalah MENURUNKAN lighthouse 12.8.2→12.6.1.
+- Audit skema live read-only: docs/db-migration-status-2026-09-01.md -- **semua migrasi di `sql/`
+  ternyata SUDAH diterapkan**, walau beberapa header file masih menulis "menunggu dijalankan".
+- Verifikasi v45: lint 0 masalah, unit 500/500, `verify-hud.mjs` 49/49 PASS (0 error halaman),
+  `build:css` tanpa drift, snapshot SW disinkronkan.
 
 ## Gotcha lingkungan
 - Sandbox sering ter-reset tengah sesi: `.git` bisa kembali ke parent lama + file tracked ter-restore + `~/tools`/chromium hilang. Ritual: cek `git log --oneline -1` vs `origin/main`; `git fetch` + `git reset --mixed origin/main` (worktree aman); reinstall node22 (`~/tools/node-v22.23.2-linux-x64`) + `npm ci` + `npx playwright install chromium`; server 8123 via start_process.

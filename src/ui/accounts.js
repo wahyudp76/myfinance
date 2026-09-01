@@ -87,7 +87,7 @@ export function renderAccountDetailCharts({
   buildAccountBalanceSeries, computeAccountChartSeries, isChartNarrow, selectSparseLabelIndices,
   resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory,
   getCategoryStyle, categoryIconHtml, jsStr, formatRp, formatShortVal,
-  chartGridColor, chartLabelColor, chartEmptyColor, chartBorderColor,
+  chartGridColor, chartLabelColor, chartEmptyColor,
   cutePaletteOut, renderDonutBreakdown, accentColor, Chart, charts,
 }) {
   if (!currentAccountDetail) return;
@@ -184,7 +184,7 @@ export function renderAccountDetailCharts({
   // src/domain/accounts.js (dipakai juga oleh tests/unit/accounts-domain.test.js).
   const { start: catStart, end: catEnd } = resolveAccountCategoryDateRange(catFilterType, { now, syncCutoff: cutoff, customMonthStr });
   const { entries: catEntries } = aggregateAccountExpenseByCategory(globalData, accName, { getCategoryStyle, parseTgl, start: catStart, end: catEnd });
-  let hasCatData = catEntries.length > 0;
+  const hasCatData = catEntries.length > 0;
 
   if (charts.accCat) charts.accCat.destroy();
   if (document.getElementById("accountCatChart")) {

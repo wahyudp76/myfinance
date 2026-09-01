@@ -43,7 +43,7 @@ await new Promise((r) => setTimeout(r, 1200));
 
 try {
   unlinkSync(OUT);
-} catch {}
+} catch { /* file hasil run sebelumnya memang belum tentu ada */ }
 
 const args = [
   resolve(import.meta.dirname, "../../node_modules/lighthouse/cli/index.js"),
@@ -60,7 +60,7 @@ const lh = spawnSync(process.execPath, args, {
   timeout: 240_000,
   env: { ...process.env, CHROME_PATH: chromePath() },
 });
-try { process.kill(-server.pid, "SIGTERM"); } catch {}
+try { process.kill(-server.pid, "SIGTERM"); } catch { /* server bisa saja sudah mati duluan */ }
 server.unref();
 
 if (lh.status !== 0) {

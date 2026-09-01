@@ -148,7 +148,6 @@ try {
   await page.waitForTimeout(1200);
   const guard = await page.evaluate(() => {
     const attr = document.body.dataset.themeAccent;
-    const incomeBar = document.querySelectorAll("#theme-accent-swatches button").length; // sanity
     return { attr, income: window.__myfinanceServices && null };
   });
   console.log("atribut tema:", guard.attr);

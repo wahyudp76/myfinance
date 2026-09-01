@@ -74,7 +74,7 @@ export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
  * @returns {Array<{icon: string, bg: string, color: string, title: string, message: string}>}
  */
 export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, formatShortVal }) {
-  const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount } = ctx;
+  const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap } = ctx;
   const insights = [];
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();

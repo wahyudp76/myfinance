@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createDecipheriv, createCipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, randomBytes } from "node:crypto";
 import {
   decryptBibitPayload,
   parseBibitFund,

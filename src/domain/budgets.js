@@ -36,11 +36,15 @@
  * @returns {Record<string, number>} nama kategori mentah -> total pengeluaran IDR.
  */
 export function aggregateActualByCategory(transactions, { year, month, txIdrAmount, parseTgl }) {
+  // Pemanggil kadang mengirim string (hasil split "2026-09"), kadang number.
+  // Dinormalkan sekali di sini alih-alih mengandalkan koersi implisit `!=`.
+  const yearNum = Number(year);
+  const monthNum = Number(month);
   const actualCategoryMap = {};
   (transactions || []).forEach((d) => {
     if (d.jenis !== "Pengeluaran" || !d.tanggal) return;
     const dt = parseTgl(d.tanggal);
-    if (dt.getFullYear() != year || (dt.getMonth() + 1) != month) return;
+    if (dt.getFullYear() !== yearNum || dt.getMonth() + 1 !== monthNum) return;
     actualCategoryMap[d.kategori] = (actualCategoryMap[d.kategori] || 0) + txIdrAmount(d);
   });
   return actualCategoryMap;

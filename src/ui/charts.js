@@ -69,7 +69,7 @@ export function buildTxTrendConfig({ chartLabels, chartNet, labelIndicesToShow, 
               if (el && typeof el.base === 'number' && typeof el.y === 'number') {
                 return Math.abs(el.base - el.y) + 4; // = tinggi batang (px) + sedikit jarak
               }
-            } catch (e) { /* fallback di bawah kalau struktur elemen beda dari dugaan */ }
+            } catch { /* fallback di bawah kalau struktur elemen beda dari dugaan */ }
             return 2;
           }
         },

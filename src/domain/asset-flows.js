@@ -29,7 +29,7 @@ export function applyAssetDeposit(asset, jumlah, tanggal) {
   const nilaiBaru = Math.max(0, Number(asset && asset.nilai) + jumlahNum);
   const modalBaru = Math.max(0, Number(asset && asset.modal) + jumlahNum);
 
-  let history = Array.isArray(asset && asset.value_history)
+  const history = Array.isArray(asset && asset.value_history)
     ? asset.value_history.filter((h) => h && typeof h === "object").map((h) => ({ tanggal: h.tanggal, nilai: Number(h.nilai) || 0 }))
     : [];
 

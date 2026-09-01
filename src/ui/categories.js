@@ -196,7 +196,7 @@ export function renderCategorySubProportion({
   chartPalette = null,
   document, year, month, jenis, categoryName, specificData,
   aggregateSubCategoryShares, parseTgl, txIdrAmount,
-  formatRp, escapeHtml, chartBorderColor, Chart, charts, requestAnimationFrame,
+  formatRp, escapeHtml, Chart, charts, requestAnimationFrame,
 }) {
   const host = document.getElementById("cat-sub-proportion");
   if (!host) return;

@@ -22,13 +22,13 @@ async function rest(path, { method = "GET", key = ANON, token, body } = {}) {
   if (body) headers["Content-Type"] = "application/json";
   const res = await fetch(`${URL_}/rest/v1/${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const text = await res.text();
-  let json = null; try { json = JSON.parse(text); } catch {}
+  let json = null; try { json = JSON.parse(text); } catch { /* respons non-JSON (mis. HTML error page) -- biarkan json = null */ }
   return { status: res.status, pgCode: res.headers.get("x-postgrest-error-code") || json?.code || null, msg: (json?.message || text).slice(0, 110), returned: json };
 }
 const out = {};
 
 // victim id (nilai uji saja)
-let victim = (await rest("transactions?select=user_id&limit=1", { key: SERVICE })).returned?.[0]?.user_id;
+const victim = (await rest("transactions?select=user_id&limit=1", { key: SERVICE })).returned?.[0]?.user_id;
 out.victim = victim?.slice(0, 8) + "…";
 
 // ---------- 1. anon correct-arity RPC ----------

@@ -158,7 +158,7 @@ export function renderBudgetView({
   aggregateActualByCategory, summarizeBudgets, classifyBudgetUsage,
 }) {
   const monthInput = document.getElementById("budgetFilterMonth"); if (!monthInput) return;
-  if (!monthInput.value) { let n = new Date(); monthInput.value = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
+  if (!monthInput.value) { const n = new Date(); monthInput.value = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
   const targetBulan = monthInput.value;
   const [year, month] = targetBulan.split("-");
 
@@ -181,8 +181,8 @@ export function renderBudgetView({
   const ringCircle = document.getElementById("budget-ring-progress");
   const circumference = 2 * Math.PI * 52;
   const safeColor = (accentColor && accentColor("budgetSafe")) || BUDGET_USAGE_RING_COLOR.safe; // null saat aksen tabrakan warning/over -> tetap zamrud asli
-  let ringColor = classifyBudgetUsage(overallPct) === "safe" ? safeColor : BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(overallPct)];
-  let clampedPct = Math.min(overallPct, 100);
+  const ringColor = classifyBudgetUsage(overallPct) === "safe" ? safeColor : BUDGET_USAGE_RING_COLOR[classifyBudgetUsage(overallPct)];
+  const clampedPct = Math.min(overallPct, 100);
   ringCircle.setAttribute("stroke-dasharray", `${circumference}`);
   ringCircle.setAttribute("stroke-dashoffset", `${circumference - (clampedPct / 100) * circumference}`);
   ringCircle.style.stroke = ringColor;
@@ -247,17 +247,17 @@ export function renderBudgetView({
   } else {
     listEl.innerHTML = entries.map((e, idx) => {
       const eLevel = classifyBudgetUsage(e.pct);
-      let barColor = BUDGET_USAGE_BAR_COLOR[eLevel];
-      let badge = BUDGET_USAGE_BADGE[eLevel];
-      let widthPct = Math.min(e.pct, 100);
+      const barColor = BUDGET_USAGE_BAR_COLOR[eLevel];
+      const badge = BUDGET_USAGE_BADGE[eLevel];
+      const widthPct = Math.min(e.pct, 100);
       const canExpand = e.subEntries && e.subEntries.length > 0;
       const accId = `budget-acc-${idx}`;
 
       const subHtml = canExpand ? e.subEntries.map(s => {
         const sLevel = classifyBudgetUsage(s.pct);
-        let sBarColor = BUDGET_USAGE_BAR_COLOR[sLevel];
-        let sBadge = BUDGET_USAGE_BADGE[sLevel];
-        let sWidthPct = Math.min(s.pct, 100);
+        const sBarColor = BUDGET_USAGE_BAR_COLOR[sLevel];
+        const sBadge = BUDGET_USAGE_BADGE[sLevel];
+        const sWidthPct = Math.min(s.pct, 100);
         return `<div class="bg-white rounded-xl p-2.5 ring-1 ring-slate-100 ${s.isDirect ? "border border-dashed border-slate-200" : ""}">
             <div class="flex items-center justify-between mb-2 gap-2">
                 <div class="flex items-center min-w-0">

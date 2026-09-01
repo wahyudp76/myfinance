@@ -62,7 +62,7 @@ function makeDeps(over = {}) {
     globalAssets: [{ id: "a1" }, { id: "a2" }],
     appSettings: { debts: [{ id: "d1", sisa: 2000000 }] },
     summarizeAssets: () => JSON.parse(JSON.stringify(baseSummary)),
-    computeNetWorth: (totalNilai, debts) => ({ totalUtangBersih: 2000000, netWorth: totalNilai - 2000000 }),
+    computeNetWorth: (totalNilai) => ({ totalUtangBersih: 2000000, netWorth: totalNilai - 2000000 }),
     animateRupiah: (el, v) => animateCalls.push([el.id, v]),
     escapeHtml, formatRp, jsStr,
     getAccountLogo: (p) => `<i class="fas fa-institution" data-p="${p}"></i>`,
@@ -190,7 +190,7 @@ test("renderAssetView: best/worst null -> performer row disembunyikan", () => {
 // ===================== Chart alokasi & legenda donut =====================
 
 test("renderAssetView: chart lama di-destroy dulu, chart baru doughnut dgn label/data/palette kategori", () => {
-  const { deps, doc, chartInstances } = makeDeps();
+  const { deps, chartInstances } = makeDeps();
   const destroyed = [];
   deps.charts.assetAlloc = { destroy: () => destroyed.push(true) };
   renderAssetView(deps);

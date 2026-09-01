@@ -79,7 +79,7 @@ await context.route("**/auth/v1/user**", (r) => r.fulfill(json(session.user)));
 await context.route("**/rest/v1/settings**", (r) => (r.request().method() === "GET" ? r.fulfill(json([])) : r.fulfill(json({}), 201)));
 const txPosts = [];
 await context.route("**/rest/v1/transactions**", (r) => {
-  if (r.request().method() === "POST") { try { txPosts.push(JSON.parse(r.request().postData() || "{}")); } catch (e) { /* ignore */ } }
+  if (r.request().method() === "POST") { try { txPosts.push(JSON.parse(r.request().postData() || "{}")); } catch { /* ignore */ } }
   return r.fulfill(json(demoTx));
 });
 // Aset demo utk E2E setor dana (akun -> Bibit). GET: satu aset Bibit 1jt; tulis: ditangkap.
@@ -90,7 +90,7 @@ const BIBIT_SEED = { id: "asset-bibit-1", user_id: "u1", nama: "Bibit", kategori
 const assetWrites = [];
 await context.route("**/rest/v1/assets**", (r) => {
   if (r.request().method() === "GET") return r.fulfill(json([BIBIT_SEED, SHOPEE_SEED]));
-  try { assetWrites.push({ method: r.request().method(), body: JSON.parse(r.request().postData() || "{}") }); } catch (e) { /* ignore */ }
+  try { assetWrites.push({ method: r.request().method(), body: JSON.parse(r.request().postData() || "{}") }); } catch { /* ignore */ }
   return r.fulfill(json({}));
 });
 
@@ -212,7 +212,7 @@ ok("tab Aset: donut alokasi radar overlay + badge persen ala Komposisi", await p
     badge && (badge.style.display === "none" || /^\d+%$/.test(badge.querySelector("b").textContent)));
 }));
 await page.screenshot({ path: `${SHOTS}/10-tab-aset.png` });
-await page.evaluate(() => { try { openCategoryDetail("Makanan", "Pengeluaran"); } catch (e) { /* seed tanpa kategori tsb */ } });
+await page.evaluate(() => { try { openCategoryDetail("Makanan", "Pengeluaran"); } catch { /* seed tanpa kategori tsb */ } });
 await page.waitForTimeout(900);
 ok("detail Kategori: batang tren + donut sub ber-DNA HUD", await page.evaluate(() => {
   const b = typeof charts !== "undefined" && charts.catTrend && charts.catTrend.config;
@@ -405,7 +405,7 @@ await page.waitForTimeout(400);
 await page.screenshot({ path: `${SHOTS}/15-pengaturan.png` });
 await page.evaluate(() => switchView("dashboard"));
 await page.waitForTimeout(300);
-await page.evaluate(() => { try { openAccountDetail("BCA"); } catch (e) { /* seed tanpa akun tsb */ } });
+await page.evaluate(() => { try { openAccountDetail("BCA"); } catch { /* seed tanpa akun tsb */ } });
 await page.waitForTimeout(900);
 ok("detail Akun: bar cashflow + donut kategori ber-DNA HUD (bila terbuka)", await page.evaluate(() => {
   const b = typeof charts !== "undefined" && charts.accCashflow && charts.accCashflow.config;

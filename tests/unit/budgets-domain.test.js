@@ -70,7 +70,7 @@ test("classifyBudgetUsage: <70 -> safe", () => {
 
 // ===================== summarizeBudgets =====================
 
-const stubStyle = (kategori) => ({ icon: "fa-tag", bg: "bg-slate-100", color: "text-slate-500", image: null });
+const stubStyle = () => ({ icon: "fa-tag", bg: "bg-slate-100", color: "text-slate-500", image: null });
 
 test("summarizeBudgets: kategori tanpa sub -> budget/actual langsung dari cloudBudgets/actualCategoryMap", () => {
   const categoryDict = { "Makan": { subs: [] } };

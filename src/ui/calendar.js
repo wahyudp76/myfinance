@@ -65,7 +65,7 @@ export function updateCalendarSummary({ document, globalData, computeCalendarMon
   // Satu sumber kebenaran sekarang src/domain/calendar.js (dipakai juga oleh
   // tests/unit/calendar-domain.test.js).
   const { totalIn, totalOut } = computeCalendarMonthSummary(globalData, viewStart, viewEnd, { parseTgl, txIdrAmount });
-  let elIn = document.getElementById("cal-in"); let elOut = document.getElementById("cal-out");
+  const elIn = document.getElementById("cal-in"); const elOut = document.getElementById("cal-out");
   if (elIn) animateRupiah(elIn, totalIn); if (elOut) animateRupiah(elOut, totalOut);
 }
 
@@ -113,8 +113,8 @@ export async function renderCalendar({
   }
   // Agregasi harian & proyeksi jatuh tempo recurring: satu sumber kebenaran sekarang
   // src/domain/calendar.js (dipakai juga oleh tests/unit/calendar-domain.test.js).
-  let eventsMap = buildDailyCashflowMap(data, { txIdrAmount });
-  let calendarEvents = [];
+  const eventsMap = buildDailyCashflowMap(data, { txIdrAmount });
+  const calendarEvents = [];
   Object.keys(eventsMap).forEach(date => {
     if (eventsMap[date].in > 0) calendarEvents.push({ title: "+" + formatShortVal(eventsMap[date].in), start: date, backgroundColor: (accentColor && accentColor("eventBg")) || "#d1fae5", textColor: (accentColor && accentColor("eventText")) || "#059669" });
     if (eventsMap[date].out > 0) calendarEvents.push({ title: "-" + formatShortVal(eventsMap[date].out), start: date, backgroundColor: "#ffe4e6", textColor: "#e11d48" });
@@ -142,7 +142,7 @@ export async function renderCalendar({
     });
   });
 
-  let isMobile = window.innerWidth < 768;
+  const isMobile = window.innerWidth < 768;
   // Simpan tanggal yang lagi ditampilkan SEBELUM instance lama dihancurkan, supaya
   // kalender tidak "melompat" balik ke bulan ini setiap kali renderCalendar() terpanggil
   // ulang (mis. dari resize/orientationchange) padahal user sudah pindah ke bulan lain.
@@ -216,8 +216,8 @@ export function openCalendarDetail({
   getCategoryStyle, categoryIconHtml, escapeHtml, getAccountLogo, formatRp, RECURRING_FREQ_LABEL,
 }) {
   document.getElementById("calendarDetailTitle").innerText = "Transaksi " + parseTgl(dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-  let dayData = globalData.filter(d => d.tanggal.startsWith(dateStr));
-  let container = document.getElementById("calendarDetailContent");
+  const dayData = globalData.filter(d => d.tanggal.startsWith(dateStr));
+  const container = document.getElementById("calendarDetailContent");
 
   // TAMBAHAN: kalau tanggal yg diklik ada di MASA DEPAN, cek juga apakah ada transaksi
   // berulang yg terjadwal jatuh tempo persis di tanggal itu -- supaya modal ini juga
@@ -225,7 +225,7 @@ export function openCalendarDetail({
   // murni proyeksi (belum benar-benar tercatat), ditandai jelas beda dari transaksi asli.
   // Deteksi proyeksi: satu sumber kebenaran sekarang src/domain/calendar.js
   // (projectRecurringDueDates) -- sama persis yang dipakai renderCalendar().
-  let scheduledItems = [];
+  const scheduledItems = [];
   if (dateStr > todayDateStr()) {
     (globalRecurring || []).filter(r => r.active).forEach(item => {
       const dueDates = projectRecurringDueDates(item, { untilDateStr: dateStr, advanceDueDate });
@@ -236,9 +236,9 @@ export function openCalendarDetail({
   if (dayData.length === 0 && scheduledItems.length === 0) { container.innerHTML = '<p class="text-center text-slate-400 text-sm py-8">Tidak ada transaksi.</p>'; }
   else {
     let html = dayData.map(row => {
-      let color = row.jenis === "Pemasukan" ? "text-emerald-500" : (row.jenis === "Pengeluaran" ? "text-rose-500" : "text-blue-500");
-      let prefix = row.jenis === "Pengeluaran" ? "-" : (row.jenis === "Pemasukan" ? "+" : "");
-      let style = getCategoryStyle(row.kategori, row.jenis);
+      const color = row.jenis === "Pemasukan" ? "text-emerald-500" : (row.jenis === "Pengeluaran" ? "text-rose-500" : "text-blue-500");
+      const prefix = row.jenis === "Pengeluaran" ? "-" : (row.jenis === "Pemasukan" ? "+" : "");
+      const style = getCategoryStyle(row.kategori, row.jenis);
       return `
         <div class="flex justify-between items-center py-3 px-2">
             <div class="flex items-center">
@@ -254,8 +254,8 @@ export function openCalendarDetail({
     if (scheduledItems.length > 0) {
       html += `<div class="text-[10px] font-bold text-violet-500 uppercase px-2 pt-3 pb-1.5 ${dayData.length > 0 ? "border-t border-slate-100 mt-2" : ""}"><i class="fas fa-repeat mr-1"></i>Terjadwal (belum tercatat)</div>` +
         scheduledItems.map(item => {
-          let style = getCategoryStyle(item.kategori, item.jenis);
-          let prefix = item.jenis === "Pengeluaran" ? "-" : (item.jenis === "Pemasukan" ? "+" : "");
+          const style = getCategoryStyle(item.kategori, item.jenis);
+          const prefix = item.jenis === "Pengeluaran" ? "-" : (item.jenis === "Pemasukan" ? "+" : "");
           return `
             <div class="flex justify-between items-center py-3 px-2 opacity-70">
                 <div class="flex items-center">

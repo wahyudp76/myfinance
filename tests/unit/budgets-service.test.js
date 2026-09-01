@@ -5,7 +5,7 @@
 // tests/unit/rpc-param-shapes.test.js.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchMonthBudgets, replaceMonthBudgets } from "../../src/services/supabase/budgets.js";
+import { fetchMonthBudgets } from "../../src/services/supabase/budgets.js";
 
 function mockQueryClient(result = { data: [], error: null }) {
   const calls = [];

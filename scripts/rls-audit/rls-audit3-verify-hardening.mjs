@@ -24,7 +24,7 @@ async function rest(path, { method = "GET", key = ANON, token, body } = {}) {
   if (body) headers["Content-Type"] = "application/json";
   const res = await fetch(`${URL_}/rest/v1/${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const text = await res.text();
-  let json = null; try { json = JSON.parse(text); } catch {}
+  let json = null; try { json = JSON.parse(text); } catch { /* respons non-JSON (mis. HTML error page) -- biarkan json = null */ }
   return { status: res.status, code: res.headers.get("x-postgrest-error-code") || json?.code || null, msg: (json?.message || text).slice(0, 90) };
 }
 const results = [];

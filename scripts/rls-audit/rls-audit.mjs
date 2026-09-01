@@ -131,7 +131,7 @@ for (const t of ALL_TABLES) {
   // (b) insert milik sendiri (tanpa user_id -> default auth.uid())
   const ins = await rest(t, { method: "POST", token: tok, body: PAYLOADS[t] || {}, prefer: "return=representation" });
   e.auth.insertOwn = { status: ins.status, pgCode: ins.pgCode };
-  let rowId = ins.returned?.[0]?.id || ins.returned?.[0]?.user_id || null;
+  const rowId = ins.returned?.[0]?.id || ins.returned?.[0]?.user_id || null;
   // (c) foreign user_id insert -> HARUS ditolak
   if (victimId) {
     const f = await rest(t, { method: "POST", token: tok, body: { ...PAYLOADS[t], user_id: victimId }, prefer: "return=representation" });

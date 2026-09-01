@@ -98,10 +98,16 @@ export function computeLast30DaysView(data, { now, parseTgl, txIdrAmount }) {
 export function computeCustomMonthView(data, monthYearVal, { parseTgl, txIdrAmount }) {
   if (!monthYearVal) return { filtered: data, chartLabels: [], chartIn: [], chartOut: [] };
 
-  const [year, month] = monthYearVal.split("-");
+  // split() SELALU menghasilkan string ("2026", "09"), sedangkan getFullYear()/
+  // getMonth() menghasilkan number -- sebelumnya ini disamakan lewat `==` yang
+  // mengandalkan koersi implisit. Koersi dibuat EKSPLISIT sekali di sini supaya
+  // perbandingan di bawah murni number-vs-number (dan lolos aturan eqeqeq).
+  const [yearRaw, monthRaw] = monthYearVal.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
   const filtered = (data || []).filter((item) => {
     const d = parseTgl(item.tanggal);
-    return d.getFullYear() == year && (d.getMonth() + 1) == month;
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
   });
 
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -190,7 +196,7 @@ export function computeDateRangeView(data, fromVal, toVal, { parseTgl, txIdrAmou
       const inMap = {};
       const outMap = {};
       const order = [];
-      let cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+      const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
       const endCursor = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
       while (cursor <= endCursor) {
         const key = cursor.getFullYear() + "-" + String(cursor.getMonth() + 1).padStart(2, "0");

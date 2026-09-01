@@ -1,7 +1,7 @@
 // Tier-3 onboarding #8: pembangkit data contoh (murni & deterministik).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEMO_MARKER, isDemoTransaction, buildDemoTransactions } from "../../src/domain/demo-data.js";
+import { isDemoTransaction, buildDemoTransactions } from "../../src/domain/demo-data.js";
 
 test("buildDemoTransactions: deterministik (2 panggilan identik)", () => {
   const today = new Date("2026-08-15T03:00:00");

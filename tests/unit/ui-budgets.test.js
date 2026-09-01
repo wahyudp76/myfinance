@@ -225,7 +225,7 @@ function makeModalDeps(over = {}) {
     cloudBudgets: { "Makan di luar": 150000, Groceries: 250000, Hiburan: 100000 },
     slugify,
     getCategoryStyle: (name, jenis) => { styleCalls.push([name, jenis]); return { icon: "fa-custom-" + slugify(name), bg: "bg-x-100", color: "text-x-500" }; },
-    categoryIconHtml: (style, wrap) => { iconCalls.push(style); return `<i class="${style.icon}"></i>`; },
+    categoryIconHtml: (style) => { iconCalls.push(style); return `<i class="${style.icon}"></i>`; },
     escapeHtml,
     ...over,
   };

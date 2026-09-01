@@ -64,7 +64,7 @@ export function renderAssetView({
   summarizeAssets, computeNetWorth,
   animateRupiah, escapeHtml, formatRp, jsStr,
   getAccountLogo, detectAssetCategoryIcon, renderDonutBreakdown,
-  chartEmptyColor, chartBorderColor, Chart, charts,
+  chartEmptyColor, Chart, charts,
 }) {
   // Return per-aset, total nilai/modal per kategori, & best/worst performer: satu
   // sumber kebenaran sekarang src/domain/assets.js (dipakai juga oleh
@@ -104,11 +104,9 @@ export function renderAssetView({
   } else {
     let html = "";
     sortedAssets.forEach(a => {
-      let colorCls = a.isUp ? "text-emerald-500" : "text-rose-500";
-      let bgCls = a.isUp ? "bg-emerald-50" : "bg-rose-50";
-      let iconCls = a.isUp ? "fa-arrow-trend-up" : "fa-arrow-trend-down";
-
-      let updateText = a.terakhir ? new Date(a.terakhir).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "2-digit" }) : "-";
+      const colorCls = a.isUp ? "text-emerald-500" : "text-rose-500";
+      const bgCls = a.isUp ? "bg-emerald-50" : "bg-rose-50";
+      const iconCls = a.isUp ? "fa-arrow-trend-up" : "fa-arrow-trend-down";
 
       html += `
         <div onclick="openAssetDetailModal('${jsStr(a.id)}')" class="bg-white rounded-xl p-3 md:p-4 mb-3 border border-slate-100 hover:shadow-md hover:border-indigo-100 transition group cursor-pointer">
@@ -156,7 +154,7 @@ export function renderAssetView({
   animateRupiah(document.getElementById("asset-total-value"), totalNilai);
   animateRupiah(document.getElementById("asset-total-modal"), totalModal);
 
-  let isTotalUp = totalReturn >= 0;
+  const isTotalUp = totalReturn >= 0;
 
   document.getElementById("asset-total-return").innerText = (isTotalUp ? "+" : "-") + "Rp " + formatRp(Math.abs(totalReturn));
   const badgeEl = document.getElementById("asset-return-badge");
@@ -179,9 +177,9 @@ export function renderAssetView({
     performerRow.classList.remove("grid", "grid-cols-2");
   }
 
-  let catLabels = Object.keys(catMap);
-  let catData = Object.values(catMap);
-  let modernPalette = ["#22d3ee", "#34d399", "#a78bfa", "#f472b6", "#fbbf24", "#38bdf8", "#4ade80", "#e879f9"];
+  const catLabels = Object.keys(catMap);
+  const catData = Object.values(catMap);
+  const modernPalette = ["#22d3ee", "#34d399", "#a78bfa", "#f472b6", "#fbbf24", "#38bdf8", "#4ade80", "#e879f9"];
 
   if (charts.assetAlloc) charts.assetAlloc.destroy();
   charts.assetAlloc = new Chart(document.getElementById("assetAllocationChart").getContext("2d"), {

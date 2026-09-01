@@ -4,7 +4,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  BACKUP_APP_TAG, BACKUP_VERSION,
   buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows,
 } from "../../src/domain/backup.js";
 

@@ -35,6 +35,9 @@ async function main() {
         nativeCount: result.nativeCount,
         diagnostics: result.diagnostics,
       }, null, 2));
+      // `process` adalah objek global built-in, bukan state bersama yang bisa
+      // "basi" antar-await -- tidak ada balapan nyata di sini.
+      // eslint-disable-next-line require-atomic-updates
       process.exitCode = 1;
       return;
     }

@@ -97,6 +97,8 @@ test("renderCalendar: loader gagal -> console.error + toast error, TIDAK membuat
   const { deps, constructed, toasts } = makeCalendarHarness({ loadFullCalendarLib: async () => { throw new Error("CDN down"); } });
   const errors = [];
   const orig = console.error; console.error = (e) => errors.push(e);
+  // Pemulihan console.error yang disengaja di finally; tes berjalan berurutan.
+  // eslint-disable-next-line require-atomic-updates
   try { await renderCalendar(deps); } finally { console.error = orig; }
   assert.equal(errors.length, 1);
   assert.match(toasts[0], /Gagal memuat komponen kalender/);
