@@ -837,3 +837,46 @@ komparasi budget MENABRAK legend atas pada HP.
   Error halaman 0.
 - sw.js CACHE_VERSION v59 -> v60 (src/ui/budgets.js berubah) + snapshot
   di-regen. Tidak ada file lain berubah; build:css/build:app tanpa drift.
+
+## v62 — Dashboard "5 transaksi terakhir" urut jam input pencatatan (created_at DESC)
+
+Permintaan owner: daftar "5 transaksi terakhir" di Dashboard tidak mengikuti
+urutan waktu input pencatatan -- transaksi yang sama-sama dicatat di tanggal
+yang sama tampil dalam urutan sembarang.
+
+### Akar masalah
+- `list()` mengurutkan `tanggal DESC, id ASC`; padahal `id` = UUID acak
+  (`gen_random_uuid()`), jadi urutan transaksi se-hari bukan apa-apa (bukan
+  urutan input). Kolom `created_at timestamptz not null default now()` sudah
+  ada sejak awal di `public.transactions` tapi tidak diseleksi/dipakai.
+- Echo lokal pasca-simpan (`insertTransactionRow`/`replaceTransactionRow` di
+  src/domain/transactions.js) meniru asumsi lama "id lebih besar = dicatat
+  belakangan" (salah untuk UUID), dan `renderRecentList` HUD hanya sortir per
+  tanggal lalu `slice(0,5)` -- urutan se-hari menurun dari globalData yang acak.
+
+### Perbaikan
+1. `src/services/transactions.js`: `TX_SELECT` + kolom `created_at`; urutan
+   `list()` jadi `tanggal DESC, created_at DESC (jam input), id ASC` (id hanya
+   tie-break deterministik). `create()`/`update()` memakai TX_SELECT sehingga
+   respons echo lokal ikut membawa `created_at` (default now() server).
+2. `src/domain/transactions.js`: helper echo memakai comparator bersama
+   (tanggal desc -> created_at desc -> id asc). Baris tanpa `created_at`
+   (fixture/stub lama) dianggap PALING LAMA di tanggalnya = perilaku lama
+   stabil, bukan lompat ke atas; `replaceTransactionRow` juga memindah ulang
+   kalau created_at berubah (mis. baris lama diganti respons update yang
+   memuat created_at).
+3. `app.src.js`: comparator `txServerCompare` dipakai `renderRecentList`
+   (HUD), tabel Riwayat, riwayat detail akun & detail kategori (semua
+   sebelumnya cuma sortir tanggal -> urutan se-hari ikut urutan globalData).
+
+### Bukti (probe Playwright sekali pakai, stub REST; sudah dihapus)
+- 6 transaksi se-TANGGAL sama dikirim stub TERBALIK (tertua di depan, id asc):
+  HUD menampilkan urut-5..urut-1 (created_at desc) 3/3 PASS, error halaman 0.
+- Simpan cepat baris baru (stub POST mengembalikan created_at = now): baris
+  baru muncul PALING ATAS "5 transaksi terakhir" (sebelumnya nyungsep ke bawah
+  grup karena id 'tx-*' > 'demo-*'), dan baris pertama tabel Riwayat ikut
+  berubah ke baris baru.
+- Unit: tx-echo-domain ditulis ulang 15 tes (semantik created_at + fallback
+  fixture tanpa created_at + tie-break id) -- total unit 588/588, lint 0,
+  verify-hud 64/64 PASS error halaman 0, app-minify & SW drift guard hijau.
+- sw.js CACHE_VERSION v60 -> v61 + snapshot di-regen (setelah build:app).

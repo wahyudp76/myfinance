@@ -4054,7 +4054,7 @@ async function currentUserId() {
             }
 
             const tbody = document.getElementById('table-body');
-            let sortedData = [...data].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
+            let sortedData = [...data].sort(txServerCompare);
             lastFilteredTransactions = sortedData;
             if(sortedData.length === 0) { 
                 tbody.innerHTML = `<div class="p-6 text-center text-slate-400">Tidak ada transaksi yang cocok.</div>`; 
@@ -4696,9 +4696,31 @@ async function currentUserId() {
             }
         }
 
+        // Urutan tampil transaksi = urutan server list(): tanggal DESC, lalu
+        // created_at DESC (jam input pencatatan; baris lama/stub tanpa created_at
+        // dianggap PALING LAMA di dalam tanggalnya), lalu id ASC sekadar
+        // tie-break deterministik. Sebelumnya sortir cuma per tanggal -> urutan
+        // transaksi se-hari mengikuti id (UUID acak) = acak, bukan kapan dicatat.
+        function txCreatedAtMs(row) {
+            if (row && row.created_at != null) {
+                const t = Date.parse(row.created_at);
+                if (!Number.isNaN(t)) return t;
+            }
+            return -Infinity;
+        }
+        function txServerCompare(a, b) {
+            const diffDate = parseTgl(b.tanggal) - parseTgl(a.tanggal);
+            if (diffDate !== 0) return diffDate;
+            const diffCt = txCreatedAtMs(b) - txCreatedAtMs(a);
+            if (diffCt !== 0) return diffCt;
+            const ia = String(a.id || '');
+            const ib = String(b.id || '');
+            return ia < ib ? -1 : ia > ib ? 1 : 0;
+        }
+
         function renderRecentList(data) {
             const container = document.getElementById('recent-transactions-list');
-            let sortedData = [...data].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
+            let sortedData = [...data].sort(txServerCompare);
             let recent = sortedData.slice(0, 5);
             if(recent.length === 0) { container.innerHTML = ''; return; }
             // HUD: bar nominal proporsional terhadap transaksi terbesar di antara 5 teratas.
@@ -5736,7 +5758,7 @@ async function currentUserId() {
             // tiap grup tanggal menampilkan badge hari + total bersih hari itu untuk akun ini,
             // lalu daftar transaksinya di bawahnya.
             const tbody = document.getElementById('account-table-body');
-            let sortedData = [...relatedTx].sort((a, b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
+            let sortedData = [...relatedTx].sort(txServerCompare);
             const countEl = document.getElementById('detail-account-history-count');
             if (countEl) countEl.innerText = sortedData.length + ' transaksi';
 
@@ -5887,7 +5909,7 @@ async function currentUserId() {
             categoryDetailSpecificData = globalData.filter(d => d.jenis === jenis && subCategories.includes(d.kategori));
             
             const tbody = document.getElementById('category-table-body');
-            let sortedData = [...categoryDetailSpecificData].sort((a,b) => parseTgl(b.tanggal) - parseTgl(a.tanggal));
+            let sortedData = [...categoryDetailSpecificData].sort(txServerCompare);
 
             if(sortedData.length === 0) {
                 tbody.innerHTML = `<div class="text-center py-10 text-slate-400 stagger-item"><i class="fas fa-receipt text-3xl mb-3"></i><p class="text-xs font-semibold">Belum ada transaksi di kategori ini.</p><p class="text-[11px] mt-1">Transaksi yang masuk kategori ini akan muncul di sini.</p></div>`;

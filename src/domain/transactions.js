@@ -267,14 +267,41 @@ export function computeDayNetTotal(rows, { txIdrAmount }) {
 
 /**
  * Urutan globalData = urutan yang dikembalikan server oleh list():
- * tanggal DESC, id ASC. Baris baru (id-nya pasti lebih besar dari baris
- * se-tanggal yang sudah ada) diapit TEPAT SETELAH baris se-tanggal terakhir,
- * dan SEBELUM baris dengan tanggal lebih lama.
+ * tanggal DESC, lalu created_at DESC (jam input pencatatan, terbaru di atas),
+ * lalu id ASC sekadar tie-break deterministik (id = UUID acak, bukan urutan).
  *
  * Murni & bebas efek samping (mengembalikan array baru) -- dipakai echo lokal
  * pasca-simpan di index.html supaya state lokal identik dengan hasil fetch
  * ulang, TANPA request tambahan.
  */
+
+/** ms epoch dari created_at; null kalau kolomnya absen/tak terbaca (baris lama
+ * atau stub uji) -> dianggap PALING LAMA di dalam tanggalnya supaya posisi
+ * tetap deterministik & stabil, bukan lompat ke atas. */
+function createdAtMs(row) {
+  if (row && row.created_at != null) {
+    const t = Date.parse(row.created_at);
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
+}
+
+/** -1 kalau a tampil lebih dulu daripada b menurut urutan list(). */
+function compareServerOrder(a, b) {
+  const da = a && a.tanggal != null ? String(a.tanggal) : "";
+  const db = b && b.tanggal != null ? String(b.tanggal) : "";
+  if (da !== db) return da < db ? 1 : -1; // tanggal DESC
+  const ta = createdAtMs(a);
+  const tb = createdAtMs(b);
+  if (ta !== tb) {
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return ta < tb ? 1 : -1; // created_at DESC (jam input)
+  }
+  const ia = a && a.id != null ? String(a.id) : "";
+  const ib = b && b.id != null ? String(b.id) : "";
+  return ia < ib ? -1 : ia > ib ? 1 : 0; // id ASC
+}
 export function insertTransactionRow(rows, row) {
   const list = Array.isArray(rows) ? rows.slice() : [];
   if (!row) return list;
@@ -282,25 +309,31 @@ export function insertTransactionRow(rows, row) {
     list.push(row);
     return list;
   }
-  let idx = list.findIndex((r) => String(r.tanggal) < String(row.tanggal));
-  if (idx === -1) idx = list.length;
-  list.splice(idx, 0, row);
+  const idx = list.findIndex((r) => compareServerOrder(row, r) < 0);
+  if (idx === -1) list.push(row);
+  else list.splice(idx, 0, row);
   return list;
 }
 
 /**
  * Ganti baris transaksi berdasarkan id (hasil UPDATE), atau sisipkan sebagai
- * baris baru kalau id-nya belum ada. Kalau tanggalnya berubah, baris
- * dikeluarkan lalu disisipkan ulang di posisi urutan server yang benar.
+ * baris baru kalau id-nya belum ada. Kalau kunci urutan servernya berubah
+ * (tanggal atau created_at/jam input), baris dikeluarkan lalu disisipkan ulang
+ * di posisi urutan server yang benar.
  */
 export function replaceTransactionRow(rows, row) {
   const list = Array.isArray(rows) ? rows.slice() : [];
   if (!row || row.id == null) return list;
   const idx = list.findIndex((r) => String(r.id) === String(row.id));
   if (idx === -1) return insertTransactionRow(list, row);
-  const sameDate = String(list[idx].tanggal) === String(row.tanggal);
+  const prev = list[idx];
+  // Posisi ikut urutan server list() = (tanggal, created_at). Baris dipindah
+  // ulang kalau tanggalnya berubah ATAU jam inputnya (created_at) berubah --
+  // mis. baris lama tanpa created_at diganti respons update yang memuatnya.
+  const sameDate = String(prev.tanggal) === String(row.tanggal);
+  const sameCt = createdAtMs(prev) === createdAtMs(row);
   list[idx] = row;
-  if (!sameDate) {
+  if (!sameDate || !sameCt) {
     const moved = list.splice(idx, 1);
     return insertTransactionRow(list, moved[0]);
   }

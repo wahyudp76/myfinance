@@ -6,7 +6,7 @@ import { fetchAllRows } from "./supabase/paging.js";
 // create()/update() ini dipakai index.html untuk "echo lokal pasca-simpan"
 // (tidak perlu menarik ulang seluruh tabel transaksi setelah setiap simpan).
 const TX_SELECT =
-  "id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr";
+  "id, jenis, tanggal, jumlah, akun, kategori, keterangan, mata_uang, kurs, jumlah_idr, created_at, transfer_jumlah_tujuan, transfer_mata_uang_tujuan, transfer_kurs_tujuan, transfer_jumlah_tujuan_idr";
 
 function requireClient(client) {
   if (!client) throw new Error("Supabase client belum diberikan.");
@@ -49,6 +49,12 @@ export function createTransactionService(client) {
             .from("transactions")
             .select(TX_SELECT, opts && opts.withCount ? { count: "exact" } : undefined)
             .order("tanggal", { ascending: false })
+            // Dalam 1 tanggal, urutkan created_at DESC = jam input pencatatan
+            // (paling baru dicatat tampil paling atas). Dulu cuma id ASC, padahal
+            // id = UUID acak (gen_random_uuid) sehingga urutan hari yg sama acak
+            // & tidak mencerminkan kapan transaksi dicatat. Kolom created_at
+            // (default now()) ada sejak awal di tabel.
+            .order("created_at", { ascending: false })
             .order("id", { ascending: true });
           return q.range(from, to);
         }
