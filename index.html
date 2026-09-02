@@ -275,9 +275,12 @@
          ========================================================================== -->
     <!-- role="main" (v59, a11y): audit landmark-one-main Lighthouse gagal karena
          dokumen tanpa landmark utama. loginView & appShell DUA-DUANYA diberi
-         role="main" -- hanya satu yang visible pada satu waktu (satunya
+         role="main" -- hanya satu yang tampil pada satu waktu (satunya
          display:none via class .hidden, dikeluarkan dari accessibility tree),
-         sehingga selalu TEPAT SATU main landmark, di state login MAUPUN app. -->
+         sehingga selalu TEPAT SATU main landmark, di state login MAUPUN app.
+         (Sengaja memakai kata Indonesia: token bahasa Inggris yang kebetulan
+         nama kelas Tailwind, di file yang discan build CSS (index.html/app.js/
+         src), akan ikut terekstrak jadi kelas CSS.) -->
     <div id="loginView" role="main">
         <div class="w-full max-w-sm">
             <div class="text-center mb-6">
