@@ -300,3 +300,61 @@ owner sebagai berisiko). Tujuan: memangkas round-trip jaringan & waktu antara
   jadi tidak ada risiko divergensi data. Trade-off yang disadari: perubahan dari
   perangkat LAIN tidak ikut tampil sampai load/refresh berikutnya (sebelumnya
   re-fetch penuh menangkapnya).
+
+## v53 — Preload/preconnect + minify styles.css + precache lengkap
+
+Lanjutan fokus performa (tanpa menyentuh Paket B/Phase 4). Target: kurangi
+waterfall network di layar login & byte CSS render-blocking.
+
+### Temuan diagnosis
+- Lighthouse v52 (lokal, tanpa gzip): FCP 7.5 s, LCP 10.2 s, TBT 40 ms.
+  Request terbesar: dokumen 663 KB, chart.js 72 KB, tailwind 53 KB, styles.css
+  51 KB, auth-js (esm.sh) 33 KB, font 27 KB + 18 KB.
+- Font Plus Jakarta SUDAH preload + font-display:swap (slice loading v).
+- `_headers` ternyata DIABAIKAN GitHub Pages (ada catatan di file itu sendiri)
+  -- perombakan cache via _headers batal, tidak berguna di hosting ini.
+- chart.js sengaja dimuat saat halaman dibuka (paralel, non-blocking,
+  di-await hanya pasca-login) -- DIPERTAHANKAN, itu keputusan yang benar utk UX
+  nyata: LH menandainya "unused-js" karena mengukur layar login, bukan bug.
+
+### Yang diubah
+- **index.html `<head>`**: `preconnect` ke `https://esm.sh` (auth-js +
+  supabase-js dimuat dari sana; DNS+TLS disiapkan paralel sejak parse HTML),
+  `preload` `webfonts/fa-solid-900.woff2` (menutup waterfall: @font-face baru
+  diketahui setelah CSS FA selesai diunduh), `fetchpriority="high"` pada
+  preload font Plus Jakarta (teks utama layar login/hero).
+- **styles.css minified dari styles.src.css** (pola identik tailwind):
+  - `scripts/build-styles.mjs` (clean-css `{level:1}` -- optimasi semantik-
+    identik, bukan level 2 yang bisa merombak aturan).
+  - `npm run build:styles`; `npm run build:css` kini berantai keduanya.
+  - `tests/unit/styles-minify.test.js` = drift guard, TAPI **graceful-skip**
+    bila clean-css tidak terpasang (lihat perangkap di bawah).
+  - Hasil: 50.9 KB -> 34.0 KB (-33.5%); gzip 12.2 KB -> 7.8 KB.
+- **sw.js**: tambah `./src/services/user-id.js` ke PRECACHE_URLS (modul v52
+  yang belum tercakup) + CACHE_VERSION v53 + snapshot.
+- **.github/workflows/parity.yml** job `css-drift`: `git diff --exit-code`
+  kini memeriksa `css/tailwind.css styles.css`.
+
+### Perangkap: job "unit" yang tidak pernah install dependensi
+Push pertama v53 (4c20d5e) GAGAL di job `Unit tests (tanpa install)`:
+job itu (sengaja, sejak dulu) hanya checkout + node, TANPA `npm ci`, karena
+semua unit test sebelumnya murni Node builtin. Test drift yang mengimpor
+clean-css langsung crash (module not found). Solusi yang dipilih:
+1. test drift **skip dengan pesan jelas** saat clean-css tidak terpasang
+   (terverifikasi: 1 pass + 1 skip, exit 0), dan
+2. pengawasan drift SESUNGGUHNYA dipindah ke job `css-drift` (yang memang
+   `npm ci` + `npm run build:css` + git diff).
+Komit perbaikan `753aa38` -> CI sukses penuh. Pelajaran: **jangan pernah
+menambah dependensi baru ke unit test TANPA memeriksa kontrak job unit**.
+Kalau perlu deps sungguhan di unit test, ubah workflow-nya dulu (npm ci).
+
+### Verifikasi (v53 + fix CI, semua hijau)
+- lint OK; unit 535/535 lokal (dengan clean-css) / 533 pass + 1 skip +
+  1 pass saat tanpa clean-css (persis kondisi job unit di CI).
+- verify-hud 59/59, `Error halaman: 0` (gradasi/glass/dark-mode utuh pasca
+  minify CSS).
+- lighthouse: perf 58 / a11y 97 / bp 100; FCP 7.5->7.1 s, LCP 10.2->9.9 s,
+  TBT 40->20 ms (lokal tanpa gzip -- gain terpotong karena dokumen 663 KB
+  masih dominan).
+- Live (Pages, commit 753aa38): styles.css gzip 7.9 KB (dari 12.2 KB), tag
+  preconnect/preload ada di HTML ter-deploy, user-id.js 200.
