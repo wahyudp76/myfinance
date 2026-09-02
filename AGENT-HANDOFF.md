@@ -803,3 +803,37 @@ di-regen (index.html/app.js berubah). Tidak ada file vendor/tailwind berubah
 Toast budget memakai cache bulan FILTER tab Budget vs pengeluaran dari
 lastInsightsCtx; kurs saat edit transaksi valas = kurs tersimpan (desain);
 presisi Number > 2^53; restore/removeDemo tanpa transaksi DB (perilaku lama).
+
+## v61 — Fix chart "Bagan Komparasi Budget" tumpang tindih legend di Android/mobile
+
+Permintaan owner: label nilai (datalabel) di atas batang tertinggi bagan
+komparasi budget MENABRAK legend atas pada HP.
+
+### Akar masalah (dibuktikan dgn probe geometri Chart.js di viewport 393px)
+- Opsi lama `layout.padding: { top: 18 }` HANYA memisahkan legend dari tepi
+  ATAS canvas. Strip legend (posisi "top") dirender di antara padding-top dan
+  chartArea -- jadi padding-top TIDAK PERNAH menambah jarak legend<->plot.
+- Akibatnya chartArea.top == legend.bottom persis; label nilai (datalabel
+  anchor 'end' + offset di atas batang tertinggi) digambar MENIMPA legend.
+- (Chart.js: labels.padding pada legend hanya jarak antar item HORIZONTAL,
+  tidak menambah tinggi baris legend.)
+
+### Perbaikan (src/ui/budgets.js, renderBudgetView)
+1. `layout.padding` diubah `{ top: 18 }` -> `{ top: 6, bottom: 18 }`.
+   Padding BOTTOM menambah ruang di bawah canvas -> chartArea bergeser turun
+   -> ada celah nyata antara legend & puncak batang/label nilainya.
+2. Adaptasi mobile < 400px: font legend 10 -> 9 (dua item "Budget/Realisasi"
+   selalu muat 1 baris), padding antar item 10 -> 12, via update("none")
+   sekali setelah chart dibuat (no-op saat lebar >= 400).
+- Desktop (kartu h-80) tidak berubah secara visual berarti (chartArea tetap
+  lega; padding bottom 18 dari tinggi ~260px).
+
+### Bukti (Playwright, stub data, viewport 393x852 = Android)
+- Baseline (HEAD): legend.bottom = chartArea.top = 48 (0 celah) -- label
+  nilai tertinggi (teks ~8px + offset) PASTI menimpa legend.
+- Sesudah: legend.bottom = 37, chartArea.top = 37, baris legend TURUN 11px ke
+  atas canvas; clearance puncak batang -> legend = 7-13px (label nilai aman).
+- Unit ui-budgets 14/14, lint 0, unit penuh 583/583, verify-hud 64/64,
+  Error halaman 0.
+- sw.js CACHE_VERSION v59 -> v60 (src/ui/budgets.js berubah) + snapshot
+  di-regen. Tidak ada file lain berubah; build:css/build:app tanpa drift.

@@ -201,6 +201,26 @@ export function renderBudgetView({
   if (charts.budgetCompare) { charts.budgetCompare.destroy(); charts.budgetCompare = null; }
   const chartCanvas = document.getElementById("budgetCompareChart");
   const emptyOverlay = document.getElementById("budgetCompareEmpty");
+  // Layout chart disesuaikan dgn posisi legend (audit 2026-09-02): pada layar
+  // sempit (Android/mobile) legend 'top' bisa membungkus 2 baris, dan label
+  // nilai (datalabel, anchor 'end' di atas batang tertinggi) MENABRAK baris
+  // legend tsb. Penjelasan & solusi:
+  //  - layout.padding.top SEMULA 18 -- hanya memisahkan legend dari tepi ATAS
+  //    canvas, BUKAN dari area plot (yang di BAWAH strip legend). Legend
+  //    dirender di antara padding-top dan chartArea, jadi nilai tsb tidak
+  //    pernah memberi jarak legend<->plot.
+  //  - Jarak legend<->plot yang benar di Chart.js = layout.padding.bottom,
+  //    karena ini chart "bukan akhir layout" (ada area plot di bawahnya) --
+  //    padding bottom menambah ruang kosong DI BAWAH, sehingga chartArea
+  //    (beserta label nilai di atas batang) bergeser turun/menyusut dengan
+  //    jarak yg cukup dari legend.
+  //  - labels.padding hanya jarak antar item legend HORIZONTAL (lihat fit()
+  //    Chart.js) -- tidak menambah tinggi baris legend, tidak dipakai utk
+  //    tujuan ini.
+  // Pada mobile (kartu h-64, canvas ~170px) chartArea menyusut cukup utk
+  // memberi ruang label nilai batang tertinggi; pada desktop (kartu h-80,
+  // canvas ~260px) proporsinya longgar. Legend dengan ukuran huruf 9-10 tetap
+  // konsisten dgn DNA chart lain (accounts.js memakai ukuran 10 bold).
   if (entries.length === 0) {
     if (emptyOverlay) emptyOverlay.classList.remove("hidden");
   } else {
@@ -220,7 +240,8 @@ export function renderBudgetView({
           ]
         },
         options: {
-          responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
+          responsive: true, maintainAspectRatio: false,
+          layout: { padding: { top: 6, bottom: 18 } },
           plugins: {
             legend: { position: "top", labels: { boxWidth: 10, font: { size: 10, weight: "bold" } } },
             datalabels: {
@@ -233,6 +254,23 @@ export function renderBudgetView({
           scales: hudLineScales(entries.map(e => e.name), formatShortVal, { yGrid: chartGridColor() })
         }
       });
+      // Adaptasi halus utk canvas yang SEMPIT (mobile < 400px): kurangi ukuran
+      // teks legend 10 -> 9 supaya 2 item selalu muat di SATU baris (tidak
+      // membungkus 2 baris), plus jarak antar item sedikit dirapatkan.
+      // Dinonaktifkan (no-op) saat sudah lebar. Dipanggil SEKALI setelah chart
+      // dibuat -- legenda bukan elemen yang berubah ukuran saat scroll/resize
+      // rutin, jadi tidak perlu hook resize.
+      const applyNarrowLegend = () => {
+        const inst = charts.budgetCompare;
+        if (!inst || !inst.options || !inst.options.plugins || !inst.options.plugins.legend) return;
+        const w = (chartCanvas && chartCanvas.clientWidth) || 0;
+        if (w >= 400) return;
+        const legendOpts = inst.options.plugins.legend;
+        legendOpts.labels.font = { size: 9, weight: "bold" };
+        legendOpts.labels.padding = 12;
+        inst.update("none");
+      };
+      applyNarrowLegend();
     }
   }
 
