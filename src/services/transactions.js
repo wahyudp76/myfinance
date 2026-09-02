@@ -33,17 +33,55 @@ export function mapTransactionRow(row) {
   };
 }
 
-async function fetchAllRows(client, buildQuery, pageSize = DEFAULT_PAGE_SIZE) {
-  const rows = [];
-  for (let from = 0; ; from += pageSize) {
-    const to = from + pageSize - 1;
-    const { data, error } = await buildQuery(from, to);
-    if (error) throw error;
-    if (!data?.length) break;
-    rows.push(...data);
-    if (data.length < pageSize) break;
+// Batas request PARALEL per pemanggilan list() -- sopan terhadap PostgREST
+// dan tabel api_rate_limits (lihat sql/migration_rate_limiting_2026-08.sql),
+// tapi tetap berlipat lebih cepat daripada berurutan untuk akun besar.
+const MAX_PARALLEL_PAGES = 6;
+
+/**
+ * Ambil SEMUA baris dengan paging. Dulu: N halaman BERURUTAN (N RTT).
+ * Sekarang dua fase:
+ *   1. Halaman pertama + COUNT total dalam satu request (Prefer: count=exact,
+ *      header yang sama dengan query biasa -- overhead dapat diabaikan).
+ *   2. Bila total diketahui & masih ada halaman lain -> sisanya di-fetch
+ *      PARALEL dalam batch (MAX_PARALLEL_PAGES). Bila count tidak tersedia
+ *      (mock/proxy yang memotong header Content-Range) -> fallback loop
+ *      berurutan, persis perilaku lama.
+ * Urutan hasil = gabungan halaman berurutan (tiap halaman sudah terurut oleh
+ * query), jadi IDENTIK dengan hasil fetch berurutan.
+ */
+async function fetchAllRows(supabase, buildQuery, pageSize = DEFAULT_PAGE_SIZE) {
+  const first = await buildQuery(0, pageSize - 1, { withCount: true });
+  if (first.error) throw first.error;
+  const firstRows = first.data ?? [];
+  if (!firstRows.length || firstRows.length < pageSize) return firstRows;
+
+  const data = [firstRows];
+  const total = first.count;
+  if (typeof total === "number") {
+    const pageCount = Math.ceil(total / pageSize);
+    for (let p = 1; p < pageCount; p += MAX_PARALLEL_PAGES) {
+      const batch = [];
+      for (let q = p; q < Math.min(p + MAX_PARALLEL_PAGES, pageCount); q += 1) {
+        batch.push(buildQuery(q * pageSize, q * pageSize + pageSize - 1, { withCount: false }));
+      }
+      const results = await Promise.all(batch);
+      results.forEach((r) => {
+        if (r.error) throw r.error;
+        data.push(r.data ?? []);
+      });
+    }
+  } else {
+    for (let from = pageSize; ; from += pageSize) {
+      const to = from + pageSize - 1;
+      const { data: page, error } = await buildQuery(from, to, { withCount: false });
+      if (error) throw error;
+      if (!page?.length) break;
+      data.push(page);
+      if (page.length < pageSize) break;
+    }
   }
-  return rows;
+  return data.flat();
 }
 
 export function createTransactionService(client) {
@@ -53,12 +91,14 @@ export function createTransactionService(client) {
     async list() {
       const rows = await fetchAllRows(
         supabase,
-        (from, to) => supabase
-          .from("transactions")
-          .select(TX_SELECT)
-          .order("tanggal", { ascending: false })
-          .order("id", { ascending: true })
-          .range(from, to)
+        (from, to, opts) => {
+          const q = supabase
+            .from("transactions")
+            .select(TX_SELECT, opts && opts.withCount ? { count: "exact" } : undefined)
+            .order("tanggal", { ascending: false })
+            .order("id", { ascending: true });
+          return q.range(from, to);
+        }
       );
 
       return rows.map(mapTransactionRow);

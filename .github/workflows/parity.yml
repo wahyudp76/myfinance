@@ -121,7 +121,7 @@ jobs:
         run: npm run lint
 
   css-drift:
-    name: Tailwind build drift guard
+    name: Build drift guard (CSS + app)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -134,10 +134,12 @@ jobs:
           check-latest: true
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Build & pastikan CSS hasil commit tidak kadaluarsa
+      - name: Build & pastikan CSS + app.js hasil commit tidak kadaluarsa
         run: |
           npm run build:css
           git diff --exit-code -- css/tailwind.css styles.css
+          npm run build:app
+          git diff --exit-code -- app.js
 
   lighthouse:
     name: Lighthouse (pagar performa)

@@ -55,14 +55,20 @@ test("app.js: ada, diparse sebagai CLASSIC script (tmp tanpa package.json), sent
   const appPath = join(ROOT, "app.js");
   assert.ok(existsSync(appPath), "app.js harus ada di root repo");
   const src = readFileSync(appPath, "utf8");
-  assert.ok(src.length > 300_000, `app.js terlalu kecil (${src.length} B) -- curiga salah ekstrak`);
+  const srcSrc = readFileSync(join(ROOT, "app.src.js"), "utf8");
+  assert.ok(src.length > 150_000, `app.js terlalu kecil (${src.length} B) -- curiga salah ekstrak`);
+  assert.ok(src.length < srcSrc.length, "app.js (build) harus lebih kecil dari app.src.js (sumber)");
   // Sentinel: fungsi-fungsi yang dipanggil dari onclick= di HTML & harness E2E.
+  // v55: app.js adalah OUTPUT BUILD (terser) -- spasi `function foo ()` dikompaksi
+  // jadi `function foo(){`, jadi pencarian memakai regex toleran-spasi. Nama
+  // fungsi global TIDAK di-mangle (build-app.mjs: toplevel=false + keep_fnames)
+  // dan dijaga tests/unit/app-minify.test.js.
   for (const fn of [
-    "function submitForm(", "function openModal(", "function loadData(", "function switchView(",
-    "function hapusData(", "function processDataForUI(", "function refreshTransactionsOnly(",
-    "function applyLocalTxEcho(",
+    "submitForm", "openModal", "loadData", "switchView",
+    "hapusData", "processDataForUI", "refreshTransactionsOnly", "applyLocalTxEcho",
   ]) {
-    assert.ok(src.includes(fn), `app.js kehilangan sentinel: ${fn}`);
+    const re = new RegExp(`function\\s+${fn}\\s*\\(`);
+    assert.ok(re.test(src), `app.js kehilangan sentinel: function ${fn}(`);
   }
   // Parse ulang di direktori TANPA package.json -> Node memperlakukan .js sebagai
   // CommonJS/sloppy (pendekatan terdekat dengan classic script di browser).

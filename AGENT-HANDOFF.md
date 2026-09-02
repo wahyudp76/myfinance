@@ -424,3 +424,47 @@ tests/unit/tailwind-content.test.js memastikan app.js & index.html selalu ada
 di content. PELAJARAN: setiap kali file sumber kelas Tailwind dipindah/baru,
 cek tailwind.config.js content SEBELUM push (job css-drift tidak bisa
 "membetulkan" -- ia hanya menandai).
+
+## v55 — Performa: minify app.js + paging paralel transaksi
+Diskusi/disetujui owner: "lanjutkan improvement untuk manfaat performa" --
+tanpa perubahan logika/perilaku, verifikasi penuh, CI hijau.
+- **app.js kini OUTPUT BUILD.** `app.src.js` = sumber manual (salinan utuh
+  monolit v54 + header). `npm run build:app` = terser (compress passes 2,
+  unsafe false; **mangle.toplevel=false + keep_fnames=true** -- nama fungsi
+  global = kontrak untuk onclick= di index.html & harness E2E). Hasil: 442.991
+  -> 222.906 B (-49,7%); gzip 106.443 -> 53.343 B. EDIT app.src.js, BUKAN
+  app.js; commit keduanya.
+- **PRELOAD app.js DICOB A & DIBUANG.** Eksperimen jujur: tambah `<link
+  rel="preload" href="app.js" as="script" fetchpriority="high">` di head, A/B
+  Lighthouse (jendela noise sama): TIDAK ADA perbaikan (perf 63 vs 63; TBT 20
+  vs 50 ms). Teori: skrip dimuat di AKHIR body -- preload prioritas-tinggi
+  hanya berebut bandwidth dengan CSS render-blocking. Jangan hidupkan kembali
+  tanpa data. (Perangkap utama: skor Lighthouse di sandbox ini bergantung pada
+  beban CPU -- noise ±10 poin; selalu bandingkan berurutan dalam jendela yang
+  sama.)
+- **Paging paralel list() transaksi** (src/services/transactions.js): 2 fase --
+  halaman pertama + `count=exact` dalam 1 request, sisanya `Promise.all` per
+  batch `MAX_PARALLEL_PAGES=6`; fallback loop berurutan bila count tak
+  tersedia; hasil = gabungan halaman berurutan (IDENTIK). Call-site `list()`
+  WAJIB meneruskan opts (`.select(TX_SELECT, opts?.withCount ? { count:
+  "exact" } : undefined)`) -- kalau tidak, jalur paralel inert (count
+  undefined -> fallback). assets.js & recurring.js punya salinan
+  `fetchAllRows` LOKAL sendiri yang masih berurutan -- sengaja tidak disatukan
+  (Paket B/refactor = skip). Kandidat v56+.
+- **Tailwind kena efek minify**: terser menggabungkan string/komentar hilang
+  -> hasil scan kandidat kelas BERUBAH: TIDAK ADA kelas hilang, tapi muncul
+  `.bg-rose-600` (plain, ~100 B; sebelumnya hanya `hover:bg-rose-600`).
+  `npm run build:css` + commit css/tailwind.css baru; drift guard CI menolak
+  kalau lupa.
+- **Guard baru**: tests/unit/app-minify.test.js (drift terser + setiap handler
+  global tetap ada pasca-build), tests/unit/services-paging.test.js (kontrak
+  paralel/urutan/fallback/error), job CI `css-drift` -> "Build drift guard
+  (CSS + app)" (npm run build:css && build:app + git diff).
+- **sw-cache-hash-helper.mjs +app.js** ke daftar file ter-hash (sebelumnya
+  lolos: perubahan app.js saja tidak memaksa bump CACHE_VERSION). SW: v55 +
+  snapshot regen.
+- **Perangkap minify utk tes string-match**: `async function loadData()`
+  menjadi `async function loadData(){` -- tests/unit/lazy-charts.test.js &
+  index-inline-scripts.test.js kini mencocokkan via regex toleran-spasi.
+  eslint: app.src.js masuk blok classic-script yg sama dgn app.js
+  (no-redeclare off -- duplicate exportTransactionsCsv tetap legal sloppy).

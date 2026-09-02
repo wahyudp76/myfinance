@@ -24,8 +24,14 @@ test("chart libs: loader paralel __mfChartLibReady ada, urutan chart.js -> datal
 });
 
 test("loadData: async + meng-gerbangi __mfChartLibReady sebelum render (di app.js)", () => {
-  assert.ok(/async function loadData/.test(appJs), "loadData harus ada di app.js");
-  const iLoad = appJs.indexOf("async function loadData()");
+  // v55: app.js adalah OUTPUT BUILD (terser) dari app.src.js -- spasi
+  // `function foo ()` dikompaksi jadi `function foo(){`, jadi pencarian nama
+  // memakai regex toleran-spasi. Nama fungsi sendiri TIDAK ikut di-mangle
+  // (build-app.mjs: mangle.toplevel=false + keep_fnames=true) dan dijaga
+  // tests/unit/app-minify.test.js.
+  const mLoad = appJs.match(/async function loadData\s*\(/);
+  assert.ok(mLoad, "loadData harus ada di app.js");
+  const iLoad = mLoad.index;
   const iGate = appJs.indexOf("await window.__mfChartLibReady", iLoad);
   assert.ok(iLoad > 0 && iGate > iLoad, "gerbang ada di dalam loadData");
 });

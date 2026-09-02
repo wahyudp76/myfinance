@@ -4,7 +4,10 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const TOP_FILES = ["index.html", "styles.css", "manifest.json"];
+// v55: app.js ditambahkan ke hash -- dia precache asset utama (PRECACHE_URLS)
+// dan justru paling sering berubah. Tanpa ini, perubahan app.js saja tidak
+// pernah memicu kewajiban bump CACHE_VERSION.
+const TOP_FILES = ["index.html", "app.js", "styles.css", "manifest.json"];
 const DIRS = ["src", "icons", "css", "fonts", "webfonts"];
 
 function walk(dir) {

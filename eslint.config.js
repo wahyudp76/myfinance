@@ -97,7 +97,8 @@ export default [
   },
 
   {
-    // === app.js: blok <script> klasik monolit yang diekstrak dari index.html (v54) ===
+    // === app.js / app.src.js: blok <script> klasik monolit yang diekstrak dari
+    // === index.html (v54); app.src.js = sumber manual, app.js = hasil build ===
     // Sengaja HANYA mengatur MODE PARSE (classic script = sloppy mode, browser globals)
     // dan MEMATIKAN no-undef/no-unused-vars dari js.configs.recommended:
     //   - Permukaan global app ini adalah KONTRAK dengan harness E2E (lihat daftar
@@ -107,7 +108,7 @@ export default [
     //     lama akan membanjiri review dengan ribuan temuan yang TIDAK berhubungan
     //     dengan perubahan ini. Kalau suatu saat Phase 4 benar-benar memecah
     //     app.js menjadi modul, blok ini diganti dengan block "src/**" di atas.
-    files: ["app.js"],
+    files: ["app.js", "app.src.js"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "script",
