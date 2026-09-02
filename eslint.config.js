@@ -97,6 +97,36 @@ export default [
   },
 
   {
+    // === app.js: blok <script> klasik monolit yang diekstrak dari index.html (v54) ===
+    // Sengaja HANYA mengatur MODE PARSE (classic script = sloppy mode, browser globals)
+    // dan MEMATIKAN no-undef/no-unused-vars dari js.configs.recommended:
+    //   - Permukaan global app ini adalah KONTRAK dengan harness E2E (lihat daftar
+    //     globals di blok verify-hud di bawah) -- sudah dijaga oleh
+    //     tests/unit/index-inline-scripts.test.js (parse) + verify-hud (runtime).
+    //   - Menerapkan rule ketat (eqeqeq, prefer-const, no-var...) ke 440 KB kode
+    //     lama akan membanjiri review dengan ribuan temuan yang TIDAK berhubungan
+    //     dengan perubahan ini. Kalau suatu saat Phase 4 benar-benar memecah
+    //     app.js menjadi modul, blok ini diganti dengan block "src/**" di atas.
+    files: ["app.js"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: "script",
+      globals: { ...globals.browser },
+    },
+    rules: {
+      "no-undef": "off",
+      "no-unused-vars": "off",
+      // Warisan monolit, BUKAN regresi ekstraksi (ada di blok inline sejak lama):
+      // - no-empty: blok kosong SENGAJA (mis. `catch (e) {}` di pembersihan chart).
+      // - no-redeclare: `exportTransactionsCsv` dideklarasikan 2x (baris ~1200 &
+      //   ~3915 di app.js) -- legal & tak berbahaya di classic script (deklarasi
+      //   terakhir menang); dibiarkan apa adanya supaya perilaku identik 100%.
+      "no-empty": "off",
+      "no-redeclare": "off",
+    },
+  },
+
+  {
     // --- Service worker: global-nya BEDA dari window (self, clients, caches) ---
     files: ["sw.js"],
     languageOptions: {

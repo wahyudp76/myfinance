@@ -1,10 +1,15 @@
 // Tier-2 struktural #5: Chart.js & DataLabels LAZY (loader paralel, bukan
 // classic script blocking) + gerbang di loadData sebelum render grafik.
+// v54: app (termasuk loadData) hidup di app.js (diekstrak dari index.html) --
+// pola app dicari di app.js, pola loader chart TETAP di index.html.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+const ROOT = resolve(import.meta.dirname, "../..");
+const html = readFileSync(resolve(ROOT, "index.html"), "utf8");
+const appJs = readFileSync(resolve(ROOT, "app.js"), "utf8");
 
 test("chart libs: TIDAK ada lagi <script src> langsung utk chart.js/datalabels", () => {
   assert.ok(!html.includes('<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>'));
@@ -18,9 +23,9 @@ test("chart libs: loader paralel __mfChartLibReady ada, urutan chart.js -> datal
   assert.ok(iChart > 0 && iDl > 0 && iChart < iDl, "chart.js dimuat lebih dulu");
 });
 
-test("loadData: async + meng-gerbangi __mfChartLibReady sebelum render", () => {
-  assert.ok(/async function loadData\(\)/.test(html));
-  const iLoad = html.indexOf("async function loadData()");
-  const iGate = html.indexOf("await window.__mfChartLibReady", iLoad);
+test("loadData: async + meng-gerbangi __mfChartLibReady sebelum render (di app.js)", () => {
+  assert.ok(/async function loadData/.test(appJs), "loadData harus ada di app.js");
+  const iLoad = appJs.indexOf("async function loadData()");
+  const iGate = appJs.indexOf("await window.__mfChartLibReady", iLoad);
   assert.ok(iLoad > 0 && iGate > iLoad, "gerbang ada di dalam loadData");
 });

@@ -19,7 +19,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
@@ -59,6 +59,11 @@ function collectFiles() {
     }
   };
   ["src", "scripts", "supabase"].forEach((d) => walk(join(ROOT, d)));
+  // v54: index.html & app.js (blok monolit yang dipindah) -- sumber ikon utama app.
+  ["index.html", "app.js"].forEach((f) => {
+    const p = join(ROOT, f);
+    if (existsSync(p)) out.push(p);
+  });
   return out;
 }
 

@@ -51,7 +51,9 @@ WEBFONTS_FULL = os.path.join(WEBFONTS, "_full")
 
 # File yang di-scan untuk mencari nama ikon.
 SCAN_FILES = []
-for rel in ["index.html", "styles.css", "sw.js"]:
+# v54: blok script monolit dipindah dari index.html ke app.js -- keduanya
+# di-scan supaya ikon yang dipakai app tidak pernah "hilang" dari subset.
+for rel in ["index.html", "app.js", "styles.css", "sw.js"]:
     SCAN_FILES.append(os.path.join(ROOT, rel))
 for sub in ["src", "scripts", "supabase"]:
     for dirpath, dirnames, filenames in os.walk(os.path.join(ROOT, sub)):

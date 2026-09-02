@@ -358,3 +358,54 @@ Kalau perlu deps sungguhan di unit test, ubah workflow-nya dulu (npm ci).
   masih dominan).
 - Live (Pages, commit 753aa38): styles.css gzip 7.9 KB (dari 12.2 KB), tag
   preconnect/preload ada di HTML ter-deploy, user-id.js 200.
+
+## v54 — Ekstraksi blok script monolit inline -> app.js (disetujui owner)
+
+Owner menyetujui "ekstraksi dengan verifikasi penuh dan hati-hati". PENTING:
+ini BUKAN Paket B/Phase 4. Tidak ada kode yang diubah, tidak ada modul baru,
+tidak ada pemisahan logika -- blok `<script>` classic 442.907 byte diekstrak
+**byte-exact** dari index.html ke `app.js` (satu file, satu scope global,
+sloppy mode seperti aslinya). Posisi tag `<script src>` = posisi inline
+sebelumnya (setelah loader chart, sebelum SW register) -> urutan eksekusi
+terhadap script lain tidak berubah.
+
+### Cara ekstraksi (reproducible)
+- Mask komentar HTML (`<!--...-->` -> placeholder) supaya regex `<script>`
+  tidak menangkap teks di dalam komentar, lalu ambil blok ke-4 dari 6 blok
+  nyata (blok classic terbesar, berisi `function submitForm(`).
+- Verifikasi: `sha1(app.js) == sha1(blok inline di git HEAD)` (a0d3f11b9bb4).
+- `index.html` 663.557 -> 221.372 byte; sisanya IDENTIK (dibuktikan dengan
+  string-replace: `html.replace(blok_lama, referensi_baru) == hasil`).
+
+### Hasil
+- Lighthouse (server lokal, 2 run): perf 58 -> **60..72**; FCP 7.1 -> **3.6..6.2 s**;
+  LCP 9.9 -> **5.2..8.0 s**; TBT 10..100 ms (noise). Varian antar-run berasal
+  dari CDN (esm.sh/jsdelivr), bukan regresi.
+- gzip: index.html 144.7 KB -> **37.3 KB**; app.js 106.4 KB. Total load
+  pertama ~sama (byte-nya memang sama), tapi dokumen lebih ringan + parse HTML
+  lebih cepat + app.js kini aset cacheable sendiri (SW precache + HTTP cache).
+- verify-hud 59/59, Error halaman 0; unit 535/535; lint OK.
+
+### Perangkap & perawatan
+- **node --check app.js**: repo `"type": "module"` membuat Node mem-parse .js
+  sbg ESM. Test parse menyalin app.js ke tmp TANPA package.json (parse
+  CommonJS/sloppy = terdekat dgn classic script browser). Browser TIDAK peduli
+  package.json -- `<script src>` selalu classic.
+- **eslint.config.js**: blok khusus `app.js` hanya mode parse + browser
+  globals; no-undef/no-unused-vars/no-empty/no-redeclare dimatikan dengan
+  alasan tertulis (permukaan global = kontrak E2E; memberlakukan rule ketat ke
+  440 KB kode lama akan membanjiri review).
+- **no-redeclare `exportTransactionsCsv` 2x** (baris ~1200 & ~3915 app.js):
+  warisan monolit (ada di index.html sejak lama; dibuktikan `git show
+  HEAD:index.html | grep -c` = 2), legal di sloppy mode (deklarasi terakhir
+  menang), TIDAK diubah -- perilaku wajib identik. Debt tercatat di sini.
+- **scripts/subset-fontawesome.py**: SCAN_FILES kini memindai `index.html` DAN
+  `app.js` (ikon pindah ke app.js; kalau tidak, subset berikutnya akan membuang
+  ikon yang dipakai app). Icon-subset unit test juga kini memindai keduanya.
+- **tests/unit/index-inline-scripts.test.js**: kontrak baru -> index.html wajib
+  mereferensikan app.js, blok inline > 30KB dilarang, app.js di-parse + sentinel
+  fungsi diverifikasi.
+- **tests/unit/lazy-charts.test.js**: pola app (loadData + gerbang chart)
+  dicari di app.js; loader chart tetap di index.html.
+- Job CI `unit` TANPA npm ci tetap berlaku (tidak ada dependensi baru).
+- sw.js: precache + './app.js', CACHE_VERSION v54 (snapshot di-update).

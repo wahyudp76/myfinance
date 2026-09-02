@@ -22,7 +22,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v53';
+const CACHE_VERSION = 'myfinance-v54';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -38,6 +38,7 @@ const DATA_CACHE = 'myfinance-data-v1';
 const PRECACHE_URLS = [
   './',
   './index.html',
+  './app.js', // blok classic monolit yang diekstrak dari index.html (v54)
   './manifest.json',
   './styles.css',
   './fonts/plus-jakarta-sans-latin.woff2',
