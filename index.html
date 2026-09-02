@@ -61,10 +61,17 @@
          lebih awal (paralel dengan parsing HTML lainnya), jadi begitu tag <script>/<link> di bawah
          benar-benar mengambil resource-nya, koneksinya sudah siap (tidak perlu nunggu handshake dulu). -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://esm.sh">
     <!-- Font self-host (slice loading): variable woff2 27KB utk weight 400-800,
          di-preload di sini + @font-face (font-display:swap) ada di styles.css.
-         Tidak ada lagi DNS/TLS ke Google Fonts & stylesheet render-blocking. -->
-    <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+         Tidak ada lagi DNS/TLS ke Google Fonts & stylesheet render-blocking.
+         fetchpriority=high: font ini dipakai teks utama (hero & form login),
+         biar FCP tidak nunggu giliran request lain. -->
+    <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="high">
+    <!-- Ikon FA (subset 18KB) juga di-preload: @font-face-nya baru diketahui
+         setelah css/fontawesome-all.min.css selesai diunduh -- preload menutup
+         celah 1 RTT waterfall itu, jadi ikon langsung tampil begitu CSS jalan. -->
+    <link rel="preload" href="webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossorigin>
     <!-- Tailwind CSS -- build statis: css/tailwind.css dibangun oleh `npm run build:css`
          (input css/tailwind.src.css + tailwind.config.js) dan HASILNYA DI-COMMIT ke repo,
          supaya GitHub Pages tetap hosting statis murni tanpa langkah build di server.
