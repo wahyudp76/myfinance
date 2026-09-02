@@ -646,3 +646,52 @@ mendasari nilai terakhir aset** (beda dari `terakhir` = jam nilai ditulis).
   false -> PATCH dilewati). Tidak ada perubahan kode klien.
 - **SARAN KEAMANAN utk owner**: PAT `sbp_...` yang dipakai deploy ini sebaiknya
   di-REVOKE setelah sesi selesai (account-level, sangat kuat); buat baru perlu.
+
+## v58 — Edge refresh-asset-price v20: jalur mati `manual_nav` DIHAPUS (ter-deploy)
+
+Melanjutkan rencana yang tercatat sejak v56 ("tanpa (a)/(b), hapus saja jalur
+manual_nav biar jujur") -- v57 sudah menutup (a)+(b), jadi pembersihan aman.
+
+### Mengapa aman dihapus (dibuktikan sebelum menyentuh kode)
+- **Tidak ada jalur UI yang bisa menulis `sumber_harga='manual_nav'`**: form aset
+  hanya mengirim sumber dari ASSET_AUTO_UPDATE_CONFIG (coingecko /
+  yahoo_id_stock / reksadana_bibit) atau null; modal "Sync NAB/UP Pasar" klien
+  TIDAK menyentuh sumber_harga (by design, supaya aset tetap bisa auto-refresh).
+- **DB live bersih**: `GET /rest/v1/assets?sumber_harga=eq.manual_nav` = 0 baris
+  (dicek 2026-09-02 sebelum pembersihan).
+- Perilaku pasca-hapus utk nilai liar (edit DB manual): 400
+  `"Sumber harga "manual_nav" belum didukung untuk auto-update."` -- dan klien
+  punya fallback `/belum didukung/i` (handleRefreshAssetPrice) yang mengarahkan
+  user ke modal Sync manual. Jujur & tertolong, bukan diam-diam aneh.
+
+### Yang diubah (hanya `supabase/functions/refresh-asset-price/index.ts`)
+1. Blok `if (asset.sumber_harga === "manual_nav") {...}` DIHAPUS (35 baris:
+    validasi tanggal NAB, derive nilai, stempel history, respons khusus).
+2. Entri `manual_nav: null` di PRICE_FETCHERS DIHAPUS (penanda yang menyesatkan).
+3. Import `isBibitNavDate, computeMarketValue` dari `_shared/market-sync.js`
+   DIHAPUS -- keduanya hanya dipakai blok itu. Efek nyata: bundel deploy v20
+   hanya 3 file (index.ts + price-sources.js + bibit.js), `market-sync.js`
+   tidak lagi ikut ter-upload.
+4. Label UI `describeSyncSource('manual_nav')` (toast modal sync manual klien)
+   TETAP ADA di src/domain/market-sync.js -- itu label string di klien, bukan
+   nilai kolom DB.
+
+### Deploy & verifikasi (2026-09-02)
+- Deploy via CLI 2.116.0 -> **management version 22** (v19=21 -> v20=22), ACTIVE.
+- **Uji E2E live ganda** (prosedur admin-user, tanpa klien):
+  - POSITIF (regresi): aset coingecko (bitcoin 0.001) -> HTTP 200,
+    `{harga_per_unit: 1.357.797.222, nilai_baru: 1.357.797}` -- jalur utama
+    TIDAK rusak oleh penghapusan blok di atasnya;
+  - NEGATIF: aset `sumber_harga='manual_nav'` (nilai yatim sengaja) -> HTTP 400
+    `"Sumber harga \"manual_nav\" belum didukung untuk auto-update."`;
+  - aset manual_nav TIDAK tersentuh (nilai & value_history utuh);
+  - cleanup: aset test 0 sisa, user test terhapus (tidak ada 'edge-e2e' di
+    daftar admin users).
+- Perangkap kecil yang ketemu saat uji: PostgREST POST bulk menolak array
+  dgn KEY SET BERBEDA (PGRST102 "All object keys must match") -- samakan key
+  (isi `tanggal_nav: null` di objek yang tidak pakai) kalau perlu bulk insert.
+
+### Tidak berubah
+- Tidak ada perubahan klien / DB / RLS. CACHE_VERSION tetap v57 (aset statis
+  webapp tidak berubah). `sb_secret_` & PAT `sbp_` dipakai hanya utk verifikasi
+  read-only + deploy; tetap disarankan REVOKE PAT `sbp_` setelah sesi.

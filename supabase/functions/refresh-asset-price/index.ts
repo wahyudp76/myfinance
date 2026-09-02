@@ -19,11 +19,11 @@
 // CARA DEPLOY (sama seperti analyze-finance, tidak butuh secret baru):
 //   supabase functions deploy refresh-asset-price
 //
-// STATUS DEPLOY: **v19 TER-DEPLOY live 2026-09-02** (management version 21, via Supabase
-// CLI 2.116.0). Terbukti E2E di produksi: invoke API murni (tanpa klien) mengisi
-// tanggal_nav atomik bersama nilai -- lihat AGENT-HANDOFF v57 "Tindak lanjut".
-// Tulisan tanggal_nav oleh klien pasca-refresh kini no-op idempoten (nilai sama,
-// dilewati). v18 (management version 20) adalah deploy sebelumnya (2026-09-01).
+// STATUS DEPLOY: **v20 TER-DEPLOY live 2026-09-02** (management version 22, via Supabase
+// CLI 2.116.0). Isi v20 = v19 + pembersihan jalur mati `manual_nav` (lihat komentar di
+// PRICE_FETCHERS). Terbukti E2E di produksi: invoke normal (CoinGecko) tetap 200 +
+// invoke aset sumber 'manual_nav' kini 400 "belum didukung" yang jujur -- lihat
+// AGENT-HANDOFF v58. Riwayat: v19/mgmt-21 (tanggal_nav atomik) & v18/mgmt-20 (2026-09-01).
 //
 // Setelah itu tombol "Refresh Harga" di Detail Aset akan berfungsi utk semua sumber:
 // Kripto (ID CoinGecko + Jumlah Koin), Saham IDX (kode + jumlah lembar), dan REKSADANA
@@ -43,7 +43,9 @@ import {
   pickYahooMarketPrice,
   yahooFailureMessage,
 } from "../_shared/price-sources.js";
-import { isBibitNavDate, computeMarketValue } from "../_shared/market-sync.js";
+// Catatan v20: import dari _shared/market-sync.js (isBibitNavDate, computeMarketValue)
+// DIHAPUS -- keduanya cuma dipakai jalur manual_nav yang dibersihkan. Aturan nilai
+// & history di jalur auto memakai perhitungan inline yang sudah ada sejak v18.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
@@ -180,8 +182,14 @@ const PRICE_FETCHERS: Record<string, (simbol: string) => Promise<FetchResult>> =
   coingecko: fetchCoinGeckoPriceIdr,
   yahoo_id_stock: fetchYahooIdStockPriceIdr,
   reksadana_bibit: fetchBibitFundNavIdr,
-  // manual_nav ditangani khusus di atas (bukan fetcher API); entri ini cuma penanda valid.
-  manual_nav: null as unknown as (simbol: string) => Promise<FetchResult>,
+  // v20: entri `manual_nav` (penanda null) DIHAPUS bersama jalur khususnya. Nilai
+  // "manual_nav" tidak pernah bisa ditulis oleh UI (form aset hanya mengirim
+  // sumber dari ASSET_AUTO_UPDATE_CONFIG atau null; modal sync manual klien TIDAK
+  // menyentuh sumber_harga) -- jalurnya kode mati sejak v41, dan
+  // GET /rest/v1/assets?sumber_harga=eq.manual_nav di DB live = 0 baris (dicek
+  // 2026-09-02 sebelum pembersihan). Bila suatu saat nilai itu muncul (edit DB
+  // manual), perilakunya jujur: 400 "belum didukung" + klien menampilkan arahan
+  // ke modal Sync manual (fallback /belum didukung/ di app.src.js).
 };
 
 Deno.serve(async (req: Request) => {
@@ -241,44 +249,10 @@ Deno.serve(async (req: Request) => {
           'Aset ini belum diisi kolom Simbol/ID & Jumlah Unit. Isi dulu lewat Edit Aset.',
       }, 400);
     }
-    // Jalur manual (tanpa API pihak ketiga): nilai per unit di-derive dari nilai simpanan
-    // terakhir, TAPI tgl NAB divalidasi (supaya tidak "sync" pakai NAB basi). sumber_harga
-    // ditulis "manual_nav" -- jujur soal asal angkanya; UI tetap menampilkan "Pasar".
-    if (asset.sumber_harga === "manual_nav") {
-      if (!isBibitNavDate(asset.tanggal_nav)) {
-        return jsonResponse({
-          error: "Tanggal NAB kosong/tidak valid (format YYYY-MM-DD). Isi dulu lewat form Edit Aset.",
-        }, 400);
-      }
-      const nilaiBaru = computeMarketValue(
-        Number(asset.nilai) / Number(asset.jumlah_unit),
-        asset.jumlah_unit,
-      );
-      if (nilaiBaru == null) {
-        return jsonResponse({
-          error: "Nilai/jumlah unit tidak valid utk menghitung nilai pasar.",
-        }, 400);
-      }
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const hist = Array.isArray(asset.value_history) ? asset.value_history.slice() : [];
-      const sameDayIdx = hist.findIndex((h: any) => h.tanggal === todayStr);
-      if (sameDayIdx >= 0) hist[sameDayIdx] = { tanggal: todayStr, nilai: nilaiBaru };
-      else hist.push({ tanggal: todayStr, nilai: nilaiBaru });
-
-      const { error: updateErr } = await supabase
-        .from("assets")
-        .update({ nilai: nilaiBaru, terakhir: new Date().toISOString(), value_history: hist })
-        .eq("id", assetId);
-      if (updateErr) {
-        return jsonResponse({ error: "Gagal menyimpan nilai baru: " + updateErr.message }, 500);
-      }
-      return jsonResponse({
-        harga_per_unit: nilaiBaru / Number(asset.jumlah_unit),
-        nilai_baru: nilaiBaru,
-        sumber: "manual_nav",
-        tanggal_pasar: asset.tanggal_nav,
-      });
-    }
+    // v20: jalur manual_nav DIHAPUS (kode mati -- lihat komentar di atas PRICE_FETCHERS).
+    // Jalur manual yang BENAR-BENAR dipakai ada di klien: modal "Sync NAB/UP Pasar"
+    // (app.src.js submitManualNav) yang memakai helper murni src/domain/market-sync.js
+    // dan tidak butuh Edge Function sama sekali.
 
     const fetcher = PRICE_FETCHERS[asset.sumber_harga];
     if (!fetcher) {
