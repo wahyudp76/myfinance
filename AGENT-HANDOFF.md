@@ -880,3 +880,40 @@ yang sama tampil dalam urutan sembarang.
   fixture tanpa created_at + tie-break id) -- total unit 588/588, lint 0,
   verify-hud 64/64 PASS error halaman 0, app-minify & SW drift guard hijau.
 - sw.js CACHE_VERSION v60 -> v61 + snapshot di-regen (setelah build:app).
+
+## v63 — Bagan komparasi Budget: jarak tetap antara legend & batang tertinggi (grace sumbu-y)
+
+Permintaan owner (lagi): label nilai di atas batang paling besar pada bagan
+komparasi budget masih bisa menabrak legend grafik -- "tolong tambah jarak
+antara legend dan batang chart yang nilainya paling besar".
+
+### Akar masalah (dibuktikan probe geometri 4 lebar x 3 pola data)
+- v61 hanya menyusutkan plot dari BAWAH (layout.padding.bottom); TEPI ATAS
+  chartArea selalu menempel tepi bawah kotak legend (Chart.js tidak punya opsi
+  celah vertikal legend<->plot).
+- Saat nilai max DATA == nilai max sumbu otomatis (mis. budget bulat
+  300.000/700.000), batang tertinggi menempel legend: gap 0..-1px di mobile;
+  label nilainya (~12px di atas batang) pasti menimpa legend. v61 aman hanya
+  bila kebetulan sumbu menyisakan ruang (kasus 465rb: 5-10px saja).
+- Plugin afterLayout utk menggeser chartArea TIDAK persisten (tiap update
+  me-layout ulang dari nol -> butuh update kedua -> loop tak berujung,
+  terbukti hang renderer) -> jalur ini dibuang.
+
+### Perbaikan (src/ui/budgets.js, helper budgetCompareScales)
+- `scales.y.grace = "40%"` pada bagan komparasi: nilai maks sumbu otomatis
+  dinaikkan 40% di atas data terbesar (lalu dibulatkan "nice" oleh Chart).
+  Headroom DI ATAS batang tertinggi menjadi ~20-30% tinggi plot, tidak lagi
+  bergantung pada kebetulan nilai data vs pembulatan sumbu.
+- Dipilih 40% setelah diuji: 25% tidak cukup (kasus over 700rb di mobile
+  tetap memilih top 800rb -> gap cuma 8px); 40% membuat kasus terburuk
+  berubah ke 1.000.000 -> gap >= 16px di semua kombinasi.
+
+### Bukti (probe geometri Playwright 4x3 = 12 kombinasi; skenario bulat/over/ganjil)
+- Baseline (HEAD v62): gap legend->batang 0.6..-1px (overlap) di kasus nilai
+  bulat 300rb/700rb; 5-10px di kasus ganjil (label tetap berisiko).
+- Sesudah grace 40%: gap 16,2-21px di mobile 360/393 & 30-35px di desktop
+  768/1440; label nilai (tinggi ~12px) kini selalu berhenti DI BAWAH tepi
+  bawah legend (clearance >= 4px dari strip + >= 12px dari teks legend).
+- Unit ui-budgets + asersi regresi (scales.y.grace === "40%") -- total unit
+  588/588, lint 0, verify-hud 64/64 PASS, error halaman 0.
+- sw.js CACHE_VERSION v61 -> v62 + snapshot di-regen; app.js tidak berubah.

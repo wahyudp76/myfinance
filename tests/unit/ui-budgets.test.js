@@ -156,6 +156,11 @@ test("renderBudgetView: chart lama di-destroy dulu; chart baru bar dgn 2 dataset
   assert.equal(cfg.data.datasets[1].backgroundColor({ dataIndex: 1, element: null, chart: null }), "#34d399"); // safe
   assert.equal(cfg.data.datasets[0].backgroundColor({ dataIndex: 0, element: null, chart: null }), "#c7d2fe"); // Budget
   assert.ok(cfg.plugins.some((p) => p.id === "hudGlow"));
+  // CELAH LEGEND<->PLOT (v63): grace 40% di sumbu-y WAJIB ada -- menjamin jarak
+  // dari legend ke puncak batang tertinggi + label nilainya walau nilai maks
+  // data == nilai maks sumbu otomatis (regresi pernah terjadi: batang/label
+  // menimpa legend). Jangan hapus/ubah tanpa audit geometri ulang.
+  assert.equal(cfg.options.scales.y.grace, "40%");
 });
 
 test("renderBudgetView: daftar kategori -- badge & bar per level, width di-clamp, accordion + sub, stagger delay, format id-ID", () => {

@@ -38,6 +38,23 @@
  */
 
 import { hudBarDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud.js";
+// CELAH LEGEND <-> PLOT (fix v63): tidak ada opsi Chart.js utk jarak VERTIKAL
+// antara kotak legend (atas) dan area plot -- layout selalu menempatkan
+// chartArea.top TEPAT di tepi bawah legend. Menggesernya via plugin
+// afterLayout tidak persisten (tiap update menghitung ulang layout dari nol,
+// jadi malah memicu update berantai), dan layout.padding.top/bottom cuma
+// menggeser legend/plot dari tepi luar. Opsi RESMI yang dipakai: `grace`
+// sumbu-y -- nilai maksimum sumbu otomatis dinaikkan 40% DI ATAS nilai data
+// terbesar, sehingga puncak batang tertinggi (dan label nilainya yang butuh
+// ~12px di atas batang) berhenti ~20-30% tinggi plot di bawah legend, berapa pun
+// nilai datanya. Sebelumnya, saat nilai maks data == nilai maks sumbu
+// (mis. 300.000 / 700.000), batang tertinggi & label nilainya MENIMPA legend.
+function budgetCompareScales(labels, formatShortVal, opts) {
+  const scales = hudLineScales(labels, formatShortVal, opts);
+  scales.y.grace = "40%";
+  return scales;
+}
+
 
 const BUDGET_USAGE_RING_COLOR = { over: "#fb7185", warning: "#fbbf24", safe: "#34d399" };
 const BUDGET_USAGE_BAR_COLOR = { over: "bg-rose-400", warning: "bg-amber-400", safe: "bg-emerald-400" };
@@ -251,7 +268,7 @@ export function renderBudgetView({
             },
             tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ": Rp " + formatRp(ctx.raw) } }
           },
-          scales: hudLineScales(entries.map(e => e.name), formatShortVal, { yGrid: chartGridColor() })
+          scales: budgetCompareScales(entries.map(e => e.name), formatShortVal, { yGrid: chartGridColor() })
         }
       });
       // Adaptasi halus utk canvas yang SEMPIT (mobile < 400px): kurangi ukuran
