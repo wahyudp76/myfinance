@@ -409,3 +409,18 @@ terhadap script lain tidak berubah.
   dicari di app.js; loader chart tetap di index.html.
 - Job CI `unit` TANPA npm ci tetap berlaku (tidak ada dependensi baru).
 - sw.js: precache + './app.js', CACHE_VERSION v54 (snapshot di-update).
+
+### Perangkap pasca-push: job css-drift gagal di push pertama v54 (56b46de)
+Push pertama v54 GAGAL di "Tailwind build drift guard": `npm run build:css`
+menghasilkan css/tailwind.css 47.709 B vs 53.314 B yang di-commit. Penyebab:
+tailwind.config.js content masih `['./index.html', './src/**/*.js']` -- dengan
+blok script pindah ke app.js, Tailwind kehilangan ~5.6 KB kelas yang hanya
+muncul di template literal app (dahulu ada di index.html). REBUILD TANPA
+config ini akan mematahkan styling yang jarang dipakai (masih terbaca saat
+dipakai? YA -- kelaskanya hilang dari CSS -> tampilan tanpa gaya itu).
+Perbaikan: content += './app.js'. Setelah fix, rebuild IDENTIK dengan yang
+di-commit (set kelas sama persis; css/tailwind.css TIDAK berubah). Guard baru
+tests/unit/tailwind-content.test.js memastikan app.js & index.html selalu ada
+di content. PELAJARAN: setiap kali file sumber kelas Tailwind dipindah/baru,
+cek tailwind.config.js content SEBELUM push (job css-drift tidak bisa
+"membetulkan" -- ia hanya menandai).
