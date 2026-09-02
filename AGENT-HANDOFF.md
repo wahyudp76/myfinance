@@ -468,3 +468,75 @@ tanpa perubahan logika/perilaku, verifikasi penuh, CI hijau.
   index-inline-scripts.test.js kini mencocokkan via regex toleran-spasi.
   eslint: app.src.js masuk blok classic-script yg sama dgn app.js
   (no-redeclare off -- duplicate exportTransactionsCsv tetap legal sloppy).
+
+## v56 — Paging paralel jadi modul BERSAMA (assets & recurring) + defense-in-depth user_id
+
+Melanjutkan kandidat v56 yang tercatat di v55 ("assets.js & recurring.js punya
+salinan fetchAllRows LOKAL sendiri yang masih berurutan"). Tanpa perubahan
+perilaku pengguna; semua verifikasi hijau.
+
+### Yang diubah
+1. **`src/services/supabase/paging.js` (BARU)** — `fetchAllRows(client, buildQuery, pageSize)`
+   hasil ekstraksi VERBATIM dari transactions.js v55 (2 fase: halaman pertama +
+   `count=exact` dalam 1 request, sisa halaman PARALEL batch `MAX_PARALLEL_PAGES=6`,
+   fallback loop berurutan bila count tak tersedia). Kontrak buildQuery:
+   `(from, to, opts)` — client di-close-over pemanggil, builder sudah `.range()`
+   dan thenable. Tiga salinan lokal (transactions/assets/recurring) dilebur jadi
+   satu; tidak ada lagi salinan yang bisa diam-diam tertinggal versi lama.
+2. **`src/services/transactions.js`** — hapus salinan lokal, import paging.js.
+   Perilaku IDENTIK (kode yang sama persis, cuma pindah rumah).
+3. **`src/services/supabase/assets.js`** — `listAssets` kini paralel 2-fase
+   (dulu berurutan; efek nyata baru terasa kalau aset > 1000 baris, tapi
+   kontraknya kini seragam). `updateAsset`/`deleteAsset` kini `.eq("user_id")`
+   eksplisit — pola yang sudah dipakai transactions update/remove. RLS tetap
+   lapisan utama; ini defense-in-depth + konsistensi.
+4. **`src/services/supabase/recurring.js`** — `listRecurring` paralel 2-fase
+   (salinan loop berurutan dihapus). KEEMPAT mutasi tabelnya
+   (`updateRecurring`, `deleteRecurring`, `setRecurringActive`,
+   `advanceRecurringDueDate`) kini juga `.eq("user_id")` eksplisit — semula
+   hanya `.eq("id")` (create & generate tetap lewat RPC `create_recurring_
+   transaction` yang sudah mengunci user dari sisi server).
+5. **`src/services/supabase/custom-icons.js`** — `deleteCustomIcon` kini
+   `.eq("user_id")` eksplisit. PENTING: PK tabel ini `(user_id, account_name)`
+   — `account_name` SENDIRIAN tidak unik antar user, jadi ini kasus
+   defense-in-depth yang paling beralasan.
+6. **Tests**: `services-paging.test.js` diperluas — mockPagedClient kini
+   merekam tabel + punya `rpc()` yang melempar (requireClient recurring butuh
+   `typeof client.rpc === "function"`); 6 kasus baru membuktikan listAssets &
+   listRecurring: paralel (maxInflight >= 2), count hanya halaman pertama,
+   fallback berurutan tanpa count, urutan & kelengkapan baris, error halaman
+   dilempar. `assets-service.test.js`, `custom-icons-service.test.js` &
+   `recurring-service.test.js` diperbarui: filters kini
+   `[["id",..],["user_id",..]]` / `[["account_name",..],["user_id",..]]`.
+7. **sw.js**: CACHE_VERSION v55 -> v56; PRECACHE_URLS += `./src/services/
+   supabase/paging.js`; snapshot di-regen (`node tests/unit/update-sw-cache-snapshot.mjs`).
+8. **README.md**: bagian struktur folder disegarkan (masih menggambarkan
+   "index.html = SATU blok script gabungan" ala pra-v54) — kini menjelaskan
+   app.src.js (sumber) vs app.js (output build) + styles/tailwind serupa.
+
+### Verifikasi (semua hijau, lokal)
+- `npm run lint` OK; `npm run test:unit` = **552 pass / 0 fail** (dari 546;
+  +6 kasus paging baru; net +6 karena 3 kasus lama berubah konten, bukan nambah).
+- `node scripts/verify-hud.mjs` = **59/59 PASS, Error halaman: 0** (stub
+  /rest/v1/assets menjawab apapun query param-nya, jadi filter user_id
+  lolos E2E; jalur setor-ke-aset tetap hijau).
+- `npm run build:css` + `npm run build:app` = tanpa drift (css/tailwind.css,
+  styles.css, app.js byte-identik — memang tidak ada perubahan kelas/monolit).
+- Tidak ada perubahan SQL/RLS/Edge Function — murni sisi klien.
+
+### Catatan & kandidat v57+
+- **`assets.tanggal_nav` kolom YATIM (temuan diskusi v56)**: ada di DB live
+  (13 kolom), DIBACA Edge `refresh-asset-price` utk jalur `manual_nav`, tapi
+  TIDAK PERNAH ditulis siapa pun (klien tidak punya field form "Tanggal NAB"
+  & Edge hanya menulis nilai/terakhir/value_history, bukan tanggal_nav) dan
+  TIDAK dipilih `listAssets`. Karena itu jalur `sumber_harga === "manual_nav"`
+  di Edge praktis TIDAK TERJANGKAU dari UI (tidak ada cara klien menulis
+  nilai itu). Kandidat v57: (a) tambah field "Tanggal NAB" di form aset +
+  kirim `tanggal_nav` di updateAsset + tampilkan tanggal data pasar di modal
+  detail, dan/atau (b) Edge menulis `tanggal_nav = tanggal_pasar` saat
+  refresh berhasil (butuh deploy ulang Edge + PAT Supabase). Tanpa (a)/(b),
+  hapus saja jalur manual_nav dari Edge saat refactor berikutnya biar jujur.
+- `npm outdated`: supabase-js 2.112.4 -> 2.113.0 tersedia (minor) — biarkan
+  Dependabot yang mengangkat.
+- Node sandbox 20.20.2 dipakai verifikasi v56 (engines repo minta >=22; CI
+  pakai .nvmrc 22). Suite unit+E2E hijau di keduanya.

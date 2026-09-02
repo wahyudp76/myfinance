@@ -22,7 +22,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v55';
+const CACHE_VERSION = 'myfinance-v56';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -97,6 +97,7 @@ const PRECACHE_URLS = [
   './src/services/supabase/budgets.js',
   './src/services/supabase/custom-icons.js',
   './src/services/supabase/edge.js',
+  './src/services/supabase/paging.js', // paging paralel bersama utk transaksi/aset/recurring (v56)
   './src/services/supabase/recurring.js',
   './src/services/supabase/settings.js',
   './src/services/supabase/transfers.js',

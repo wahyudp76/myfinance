@@ -68,25 +68,25 @@ test("createAsset(): field refresh-harga-otomatis (simbol/jumlah_unit/sumber_har
   assert.equal(call.payload.sumber_harga, "coingecko");
 });
 
-test("updateAsset(): update difilter by id, menyertakan terakhir (timestamp refresh)", async () => {
+test("updateAsset(): update difilter by id + user_id (defense-in-depth v56), menyertakan terakhir (timestamp refresh)", async () => {
   const client = createMockSupabaseClient();
   await updateAsset(client, "a1", { nama: "BTC", kategori: "Kripto", modal: 1, nilai: 2, value_history: [] });
 
   const call = client.calls[0];
   assert.equal(call.table, "assets");
   assert.equal(call.method, "update");
-  assert.deepEqual(call.filters, [["id", "a1"]]);
+  assert.deepEqual(call.filters, [["id", "a1"], ["user_id", "user-1"]]);
   assert.ok(call.payload.terakhir, "terakhir harus diisi ulang saat update");
 });
 
-test("deleteAsset(): delete difilter by id", async () => {
+test("deleteAsset(): delete difilter by id + user_id (defense-in-depth v56)", async () => {
   const client = createMockSupabaseClient();
   await deleteAsset(client, "a1");
 
   const call = client.calls[0];
   assert.equal(call.table, "assets");
   assert.equal(call.method, "delete");
-  assert.deepEqual(call.filters, [["id", "a1"]]);
+  assert.deepEqual(call.filters, [["id", "a1"], ["user_id", "user-1"]]);
 });
 
 // ===================== refreshAssetPrice (Edge Function) =====================

@@ -1,36 +1,27 @@
 /** Supabase asset/investment service boundary (tabel: assets). */
 import { getCurrentUserId } from "../user-id.js";
-
-const DEFAULT_PAGE_SIZE = 1000;
+import { fetchAllRows } from "./paging.js";
 
 function requireClient(client) {
   if (!client) throw new Error("Supabase client belum diberikan.");
   return client;
 }
 
-// PostgREST (di balik layar Supabase) membatasi maksimal ~1000 baris per response secara
-// default kalau query-nya tidak pakai .range()/.limit() eksplisit -- lihat penjelasan yang
-// sama di src/services/transactions.js. Jarang ada user dengan >1000 aset, tapi helper ini
-// tetap dipasang supaya tidak diam-diam terpotong kalau suatu saat itu terjadi.
-async function fetchAllRows(client, buildQuery, pageSize = DEFAULT_PAGE_SIZE) {
-  const rows = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await buildQuery(client, from, from + pageSize - 1);
-    if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
-  }
-  return rows;
-}
+// PostgREST membatasi maksimal ~1000 baris per response secara default. Jarang
+// ada user dengan >1000 aset, tapi helper bersama fetchAllRows (v56) tetap
+// dipasang supaya tidak diam-diam terpotong kalau suatu saat itu terjadi --
+// dan bila itu terjadi, halamannya di-fetch PARALEL (kontrak sama dengan
+// transaksi, lihat src/services/supabase/paging.js).
 
 export async function listAssets(client) {
   const supabase = requireClient(client);
-  const rows = await fetchAllRows(supabase, (c, from, to) =>
-    c
+  const rows = await fetchAllRows(supabase, (from, to, opts) =>
+    supabase
       .from("assets")
-      .select("id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga")
+      .select(
+        "id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga",
+        opts && opts.withCount ? { count: "exact" } : undefined
+      )
       .order("terakhir", { ascending: false })
       .order("id", { ascending: true })
       .range(from, to)
@@ -63,6 +54,11 @@ export async function createAsset(client, data) {
 
 export async function updateAsset(client, id, data) {
   const supabase = requireClient(client);
+  // Defense-in-depth (v56): id memang PK unik & RLS sudah membatasi ke baris
+  // milik user sendiri, tapi filter user_id eksplisit menyamakan pola service
+  // transaksi (update/remove di src/services/transactions.js) -- salah-pasti
+  // id aset user lain tidak pernah tersentuh walau RLS keliru dimatikan.
+  const user_id = await getCurrentUserId(supabase);
   const { error } = await supabase
     .from("assets")
     .update({
@@ -77,13 +73,15 @@ export async function updateAsset(client, id, data) {
       jumlah_unit: data.jumlah_unit || null,
       sumber_harga: data.sumber_harga || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user_id);
   if (error) throw error;
 }
 
 export async function deleteAsset(client, id) {
   const supabase = requireClient(client);
-  const { error } = await supabase.from("assets").delete().eq("id", id);
+  const user_id = await getCurrentUserId(supabase);
+  const { error } = await supabase.from("assets").delete().eq("id", id).eq("user_id", user_id);
   if (error) throw error;
 }
 

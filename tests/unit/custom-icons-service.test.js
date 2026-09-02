@@ -38,12 +38,12 @@ test("saveCustomIcon(): upsert dgn onConflict user_id,account_name (komposit)", 
   assert.deepEqual(call.payload.icon_data, { type: "icon", value: "fa-university" });
 });
 
-test("deleteCustomIcon(): delete difilter by account_name", async () => {
+test("deleteCustomIcon(): delete difilter by account_name + user_id (defense-in-depth v56)", async () => {
   const client = createMockSupabaseClient();
   await deleteCustomIcon(client, "Bank BCA");
 
   const call = client.calls[0];
   assert.equal(call.table, "custom_icons");
   assert.equal(call.method, "delete");
-  assert.deepEqual(call.filters, [["account_name", "Bank BCA"]]);
+  assert.deepEqual(call.filters, [["account_name", "Bank BCA"], ["user_id", "user-1"]]);
 });

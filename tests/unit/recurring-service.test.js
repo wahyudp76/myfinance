@@ -64,7 +64,7 @@ test("createRecurring(): insert dgn user_id, seluruh field record, & active: tru
   assert.equal(call.payload.next_due_date, "2026-09-01");
 });
 
-test("updateRecurring(): update dgn record lengkap (next_due_date ikut), filter by id, TANPA active", async () => {
+test("updateRecurring(): update dgn record lengkap (next_due_date ikut), filter by id + user_id (v56), TANPA active", async () => {
   const client = mockClient({ result: { data: null, error: null } });
   await updateRecurring(client, "rec-9", {
     jenis: "Pengeluaran", jumlah: 160000, akun: "GoPay", kategori: "Hiburan",
@@ -75,30 +75,30 @@ test("updateRecurring(): update dgn record lengkap (next_due_date ikut), filter 
   assert.equal(call.payload.jumlah, 160000);
   assert.equal(call.payload.next_due_date, "2026-10-01");
   assert.equal("active" in call.payload, false);
-  assert.deepEqual(call.filters, [["id", "rec-9"]]);
+  assert.deepEqual(call.filters, [["id", "rec-9"], ["user_id", "user-1"]]);
 });
 
-test("deleteRecurring(): delete filter by id", async () => {
+test("deleteRecurring(): delete filter by id + user_id (defense-in-depth v56)", async () => {
   const client = mockClient({ result: { data: null, error: null } });
   await deleteRecurring(client, "rec-3");
   assert.equal(client.calls[0].method, "delete");
-  assert.deepEqual(client.calls[0].filters, [["id", "rec-3"]]);
+  assert.deepEqual(client.calls[0].filters, [["id", "rec-3"], ["user_id", "user-1"]]);
 });
 
-test("setRecurringActive(): update hanya { active } utk id", async () => {
+test("setRecurringActive(): update hanya { active } utk id + user_id (v56)", async () => {
   const client = mockClient({ result: { data: null, error: null } });
   await setRecurringActive(client, "rec-2", false);
   assert.equal(client.calls[0].method, "update");
   assert.deepEqual(client.calls[0].payload, { active: false });
-  assert.deepEqual(client.calls[0].filters, [["id", "rec-2"]]);
+  assert.deepEqual(client.calls[0].filters, [["id", "rec-2"], ["user_id", "user-1"]]);
 });
 
-test("advanceRecurringDueDate(): update hanya { next_due_date } utk id", async () => {
+test("advanceRecurringDueDate(): update hanya { next_due_date } utk id + user_id (v56)", async () => {
   const client = mockClient({ result: { data: null, error: null } });
   await advanceRecurringDueDate(client, "rec-4", "2026-10-05");
   assert.equal(client.calls[0].method, "update");
   assert.deepEqual(client.calls[0].payload, { next_due_date: "2026-10-05" });
-  assert.deepEqual(client.calls[0].filters, [["id", "rec-4"]]);
+  assert.deepEqual(client.calls[0].filters, [["id", "rec-4"], ["user_id", "user-1"]]);
 });
 
 test("operasi tabel: error PostgREST di-lempar (konvensi .catch pemanggil)", async () => {

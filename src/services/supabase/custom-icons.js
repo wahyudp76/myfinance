@@ -27,6 +27,15 @@ export async function saveCustomIcon(client, accountName, iconObj) {
 
 export async function deleteCustomIcon(client, accountName) {
   const supabase = requireClient(client);
-  const { error } = await supabase.from("custom_icons").delete().eq("account_name", accountName);
+  // Defense-in-depth (v56): PK tabel ini (user_id, account_name) -- account_name
+  // SENDIRIAN tidak unik antar user. RLS sudah melindungi, tapi filter user_id
+  // eksplisit menyamakan pola service transaksi/aset: tanpa RLS pun baris user
+  // lain tidak tersentuh.
+  const user_id = await getCurrentUserId(supabase);
+  const { error } = await supabase
+    .from("custom_icons")
+    .delete()
+    .eq("account_name", accountName)
+    .eq("user_id", user_id);
   if (error) throw error;
 }

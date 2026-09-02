@@ -18,26 +18,28 @@ login.
 > Sejak Phase 7 ("split monolith" -- lihat
 > `docs/supabase-native-migration-plan.md`), CSS sudah dipindah ke `styles.css`
 > terpisah (langkah paling aman: teks murni, tidak ada scope JavaScript yang
-> bisa rusak). `index.html` sekarang berisi markup + SATU blok `<script>`
-> gabungan untuk semua logic -- itu belum dipecah (jauh lebih berisiko, lihat
-> catatan di dalam file-nya sendiri). Branch `refactor/supabase-native-
-> foundation` yang sedang berjalan ini JUGA berisi folder
-> `src/`, `tests/`, `sql/`, `supabase/`, dan `docs/` di sebelahnya untuk
-> pekerjaan migrasi arsitektur yang masih berjalan -- lihat
-> `docs/supabase-native-migration-plan.md` untuk peta lengkapnya. Folder-folder
-> itu belum semuanya di-import oleh `index.html`; jangan bingung kalau branch
-> `main` (produksi) terlihat lebih sederhana dari ini.
+> bisa rusak). Lalu sejak v54 (disetujui owner), blok `<script>` monolit
+> terbesar DIEKSTRAKSI byte-exact dari `index.html` ke `app.js`; sejak v55
+> `app.js` adalah OUTPUT BUILD: sumber manualnya `app.src.js`, di-minify
+> lewat `npm run build:app` (terser, nama fungsi global dipertahankan --
+> mereka adalah kontrak `onclick=` di markup). **Edit `app.src.js`, BUKAN
+> `app.js`**, lalu jalankan build. Modul produksi `src/**` (domain/services/
+> ui) di-import `index.html` via ES module statis.
 
 ```
 myfinance-app/
-├── index.html          # Markup + SATU blok <script> gabungan (semua logic JS)
-├── styles.css           # Semua gaya visual (dipisah dari index.html di Phase 7)
+├── index.html          # Markup + modul ES (auth/services) + jembatan bootstrap
+├── app.src.js          # SUMBER MANUAL logika monolit (editor di sini)
+├── app.js              # OUTPUT BUILD app.src.js (terser, -49,7%) -- jangan diedit langsung
+├── styles.src.css      # SUMBER MANUAL gaya visual kustom
+├── styles.css           # OUTPUT BUILD (clean-css) -- dipisah dari index.html di Phase 7
+├── css/tailwind.css    # OUTPUT BUILD Tailwind (sumber: css/tailwind.src.css)
 ├── manifest.json       # Web App Manifest (buat "Add to Home Screen")
 ├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
 ├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
 ├── _headers               # Header keamanan (khusus hosting Netlify)
 ├── sw.js                   # Service Worker (precache app shell, network-first utk dokumen)
-├── package.json            # Script test + metadata Node (CI: .github/workflows/)
+├── package.json            # Script test/build + metadata Node (CI: .github/workflows/)
 ├── sql/
 │   ├── schema.sql              # SQL lengkap: tabel inti + Row Level Security
 │   └── *.sql                    # Migrasi tambahan bertanggal, urut dari nama file
@@ -56,12 +58,11 @@ myfinance-app/
 `login.html`, `css/style.css` (versi lama), dan `js/*.js` sudah tidak ada lagi
 sejak versi "1 file" — isinya sempat digabung semua ke dalam `index.html`
 (CSS lewat tag `<style>`, satu blok `<script>` besar untuk seluruh logic).
-Sejak Phase 7 refactor, CSS-nya dipisah LAGI jadi `styles.css` (lihat catatan
-di bagian atas struktur folder) — tapi ini beda dari `css/style.css` versi
-lama: yang sekarang cuma memindah lokasi file, isinya persis sama, bukan
-menulis ulang. Login dan Dashboard tetap dua tampilan di halaman yang sama,
-ditukar lewat JavaScript (tanpa reload halaman) — bukan dua file HTML
-terpisah.
+Sejak Phase 7 refactor, CSS-nya dipisah LAGI jadi `styles.css`, dan sejak
+v54 blok `<script>` monolit terbesarnya diekstrak byte-exact ke `app.js`
+(lihat catatan di bagian atas struktur folder). Login dan Dashboard tetap
+dua tampilan di halaman yang sama, ditukar lewat JavaScript (tanpa reload
+halaman) — bukan dua file HTML terpisah.
 
 > **PERLU AKSI kalau kamu sudah pernah setup Supabase sebelumnya**: versi ini
 > menambah 1 tabel baru (`recurring_transactions`, untuk fitur Transaksi

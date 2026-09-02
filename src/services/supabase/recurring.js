@@ -1,5 +1,6 @@
 /** Supabase recurring transaction service boundary. */
 import { getCurrentUserId } from "../user-id.js";
+import { fetchAllRows } from "./paging.js";
 
 function requireClient(client) {
   if (!client || typeof client.rpc !== "function") {
@@ -69,18 +70,9 @@ export function toRecurringRecord(data) {
   };
 }
 
-async function fetchAllRows(client, buildQuery, pageSize = 1000) {
-  const rows = [];
-  for (let from = 0; ; from += pageSize) {
-    const to = from + pageSize - 1;
-    const { data, error } = await buildQuery(from, to);
-    if (error) throw error;
-    if (!data?.length) break;
-    rows.push(...data);
-    if (data.length < pageSize) break;
-  }
-  return rows;
-}
+// Paging kini modul BERSAMA src/services/supabase/paging.js (v56): paralel
+// 2-fase bila count tersedia, fallback berurutan bila tidak -- kontrak identik
+// dengan transaksi & aset. Salinan lokal (loop berurutan) dihapus.
 
 /**
  * Ambil semua template transaksi berulang (paging sampai habis -- PostgREST
@@ -90,9 +82,9 @@ async function fetchAllRows(client, buildQuery, pageSize = 1000) {
  */
 export async function listRecurring(client) {
   const supabase = requireClient(client);
-  const rows = await fetchAllRows(supabase, (from, to) => supabase
+  const rows = await fetchAllRows(supabase, (from, to, opts) => supabase
     .from("recurring_transactions")
-    .select("id, jenis, jumlah, akun, kategori, keterangan, frequency, start_date, next_due_date, end_date, active")
+    .select("id, jenis, jumlah, akun, kategori, keterangan, frequency, start_date, next_due_date, end_date, active", opts && opts.withCount ? { count: "exact" } : undefined)
     .order("next_due_date", { ascending: true })
     .order("id", { ascending: true })
     .range(from, to));
@@ -118,27 +110,33 @@ export async function createRecurring(client, data) {
  */
 export async function updateRecurring(client, id, data) {
   const supabase = requireClient(client);
-  const { error } = await supabase.from("recurring_transactions").update(toRecurringRecord(data)).eq("id", id);
+  // Defense-in-depth (v56): .eq("user_id") eksplisit menyamakan pola service
+  // transaksi/aset (RLS tetap lapisan utama).
+  const user_id = await getCurrentUserId(supabase);
+  const { error } = await supabase.from("recurring_transactions").update(toRecurringRecord(data)).eq("id", id).eq("user_id", user_id);
   if (error) throw error;
 }
 
 /** Hapus template. Dulunya deleteRecurringRemote(). */
 export async function deleteRecurring(client, id) {
   const supabase = requireClient(client);
-  const { error } = await supabase.from("recurring_transactions").delete().eq("id", id);
+  const user_id = await getCurrentUserId(supabase);
+  const { error } = await supabase.from("recurring_transactions").delete().eq("id", id).eq("user_id", user_id);
   if (error) throw error;
 }
 
 /** Jeda/aktifkan template. Dulunya setRecurringActiveRemote(). */
 export async function setRecurringActive(client, id, active) {
   const supabase = requireClient(client);
-  const { error } = await supabase.from("recurring_transactions").update({ active }).eq("id", id);
+  const user_id = await getCurrentUserId(supabase);
+  const { error } = await supabase.from("recurring_transactions").update({ active }).eq("id", id).eq("user_id", user_id);
   if (error) throw error;
 }
 
 /** Maju-mundurkan jadwal template. Dulunya advanceRecurringDueDateRemote(). */
 export async function advanceRecurringDueDate(client, id, nextDueDate) {
   const supabase = requireClient(client);
-  const { error } = await supabase.from("recurring_transactions").update({ next_due_date: nextDueDate }).eq("id", id);
+  const user_id = await getCurrentUserId(supabase);
+  const { error } = await supabase.from("recurring_transactions").update({ next_due_date: nextDueDate }).eq("id", id).eq("user_id", user_id);
   if (error) throw error;
 }
