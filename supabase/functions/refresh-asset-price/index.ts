@@ -19,6 +19,12 @@
 // CARA DEPLOY (sama seperti analyze-finance, tidak butuh secret baru):
 //   supabase functions deploy refresh-asset-price
 //
+// STATUS DEPLOY: v18 ter-deploy live (per 2026-09-01, lihat AGENT-HANDOFF v43).
+// Perubahan v19 di file ini (tulis `tanggal_nav` atomik saat refresh) SUDAH di
+// repo TAPI BELUM ter-deploy -- sampai di-deploy, klien yang menuliskan
+// tanggal_nav sendiri pasca-refresh (app.src.js, v57). Deploy ulang kapan saja
+// aman: kedua jalur menulis nilai yang sama (idempoten).
+//
 // Setelah itu tombol "Refresh Harga" di Detail Aset akan berfungsi utk semua sumber:
 // Kripto (ID CoinGecko + Jumlah Koin), Saham IDX (kode + jumlah lembar), dan REKSADANA
 // (nama dana di Bibit + jumlah unit, sumber_harga "reksadana_bibit" -- NAB/UP pasar riil).
@@ -293,9 +299,16 @@ Deno.serve(async (req: Request) => {
     if (sameDayIdx >= 0) history[sameDayIdx] = { tanggal: todayStr, nilai: nilaiBaru };
     else history.push({ tanggal: todayStr, nilai: nilaiBaru });
 
+    // v19: tanggal_nav ikut ditulis ATOMIK bersama nilai -- tanggal DATA PASAR yang
+    // dipakai (bukan jam server), dipakai UI utk "Data pasar per ..." di Detail Aset.
+    // Sementara Edge v18 (live) belum menulis kolom ini, klien menuliskannya sendiri
+    // pasca-refresh (lihat handleRefreshAssetPrice/refreshAllAssetPrices di app.src.js);
+    // setelah deploy v19 tulisan ganda itu jadi no-op idempoten (nilai sama).
+    const tanggalNav = fetched.marketIso ? String(fetched.marketIso).slice(0, 10) : todayStr;
+
     const { error: updateErr } = await supabase
       .from("assets")
-      .update({ nilai: nilaiBaru, terakhir: new Date().toISOString(), value_history: history })
+      .update({ nilai: nilaiBaru, terakhir: new Date().toISOString(), value_history: history, tanggal_nav: tanggalNav })
       .eq("id", assetId);
 
     if (updateErr) {

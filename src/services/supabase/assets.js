@@ -19,7 +19,7 @@ export async function listAssets(client) {
     supabase
       .from("assets")
       .select(
-        "id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga",
+        "id, nama, kategori, platform, modal, nilai, terakhir, value_history, simbol, jumlah_unit, sumber_harga, tanggal_nav",
         opts && opts.withCount ? { count: "exact" } : undefined
       )
       .order("terakhir", { ascending: false })
@@ -59,20 +59,26 @@ export async function updateAsset(client, id, data) {
   // transaksi (update/remove di src/services/transactions.js) -- salah-pasti
   // id aset user lain tidak pernah tersentuh walau RLS keliru dimatikan.
   const user_id = await getCurrentUserId(supabase);
+  // tanggal_nav (v57): hanya ikut ditulis bila pemanggil MENYETELNYA secara
+  // eksplisit (jalur sync manual / pasca-refresh harga). undefined = kolom TIDAK
+  // tersentuh, sehingga Edit Aset lewat form (payload tanpa tanggal_nav) tidak
+  // pernah menghapus tanggal data pasar yang sudah tersimpan.
+  const patch = {
+    nama: data.nama,
+    kategori: data.kategori,
+    platform: data.platform || null,
+    modal: Number(data.modal),
+    nilai: Number(data.nilai),
+    terakhir: new Date().toISOString(),
+    value_history: data.value_history,
+    simbol: data.simbol || null,
+    jumlah_unit: data.jumlah_unit || null,
+    sumber_harga: data.sumber_harga || null,
+  };
+  if (data.tanggal_nav !== undefined) patch.tanggal_nav = data.tanggal_nav || null;
   const { error } = await supabase
     .from("assets")
-    .update({
-      nama: data.nama,
-      kategori: data.kategori,
-      platform: data.platform || null,
-      modal: Number(data.modal),
-      nilai: Number(data.nilai),
-      terakhir: new Date().toISOString(),
-      value_history: data.value_history,
-      simbol: data.simbol || null,
-      jumlah_unit: data.jumlah_unit || null,
-      sumber_harga: data.sumber_harga || null,
-    })
+    .update(patch)
     .eq("id", id)
     .eq("user_id", user_id);
   if (error) throw error;

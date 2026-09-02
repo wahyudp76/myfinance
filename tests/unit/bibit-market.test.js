@@ -14,6 +14,7 @@ import {
   withSyncedValue,
   describeSyncSource,
   isBibitNavDate,
+  formatNavDate,
 } from "../../src/domain/market-sync.js";
 
 // ---------- util fixture: enkripsi ala payload API Bibit (IV||ct||key, hex) ----------
@@ -141,4 +142,28 @@ test("isBibitNavDate: valid kini, tolak format salah/masa depan/basi", () => {
   assert.equal(isBibitNavDate("2026-02-30", now), false);
   assert.equal(isBibitNavDate(null, now), false);
   assert.equal(isBibitNavDate(20260901, now), false);
+});
+
+// ---------- formatNavDate (v57): label "d MMM yyyy" utk tanggal data pasar ----------
+// Dipakai baris sumber Detail Aset ("Data pasar per 30 Agu 2026") & toast sync manual.
+// Wajib menerima ISO datetime lengkap (bentuk tanggal_pasar dari Yahoo) -- di-slice.
+test("formatNavDate: YYYY-MM-DD -> label id-ID (hari + bulan singkat + tahun)", () => {
+  assert.equal(formatNavDate("2026-08-30"), "30 Agu 2026");
+  assert.equal(formatNavDate("2026-01-05"), "5 Jan 2026");
+  assert.equal(formatNavDate("  2026-12-31  "), "31 Des 2026");
+});
+
+test("formatNavDate: ISO datetime lengkap di-slice 10 karakter pertama (bentuk Yahoo timeIso)", () => {
+  assert.equal(formatNavDate("2026-08-29T10:15:00+07:00"), "29 Agu 2026");
+  assert.equal(formatNavDate("2026-08-28T03:00:00.000Z"), "28 Agu 2026");
+});
+
+test("formatNavDate: input tidak valid -> null (UI menyembunyikan segmen tanggal)", () => {
+  assert.equal(formatNavDate(null), null);
+  assert.equal(formatNavDate(undefined), null);
+  assert.equal(formatNavDate(20260830), null);
+  assert.equal(formatNavDate(""), null);
+  assert.equal(formatNavDate("bukan-tanggal"), null);
+  assert.equal(formatNavDate("2026-02-30"), null); // tanggal tidak riil
+  assert.equal(formatNavDate("30-08-2026"), null); // format terbalik
 });

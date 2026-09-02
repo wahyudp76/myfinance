@@ -68,6 +68,27 @@ export function withSyncedValue(asset, { nilaiBaru, today, nowIso } = {}) {
   return { nilai, terakhir: stamp, value_history: history };
 }
 
+/**
+ * Label tanggal "data pasar" utk UI (id-ID, "d MMM yyyy" -- mis. "30 Agu 2026").
+ * Menerima "YYYY-MM-DD" MAUPUN ISO datetime lengkap (di-slice 10 karakter pertama
+ * -- bentuk yang dikembalikan Edge refresh-asset-price lewat field tanggal_pasar).
+ * Mengembalikan null utk input tidak valid -- pemanggil boleh langsung menyembunyikan
+ * segmen tanggal saat null (aset lama yang belum punya tanggal_nav).
+ */
+export function formatNavDate(dateStr) {
+  if (typeof dateStr !== "string") return null;
+  const v = dateStr.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  // Validasi zona-aman (pola sama dgn isBibitNavDate): parse sbg UTC supaya
+  // toISOString() bisa dibandingkan langsung dgn string sumbernya.
+  const check = new Date(v + "T00:00:00Z");
+  if (isNaN(check.getTime()) || check.toISOString().slice(0, 10) !== v) return null;
+  // Format: local midnight supaya toLocaleDateString menghasilkan tanggal yang
+  // SAMA di zona waktu mana pun (pola identik dgn sinceLabel di app.js).
+  const d = new Date(v + "T00:00:00");
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+}
+
 /** Label sumber utk toast/UI. Sumber tak dikenal ditampilkan apa adanya. */
 export function describeSyncSource(source) {
   switch (source) {

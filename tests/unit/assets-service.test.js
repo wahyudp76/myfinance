@@ -8,17 +8,20 @@ const RAW_ROW = {
   modal: "15000000", nilai: "18500000", terakhir: "2026-08-20T00:00:00Z",
   value_history: [{ tanggal: "2026-08-20", nilai: 18500000 }],
   simbol: "BTC", jumlah_unit: "0.005", sumber_harga: "coingecko",
+  tanggal_nav: "2026-08-28",
 };
 
-test("listAssets(): select mencakup 3 kolom refresh harga otomatis (simbol/jumlah_unit/sumber_harga)", async () => {
+test("listAssets(): select mencakup 3 kolom refresh harga otomatis + tanggal_nav (v57)", async () => {
   const client = createMockSupabaseClient({ resultProvider: (record) => (record.range[0] === 0 ? { data: [RAW_ROW], error: null } : { data: [], error: null }) });
-  await listAssets(client);
+  const rows = await listAssets(client);
 
   const call = client.calls[0];
   assert.equal(call.table, "assets");
-  for (const col of ["simbol", "jumlah_unit", "sumber_harga", "value_history", "modal", "nilai"]) {
+  for (const col of ["simbol", "jumlah_unit", "sumber_harga", "value_history", "modal", "nilai", "tanggal_nav"]) {
     assert.ok(call.columns.includes(col), `select harus menyertakan kolom ${col}`);
   }
+  // tanggal_nav diteruskan apa adanya (string YYYY-MM-DD dari Postgres text column)
+  assert.equal(rows[0].tanggal_nav, "2026-08-28");
 });
 
 test("listAssets(): modal/nilai dikonversi ke Number (datang sebagai string numeric dari Postgres), value_history default array kosong", async () => {
@@ -77,6 +80,28 @@ test("updateAsset(): update difilter by id + user_id (defense-in-depth v56), men
   assert.equal(call.method, "update");
   assert.deepEqual(call.filters, [["id", "a1"], ["user_id", "user-1"]]);
   assert.ok(call.payload.terakhir, "terakhir harus diisi ulang saat update");
+});
+
+// ===== tanggal_nav (v57): kolom hanya tersentuh bila pemanggil MENYETELNYA =====
+// Edit Aset lewat form (submitAsset) tidak mengirim tanggal_nav -- kolom tanggal data
+// pasar yang sudah tersimpan TIDAK BOLEH ikut ter-null-kan oleh payload itu.
+
+test("updateAsset(): tanggal_nav undefined -> kolom TIDAK ikut dikirim (Edit Aset tidak menghapus tanggal data pasar)", async () => {
+  const client = createMockSupabaseClient();
+  await updateAsset(client, "a1", { nama: "BTC", kategori: "Kripto", modal: 1, nilai: 2, value_history: [] });
+  assert.equal("tanggal_nav" in client.calls[0].payload, false);
+});
+
+test("updateAsset(): tanggal_nav di-set eksplisit -> ikut terkirim (jalur sync manual / pasca-refresh harga)", async () => {
+  const client = createMockSupabaseClient();
+  await updateAsset(client, "a1", { nama: "BTC", kategori: "Kripto", modal: 1, nilai: 2, value_history: [], tanggal_nav: "2026-09-01" });
+  assert.equal(client.calls[0].payload.tanggal_nav, "2026-09-01");
+});
+
+test("updateAsset(): tanggal_nav di-set null/empty -> dikirim null (bukan string kosong)", async () => {
+  const client = createMockSupabaseClient();
+  await updateAsset(client, "a1", { nama: "BTC", kategori: "Kripto", modal: 1, nilai: 2, value_history: [], tanggal_nav: "" });
+  assert.equal(client.calls[0].payload.tanggal_nav, null);
 });
 
 test("deleteAsset(): delete difilter by id + user_id (defense-in-depth v56)", async () => {

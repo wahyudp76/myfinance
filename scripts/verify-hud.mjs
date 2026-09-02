@@ -122,7 +122,7 @@ await context.route("**/rest/v1/transactions**", (r) => {
 const budgetRows = [{ kategori: "Restoran", jumlah: 500000, bulan: "2026-08" }, { kategori: "Bensin", jumlah: 120000, bulan: "2026-08" }];
 await context.route("**/rest/v1/budgets**", (r) => (r.request().method() === "GET" ? r.fulfill(json(budgetRows)) : r.fulfill(json({}), 201)));
 const SHOPEE_SEED = { id: "asset-sm-1", user_id: "u1", nama: "Shopee Merchant", kategori: "Bisnis", platform: "Shopee", modal: 100000, nilai: 100000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 100000 }], simbol: null, jumlah_unit: null, sumber_harga: null };
-const BIBIT_SEED = { id: "asset-bibit-1", user_id: "u1", nama: "Bibit", kategori: "Reksadana", platform: "Bibit", modal: 1000000, nilai: 1000000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 1000000 }], simbol: null, jumlah_unit: null, sumber_harga: null };
+const BIBIT_SEED = { id: "asset-bibit-1", user_id: "u1", nama: "Bibit", kategori: "Reksadana", platform: "Bibit", modal: 1000000, nilai: 1000000, terakhir: "2026-08-01T00:00:00.000Z", value_history: [{ tanggal: "2026-08-01", nilai: 1000000 }], simbol: null, jumlah_unit: null, sumber_harga: null, tanggal_nav: "2026-08-01" };
 const assetWrites = [];
 await context.route("**/rest/v1/assets**", (r) => {
   if (r.request().method() === "GET") return r.fulfill(json([BIBIT_SEED, SHOPEE_SEED]));
@@ -369,6 +369,13 @@ ok("aset: helper murni NAB x unit + aturan value_history", await page.evaluate((
   const p = s2.withSyncedValue({ nilai: 1000000, value_history: [] }, { nilaiBaru: v, today: todayDateStr() });
   return v === 146582 && p.nilai === 146582 && p.value_history.length === 1;
 }));
+ok("v57 helper murni: formatNavDate (label id-ID) + isBibitNavDate terekspos ke app", await page.evaluate(() => {
+  const s2 = window.__myfinanceServices;
+  return s2.formatNavDate("2026-08-30") === "30 Agu 2026" &&
+    s2.formatNavDate("2026-08-29T10:15:00+07:00") === "29 Agu 2026" &&
+    s2.formatNavDate("2026-02-30") === null &&
+    s2.isBibitNavDate(todayDateStr()) === true;
+}));
 const reksaAsset = await page.evaluate(() => { const a = globalAssets.find(x => x.kategori === "Reksadana"); return a ? a.id : null; });
 await page.evaluate((id) => openAssetDetailModal(id), reksaAsset);
 await page.waitForTimeout(500);
@@ -386,6 +393,33 @@ await page.waitForTimeout(900);
 const lastAssetWrite = assetWrites.length ? assetWrites[assetWrites.length - 1] : null;
 ok("aset Reksadana: tombol Sync NAB tampil & preview NAB x unit benar (Rp 150.000)", hasManualBtn && navPreview === "Rp 150.000");
 ok("aset Reksadana: sync manual menulis nilai 150000 + 100 unit ke cloud", !!lastAssetWrite && Number(lastAssetWrite.body.nilai) === 150000 && Number(lastAssetWrite.body.jumlah_unit) === 100);
+
+// ---------- E2E v57: tanggal data pasar (kolom tanggal_nav) di sync manual ----------
+// Prefill modal = hari ini -> PATCH pertama harus membawa tanggal_nav = hari ini.
+const todayStr = await page.evaluate(() => todayDateStr());
+ok("v57 sync manual: tanggal_nav terisi default HARI INI di payload PATCH", !!lastAssetWrite && lastAssetWrite.body.tanggal_nav === todayStr);
+
+// Tanggal basi (>30 hari) DITOLAK: tidak ada PATCH baru, modal tetap terbuka utk koreksi.
+const writesBeforeBadDate = assetWrites.length;
+await page.evaluate(() => {
+  openManualNavModal(); // submit sukses sebelumnya menutup modal -- buka ulang seperti user
+  document.getElementById("manual-nav-value").value = "1600";
+  document.getElementById("manual-nav-units").value = "100";
+  document.getElementById("manual-nav-date").value = "2020-01-01";
+  submitManualNav();
+});
+await page.waitForTimeout(700);
+ok("v57 sync manual: tanggal basi (>30 hari) DITOLAK tanpa tulis ke cloud", assetWrites.length === writesBeforeBadDate);
+
+// Tanggal sah (2 hari lalu, relatif supaya tidak lapuk) diterima & dikirim apa adanya.
+const twoDaysAgo = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); });
+await page.evaluate((d) => {
+  document.getElementById("manual-nav-date").value = d;
+  submitManualNav();
+}, twoDaysAgo);
+await page.waitForTimeout(900);
+const datedWrite = assetWrites.length ? assetWrites[assetWrites.length - 1] : null;
+ok("v57 sync manual: tanggal data pasar kustom (2 hari lalu) ikut terkirim", !!datedWrite && datedWrite.body.tanggal_nav === twoDaysAgo && Number(datedWrite.body.nilai) === 160000);
 // ---------- E2E: self-heal akun-bayangan aset (bug "shopee merchant") ----------
 // Simulasikan polusi lama: nama aset pernah terdaftar sebagai akun. loadData()
 // harus membuangnya otomatis (aset ada + jejak Transfer-tujuan ada + tak pernah
@@ -407,16 +441,25 @@ const kriptoUi = await page.evaluate(async () => {
   await new Promise((r) => setTimeout(r, 300));
   const manualShown = !document.getElementById("asset-detail-manualnav-btn").classList.contains("hidden");
   const lineShown = !document.getElementById("asset-detail-market-line").classList.contains("hidden");
-  const lineTxt = document.getElementById("asset-detail-market-text").textContent;
+  const lineNoDate = document.getElementById("asset-detail-market-text").textContent;
+  // v57: tanpa tanggal_nav -> TIDAK ada segmen "Data pasar per"; dengan tanggal -> muncul terformat.
+  const a = globalAssets.find((x) => x.id === "tmp-kripto");
+  a.tanggal_nav = "2026-08-30";
+  openAssetDetailModal("tmp-kripto");
+  await new Promise((r) => setTimeout(r, 200));
+  const lineWithDate = document.getElementById("asset-detail-market-text").textContent;
+  const lineTxt = lineWithDate;
   openManualNavModal();
   const lbl = document.getElementById("manual-nav-value-label").textContent;
   const ttl = document.getElementById("manual-nav-title").textContent;
   closeManualNavModal();
   closeAssetDetailModal();
-  globalAssets = globalAssets.filter((a) => a.id !== "tmp-kripto");
-  return { manualShown, lineShown, coin: lineTxt.includes("CoinGecko"), koinLabel: /koin/i.test(lbl), kriptoTitle: /Kripto/i.test(ttl) };
+  globalAssets = globalAssets.filter((a2) => a2.id !== "tmp-kripto");
+  return { manualShown, lineShown, coin: lineTxt.includes("CoinGecko"), koinLabel: /koin/i.test(lbl), kriptoTitle: /Kripto/i.test(ttl),
+    noDateHidden: !lineNoDate.includes("Data pasar per"), dateShown: lineWithDate.includes("Data pasar per 30 Agu 2026") };
 });
 ok("aset kripto: fallback manual + baris sumber CoinGecko + label harga per koin", kriptoUi.manualShown && kriptoUi.lineShown && kriptoUi.coin && kriptoUi.koinLabel && kriptoUi.kriptoTitle);
+ok("v57 detail aset: baris sumber menampilkan \"Data pasar per 30 Agu 2026\" hanya bila tanggal_nav ada", kriptoUi.noDateHidden && kriptoUi.dateShown);
 
 // ---------- E2E: hover baris "Komposisi Kas & Rekening" tetap terbaca (v44) ----------
 await page.evaluate(() => switchView("dashboard"));

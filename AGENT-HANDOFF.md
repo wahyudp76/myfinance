@@ -540,3 +540,78 @@ perilaku pengguna; semua verifikasi hijau.
   Dependabot yang mengangkat.
 - Node sandbox 20.20.2 dipakai verifikasi v56 (engines repo minta >=22; CI
   pakai .nvmrc 22). Suite unit+E2E hijau di keduanya.
+
+## v57 — Tanggal data pasar untuk aset (menutup loop kolom yatim `assets.tanggal_nav`)
+
+Melanjutkan kandidat v57 yang tercatat di v56. Kolom `tanggal_nav` (ada di DB live
+sejak migrasi 2026-09) sebelumnya TIDAK PERNAH ditulis siapa pun & tidak di-select
+klien. v57 memberinya makna yang jujur & tervalidasi: **tanggal DATA PASAR yang
+mendasari nilai terakhir aset** (beda dari `terakhir` = jam nilai ditulis).
+
+### Yang diubah
+1. **`src/domain/market-sync.js`** + `formatNavDate(dateStr)` (murni, teruji unit):
+   "YYYY-MM-DD" MAUPUN ISO datetime (bentuk `tanggal_pasar` Yahoo) -> label id-ID
+   "30 Agu 2026"; null utk input tak valid (UI menyembunyikan segmen). Validasi
+   zona-aman (parse UTC ala isBibitNavDate), format via local-midnight (pola
+   sinceLabel) supaya benar di zona waktu mana pun.
+2. **`src/services/supabase/assets.js`**:
+   - `listAssets` select += `tanggal_nav` (passthrough, tanpa koersi).
+   - `updateAsset`: `tanggal_nav` hanya ikut PATCH bila pemanggil MENYETELNYA
+     (`data.tanggal_nav !== undefined`); undefined = kolom tak tersentuh. INI
+     KUNCINYA: `submitAsset` (form Edit Aset) membangun payload BARU tanpa
+     tanggal_nav -- jaminan tidak sengaja menghapus tanggal data pasar saat user
+     cuma ganti nama/modal. `""`/null eksplisit -> ditulis null (reset disengaja).
+3. **UI (app.src.js + index.html)**:
+   - Modal sync manual: field **"Tanggal data pasar"** (type=date, prefill HARI
+     INI, label per kategori: "Tanggal NAB/UP"/"harga koin"/"harga saham"),
+     divalidasi `isBibitNavDate` (riil, <=30 hari, tak masa depan) -> tolak =
+     toast error + TIDAK menulis; lolos = `tanggal_nav` ikut PATCH + toast
+     "...data per 30 Agu 2026".
+   - `handleRefreshAssetPrice` (refresh tunggal): setelah `listAssets` (baris
+     SEGAR -- Edge baru menulis nilai/history), tanggal_pasar di-persist ke
+     tanggal_nav via updateAsset tambahan. NON-FATAL: gagal tulis tidak
+     menggagalkan render nilai baru.
+   - `refreshAllAssetPrices` (massal): tanggal_pasar per aset sukses dikumpulkan,
+     lalu di-persist PARALEL (Promise.allSettled, skip yang tanggalnya sudah sama)
+     sebelum render -- konsisten dgn jalur tunggal & manual.
+   - Detail Aset, baris sumber: segmen baru **"· Data pasar per <label>"** hanya
+     bila `asset.tanggal_nav` ada (aset lama -> tak ada segmen, bukan "-").
+4. **Edge `refresh-asset-price` (KODE v19 di repo, BELUM ter-deploy)**: cabang
+   auto kini menulis `tanggal_nav` ATOMIK bersama nilai (`marketIso.slice(0,10)`
+   utk Yahoo/Bibit; fallback `todayStr` utk CoinGecko yang realtime). Header file
+   diberi blok STATUS DEPLOY eksplisit. Sampai ter-deploy, klien yang menulis
+   tanggal sendiri (di atas); setelah deploy, tulisan ganda = no-op idempoten.
+   **Deploy butuh PAT Supabase (`sbp_...`) -- `sb_secret_` TIDAK bisa akses
+   Management API (401 teruji).** Alternatif tanpa CLI: copy-paste isi file ke
+   dashboard Functions.
+5. **SEMANTIK TETAP**: titik value_history tetap dicap HARI-INI-saat-sync (aturan
+   dedupe-per-hari tak berubah, identik dgn Edge); `tanggal_nav` murni metadata
+   tanggal datanya. `sumber_harga` TIDAK diubah jalur manual (aset tetap bisa
+   auto-refresh; jalur `manual_nav` di Edge tetap tak terjangkau dari UI -- lihat
+   catatan v56, kandidat dihapus di refactor Edge berikutnya).
+
+### Verifikasi (semua hijau, lokal)
+- `npm run lint` OK; `npm run test:unit` = **558 pass / 0 fail** (dari 552;
+  +3 formatNavDate, +3 updateAsset-tanggal_nav semantics: undefined tak dikirim /
+  eksplisit terkirim / empty jadi null).
+- `node scripts/verify-hud.mjs` = **64/64 PASS, Error halaman: 0** (dari 59;
+  +5: helper murni v57 via servicesModule, PATCH default hari ini, tolak tanggal
+  basi tanpa tulis, tanggal kustom (relatif -2 hari, tak lapuk) terkirim, baris
+  sumber menampilkan/menyembunyikan segmen sesuai tanggal_nav).
+- `npm run build:app` (app.src.js 448.022 -> app.js 224.269 B) + `build:css`
+  TANPA drift (field date memakai kelas yang sudah ada -- tailwind.css/styles.css
+  byte-identik). sw.js: CACHE_VERSION v56 -> v57 + snapshot regen.
+- `node scripts/lighthouse/run.mjs` = perf 61 / a11y 97 / bp 100 (pagar 55/85/90;
+  dalam rentang noise v54-v56).
+
+### Perangkap
+- **Jangan bawa `tanggal_nav` di payload `submitAsset`** -- begitu itu jadi
+  `undefined`-vs-`null` ambigu, jaminan "form tidak menghapus tanggal" hilang.
+  Satu-satunya penulis eksplisit: submitManualNav, handleRefreshAssetPrice,
+  refreshAllAssetPrices (dan Edge v19 setelah deploy).
+- **Persist pasca-refresh WAJIB pakai baris hasil listAssets**, bukan aset lama
+  dari globalAssets -- updateAsset menulis FULL ROW; baris basi akan MENIMPA
+  nilai & value_history segar yang baru ditulis Edge.
+- `formatNavDate` di unit test menghasilkan label id-ID bergantung ICU Node
+  (penuh sejak Node 13) -- aman; kalau test jalan di runtime ICU-kecil
+  (small-icu), label bulan bisa beda -- jangan "fix" logikanya.

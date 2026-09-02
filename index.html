@@ -144,7 +144,7 @@
         import { pruneAccountKeyedMaps, validatePasswordChange } from './src/domain/settings.js';
         import { buildTransactionsCsv, csvFileName, filterTransactionsForRange } from './src/domain/export-csv.js';
         import { summarizeAppData, formatBytes } from './src/domain/app-info.js';
-        import { computeMarketValue, withSyncedValue, describeSyncSource } from './src/domain/market-sync.js';
+        import { computeMarketValue, withSyncedValue, describeSyncSource, isBibitNavDate, formatNavDate } from './src/domain/market-sync.js';
         import { normalizeThemeColor, buildAccentShades, PRESET_THEMES, isColorCloseToAny, CHART_EXPENSE_REDS } from './src/domain/theme.js';
         import { getFocusable, nextTabTarget, pickTopModal, modalAccessibleName } from './src/ui/modal-a11y.js';
         import { dashboardSkeletonHtml } from './src/ui/skeletons.js';
@@ -194,7 +194,7 @@
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
             buildTransactionsCsv, csvFileName, filterTransactionsForRange, summarizeAppData, formatBytes, validatePasswordChange,
-            computeMarketValue, withSyncedValue, describeSyncSource,
+            computeMarketValue, withSyncedValue, describeSyncSource, isBibitNavDate, formatNavDate,
             buildDailyFlow, sparklineSvg, // sparkline HUD (src/domain/sparkline.js) -- domain murni
             chartHud, // DNA grafik garis HUD (src/domain/chart-hud.js)
             chartsUi, // builder config semua Chart.js (src/ui/charts.js) -- slice monolith 2026-09
@@ -2129,6 +2129,14 @@
                     <label for="manual-nav-units" id="manual-nav-units-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah unit dimiliki</label>
                     <input type="number" step="any" min="0" id="manual-nav-units" placeholder="Contoh: 120.5" oninput="previewManualNav()"
                         class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
+                </div>
+                <!-- v57: tanggal data pasar (NAB/UP/harga yang disalin) -- divalidasi isBibitNavDate
+                     (murni, src/domain/market-sync.js): format riil, tidak masa depan, tidak basi >30 hari. -->
+                <div>
+                    <label for="manual-nav-date" id="manual-nav-date-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Tanggal data pasar</label>
+                    <input type="date" id="manual-nav-date" aria-describedby="manual-nav-date-hint"
+                        class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
+                    <p class="text-[10px] text-slate-400 mt-1" id="manual-nav-date-hint">Tanggal NAB/UP/harga yang kamu salin (kosong = hari ini)</p>
                 </div>
                 <div class="bg-emerald-50 rounded-2xl p-3 flex items-center justify-between">
                     <span class="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Nilai baru</span>

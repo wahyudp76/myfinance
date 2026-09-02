@@ -5227,8 +5227,13 @@ async function currentUserId() {
                     const perUnit = Number(asset.jumlah_unit) ? (Number(asset.nilai) / Number(asset.jumlah_unit)) : null;
                     const srcLabel = ({ coingecko: 'CoinGecko', yahoo_id_stock: 'Yahoo Finance (IDX)', reksadana_bibit: 'Bibit (NAB/UP)' })[asset.sumber_harga] || asset.sumber_harga;
                     const when = asset.terakhir ? new Date(asset.terakhir).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+                    // v57: tanggal DATA PASAR (kolom tanggal_nav -- diisi sync manual & pasca-refresh
+                    // harga), berbeda dari "Diperbarui" (jam nilai ditulis). Aset lama yang belum
+                    // punya tanggal -> segmen ini disembunyikan, bukan menampilkan "-".
+                    const navDateLabel = asset.tanggal_nav ? servicesModule.formatNavDate(asset.tanggal_nav) : null;
                     document.getElementById('asset-detail-market-text').textContent =
-                        'Sumber: ' + srcLabel + ' · 1 unit ≈ Rp ' + (perUnit ? formatRp(Math.round(perUnit)) : '-') + ' · Diperbarui ' + when;
+                        'Sumber: ' + srcLabel + ' · 1 unit ≈ Rp ' + (perUnit ? formatRp(Math.round(perUnit)) : '-') +
+                        (navDateLabel ? ' · Data pasar per ' + navDateLabel : '') + ' · Diperbarui ' + when;
                     marketLine.classList.remove('hidden');
                     marketLine.classList.add('flex');
                 } else {
@@ -5263,8 +5268,21 @@ async function currentUserId() {
                     const extra = ' (1 unit = Rp ' + formatRp(Math.round(Number(result.harga_per_unit) || 0)) +
                         (result.tanggal_pasar ? ', data pasar ' + String(result.tanggal_pasar).slice(0, 10) : '') + ')';
                     showSuccessToast('Harga diperbarui: Rp ' + formatRp(result.nilai_baru) + extra);
-                    servicesModule.listAssets(supabaseClient).then((assets) => {
+                    servicesModule.listAssets(supabaseClient).then(async (assets) => {
                         globalAssets = assets || [];
+                        // v57: simpan tanggal data pasar (kolom tanggal_nav) supaya tanggalnya
+                        // bertahan lintas-reload di baris sumber Detail Aset. Ditulis dari baris
+                        // SEGAR hasil listAssets (Edge baru saja menulis nilai & value_history --
+                        // jangan menimpanya dgn data basi). Non-fatal: gagal tulis tidak boleh
+                        // menggagalkan render nilai baru.
+                        const tglPasar = result.tanggal_pasar ? String(result.tanggal_pasar).slice(0, 10) : null;
+                        const fresh = globalAssets.find(a => a.id === currentAssetDetailId);
+                        if (fresh && tglPasar && fresh.tanggal_nav !== tglPasar) {
+                            try {
+                                await servicesModule.updateAsset(supabaseClient, fresh.id, { ...fresh, tanggal_nav: tglPasar });
+                                fresh.tanggal_nav = tglPasar;
+                            } catch (eDate) { console.error('simpan tanggal data pasar gagal:', eDate); }
+                        }
                         processDataForUI(globalData);
                         if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
                         openAssetDetailModal(currentAssetDetailId); // re-render detail dgn nilai & grafik terbaru
@@ -5294,16 +5312,22 @@ async function currentUserId() {
             if (!asset) { showErrorToast('Aset tidak ditemukan.'); return; }
             // Label menyesuaikan kategori (NAB reksadana / harga koin / harga lembar).
             const lbl = ({
-                'Reksadana': { t: 'Sync NAB/UP Pasar', sub: 'Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa', v: 'NAB/UP terkini (Rp per unit)', u: 'Jumlah unit dimiliki' },
-                'Kripto': { t: 'Sync Harga Kripto', sub: 'Masukkan harga per koin terkini dari exchange/aplikasi kamu', v: 'Harga terkini per koin (Rp)', u: 'Jumlah koin dimiliki' },
-                'Saham': { t: 'Sync Harga Saham', sub: 'Masukkan harga per lembar terkini (mis. harga penutupan) dari aplikasi sekuritas', v: 'Harga terkini per lembar (Rp)', u: 'Jumlah lembar dimiliki' },
-            })[asset.kategori] || { t: 'Sync Nilai Pasar', sub: 'Masukkan harga per unit terkini', v: 'Harga terkini per unit (Rp)', u: 'Jumlah unit dimiliki' };
+                'Reksadana': { t: 'Sync NAB/UP Pasar', sub: 'Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa', v: 'NAB/UP terkini (Rp per unit)', u: 'Jumlah unit dimiliki', d: 'Tanggal NAB/UP' },
+                'Kripto': { t: 'Sync Harga Kripto', sub: 'Masukkan harga per koin terkini dari exchange/aplikasi kamu', v: 'Harga terkini per koin (Rp)', u: 'Jumlah koin dimiliki', d: 'Tanggal harga koin' },
+                'Saham': { t: 'Sync Harga Saham', sub: 'Masukkan harga per lembar terkini (mis. harga penutupan) dari aplikasi sekuritas', v: 'Harga terkini per lembar (Rp)', u: 'Jumlah lembar dimiliki', d: 'Tanggal harga saham' },
+            })[asset.kategori] || { t: 'Sync Nilai Pasar', sub: 'Masukkan harga per unit terkini', v: 'Harga terkini per unit (Rp)', u: 'Jumlah unit dimiliki', d: 'Tanggal data pasar' };
             document.getElementById('manual-nav-title').textContent = lbl.t;
             document.getElementById('manual-nav-sub').textContent = lbl.sub;
             document.getElementById('manual-nav-value-label').textContent = lbl.v;
             document.getElementById('manual-nav-units-label').textContent = lbl.u;
+            const navDateLabel = document.getElementById('manual-nav-date-label');
+            if (navDateLabel) navDateLabel.textContent = lbl.d;
             document.getElementById('manual-nav-value').value = '';
             document.getElementById('manual-nav-units').value = (asset.jumlah_unit != null && asset.jumlah_unit !== '') ? asset.jumlah_unit : '';
+            // v57: default tanggal data pasar = hari ini (kasus umum: NAB/harga terbit hari ini).
+            // User bisa mengubahnya bila angka yang disalin bertanggal lain (mis. NAB kemarin).
+            const navDateInput = document.getElementById('manual-nav-date');
+            if (navDateInput) navDateInput.value = todayDateStr();
             previewManualNav();
             const modal = document.getElementById('modalManualNav'); const content = document.getElementById('modalManualNavContent');
             modal.classList.remove('hidden');
@@ -5328,11 +5352,24 @@ async function currentUserId() {
             const units = Number(document.getElementById('manual-nav-units').value);
             const nilaiBaru = servicesModule.computeMarketValue(nav, units);
             if (!nilaiBaru) { showErrorToast('NAB/UP dan jumlah unit harus lebih dari 0.'); return; }
+            // v57: tanggal data pasar -- divalidasi isBibitNavDate (murni, teruji unit):
+            // format YYYY-MM-DD riil, tidak di masa depan, tidak basi (>30 hari). Kosong
+            // dianggap hari ini (prefill openManualNavModal).
+            const navDateInput = document.getElementById('manual-nav-date');
+            const navDate = ((navDateInput && navDateInput.value) || '').trim() || todayDateStr();
+            if (!servicesModule.isBibitNavDate(navDate)) {
+                showErrorToast('Tanggal data pasar tidak valid. Pakai tanggal riil, maks. 30 hari ke belakang, tidak di masa depan.');
+                return;
+            }
             try {
                 const patch = servicesModule.withSyncedValue(asset, { nilaiBaru, today: todayDateStr() });
-                await servicesModule.updateAsset(supabaseClient, asset.id, { ...asset, ...patch, jumlah_unit: units });
+                // tanggal_nav ditulis EKSPLISIT (bukan undefined) -- updateAsset hanya
+                // menyentuh kolom ini bila disetel, jadi Edit Aset lewat form tidak pernah
+                // menghapusnya. Catatan: titik value_history tetap dicap HARI INI (aturan sama
+                // dengan Edge Function), tanggal_nav mencatat tanggal DATA PASARNYA.
+                await servicesModule.updateAsset(supabaseClient, asset.id, { ...asset, ...patch, jumlah_unit: units, tanggal_nav: navDate });
                 closeManualNavModal();
-                showSuccessToast('Nilai pasar diterapkan: Rp ' + formatRp(nilaiBaru) + ' (' + servicesModule.describeSyncSource('manual_nav') + ').');
+                showSuccessToast('Nilai pasar diterapkan: Rp ' + formatRp(nilaiBaru) + ' (' + servicesModule.describeSyncSource('manual_nav') + ', data per ' + servicesModule.formatNavDate(navDate) + ').');
                 servicesModule.listAssets(supabaseClient).then((assets) => {
                     globalAssets = assets || [];
                     processDataForUI(globalData);
@@ -5358,13 +5395,29 @@ async function currentUserId() {
             showLoading(true);
             let okCount = 0;
             const fails = [];
+            const dated = []; // v57: [{ id, tanggal }] tanggal_pasar per aset yg sukses di-refresh
             for (const a of targets) {
-                try { await servicesModule.refreshAssetPrice(supabaseClient, a.id); okCount++; }
+                try {
+                    const r = await servicesModule.refreshAssetPrice(supabaseClient, a.id);
+                    okCount++;
+                    if (r && r.tanggal_pasar) dated.push({ id: a.id, tanggal: String(r.tanggal_pasar).slice(0, 10) });
+                }
                 catch (e) { fails.push(a.nama + ': ' + ((e && e.message) || e)); }
             }
             try {
                 const assets = await servicesModule.listAssets(supabaseClient);
                 globalAssets = assets || [];
+                // v57: simpan tanggal data pasar per aset (paralel, non-fatal) supaya tanggalnya
+                // tampil di Detail Aset lintas-reload, konsisten dgn jalur refresh tunggal &
+                // sync manual. Pakai baris SEGAR hasil listAssets (nilai/history baru ditulis
+                // Edge); aset yang tanggalnya sudah sama dilewati (tanpa request).
+                await Promise.allSettled(dated.map(({ id, tanggal }) => {
+                    const fresh = globalAssets.find(a => a.id === id);
+                    if (!fresh || fresh.tanggal_nav === tanggal) return Promise.resolve();
+                    return servicesModule.updateAsset(supabaseClient, id, { ...fresh, tanggal_nav: tanggal })
+                        .then(() => { fresh.tanggal_nav = tanggal; })
+                        .catch((e) => { console.error('simpan tanggal data pasar gagal:', e); });
+                }));
                 processDataForUI(globalData);
                 if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
             } catch (e) { console.error('muat ulang aset pasca-refresh gagal:', e); }
