@@ -19,11 +19,11 @@
 // CARA DEPLOY (sama seperti analyze-finance, tidak butuh secret baru):
 //   supabase functions deploy refresh-asset-price
 //
-// STATUS DEPLOY: v18 ter-deploy live (per 2026-09-01, lihat AGENT-HANDOFF v43).
-// Perubahan v19 di file ini (tulis `tanggal_nav` atomik saat refresh) SUDAH di
-// repo TAPI BELUM ter-deploy -- sampai di-deploy, klien yang menuliskan
-// tanggal_nav sendiri pasca-refresh (app.src.js, v57). Deploy ulang kapan saja
-// aman: kedua jalur menulis nilai yang sama (idempoten).
+// STATUS DEPLOY: **v19 TER-DEPLOY live 2026-09-02** (management version 21, via Supabase
+// CLI 2.116.0). Terbukti E2E di produksi: invoke API murni (tanpa klien) mengisi
+// tanggal_nav atomik bersama nilai -- lihat AGENT-HANDOFF v57 "Tindak lanjut".
+// Tulisan tanggal_nav oleh klien pasca-refresh kini no-op idempoten (nilai sama,
+// dilewati). v18 (management version 20) adalah deploy sebelumnya (2026-09-01).
 //
 // Setelah itu tombol "Refresh Harga" di Detail Aset akan berfungsi utk semua sumber:
 // Kripto (ID CoinGecko + Jumlah Koin), Saham IDX (kode + jumlah lembar), dan REKSADANA

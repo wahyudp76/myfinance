@@ -576,7 +576,8 @@ mendasari nilai terakhir aset** (beda dari `terakhir` = jam nilai ditulis).
      sebelum render -- konsisten dgn jalur tunggal & manual.
    - Detail Aset, baris sumber: segmen baru **"· Data pasar per <label>"** hanya
      bila `asset.tanggal_nav` ada (aset lama -> tak ada segmen, bukan "-").
-4. **Edge `refresh-asset-price` (KODE v19 di repo, BELUM ter-deploy)**: cabang
+4. **Edge `refresh-asset-price` (KODE v19 di repo; TER-DEPLOY 2026-09-02 -- lihat
+   "Tindak lanjut v57" di bawah)**: cabang
    auto kini menulis `tanggal_nav` ATOMIK bersama nilai (`marketIso.slice(0,10)`
    utk Yahoo/Bibit; fallback `todayStr` utk CoinGecko yang realtime). Header file
    diberi blok STATUS DEPLOY eksplisit. Sampai ter-deploy, klien yang menulis
@@ -615,3 +616,33 @@ mendasari nilai terakhir aset** (beda dari `terakhir` = jam nilai ditulis).
 - `formatNavDate` di unit test menghasilkan label id-ID bergantung ICU Node
   (penuh sejak Node 13) -- aman; kalau test jalan di runtime ICU-kecil
   (small-icu), label bulan bisa beda -- jangan "fix" logikanya.
+
+### Tindak lanjut v57 — Edge v19 TER-DEPLOY + terbukti E2E live (2026-09-02)
+
+- **Deploy sukses** via Supabase CLI 2.116.0 (binary tunggal di `~/tools/supabase`,
+  metode API -- WARNING "Docker is not running" aman diabaikan): 4 file ter-upload
+  (`refresh-asset-price/index.ts` + `_shared/{market-sync,price-sources,bibit}.js`).
+- **Bukti via Management API**: version 20 -> **21**, status ACTIVE,
+  `verify_jwt: true` tetap, `ezbr_sha256` berubah, updated_at 2026-09-02T11:14Z.
+- **Bukti E2E live (invoke API murni, TANPA klien)**:
+  1. User test dibuat via **Auth Admin API** (`email_confirm: true`) + JWT via
+     password grant;
+  2. aset test Kripto (simbol `bitcoin`, 0.001 unit) disisipkan utk user test;
+  3. `POST /functions/v1/refresh-asset-price` -> HTTP 200
+     `{harga_per_unit: 1.359.684.250, nilai_baru: 1.359.684, sumber: "coingecko",
+     tanggal_pasar: null}` (CoinGecko realtime -> null sesuai desain);
+  4. baris aset dibaca ulang: **`tanggal_nav` terisi '2026-09-02'** -- ditulis
+     ATOMIK oleh Edge, bukan oleh klien (klien tidak dilibatkan sama sekali);
+  5. cleanup terverifikasi: aset test terhapus (204, sisa 0), user test terhapus
+     (200, hilang dari daftar admin users).
+- **PROSEDUR UJI BARU (lebih aman dari toggle lama)**: dulu uji live butuh
+  toggle `mailer_autoconfirm` (risiko lupa dibalikkan). Sekarang TIDAK PERLU:
+  `POST /auth/v1/admin/users` dengan `email_confirm: true` mem-bypass konfirmasi
+  email sepenuhnya tanpa menyentuh konfigurasi auth project. Login JWT via
+  `POST /auth/v1/token?grant_type=password`. Kunci admin (`sb_secret_`) cukup
+  utk setup/cleanup; hanya deploy yang butuh PAT `sbp_`.
+- Dampak ke klien: tulisan `tanggal_nav` pasca-refresh oleh app.src.js menjadi
+  no-op idempoten (Edge sudah mengisi nilainya -> `fresh.tanggal_nav !== tglPasar`
+  false -> PATCH dilewati). Tidak ada perubahan kode klien.
+- **SARAN KEAMANAN utk owner**: PAT `sbp_...` yang dipakai deploy ini sebaiknya
+  di-REVOKE setelah sesi selesai (account-level, sangat kuat); buat baru perlu.
