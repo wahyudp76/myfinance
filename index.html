@@ -146,7 +146,7 @@
         import { buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows } from './src/domain/backup.js';
         import { buildDemoTransactions, isDemoTransaction, DEMO_MARKER } from './src/domain/demo-data.js';
         import { buildCommandIndex, searchCommands } from './src/domain/command-palette.js';
-        import { pruneAccountKeyedMaps, validatePasswordChange } from './src/domain/settings.js';
+        import { pruneAccountKeyedMaps, validatePasswordChange, sanitizeIconOverride, isSafeClassToken, isSafeFaIconToken, isSafeIconImageUrl, sanitizeSettingsIconOverrides } from './src/domain/settings.js';
         import { buildTransactionsCsv, csvFileName, filterTransactionsForRange } from './src/domain/export-csv.js';
         import { summarizeAppData, formatBytes } from './src/domain/app-info.js';
         import { computeMarketValue, withSyncedValue, describeSyncSource, isBibitNavDate, formatNavDate } from './src/domain/market-sync.js';
@@ -198,6 +198,9 @@
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
+            // Validasi bentuk override ikon/gaya (settings.js) -- dipakai blok classic sebagai
+            // lapisan keamanan render & restore backup (lihat categoryIconHtml/renderAccountIconObj).
+            sanitizeIconOverride, isSafeClassToken, isSafeFaIconToken, isSafeIconImageUrl, sanitizeSettingsIconOverrides,
             buildTransactionsCsv, csvFileName, filterTransactionsForRange, summarizeAppData, formatBytes, validatePasswordChange,
             computeMarketValue, withSyncedValue, describeSyncSource, isBibitNavDate, formatNavDate,
             buildDailyFlow, sparklineSvg, // sparkline HUD (src/domain/sparkline.js) -- domain murni

@@ -751,3 +751,55 @@ lint 0 masalah; unit **565/565** (+7 baru); E2E verify-hud **64/64 PASS**,
 gitleaks 8.28.0 + config repo: **no leaks** (catatan: binary 8.24.3 memberi 3
 false-positive jwt/api-key yg TIDAK muncul di 8.28 -- selalu uji dgn versi
 ter-pin CI); lighthouse PASS semua ambang.
+
+## v60 — Audit bug & hardening input tak tepercaya (CSV injection + XSS via nama akun/override ikon)
+
+Permintaan owner: "pahami struktur webapps, maintenance & analisa potensi bug".
+Baseline sebelum audit semua hijau (lint 0, unit 565/565, verify-hud 64/64,
+tanpa drift). Detail lengkap: docs/audit-bug-analysis-2026-09-02.md.
+
+### Temuan yang DIPERBAIKI (3)
+1. **CSV formula injection** (`src/domain/export-csv.js`, csvEscape): sel data
+   user diawali `= + - @ TAB/CR` dinetralkan apostrof (angka polos tak
+   disentuh, Nominal tetap bisa di-SUM). Guard baru tests/unit/export-csv.test.js.
+2. **Dropdown Akun form Catat render nama akun MENTAH** (`updateFormOptions`):
+   SATU-SATUNYA titik daftar akun tanpa escapeHtml (semua titik lain sudah
+   escape). Nama akun dgn `"`/`<>` merusak markup select & berpotensi
+   menyuntik atribut. Fix = pola escape sama dgn form berulang. Guard statis
+   baru form-options-escape.test.js (cek sumber app.src.js DAN build app.js;
+   regex backreference `value="${X}">${X}` utk pola mentah + toleran mangle
+   terser utk pola aman).
+3. **Stored-XSS via override ikon/gaya dari restore backup** (accountIcons /
+   categoryStyles -> src/class/badge di innerHTML). Backup hanya divalidasi
+   `app==='MyFinance'` + settings ada; isi settings ditimpa mentah (termasuk
+   ke cloud). Fix 2 lapis:
+   - `src/domain/settings.js`: validasi bentuk baru (isSafeIconImageUrl /
+     isSafeClassToken / isSafeFaIconToken / sanitizeIconOverride /
+     sanitizeSettingsIconOverrides). Pola diterima = persis bentuk UI: data
+     URL raster base64 (upload modal; svg+xml base64 diizinkan krn INERT di
+     <img>), `icons/banks/*` (logo internal), token Tailwind tunggal, `fa-*`,
+     badge pendek.
+   - Titik render `renderAccountIconObj` & `categoryIconHtml` di app.src.js:
+     token tak valid -> fallback ikon netral (fa-wallet/bg-white/
+     text-slate-500, kelas sudah ada di subset FA). Restore backup: override
+     disanitasi SEBELUM Object.assign + persist (data kotor tak ikut ke cloud).
+   Guard: settings-domain.test.js +8 kasus.
+- Ekspor baru settings.js di-import index.html + masuk bag __myfinanceServices
+  (blok classic memakainya via servicesModule.*).
+
+### Bukti browser sekali pakai (tidak di-commit)
+Harness Playwright menyuntik nama akun `Cash <img src=x onerror=...>` +
+override ikon payload onerror: window.__xss tetap 0, dropdown utuh, tidak ada
+img mencurigakan dirender.
+
+### Verifikasi v60 (semua hijau)
+lint 0; unit **583/583** (+18); verify-hud **64/64** Error halaman 0;
+build:app tanpa drift (app.src.js 450.384 -> app.js 224.574 B); tidak ada
+perubahan SQL/RLS/Edge. sw.js CACHE_VERSION v58 -> **v59** + snapshot
+di-regen (index.html/app.js berubah). Tidak ada file vendor/tailwind berubah
+(tidak ada kelas baru).
+
+### Catatan & observasi (tidak diubah, lihat laporan §5)
+Toast budget memakai cache bulan FILTER tab Budget vs pengeluaran dari
+lastInsightsCtx; kurs saat edit transaksi valas = kurs tersimpan (desain);
+presisi Number > 2^53; restore/removeDemo tanpa transaksi DB (perilaku lama).

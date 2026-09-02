@@ -903,9 +903,15 @@ async function currentUserId() {
         // dipakai di situ karena tetap elemen sebaris (inline-level), beda dari <div>.
         function renderAccountIconObj(obj, sizeClass) {
             sizeClass = sizeClass || 'text-xl';
-            if (!obj) return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
+            // Keamanan berlapis: objek ikon bisa berasal dari SETTINGS CLOUD / restore backup
+            // (bentuk tidak sepenuhnya tepercaya). Validasi bentuk di titik render ini -- nilai
+            // di luar pola sah (upload modal / palet / logo bank internal) di-fallback ke ikon
+            // dompet netral, sehingga data yang direkayasa tidak bisa menyuntikkan atribut HTML.
+            const safeObj = servicesModule.sanitizeIconOverride(obj);
+            if (!safeObj) return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
+            obj = safeObj;
             if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i>';">`;
-            if (obj.type === 'badge') return `<span class="w-full h-full rounded-full ${obj.color} text-white inline-flex items-center justify-center font-extrabold text-[10px] tracking-tight leading-none">${obj.value}</span>`;
+            if (obj.type === 'badge') return `<span class="w-full h-full rounded-full ${obj.color} text-white inline-flex items-center justify-center font-extrabold text-[10px] tracking-tight leading-none">${escapeHtml(obj.value)}</span>`;
             if (obj.type === 'icon') return `<span class="w-full h-full rounded-full ${obj.bg} ${obj.color} inline-flex items-center justify-center"><i class="fas ${obj.value} text-[11px]"></i></span>`;
             // 'icon-plain' (akun Tunai/Cash & Investasi/Saham) -- ukuran ikon di-fix kecil & wrapper
             // selalu w-full h-full biar SELALU pas & center di kotak manapun ia ditaruh (termasuk
@@ -927,10 +933,20 @@ async function currentUserId() {
         // iconSizeClass = kelas ukuran teks khusus untuk ikonnya (opsional).
         function categoryIconHtml(style, wrapClass, iconSizeClass) {
             iconSizeClass = iconSizeClass || '';
-            if (style.image) {
-                return `<div class="${wrapClass} overflow-hidden bg-white ring-1 ring-slate-100"><img src="${style.image}" class="w-full h-full object-cover" alt="" onerror="this.parentElement.className='${jsStr(wrapClass)} ${style.bg} ${style.color}'; this.outerHTML='<i class=\\'fas ${style.icon} ${iconSizeClass}\\'></i>';"></div>`;
+            // Keamanan berlapis: gaya kategori (termasuk gambar upload) bisa berasal dari settings
+            // cloud / restore backup JSON. Tiap token divalidasi di titik render ini -- gambar di
+            // luar pola data-URL/base64 & path ikon internal dibuang; token kelas/ikon yang
+            // mencurigakan di-fallback ke tampilan netral. Data normal (palet & upload modal)
+            // selalu lolos pola, jadi tidak ada perubahan tampilan utk data sah.
+            const s = style || {};
+            const safeImage = servicesModule.isSafeIconImageUrl(s.image);
+            const icon = servicesModule.isSafeFaIconToken(s.icon) ? s.icon : 'fa-wallet';
+            const bg = servicesModule.isSafeClassToken(s.bg) ? s.bg : 'bg-white';
+            const color = servicesModule.isSafeClassToken(s.color) ? s.color : 'text-slate-500';
+            if (safeImage) {
+                return `<div class="${wrapClass} overflow-hidden bg-white ring-1 ring-slate-100"><img src="${safeImage}" class="w-full h-full object-cover" alt="" onerror="this.parentElement.className='${jsStr(wrapClass)} ${bg} ${color}'; this.outerHTML='<i class=\\'fas ${icon} ${iconSizeClass}\\'></i>';"></div>`;
             }
-            return `<div class="${wrapClass} ${style.bg} ${style.color}"><i class="fas ${style.icon} ${iconSizeClass}"></i></div>`;
+            return `<div class="${wrapClass} ${bg} ${color}"><i class="fas ${icon} ${iconSizeClass}"></i></div>`;
         }
 
         // ========================== SETTINGS AND SYNC ACTIONS ==========================
@@ -1349,7 +1365,14 @@ async function currentUserId() {
 
                 // 1) Pengaturan: TIMPA penuh, lalu backfill field baru yg mungkin belum ada
                 //    di backup lama (mis. backup dari sebelum fitur Tujuan Keuangan ada).
-                appSettings = Object.assign({}, backup.settings);
+                //    Keamanan: file backup JSON adalah input tak tepercaya -- override ikon/gaya
+                //    (accountIcons/categoryStyles) yang bentuknya di luar pola sah (berisi tanda
+                //    kutip/karakter markup, dsb) DIBUANG dulu di sini, supaya tidak ikut tersimpan
+                //    ke cloud lalu menyuntik saat dirender (lihat juga guard render di
+                //    categoryIconHtml/renderAccountIconObj).
+                const restoredSettings = Object.assign({}, backup.settings);
+                servicesModule.sanitizeSettingsIconOverrides(restoredSettings);
+                appSettings = restoredSettings;
                 ensureSettingsShape();
                 await persistSettings();
 
@@ -2501,7 +2524,11 @@ async function currentUserId() {
         }
         function updateFormOptions() {
             const akunSelect = document.getElementById('akun');
-            akunSelect.innerHTML = appSettings.accounts.map(acc => `<option value="${acc}">${acc}</option>`).join('');
+            // Nama akun adalah input user (bisa mengandung karakter markup) & nilainya ditaruh di
+            // atribut value + teks <option> -- WAJIB di-escape (pola yang sama dgn select akun di
+            // form berulang/recurring, lihat openRecurringFormModal). Sebelumnya tidak di-escape di
+            // sini: nama akun berisi tanda kutip/<> merusak markup dropdown ini.
+            akunSelect.innerHTML = appSettings.accounts.map(acc => `<option value="${escapeHtml(acc)}">${escapeHtml(acc)}</option>`).join('');
             handleAccountChangeForCurrency(); // sinkronkan info mata uang/kurs ke akun yg kepilih (default: pertama)
             
             document.getElementById('kategori').value = '';

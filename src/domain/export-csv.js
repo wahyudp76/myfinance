@@ -12,9 +12,22 @@
 
 export const CSV_TRANSACTIONS_HEADER = ["Tanggal", "Jenis", "Kategori", "Akun", "Nominal", "Keterangan", "Mata Uang"];
 
+/**
+ * Karakter pembuka yang bisa membuat spreadsheet (Excel/Google Sheets)
+ * mengevaluasi isi sel sebagai FORMULA (CSV/spreadsheet injection, lihat
+ * OWASP): '=', '+', '-', '@', TAB, CR. Sel data user (keterangan/kategori/
+ * akun) yang diawali karakter ini dinetralkan dengan apostrof di depan --
+ * apostrof tidak ikut tampil di Excel/Sheets, hanya menandai sel sbg teks.
+ * Angka desimal polos (termasuk negatif, kolom Nominal) sengaja TIDAK
+ * disentuh supaya tetap bisa di-SUM.
+ */
+const FORMULA_LEAD_RE = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER_RE = /^-?\d+(?:[.,]\d+)?$/;
+
 /** Quote satu sel sesuai RFC-4180: hanya bila mengandung koma/petik/baris baru. */
 export function csvEscape(value) {
-  const s = value == null ? "" : String(value);
+  let s = value == null ? "" : String(value);
+  if (FORMULA_LEAD_RE.test(s) && !PLAIN_NUMBER_RE.test(s)) s = "'" + s;
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
