@@ -80,8 +80,8 @@ async function initSupabaseClient() {
     // lihat komentar "AUTH MODULE BRIDGE"). Dimuat paralel (Promise.all), bukan berurutan,
     // supaya waktu tunggu totalnya tidak dobel kalau keduanya lambat bersamaan.
     [authModule, servicesModule] = await Promise.all([
-        withLoadTimeout(window.__myfinanceAuthReady, 'Modul auth (src/auth/*, lewat jsdelivr +esm) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.'),
-        withLoadTimeout(window.__myfinanceServicesReady, 'Modul data (src/services/*) gagal dimuat dalam 8 detik -- cek koneksi internet, atau apakah cdn.jsdelivr.net diblokir oleh ad-blocker/firewall/VPN.'),
+        withLoadTimeout(window.__myfinanceAuthReady, 'Modul auth (src/auth/*, file lokal) gagal dimuat dalam 8 detik -- cek koneksi ke server hosting app, atau buka DevTools Console utk error modul.'),
+        withLoadTimeout(window.__myfinanceServicesReady, 'Modul data (src/services/*, file lokal) gagal dimuat dalam 8 detik -- cek koneksi ke server hosting app, atau buka DevTools Console utk error modul.'),
     ]);
     supabaseClient = authModule.initAuthClient({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
     transactionService = servicesModule.createTransactionService(supabaseClient);
@@ -5998,9 +5998,10 @@ async function currentUserId() {
             if (_fullCalendarLoadPromise) return _fullCalendarLoadPromise;
             _fullCalendarLoadPromise = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js';
+                // v59: FullCalendar vendored lokal (vendor/) -- pinned 6.1.10, tanpa origin CDN pihak ketiga.
+                script.src = './vendor/fullcalendar-6.1.10.min.js';
                 script.onload = () => resolve();
-                script.onerror = () => { _fullCalendarLoadPromise = null; reject(new Error('Gagal memuat FullCalendar dari CDN.')); };
+                script.onerror = () => { _fullCalendarLoadPromise = null; reject(new Error('Gagal memuat FullCalendar lokal (vendor/).')); };
                 document.head.appendChild(script);
             });
             return _fullCalendarLoadPromise;

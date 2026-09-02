@@ -5,20 +5,22 @@
 # memang mustahil via meta). JAGA KEDUANYA TETAP SINKRON bila domain berubah.
 #
 # CATATAN: Content-Security-Policy di bawah ini sudah disesuaikan persis dengan
-# domain yang benar-benar dipakai index.html (jsdelivr utk Chart.js, dan
-# Supabase). Tailwind di-build sendiri (css/tailwind.css), font Plus Jakarta
-# Sans + Font Awesome + logo bank/e-wallet semuanya self-hosted (fonts/,
-# webfonts/, icons/) -- cdnjs/Google Fonts/Wikimedia tidak dipakai lagi. Kalau nanti
-# kamu menambah CDN/domain baru di index.html, tambahkan juga domainnya di sini
-# (DAN di meta CSP index.html), atau kebijakan ini akan memblokirnya secara
-# diam-diam. 2026-08-31: esm.sh ditambahkan ke script-src -- @supabase/supabase-js
-# dimuat dari sana (src/services/supabase/client.js); tanpa ini, pindah hosting
-# ke platform yang menerapkan file ini akan MEMATAHKAN alur login. Kalau ragu / curiga ada
-# yang aneh setelah deploy, coba hapus dulu file ini untuk isolasi masalah.
+# domain yang benar-benar dipakai index.html (hanya Supabase). Tailwind
+# di-build sendiri (css/tailwind.css), font Plus Jakarta Sans + Font Awesome +
+# logo bank/e-wallet semuanya self-hosted (fonts/, webfonts/, icons/), dan sejak
+# 2026-09-02 (v59) SEMUA dependensi JS pihak ketiga juga self-hosted di vendor/
+# (supabase-js 2.113.0 + polyfill esm-node-*, Chart.js 4.5.1, datalabels 2.0.0,
+# FullCalendar 6.1.10) -- jsdelivr, esm.sh, cdnjs, Google Fonts, Wikimedia
+# semuanya tidak dipakai lagi. Kalau nanti kamu menambah CDN/domain baru di
+# index.html, tambahkan juga domainnya di sini (DAN di meta CSP index.html),
+# atau kebijakan ini akan memblokirnya secara diam-diam.
 # 2026-09-01: 'unsafe-eval' dihapus dari script-src di SINI dan di meta CSP
 # index.html (dua-duanya, supaya tetap sinkron). Kode sendiri tidak memakai
 # eval()/new Function(), dan Chart.js + FullCalendar + supabase-js sudah diuji
 # di browser tanpa direktif itu -- nol pelanggaran CSP.
+# 2026-09-02 (v59): jsdelivr & esm.sh DIHAPUS dari script-src (vendoring).
+# Kalau ragu / curiga ada yang aneh setelah deploy, coba hapus dulu file ini
+# untuk isolasi masalah.
 
 /*
   X-Frame-Options: DENY
@@ -26,4 +28,4 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
   X-Robots-Tag: noindex, nofollow, noarchive
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'

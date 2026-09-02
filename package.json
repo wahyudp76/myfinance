@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@supabase/supabase-js": "^2.112.4",
+    "@supabase/supabase-js": "^2.113.0",
     "clean-css": "^5.3.3",
     "eslint": "^10.9.1",
     "globals": "^17.12.0",

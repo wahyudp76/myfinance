@@ -29,9 +29,12 @@
          keamanan kustom (file _headers diabaikan), jadi kebijakan yang sama
          diterapkan lewat meta tag supaya aktif DI HOSTING APA PUN.
          - Content-Security-Policy: sumber daya yang diizinkan PERSIS domain yang
-           dipakai app: self + cdn.jsdelivr.net (Chart.js/DataLabels/FullCalendar)
-           + esm.sh (@supabase/supabase-js) + Supabase (https/wss). SELALU sinkron
+           dipakai app: self + Supabase (https/wss). SELALU sinkron
            dengan versi header di file _headers (utk hosting Netlify/Cloudflare).
+           2026-09-02 (v59): SEMUA dependensi JS pihak ketiga kini self-hosted
+           di vendor/ (supabase-js 2.113.0 + polyfill esm-node-*, Chart.js
+           4.5.1, datalabels 2.0.0, FullCalendar 6.1.10) -- jsdelivr & esm.sh
+           DIHAPUS dari script-src: nol origin script pihak ketiga.
            2026-09-01: 'unsafe-eval' DIHAPUS dari script-src. Sebelumnya ada tanpa
            alasan yang tercatat; setelah diperiksa, tidak ada satu pun eval() atau
            new Function() di kode kita SENDIRI, dan ketiga library vendor sudah
@@ -45,7 +48,7 @@
            bila lewat meta) -- pelindung anti-embed tetap X-Frame-Options/frame-
            ancestors di _headers saat hosting pindah ke platform yang mendukung.
          - Referrer-Policy: meta ekuivalen header, aktif di mana pun. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="referrer" content="strict-origin-when-cross-origin">
 
     <!-- PWA: bisa di-"Add to Home Screen" dari Android/iOS -->
@@ -57,11 +60,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MyFinance">
-    <!-- Preconnect ke semua origin CDN yang dipakai -- browser bisa mulai DNS lookup + TLS handshake
-         lebih awal (paralel dengan parsing HTML lainnya), jadi begitu tag <script>/<link> di bawah
-         benar-benar mengambil resource-nya, koneksinya sudah siap (tidak perlu nunggu handshake dulu). -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://esm.sh">
+    <!-- Preconnect ke origin API yang dipakai segera setelah boot -- browser bisa
+         mulai DNS lookup + TLS handshake lebih awal, jadi begitu app memanggil
+         Supabase (validasi session / login), koneksinya sudah siap.
+         2026-09-02 (v59): preconnect jsdelivr & esm.sh DIHAPUS -- semua dependensi
+         JS pihak ketiga kini self-hosted di vendor/ (same-origin), tidak ada lagi
+         origin CDN pihak ketiga di jalur kritis. -->
+    <link rel="preconnect" href="https://uxfngmxghupdlwoeoxgh.supabase.co">
     <!-- Font self-host (slice loading): variable woff2 27KB utk weight 400-800,
          di-preload di sini + @font-face (font-display:swap) ada di styles.css.
          Tidak ada lagi DNS/TLS ke Google Fonts & stylesheet render-blocking.
@@ -268,7 +273,12 @@
          lewat JS (showLoginView() / showAppShell() di app.js), bukan navigasi
          ke file terpisah lagi.
          ========================================================================== -->
-    <div id="loginView">
+    <!-- role="main" (v59, a11y): audit landmark-one-main Lighthouse gagal karena
+         dokumen tanpa landmark utama. loginView & appShell DUA-DUANYA diberi
+         role="main" -- hanya satu yang visible pada satu waktu (satunya
+         display:none via class .hidden, dikeluarkan dari accessibility tree),
+         sehingga selalu TEPAT SATU main landmark, di state login MAUPUN app. -->
+    <div id="loginView" role="main">
         <div class="w-full max-w-sm">
             <div class="text-center mb-6">
 
@@ -420,7 +430,7 @@
          dipicu dari sini). Disembunyikan (class "hidden") sampai status login
          terverifikasi oleh bootstrapAuth() di app.js.
          ========================================================================== -->
-    <div id="appShell" class="hidden h-screen flex flex-col md:flex-row">
+    <div id="appShell" role="main" class="hidden h-screen flex flex-col md:flex-row">
 
     <!-- Mobile Top Bar -->
     <div class="md:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between z-20 shadow-sm flex-shrink-0 pt-safe">
@@ -2421,14 +2431,17 @@
          jalan PARALEL dgn unduhan chart; window.__mfChartLibReady (Promise)
          digerbangi di loadData() sebelum render grafik pertama (semua chart
          memang hanya dirender pasca-login). URUTAN tetap chart.js -> datalabels.
-         FullCalendar sudah lazy sejak awal (hanya saat tab Kalender dibuka). -->
+         FullCalendar sudah lazy sejak awal (hanya saat tab Kalender dibuka).
+         2026-09-02 (v59): URL kini LOCAL + PINNED (vendor/) -- sebelumnya
+         'https://cdn.jsdelivr.net/npm/chart.js' TANPA versi (floating: jsdelivr
+         boleh menyajikan major baru kapan saja = risiko breaking tak terduga). -->
     <script>
         window.__mfChartLibReady = new Promise((resolve, reject) => {
             const s1 = document.createElement('script');
-            s1.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+            s1.src = './vendor/chartjs-4.5.1.min.js';
             s1.onload = () => {
                 const s2 = document.createElement('script');
-                s2.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0';
+                s2.src = './vendor/chartjs-plugin-datalabels-2.0.0.min.js';
                 s2.onload = () => {
                     // Tier-1 #2: kustomisasi Chart.defaults diterapkan SETELAH lib nyata
                     // termuat (blok app script dijaga typeof-check yang false saat parse).

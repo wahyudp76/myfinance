@@ -32,6 +32,9 @@ create table if not exists public.transactions (
 );
 create index if not exists transactions_user_id_idx on public.transactions (user_id);
 create index if not exists transactions_tanggal_idx  on public.transactions (tanggal);
+-- v59 (2026-09-02): index komposit utk pola utama app (filter user_id + order
+-- tanggal DESC) -- lihat sql/migration_composite_indexes_2026-09-02.sql.
+create index if not exists transactions_user_tanggal_id_idx on public.transactions (user_id, tanggal desc, id asc);
 
 alter table public.transactions enable row level security;
 drop policy if exists "Users can view own transactions"   on public.transactions;
@@ -81,6 +84,9 @@ create table if not exists public.assets (
     value_history jsonb not null default '[]'::jsonb
 );
 create index if not exists assets_user_id_idx on public.assets (user_id);
+-- v59 (2026-09-02): index komposit utk pola utama app (filter user_id + order
+-- terakhir DESC) -- lihat sql/migration_composite_indexes_2026-09-02.sql.
+create index if not exists assets_user_terakhir_id_idx on public.assets (user_id, terakhir desc, id asc);
 
 -- Migrasi aman untuk yang sudah pernah menjalankan schema ini sebelumnya (kolom baru di tabel lama).
 alter table public.assets add column if not exists value_history jsonb not null default '[]'::jsonb;
@@ -149,6 +155,9 @@ create table if not exists public.recurring_transactions (
 );
 create index if not exists recurring_user_id_idx on public.recurring_transactions (user_id);
 create index if not exists recurring_next_due_idx on public.recurring_transactions (next_due_date);
+-- v59 (2026-09-02): index komposit utk pola utama app (filter user_id + order
+-- next_due_date ASC) -- lihat sql/migration_composite_indexes_2026-09-02.sql.
+create index if not exists recurring_user_next_due_id_idx on public.recurring_transactions (user_id, next_due_date asc, id asc);
 
 alter table public.recurring_transactions enable row level security;
 drop policy if exists "Users manage own recurring transactions" on public.recurring_transactions;

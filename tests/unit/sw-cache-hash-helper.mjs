@@ -7,8 +7,10 @@ import { join } from "node:path";
 // v55: app.js ditambahkan ke hash -- dia precache asset utama (PRECACHE_URLS)
 // dan justru paling sering berubah. Tanpa ini, perubahan app.js saja tidak
 // pernah memicu kewajiban bump CACHE_VERSION.
+// v59: vendor/ ditambahkan ke DIRS -- seluruh pustaka pihak ketiga kini
+// lokal + di-precache; perubahan file vendor WAJIB memicu bump CACHE_VERSION.
 const TOP_FILES = ["index.html", "app.js", "styles.css", "manifest.json"];
-const DIRS = ["src", "icons", "css", "fonts", "webfonts"];
+const DIRS = ["src", "vendor", "icons", "css", "fonts", "webfonts"];
 
 function walk(dir) {
   const out = [];

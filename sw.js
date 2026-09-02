@@ -4,8 +4,8 @@
 // Chrome/Android (salah satu syarat wajibnya: ada service worker terdaftar dengan
 // fetch handler -- tanpa ini, prompt "Tambahkan ke Layar Utama" bisa tidak muncul sama
 // sekali di sebagian browser meski manifest.json & ikon sudah lengkap), dan (2) bikin
-// load kedua-dst jadi jauh lebih cepat (file2 vendor besar dari CDN tidak perlu
-// didownload ulang tiap buka app).
+// load kedua-dst jadi jauh lebih cepat (file2 besar -- app + vendor lokal --
+// tidak perlu didownload ulang tiap buka app; sejak v59 SEMUA vendor lokal).
 //
 // PENTING -- supaya TIDAK mengulang masalah "file lama nyangkut di cache" yang sudah
 // beberapa kali kejadian di project ini (soal GitHub Pages/browser cache):
@@ -13,7 +13,8 @@
 //     dipakai sebagai fallback kalau benar2 offline. Jadi versi terbaru yang kamu
 //     upload akan SELALU langsung kepakai selama ada koneksi internet -- tidak akan
 //     pernah "nyangkut" di versi lama.
-//   - File vendor dari CDN (Tailwind, Chart.js, dst) yg jarang berubah dipakai cache
+//   - File vendor yang jarang berubah (Tailwind, Chart.js, dst -- sejak v59
+//     semuanya lokal di vendor/) dipakai cache
 //     dulu (supaya cepat) TAPI tetap di-update di background tiap kunjungan
 //     (stale-while-revalidate) -- jadi tetap ikut update, cuma tidak bikin loading
 //     pertama nunggu network.
@@ -22,7 +23,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v57';
+const CACHE_VERSION = 'myfinance-v58';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -46,19 +47,24 @@ const PRECACHE_URLS = [
   './css/fontawesome-all.min.css',
   './webfonts/fa-solid-900.woff2',
   './webfonts/fa-brands-400.woff2',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0',
-  'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js',
-  // BUG FIX (2026-09-01): baris ini dulu menunjuk ke
-  //   https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm
-  // padahal app SAMA SEKALI tidak pernah meminta URL itu -- src/services/supabase/
-  // client.js (dan semua Edge Function) mengimpor dari esm.sh. Akibatnya dua-duanya
-  // rugi: (a) setiap instalasi SW mengunduh satu bundel besar yang tidak akan pernah
-  // dipakai, dan (b) library yang BENAR-BENAR dibutuhkan tidak pernah ikut precache,
-  // sehingga skenario "kunjungan pertama lalu langsung offline" -- yang justru jadi
-  // alasan blok precache ini ada -- tetap gagal boot karena client Supabase tak
-  // termuat. URL di bawah kini PERSIS sama dengan yang diimpor client.js.
-  'https://esm.sh/@supabase/supabase-js@2',
+  // v59 (2026-09-02): SEMUA library JS pihak ketiga kini vendored LOKAL di
+  // vendor/ (pinned): Chart.js 4.5.1, datalabels 2.0.0, FullCalendar 6.1.10,
+  // supabase-js 2.113.0 (+ polyfill esm-node-*). URL CDN (jsdelivr/esm.sh)
+  // DIHAPUS -- nol origin pihak ketiga di jalur kritis; versi terpin
+  // (sebelumnya chart.js & supabase-js@2 FLOATING = bisa berubah diam-diam).
+  './vendor/chartjs-4.5.1.min.js',
+  './vendor/chartjs-plugin-datalabels-2.0.0.min.js',
+  './vendor/fullcalendar-6.1.10.min.js',
+  // v59: supabase-js bundle lokal + polyfill Node yang dibutuhkannya (rantai
+  // import relatif ./esm-node-*.mjs -- path import absolut esm.sh sudah
+  // ditulis ulang saat vendoring, lihat vendor/README.md). Keenam file ini
+  // PERSIS yang diimpor src/services/supabase/client.js.
+  './vendor/supabase-js-2.113.0.bundle.min.mjs',
+  './vendor/esm-node-process.mjs',
+  './vendor/esm-node-buffer.mjs',
+  './vendor/esm-node-events.mjs',
+  './vendor/esm-node-tty.mjs',
+  './vendor/esm-node-async_hooks.mjs',
   './src/auth/index.js',
   './src/auth/client.js',
   './src/auth/session.js',

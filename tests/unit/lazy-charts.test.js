@@ -12,14 +12,18 @@ const html = readFileSync(resolve(ROOT, "index.html"), "utf8");
 const appJs = readFileSync(resolve(ROOT, "app.js"), "utf8");
 
 test("chart libs: TIDAK ada lagi <script src> langsung utk chart.js/datalabels", () => {
+  // v59: library vendored lokal -- asersi CDN jadi dobel: tidak boleh ada tag
+  // blocking dari CDN LUPA pun dari vendor (harus tetap lewat loader dinamis).
   assert.ok(!html.includes('<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>'));
   assert.ok(!html.includes('<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>'));
+  assert.ok(!html.includes('<script src="./vendor/chartjs-4.5.1.min.js"></script>'));
+  assert.ok(!html.includes('<script src="./vendor/chartjs-plugin-datalabels-2.0.0.min.js"></script>'));
 });
 
 test("chart libs: loader paralel __mfChartLibReady ada, urutan chart.js -> datalabels", () => {
   assert.ok(html.includes("window.__mfChartLibReady = new Promise"));
-  const iChart = html.indexOf("npm/chart.js'");
-  const iDl = html.indexOf("chartjs-plugin-datalabels@2.0.0'");
+  const iChart = html.indexOf("./vendor/chartjs-4.5.1.min.js'");
+  const iDl = html.indexOf("./vendor/chartjs-plugin-datalabels-2.0.0.min.js'");
   assert.ok(iChart > 0 && iDl > 0 && iChart < iDl, "chart.js dimuat lebih dulu");
 });
 

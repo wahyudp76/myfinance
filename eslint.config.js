@@ -78,6 +78,9 @@ export default [
       "icons/**",
       "docs/**",
       "sql/**",
+      // v59: pustaka pihak ketiga yang di-vendor — artefak minified penerbitnya,
+      // bukan kode milik kita (provenance & prosedur upgrade: vendor/README.md).
+      "vendor/**",
       "supabase/functions/**/*.ts", // Deno + TypeScript: butuh parser terpisah
       "package-lock.json",
     ],

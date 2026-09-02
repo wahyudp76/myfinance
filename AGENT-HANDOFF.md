@@ -695,3 +695,59 @@ manual_nav biar jujur") -- v57 sudah menutup (a)+(b), jadi pembersihan aman.
 - Tidak ada perubahan klien / DB / RLS. CACHE_VERSION tetap v57 (aset statis
   webapp tidak berubah). `sb_secret_` & PAT `sbp_` dipakai hanya utk verifikasi
   read-only + deploy; tetap disarankan REVOKE PAT `sbp_` setelah sesi.
+
+## v59 — Optimalisasi menyeluruh: vendoring semua CDN + pin versi + index komposit DB + a11y 100
+Fokus: hilangkan SELURUH origin pihak ketiga dari jalur kritis, pin versi yang
+selama ini floating, future-proof query DB, tutup audit a11y terakhir.
+
+### 1. Vendoring (folder `vendor/` baru, provenance di `vendor/README.md`)
+- `supabase-js-2.113.0.bundle.min.mjs` (219 KB) + 5 polyfill `esm-node-{process,
+  buffer,events,tty,async_hooks}.mjs` (50 KB total) -- sebelumnya import FLOATING
+  `https://esm.sh/@supabase/supabase-js@2` yang resolve ke rantai 7 request
+  lintas-origin. JEBAKAN esm.sh: bundel `es2022/*.bundle.mjs` mengimpor polyfill dgn
+  path ABSOLUT `/node/*.mjs`; polyfill process malah mengimpor events+tty, dan
+  events mengimpor async_hooks -- seluruh rantai HARUS ditulis ulang ke relative
+  `./esm-node-*.mjs` (guard: `tests/unit/vendor-local.test.js` cek rantai tertutup).
+- `chartjs-4.5.1.min.js` + `chartjs-plugin-datalabels-2.0.0.min.js` + `fullcalendar-6.1.10.min.js`
+  -- chart.js sebelumnya `https://cdn.jsdelivr.net/npm/chart.js` TANPA versi
+  (floating! bisa major-bump diam-diam). Semua kini PINNED + lokal.
+- Titik ganti: `src/services/supabase/client.js` (import `../../../vendor/...` --
+  3 level dalam!, pernah salah `../../` = boot mati 404, ketahuan lewat E2E),
+  loader chart index.html, `loadFullCalendarLib()` app.src.js (+ rebuild app.js).
+- CSP `script-src` kini cukup `'self' 'unsafe-inline'` (jsdelivr+esm.sh DIHAPUS
+  dari meta index.html DAN `_headers` -- test baru menegaskan keduanya SINKRON);
+  preconnect CDN diganti preconnect Supabase. devDep @supabase/supabase-js →
+  ^2.113.0 (parity dgn vendored).
+- SW: `CACHE_VERSION` v57→**v58**, precache 6 file vendor menggantikan 4 URL CDN;
+  `vendor/` ditambahkan ke hash helper snapshot (perubahan vendor kini WAJIB
+  memicu bump). `eslint.config.js`: `vendor/**` di-ignore (artefak penerbit).
+- Drift guard baru `tests/unit/vendor-local.test.js` (7 test): file ada + rantai
+  import tertutup + import client.js resolve ke file nyata + nol URL CDN aktif
+  di index.html/app.js + CSP meta≡_headers tanpa CDN + precache SW lengkap +
+  role="main" a11y.
+
+### 2. Index komposit DB (LIVE, terdokumentasi `sql/migration_composite_indexes_2026-09-02.sql`)
+- `transactions(user_id, tanggal DESC, id ASC)`, `assets(user_id, terakhir DESC,
+  id ASC)`, `recurring_transactions(user_id, next_due_date ASC, id ASC)` -- via
+  Management API `POST /v1/projects/{ref}/database/query` (Bearer sbp_).
+- Bukti EXPLAIN: transactions & recurring kini **Index Only Scan** (node Sort
+  HILANG, dipilih planner default); assets masih Seq Scan -- BENAR utk 5 baris
+  (seq memang lebih murah; index terbukti viable saat seqscan off, otomatis
+  dipilih begitu tabel membesar). Biaya: 16+16+8 kB. schema.sql disinkronkan.
+- Endpoint query Management API = kapabilitas DDL langsung (tanpa psql); body
+  `{"query":"..."}`; multi-statement `set ...; explain ...` JUGA jalan.
+
+### 3. A11y & hasil Lighthouse (lokal, mobile throttle, login screen)
+- Fix satu-satunya audit gagal `landmark-one-main`: `role="main"` di #loginView
+  DAN #appShell (yang .hidden keluar dari a11y tree -> selalu tepat 1 main).
+- Before v59: perf 59 / a11y 97 / bp 100, TBT 150ms. After: perf 60-61 /
+  **a11y 100** / bp 100, **TBT 20-30ms**, third-party origins = NOL (sebelumnya
+  jsdelivr+esm.sh). LCP lokal noise (8.5-9.7s, server python tanpa gzip);
+  produksi Pages ber-gzip + tanpa 2 handshake lintas-origin akan lebih baik.
+
+### Verifikasi v59 (semua hijau sebelum commit)
+lint 0 masalah; unit **565/565** (+7 baru); E2E verify-hud **64/64 PASS**,
+0 page error (login+data+chart+modal lewat modul supabase vendored asli);
+gitleaks 8.28.0 + config repo: **no leaks** (catatan: binary 8.24.3 memberi 3
+false-positive jwt/api-key yg TIDAK muncul di 8.28 -- selalu uji dgn versi
+ter-pin CI); lighthouse PASS semua ambang.
