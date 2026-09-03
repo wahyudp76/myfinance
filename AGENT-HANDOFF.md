@@ -1009,3 +1009,18 @@ transaksi di database.
   SEMUA field baru (tingkat_menabung 78.3, rata2 harian 54.333, proyeksi
   1.629.990, status anggaran dgn persen_terpakai/sisa, top-3 transaksi dgn
   akun-tanggal-keterangan); 5 kartu AI hasil (stub) dirender utuh; 0 error.
+
+## v65b — analyze-finance TER-DEPLOY live (v40) + fix komentar bundling
+
+- Owner memberikan Supabase access token (sbp_..., dipakai via env var sekali,
+  tidak pernah ditulis ke repo) -> deploy langsung berhasil:
+  `supabase functions deploy analyze-finance --project-ref uxfngmxghupdlwoeoxgh`
+  (Supabase CLI 2.116.0 via npm global, tanpa Docker -- CLI v2 bundling ok).
+- Deploy pertama GAGAL 400 (bundle parse error): baris komentar header
+  "ada function LAIN ..." kehilangan prefiks "//" akibat edit v65
+  (commit 83c4281) -> diperbaiki commit e4e7c6e, deploy ulang sukses.
+- Verifikasi: status ACTIVE, version 40, verify_jwt=true, updated_at segar.
+  Smoke test HTTP dengan anon key -> 401 Unauthorized (auth check internal
+  jalan; butuh sesi user login asli utk full path Gemini -- tes dari app).
+- Prompt presisi v65 (wajib kutip angka, maks 5 kartu, sanitasi output)
+  sekarang AKTIF di production. GEMINI_API_KEY tidak disentuh deploy.
