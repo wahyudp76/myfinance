@@ -1059,3 +1059,44 @@ tidak dihukum); skor dinormalisasi dari bobot yang berlaku. Komentar app.src.js
 - sw.js CACHE_VERSION v64 -> v65 + snapshot di-regen; app.js di-rebuild
   (komentar & data alur tidak berubah). Tidak ada perubahan Edge Function
   (tidak perlu deploy ulang).
+
+## v67 — Optimalisasi bobot aplikasi (preload jalur kritis JS)
+
+Permintaan owner: "optimalisasi sehingga aplikasi tidak terlalu berat tanpa
+mengkompensasi fitur dan animasi yang sudah ada". Target menyeluruh (beban
+pertama kali + runtime), dipakai campuran HP & laptop. Jawaban owner atas
+pilihan infrastruktur: "pilih yang paling aman; kalau ragu jangan ubah
+infrastruktur" -> paket ini TIDAK mengubah loader modul/build order sama
+sekali, murni penambahan/perapian deklaratif di index.html + bump SW.
+
+### Temuan audit bobot (angka HEAD)
+- HTML 224 KB (gz 38,5 KB) -- mayoritas markup nyata, komentar hanya 17 KB.
+- app.js 224 KB (gz 53,7 KB): tag <script> di AKHIR <body> -> unduhan baru
+  dimulai setelah seluruh HTML terunduh & ter-parse (waterfall terburuk).
+- vendor/supabase-js 219 KB: rantai import level-2 (client.js) -> baru
+  diminta setelah modul level-1 terunduh (gelombang kedua).
+- Font Awesome SUDAH subset rapi: fa-brands-400.woff2 1,1 KB berisi glyph
+  fa-whatsapp (dipakai) -- BUKAN aset mati; tidak dihapus.
+- CSS/ikon/PWA/FullCalendar sudah optimal/lazy (v59+).
+
+### Perubahan (3 file, semuanya deklaratif -- nol perubahan logika/UI/animasi)
+1. index.html: blok preload jalur kritis di <head> -- app.js (as=script) +
+   modulepreload vendor/supabase-js-2.113.0.bundle.min.mjs + 5 polyfill
+   esm-node-*. Preload & import berbagi cache, tetap sekali unduh.
+2. index.html: hapus blok komentar DUPLIKAT/basi era pra-v54 (menggambarkan
+   susunan 4 script inline yang sudah tidak ada) di dekat <script src=app.js>.
+3. sw.js: CACHE_VERSION myfinance-v65 -> myfinance-v67 (aset berubah -> user
+   wajib dapat bundle baru; snapshot di-regen via update-sw-cache-snapshot.mjs).
+
+### Bukti
+- Unit 623/623 (sw-cache-version v67 hijau), lint 0, rebuild app.js/css
+  byte-identik (nol drift), verify-hud 64/64 PASS, error halaman 0.
+- Probe Playwright 3G-lambat (scratch, dihapus): app.js mulai diunduh 2.985ms
+  -> 195ms setelah navStart; supabase bundle 4.150ms -> 195ms; app.js selesai
+  turun 7.354 -> 5.597ms; DOMContentLoaded 8.106 -> 6.713ms (-1,39 dtk).
+- Sisa bobot dominan setelah ini = PARSE/EKSEKUSI JS (app.js 224KB + modul
+  ~40 file + bundle supabase dieksekusi utuh di setiap boot), bukan jaringan.
+  Memangkasnya butuh restrukturisasi loader (mis. fase auth vs fase data via
+  import() dinamis, atau bundling ESM) -- sengaja TIDAK dilakukan di v67
+  (berisiko tinggi thd 200+ onclick= & bridge classic/module; owner memilih
+  jalur aman). Ajukan tersendiri bila mau lanjut.

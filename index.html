@@ -77,6 +77,24 @@
          setelah css/fontawesome-all.min.css selesai diunduh -- preload menutup
          celah 1 RTT waterfall itu, jadi ikon langsung tampil begitu CSS jalan. -->
     <link rel="preload" href="webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- v67 (optimasi bobot): preload jalur kritis JAVASCRIPT. app.js (~224KB)
+         tag-nya di AKHIR <body> -- tanpa preload, browser baru tahu keberadaannya
+         setelah seluruh HTML terunduh & ter-parse, jadi unduhan 224KB itu baru
+         mulai paling akhir (waterfall). Dengan preload di kepala dokumen, unduhan
+         app.js berjalan PARALEL dengan CSS/font sejak awal. Begitu juga
+         vendor/supabase-js-2.113.0.bundle.min.mjs + polyfill esm-node-*: file2 ini
+         adalah rantai import level-2 dari src/services/supabase/client.js (baru
+         diminta setelah modul level-1 terunduh); modulepreload membuatnya ikut
+         diunduh lebih awal sehingga layar login/sesi tidak menunggu 2-3 gelombang
+         round-trip berurutan. Preload & import berbagi cache yang sama -- tetap
+         satu kali unduh, tidak dobel. -->
+    <link rel="preload" href="app.js" as="script">
+    <link rel="modulepreload" href="vendor/supabase-js-2.113.0.bundle.min.mjs">
+    <link rel="modulepreload" href="vendor/esm-node-async_hooks.mjs">
+    <link rel="modulepreload" href="vendor/esm-node-buffer.mjs">
+    <link rel="modulepreload" href="vendor/esm-node-events.mjs">
+    <link rel="modulepreload" href="vendor/esm-node-process.mjs">
+    <link rel="modulepreload" href="vendor/esm-node-tty.mjs">
     <!-- Tailwind CSS -- build statis: css/tailwind.css dibangun oleh `npm run build:css`
          (input css/tailwind.src.css + tailwind.config.js) dan HASILNYA DI-COMMIT ke repo,
          supaya GitHub Pages tetap hosting statis murni tanpa langkah build di server.
@@ -2467,11 +2485,7 @@
         window.__mfChartLibReady.catch((err) => console.error('Chart libs gagal dimuat:', err));
     </script>
 
-    <!-- ==========================================================================
-         SCRIPT -- digabung jadi satu <script> (urutan di dalamnya tetap penting):
-         1) supabase-client.js  2) auth.js  3) api.js  4) app.js (termasuk alur
-         bootstrap auth + init dashboard di bagian paling bawah app.js).
-         ========================================================================== -->
+
     <!-- ==========================================================================
          SCRIPT -- dulunya digabung jadi satu <script> inline (urutan di dalamnya
          tetap penting): 1) supabase-client.js  2) auth.js  3) api.js  4) app.js
