@@ -23,9 +23,9 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-// v68: loadData sync lebih cepat (fetch paralel dgn chart lib, pakai ulang budget bulan
-// berjalan) -> app.js berubah, bump versi supaya pengguna mengambil bundle baru.
-const CACHE_VERSION = 'myfinance-v68';
+// v69: guard stabilitas sinkronisasi (generasi commit, null-safe DOM, cancel saat
+// logout) -> app.js berubah, bump versi supaya pengguna mengambil bundle baru.
+const CACHE_VERSION = 'myfinance-v69';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';

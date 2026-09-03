@@ -1177,3 +1177,49 @@ disimpan ke repo; api.supabase.com diblokir utk urllib/TLS Python -- "error code
   TERVERIFIKASI SUDAH DITERAPKAN (2026-09-03)" + alasan jangan dijalankan ulang;
   catatan ini ditambahkan ke AGENT-HANDOFF. Tidak ada perubahan app.js/sw.js
   (v68 client tetap satu-satunya perubahan kode rilis ini).
+
+## v69 — Perawatan stabilitas: generation guard commit sinkronisasi + null-safe loadData
+
+Permintaan owner: "lakukan perawatan/maintenance for stability untuk webapps saya".
+Audit stabilitas menyeluruh (listener leak, timer, siklus chart, error nets,
+race) -> sebagian besar infrastruktur SUDAH sehat: jaring pengaman global
+(error/unhandledrejection -> showFallbackError), semua setInterval punya
+clearInterval + safety net 10 dtk, semua `new Chart` didahului destroy (tidak
+ada "Canvas is already in use"), listener per-login diguard flag _*Attached
+(sekali seumur tab, benar krn DOM menetap), chart lib & FullCalendar di-destroy
+saat logout/reset. TIDAK ADA TODO/FIXME tersisa di sumber (hanya placeholder
+WHATSAPP_BOT_NUMBER = aksi konfigurasi owner, sudah didokumentasikan sejak audit
+08-2026).
+
+### Perbaikan nyata yang diterapkan (app.src.js, loadData)
+1. **Generation guard commit** (menerapkan kontrak request-generation dari
+   docs/production-loader-contract.md yang selama ini baru ada di docs):
+   - `let _loadDataSeq` (counter); tiap loadData: `const loadSeq = ++_loadDataSeq`
+     + capture `loadUserId` dari currentSession.
+   - `.then`: commit hanya bila `loadSeq === _loadDataSeq` DAN akun masih sama
+     (cek user id) -- respons basi dibuang. Sebelumnya fetch yang tumpang-tindih
+     (pull-to-refresh + sinkronisasi lain) atau yang selesai SETELAH logout bisa
+     menimpa state lebih baru / mencemari state sesi-akun berikutnya.
+   - `.catch`: `if (loadSeq !== _loadDataSeq) return;` -- error dari panggilan
+     basi tidak lagi memunculkan toast error palsu.
+   - `resetAppState()`: `_loadDataSeq += 1` -- logout membatalkan SEMUA
+     sinkronisasi in-flight dari sesi lama.
+2. **Null-safe baca DOM** elemen #budgetFilterMonth di awal loadData: kalau
+   elemen tidak ada, throw di luar rantai .then/.catch = async rejection tanpa
+   penangan -> overlay sinkronisasi bisa nyangkut selamanya; sekarang fallback
+   aman ke bulan berjalan.
+
+### Bukti
+- Guard test baru tests/unit/stability-guards.test.js (5 test statis). Unit
+  630/630 (sebelumnya 625), lint 0. app.js rebuilt (455.460 -> 224.792 B).
+- STRESS PROBE browser nyata (scratch, dihapus): 3 siklus penuh
+  login -> ganti tab cepat x6 -> logout (tombol UI) + boot ulang sesi; assert
+  0 pageerror, 0 console error (stub logout 204 diperlukan: signOut menembak
+  /auth/v1/logout), 0 "Canvas is already in use", chart alive, body
+  sync-loading tidak nyangkut. PASS. verify-hud 64/64 PASS, error halaman 0.
+- SW CACHE_VERSION v68 -> v69 + snapshot di-regen.
+
+### Catatan untuk owner (di luar kode, dari audit lint sebelumnya)
+- WHATSAPP_BOT_NUMBER di app.src.js masih placeholder 628XXXXXXXXXX (fitur
+  WhatsApp link butuh nomor device Fonnte asli).
+- Leaked-password-protection Supabase Auth masih nonaktif (setting dashboard).

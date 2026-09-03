@@ -354,6 +354,8 @@ async function currentUserId() {
         let activeCategoryTab = 'Pengeluaran'; 
         let activeFormType = 'Pengeluaran';
         let currentSession = null; // Sesi Supabase yang sedang aktif, diisi oleh applySessionToUI()
+        // v69: nomor urut generasi sinkronisasi (lihat guard di loadData + bump di resetAppState).
+        let _loadDataSeq = 0;
 
         // "Tarik Cepat" (Quick Add) lewat URL -- dipakai integrasi Shortcut iPhone (mis. Back Tap):
         // membuka index.html?quickadd=1 langsung memicu modal "Catat Transaksi" begitu data selesai
@@ -3547,6 +3549,12 @@ async function currentUserId() {
         // ========================== MASTER FETCH ==========================
         async function loadData() {
             setSyncLoading(true); // slice design #3: skeleton Dashboard / overlay utk tab lain
+            // v69 (stabilitas): guard generasi commit. Tiap panggilan loadData diberi nomor urut;
+            // saat hasil tiba, hanya panggilan TERAKHIR yang boleh menimpa state. Mencegah respons
+            // basi (fetch tumpang-tindih / selesai SETELAH logout) menimpa data yang lebih baru --
+            // lihat kontrak request-generation di docs/production-loader-contract.md.
+            const loadSeq = ++_loadDataSeq;
+            const loadUserId = (currentSession && currentSession.user && currentSession.user.id) || null;
             // v68 (optimasi sinkronisasi): tarikan 6 tabel DIMULAI SEGERA di sini, TIDAK lagi
             // menunggu chart lib. Sebelumnya `await window.__mfChartLibReady` (unduhan+parse
             // chart.js ~204KB + datalabels, bisa 1-4 dtk di koneksi lambat) ada DI DEPAN fetch
@@ -3555,7 +3563,11 @@ async function currentUserId() {
             // (pasca-login). Sekarang unduhan chart & tarikan data berjalan PARALEL: yang
             // mana pun selesai duluan tidak memblokir yang lain.
             
-            const targetBulan = document.getElementById('budgetFilterMonth').value || todayDateStr().slice(0, 7);
+            // v69: baca aman -- kalau elemen filter bulan belum/ tidak ada, loadData TIDAK boleh
+            // melempar di titik ini: throw di luar rantai .then/.catch = promise async tanpa
+            // penangan -> overlay sinkronisasi bisa nyangkut selamanya tanpa pesan apa pun.
+            const budgetFilterEl = document.getElementById('budgetFilterMonth');
+            const targetBulan = (budgetFilterEl && budgetFilterEl.value) || todayDateStr().slice(0, 7);
 
             // Pensyahan api.run (slice penutup): getSyncData() adapter di-inline di sini --
             // Promise.all 6 service, urutan & bentuk hasil { transactions, budgets, assets,
@@ -3576,6 +3588,15 @@ async function currentUserId() {
             // perilaku versi CDN-off), error sudah dicatat loader.
             if (window.__mfChartLibReady) { try { await window.__mfChartLibReady; } catch (e) {} }
             syncFetch.then((response) => {
+                // v69: komit hanya jika panggilan ini masih TERAKHIR DAN akun masih sama (belum
+                // logout/ganti akun saat fetch berjalan). Hasil basi dibuang -- panggilan yang
+                // lebih baru (atau reset logout) yang berhak mengisi state. Catatan: bila basi
+                // karena logout, overlay milik shell yang sudah disembunyikan; loadData berikutnya
+                // (login baru) yang mengelola statusnya.
+                const stillCurrent = loadSeq === _loadDataSeq &&
+                    ((loadUserId === null && !(currentSession && currentSession.user)) ||
+                     (loadUserId !== null && currentSession && currentSession.user && currentSession.user.id === loadUserId));
+                if (!stillCurrent) return;
                 globalData = response.transactions || [];
                 cloudBudgets = response.budgets || {};
                 globalAssets = response.assets || [];
@@ -3664,6 +3685,10 @@ async function currentUserId() {
                 updateDashboardEmptyState(); // Tier-3 #8: kartu onboarding saat belum ada transaksi
                 processDueRecurring();
             }).catch((err) => {
+                // v69: kegagalan dari panggilan yang SUDAH BASI (ada loadData lebih baru, atau user
+                // logout saat fetch berjalan) tidak berhak menampilkan toast error -- panggilan
+                // terbaru yang menentukan nasib layar.
+                if (loadSeq !== _loadDataSeq) return;
                 console.error('api.run.getSyncData gagal:', err);
                 setHudStatus('error');
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
@@ -6469,6 +6494,10 @@ async function currentUserId() {
         // login/logout tidak lagi memuat ulang seluruh halaman, data akun sebelumnya bisa saja
         // sempat "kelihatan sekilas" kalau akun lain login di tab yang sama tanpa refresh browser.
         function resetAppState() {
+            // v69: batalkan semua sinkronisasi yang masih berjalan dari sesi SEBELUMNYA --
+            // hasilnya (kalau tiba) ditolak guard generasi di loadData(), tidak akan pernah
+            // menimpa state sesi baru / akun lain.
+            _loadDataSeq += 1;
             globalData = [];
             globalAssets = [];
             cloudBudgets = {};
