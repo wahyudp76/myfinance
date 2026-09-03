@@ -1,3 +1,15 @@
+-- ============================================================================
+-- STATUS LIVE: TERVERIFIKASI SUDAH DITERAPKAN (2026-09-03, via Management API).
+-- Introspection pg_policies: ke-14 policy di file ini ADA di database live dan
+-- SELURUHNYA sudah memakai bentuk initplan (( SELECT auth.uid() AS uid) = user_id)
+-- -- bentuk deparse persis yang dihasilkan `(select auth.uid()) = user_id`
+-- (dibuktikan eksperimen policy uji begin/rollback: auth.uid() polos ter-deparse
+-- `(auth.uid() = x)`, terbungkus ter-deparse `(( SELECT auth.uid() AS uid) = x)`).
+-- Index whatsapp_link_codes_user_id_idx juga SUDAH ada. TIDAK ADA yang perlu
+-- dijalankan ulang dari file ini -- menjalankannya hanya churn DROP+CREATE
+-- policy identik. Catatan riwayat: AGENT-HANDOFF.md entri v68 (langkah DB).
+-- ============================================================================
+
 -- MYFINANCE — RLS PERFORMANCE FIX (auth.uid() initplan)
 -- Additive/non-destructive: hanya menulis ulang definisi POLICY yang sudah ada
 -- (DROP + CREATE policy dengan nama & efek akses yang PERSIS SAMA), tidak

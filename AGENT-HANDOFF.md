@@ -1147,3 +1147,33 @@ lanjut DB di bawah).
   pg_policies live via Management API database/query, (2) cocokkan nama policy
   dgn file (migration_rls_hardening 08-31 mungkin mengubah nama), (3) terapkan
   file/varian nama live, (4) verifikasi ekspresi (select auth.uid()).
+
+## v68 (langkah DB) — Verifikasi RLS initplan & index live: SUDAH DITERAPKAN SEMUA
+
+Owner memberikan Supabase access token sbp_... (env var sekali pakai, tidak pernah
+disimpan ke repo; api.supabase.com diblokir utk urllib/TLS Python -- "error code:
+1010" Cloudflare -- tapi jalan normal lewat curl + User-Agent browser).
+
+### Proses (semua via Management API database/query, READ-ONLY + eksperimen rollback)
+1. Introspect pg_policies (14 policy live, nama PERSIS sama dengan file
+   sql/rls_performance_fix.sql -- hardening 08-31 memang tidak menyentuh policy).
+2. Hati-hati deparse: teks live `(( SELECT auth.uid() AS uid) = user_id)` SEMULA
+   terbaca heuristik sebagai "auth.uid telanjang", padahal itu bentuk kanonik dari
+   `(select auth.uid()) = user_id`. DIBUKTIKAN eksperimen policy uji dalam
+   begin/rollback: auth.uid() polos ter-deparse `(auth.uid() = x)`; terbungkus
+   ter-deparse `(( SELECT auth.uid() AS uid) = x)`. => SELURUH 14 policy live
+   SUDAH initplan. (Kalau tidak diuji, file fix akan dijalankan ulang = churn
+   DROP+CREATE policy identik yang tidak perlu.)
+3. Introspect pg_indexes: whatsapp_link_codes_user_id_idx ADA; index komposit v59
+   (transactions_user_tanggal_id_idx, assets_user_terakhir_id_idx,
+   recurring_user_next_due_id_idx) ADA.
+
+### Hasil
+- TIDAK ADA perubahan DB yang diterapkan -- database live sudah optimal per
+  Performance Advisor (auth_rls_initplan) & lint unindexed_foreign_keys.
+  Kemungkinan pemilik menjalankan sql/rls_performance_fix.sql via SQL Editor di
+  masa lalu tanpa tercatat di repo.
+- Repo disinkronkan: header sql/rls_performance_fix.sql di-stamp "STATUS LIVE:
+  TERVERIFIKASI SUDAH DITERAPKAN (2026-09-03)" + alasan jangan dijalankan ulang;
+  catatan ini ditambahkan ke AGENT-HANDOFF. Tidak ada perubahan app.js/sw.js
+  (v68 client tetap satu-satunya perubahan kode rilis ini).
