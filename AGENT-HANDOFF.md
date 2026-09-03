@@ -917,3 +917,48 @@ antara legend dan batang chart yang nilainya paling besar".
 - Unit ui-budgets + asersi regresi (scales.y.grace === "40%") -- total unit
   588/588, lint 0, verify-hud 64/64 PASS, error halaman 0.
 - sw.js CACHE_VERSION v61 -> v62 + snapshot di-regen; app.js tidak berubah.
+
+## v64 — Wawasan Keuangan lebih banyak & komprehensif (review + 11 aturan data)
+
+Permintaan owner: bagian wawasan keuangan kurang "dalam" -- minta saran dan
+review yang lebih banyak, lengkap & komprehensif terhadap data transaksi.
+
+### Perubahan (src/domain/insights.js + app.src.js + index.html)
+1. `buildInsightsContext(baseCtx, {transactions, now, parseTgl, txIdrAmount,
+   categorizeExpenseParent})` (baru, murni): memperkaya context wawasan dengan
+   penggalian dari BARIS transaksi: `biggestExpense` (transaksi tunggal
+   terbesar bulan ini), `smallTx` (transaksi <= Rp 25.000), `weekendTx`
+   (belanja Sabtu/Minggu), `prevMonthCatOutMap` (pengeluaran bulan lalu per
+   kategori parent -- bahan deteksi pos berulang naik). Field agregat lama
+   dipertahankan apa adanya (context lama tetap kompatibel).
+2. `computeFinancialInsights` diperluas dari maks 4 -> maks 10 kartu, disusun
+   per kelompok: Review > Darurat > Waspada > Positif:
+   - REVIEW "Review Bulan Ini" (baru, selalu muncul kalau ada data): pemasukan,
+     pengeluaran, surplus/defisit, rata2 harian, jumlah transaksi, % vs bulan
+     lalu.
+   - Darurat baru: "Pengeluaran Melebihi Pemasukan" (defisit), "Belum Ada
+     Pemasukan Bulan Ini".
+   - Waspada baru: "Fokus Pengeluaran Terbesar" (>=45% total), "Transaksi
+     Terbesar" (>=30%), "Pos Berulang Naik" (>=50% & >=50rb vs bulan lalu),
+     "Banyak Transaksi Kecil" (>=6 tx <=25rb, total >=100rb), "Belanja Padat
+     di Akhir Pekan" (>=40% total), + 4 aturan lama (anggaran, lonjakan
+     kategori, tingkat menabung vs lalu, proyeksi akhir bulan) dengan pesan
+     yang dipertahankan persis.
+   - Positif baru: "Pengeluaran Turun" (>=20% hemat vs lalu), "Menabung
+     Konsisten" (>=30% pemasukan).
+3. app.src.js processDataForUI memanggil buildInsightsContext sebelum
+   renderInsights/renderHealthScore; index.html import + servicesModule expose.
+4. 2 ikon baru (fa-magnifying-glass-dollar, fa-calendar-week) ditambahkan ke
+   subset Font Awesome (css/fontawesome-all.min.css + fa-solid woff2).
+
+### Bukti
+- Browser nyata (stub Supabase, data demo + bulan lalu): #insights-container
+  kini berisi 7 kartu (dulu maks 4), kartu pertama "Review Bulan Ini" dgn
+  angka nyata (Pemasukan Rp 750.000, pengeluaran Rp 325.000, surplus
+  Rp 425.000, rata2 harian ...), disusul Kategori Naik/Fokus Terbesar/
+  Transaksi Terbesar/Proyeksi/Pengeluaran Turun/Menabung Konsisten; error
+  halaman 0.
+- Unit bertambah 16 (30 utk insights-domain; total unit 604/604), lint 0,
+  verify-hud 64/64 PASS error halaman 0. Test lama "maks 4" diperbarui jadi
+  "maks 10 & data kaya > 4 kartu" (inti perubahan).
+- sw.js CACHE_VERSION v62 -> v63 + snapshot di-regen (app.js & aset berubah).

@@ -4328,7 +4328,22 @@ async function currentUserId() {
 
             renderBalanceTrendChart();
 
-            const insightsCtx = { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap };
+            // Context wawasan sekarang diperkaya (v64) oleh buildInsightsContext():
+            // selain agregat bulanan standar, digali juga transaksi terbesar, pola
+            // transaksi kecil, belanja akhir pekan & pengeluaran per kategori bulan
+            // lalu -- bahan aturan review/saran baru yang lebih komprehensif.
+            // Field hasil aggregateDashboardData dipertahankan apa adanya (context
+            // lama yang dipakai renderInsights/renderHealthScore tetap kompatibel).
+            const insightsCtx = servicesModule.buildInsightsContext(
+                { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap },
+                {
+                    transactions: data,
+                    now,
+                    parseTgl,
+                    txIdrAmount,
+                    categorizeExpenseParent: (kategori) => getCategoryStyle(kategori, 'Pengeluaran').parentName,
+                }
+            );
             renderInsights(insightsCtx);
             renderHealthScore(insightsCtx);
         }

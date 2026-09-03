@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeFinancialHealthScore, computeFinancialInsights } from "../../src/domain/insights.js";
+import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext } from "../../src/domain/insights.js";
 
 const formatRp = (n) => new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(n);
 const formatShortVal = (n) => {
@@ -145,19 +145,220 @@ test("computeFinancialInsights: proyeksi akhir bulan cuma muncul kalau minimal h
   assert.ok(proyeksi, "harus ada insight proyeksi");
 });
 
-test("computeFinancialInsights: hasil dibatasi maksimal 4 insight", () => {
+test("computeFinancialInsights: hasil dibatasi maksimal 10 wawasan (v64 -- diperluas dari 4)", () => {
   const insights = computeFinancialInsights(
     baseCtx({
       monthCatOutMap: { Kopi: 150_000, Hiburan: 200_000 },
       catOut3MoMap: { Hiburan: 300_000 },
       monthIn: 1_000_000, monthOut: 900_000, prevMonthIn: 1_000_000, prevMonthOut: 500_000,
+      monthTxCount: 12,
     }),
     { currentMonthBudgets: { Kopi: 100_000 }, formatRp, formatShortVal },
   );
-  assert.ok(insights.length <= 4);
+  assert.ok(insights.length <= 10);
+  // Context kaya tadi menghasilkan review + anggaran + lonjakan + tabungan +
+  // proyeksi -> lebih banyak dari kapasitas lama 4 (intisari perbaikan v64).
+  assert.ok(insights.length > 4, "data kaya harus memunculkan lebih dari 4 kartu");
 });
 
 test("computeFinancialInsights: data kosong/normal tidak menghasilkan insight apapun", () => {
   const insights = computeFinancialInsights(baseCtx(), { currentMonthBudgets: {}, formatRp, formatShortVal });
   assert.deepEqual(insights, []);
+});
+
+
+// ===================== v64: aturan tambahan & buildInsightsContext =====================
+
+test("computeFinancialInsights: review bulan ini selalu muncul saat ada data (surplus)", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 1_200_000, monthOut: 800_000, monthTxCount: 14 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const rev = insights.find((i) => i.title === "Review Bulan Ini");
+  assert.ok(rev, "harus ada kartu review");
+  assert.match(rev.message, /surplus Rp 400\.000/);
+  assert.match(rev.message, /14 transaksi/);
+  assert.equal(insights[0].title, "Review Bulan Ini"); // paling atas sebagai ringkasan
+});
+
+test("computeFinancialInsights: review menyebut defisit saat pengeluaran > pemasukan", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 300_000, monthOut: 500_000, monthTxCount: 6 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const rev = insights.find((i) => i.title === "Review Bulan Ini");
+  assert.match(rev.message, /defisit Rp 200\.000/);
+});
+
+test("computeFinancialInsights: defisit bulan ini memicu peringatan 'Pengeluaran Melebihi Pemasukan'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 500_000, monthOut: 900_000, monthTxCount: 12, monthCatOutMap: { Makanan: 400_000, Transportasi: 200_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const d = insights.find((i) => i.title === "Pengeluaran Melebihi Pemasukan");
+  assert.ok(d, "harus ada kartu defisit");
+  assert.match(d.message, /defisit Rp 400\.000/);
+  assert.match(d.message, /Makanan/);
+  assert.equal(insights.indexOf(d), 1); // tepat setelah Review
+});
+
+test("computeFinancialInsights: ada pengeluaran tapi nol pemasukan -> 'Belum Ada Pemasukan Bulan Ini'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 0, monthOut: 200_000, monthTxCount: 3 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  assert.ok(insights.some((i) => i.title === "Belum Ada Pemasukan Bulan Ini"));
+});
+
+test("computeFinancialInsights: konsentrasi kategori >= 45% total memicu 'Fokus Pengeluaran Terbesar'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthOut: 700_000, monthTxCount: 10, monthCatOutMap: { "Makanan & Minuman": 500_000, Transportasi: 200_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const f = insights.find((i) => i.title === "Fokus Pengeluaran Terbesar");
+  assert.ok(f, "harus ada kartu fokus terbesar");
+  assert.match(f.message, /Makanan & Minuman/);
+  assert.match(f.message, /71%/); // 500rb/700rb
+});
+
+test("computeFinancialInsights: konsentrasi di bawah 45% TIDAK memicu (anti-spam)", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthOut: 700_000, monthTxCount: 10, monthCatOutMap: { "Makanan & Minuman": 300_000, Transportasi: 200_000, Hiburan: 200_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  assert.equal(insights.find((i) => i.title === "Fokus Pengeluaran Terbesar"), undefined);
+});
+
+test("computeFinancialInsights: transaksi tunggal >= 30% pengeluaran -> 'Transaksi Terbesar'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({
+      monthOut: 1_000_000, monthTxCount: 5, monthCatOutMap: { Elektronik: 900_000, Makanan: 100_000 },
+      biggestExpense: { kategori: "Elektronik", akun: "BCA", tanggal: "2026-08-10", jumlah: 900_000 },
+    }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const t = insights.find((i) => i.title === "Transaksi Terbesar");
+  assert.ok(t);
+  assert.match(t.message, /Elektronik/);
+  assert.match(t.message, /90%/);
+  assert.match(t.message, /10\/08/);
+});
+
+test("computeFinancialInsights: transaksi terbesar kecil (<30%) TIDAK memicu", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({
+      monthOut: 1_000_000, monthTxCount: 5, monthCatOutMap: { Makanan: 100_000 },
+      biggestExpense: { kategori: "Makanan", akun: "BCA", tanggal: "2026-08-10", jumlah: 100_000 },
+    }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  assert.equal(insights.find((i) => i.title === "Transaksi Terbesar"), undefined);
+});
+
+test("computeFinancialInsights: pos berulang naik >=50% & >=50rb -> 'Pos Berulang Naik'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({
+      monthOut: 400_000, monthTxCount: 4, monthCatOutMap: { "Tagihan & Biaya": 400_000 },
+      prevMonthCatOutMap: { "Tagihan & Biaya": 100_000 },
+    }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const r = insights.find((i) => i.title === "Pos Berulang Naik");
+  assert.ok(r);
+  assert.match(r.message, /Tagihan & Biaya/);
+  assert.match(r.message, /300%/);
+});
+
+test("computeFinancialInsights: banyak transaksi kecil -> 'Banyak Transaksi Kecil'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthOut: 600_000, monthTxCount: 20, monthCatOutMap: { Makanan: 300_000 },
+      smallTx: { count: 9, total: 180_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const s2 = insights.find((i) => i.title === "Banyak Transaksi Kecil");
+  assert.ok(s2);
+  assert.match(s2.message, /9 transaksi kecil/);
+});
+
+test("computeFinancialInsights: belanja akhir pekan >=40% total -> 'Belanja Padat di Akhir Pekan'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthOut: 600_000, monthTxCount: 20, monthCatOutMap: { Makanan: 600_000 },
+      weekendTx: { count: 8, out: 300_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const w = insights.find((i) => i.title === "Belanja Padat di Akhir Pekan");
+  assert.ok(w);
+  assert.match(w.message, /50%/);
+});
+
+test("computeFinancialInsights: pengeluaran turun >=20% vs bulan lalu -> 'Pengeluaran Turun'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 900_000, monthOut: 700_000, prevMonthOut: 1_000_000, monthTxCount: 20, monthCatOutMap: { Makanan: 700_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const d = insights.find((i) => i.title === "Pengeluaran Turun");
+  assert.ok(d);
+  assert.match(d.message, /30%/);
+});
+
+test("computeFinancialInsights: tabungan >=30% pemasukan -> 'Menabung Konsisten'", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 1_000_000, monthOut: 500_000, monthTxCount: 10, monthCatOutMap: { Makanan: 500_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const m = insights.find((i) => i.title === "Menabung Konsisten");
+  assert.ok(m);
+  assert.match(m.message, /50%/);
+});
+
+test("computeFinancialInsights: kolom tambahan absen (context lama) -> aturan baru no-op tanpa crash", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 2_000_000, monthOut: 1_500_000, monthTxCount: 30, monthCatOutMap: { Makanan: 1_000_000 } }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  assert.ok(insights.length >= 1); // review tetap ada
+  assert.equal(insights.find((i) => i.title === "Transaksi Terbesar"), undefined);
+  assert.equal(insights.find((i) => i.title === "Pos Berulang Naik"), undefined);
+});
+
+// ===================== buildInsightsContext =====================
+
+test("buildInsightsContext: menggali transaksi terbesar, transaksi kecil, akhir pekan & kategori bulan lalu", () => {
+  const now = new Date(2026, 7, 15); // 15 Agustus 2026 (Sabtu)
+  const parseTgl = (s) => new Date(`${s}T12:00:00`);
+  const parent = (k) => ({ Restoran: "Makanan & Minuman", "Kafe & Kopi": "Makanan & Minuman", Camilan: "Makanan & Minuman", Transportasi: "Transportasi", Elektronik: "Belanja" }[k]);
+  const tx = (id, kategori, tanggal, jumlah) => ({ id, jenis: "Pengeluaran", kategori, tanggal, jumlah: String(jumlah) });
+  const rows = [
+    tx("a", "Restoran", "2026-08-03", 150000), // Senin
+    tx("b", "Elektronik", "2026-08-03", 2500000), // Senin -> terbesar
+    tx("c", "Kafe & Kopi", "2026-08-01", 20000), // Sabtu + kecil
+    tx("d", "Restoran", "2026-08-08", 60000), // Sabtu
+    tx("e", "Transportasi", "2026-08-09", 40000), // Minggu
+    tx("f", "Camilan", "2026-08-10", 18000), // Senin + kecil
+    tx("p1", "Restoran", "2026-07-05", 100000),
+    tx("p2", "Elektronik", "2026-07-06", 500000),
+    tx("o1", "Restoran", "2026-09-01", 999999), // di luar 2 bulan -> diabaikan
+    { id: "in", jenis: "Pemasukan", kategori: "Gaji", tanggal: "2026-08-05", jumlah: "5000000" }, // bukan pengeluaran -> diabaikan
+  ];
+  const ctx = buildInsightsContext(
+    { now, monthIn: 0, monthOut: 0, monthTxCount: 0 },
+    { transactions: rows, now, parseTgl, txIdrAmount: (t) => Number(t.jumlah), categorizeExpenseParent: parent },
+  );
+  assert.deepEqual(ctx.biggestExpense, { kategori: "Elektronik", akun: "", tanggal: "2026-08-03", jumlah: 2500000 });
+  assert.deepEqual(ctx.smallTx, { count: 2, total: 38000 }); // 20rb + 18rb
+  assert.deepEqual(ctx.weekendTx, { count: 3, out: 120000 }); // 20rb + 60rb + 40rb
+  assert.deepEqual(ctx.prevMonthCatOutMap, { "Makanan & Minuman": 100000, Belanja: 500000 });
+  // field lama ikut dipertahankan
+  assert.equal(ctx.monthIn, 0);
+});
+
+test("buildInsightsContext: tanpa transaksi -> semua kolom tambahan kosong aman", () => {
+  const ctx = buildInsightsContext(
+    { now: new Date(2026, 7, 15), monthIn: 0, monthOut: 0, monthTxCount: 0 },
+    { transactions: [], now: new Date(2026, 7, 15), parseTgl: (s) => new Date(s), txIdrAmount: (t) => Number(t.jumlah), categorizeExpenseParent: () => null },
+  );
+  assert.equal(ctx.biggestExpense, null);
+  assert.deepEqual(ctx.smallTx, { count: 0, total: 0 });
+  assert.deepEqual(ctx.weekendTx, { count: 0, out: 0 });
+  assert.deepEqual(ctx.prevMonthCatOutMap, {});
 });

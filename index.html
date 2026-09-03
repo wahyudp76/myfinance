@@ -158,7 +158,7 @@
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
         import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions } from './src/domain/asset-flows.js';
         import * as chartsUi from './src/ui/charts.js';
-        import { computeFinancialHealthScore, computeFinancialInsights } from './src/domain/insights.js';
+        import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext } from './src/domain/insights.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
@@ -212,7 +212,7 @@
             computeAccountTotals, buildAccountBalanceSeries,
             computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount,
             summarizeAssets, computeNetWorth,
-            computeFinancialHealthScore, computeFinancialInsights,
+            computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext,
             computeGoalProgress, computeDebtProgress,
             // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
             // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.
