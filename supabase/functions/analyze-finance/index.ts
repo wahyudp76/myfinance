@@ -15,7 +15,7 @@
 // mengutip angka pasti dari ringkasan, maks 5 kartu, output disanitasi). Ringkasan yang
 // dikirim client juga lebih kaya (lihat src/domain/ai-summary.js). PERLU DEPLOY ULANG:
 //     supabase functions deploy analyze-finance
- ada function LAIN
+// ada function LAIN
 // bernama "smooth-processor" yang deploy live juga masih aktif berisi versi LAMA fitur ini
 // (pakai Anthropic Claude, bukan Gemini, cuma 2 dari 4 mode) -- itu bukan file ini, tidak
 // dipanggil dari index.html sama sekali, dan disarankan dihapus manual
