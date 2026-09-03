@@ -23,7 +23,7 @@
 
 // v3: CSS aplikasi dipindah dari inline <style> di index.html ke file terpisah
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
-const CACHE_VERSION = 'myfinance-v63';
+const CACHE_VERSION = 'myfinance-v64';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -73,6 +73,7 @@ const PRECACHE_URLS = [
   './src/services/supabase/client.js',
   // Semua modul runtime app (domain/ui/services) -- precache LENGKAP sejak install
   // supaya app utuh walau kunjungan pertama langsung offline (audit 2026-09).
+  './src/domain/ai-summary.js',
   './src/domain/accounts.js',
   './src/domain/asset-flows.js',
   './src/domain/assets.js',

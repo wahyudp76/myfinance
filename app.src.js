@@ -4443,28 +4443,20 @@ async function currentUserId() {
         }
 
         function buildFinanceSummaryForAI(ctx) {
-            const topCats = Object.entries(ctx.monthCatOutMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ({ kategori: k, jumlah: v }));
-            const budgetStatus = Object.keys(currentMonthBudgetsCache).map(cat => ({
-                kategori: cat, anggaran: currentMonthBudgetsCache[cat], terpakai: ctx.monthCatOutMap[cat] || 0
-            }));
-            const daysInMonth = new Date(ctx.now.getFullYear(), ctx.now.getMonth() + 1, 0).getDate();
-            let saldoGabungan = 0;
-            globalData.forEach(t => {
-                if (t.jenis === 'Pemasukan') saldoGabungan += txIdrAmount(t);
-                else if (t.jenis === 'Pengeluaran') saldoGabungan -= txIdrAmount(t);
+            // RINGKASAN AI (v65) kini dibangun di modul murni src/domain/ai-summary.js
+            // (dites di tests/unit/ai-summary.test.js): selain field lama yang
+            // dipertahankan nama & nilainya, ditambahkan angka turunan presisi
+            // (rata2 harian, proyeksi akhir bulan, tingkat menabung, persen terpakai
+            // anggaran, kenaikan per kategori vs bulan lalu, riwayat 6 bulan) serta
+            // pola dari transaksi (top-3 terbesar, transaksi kecil, akhir pekan) --
+            // supaya Gemini merujuk angka pasti dari data, bukan menebak/membulatkan.
+            // ctx = lastInsightsCtx (sudah diperkaya buildInsightsContext v64).
+            return servicesModule.buildAiFinanceSummary(ctx, {
+                budgets: currentMonthBudgetsCache,
+                allTransactions: globalData,
+                txIdrAmount,
+                parseTgl,
             });
-            return {
-                tanggal_hari_ini_ke: ctx.now.getDate(),
-                total_hari_dalam_bulan: daysInMonth,
-                pemasukan_bulan_ini: ctx.monthIn,
-                pengeluaran_bulan_ini: ctx.monthOut,
-                pemasukan_bulan_lalu: ctx.prevMonthIn,
-                pengeluaran_bulan_lalu: ctx.prevMonthOut,
-                jumlah_transaksi_bulan_ini: ctx.monthTxCount,
-                top_kategori_pengeluaran_bulan_ini: topCats,
-                status_anggaran_bulan_ini: budgetStatus,
-                estimasi_saldo_gabungan_semua_akun: saldoGabungan
-            };
         }
 
         function renderAiInsightLoading() {
@@ -5669,7 +5661,7 @@ async function currentUserId() {
         }
 
         // ========================== TANYA AI (chat bebas soal keuangan, via Edge Function yang sama) ==========================
-        // Beda dari "Rekomendasi AI" di dashboard (yang otomatis, 3 insight tetap): ini user yang
+        // Beda dari "Rekomendasi AI" di dashboard (yang otomatis, hingga 5 kartu insight v65): ini user yang
         // bertanya bebas ("berapa pengeluaran transport 3 bulan terakhir?" dsb), dijawab Gemini
         // berdasarkan ringkasan data yang sama (buildFinanceSummaryForAI()) + pertanyaannya sendiri.
         // Edge Function 'analyze-finance' membedakan mode ini lewat ada/tidaknya field "question"

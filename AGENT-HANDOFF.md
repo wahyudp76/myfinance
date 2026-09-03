@@ -962,3 +962,50 @@ review yang lebih banyak, lengkap & komprehensif terhadap data transaksi.
   verify-hud 64/64 PASS error halaman 0. Test lama "maks 4" diperbarui jadi
   "maks 10 & data kaya > 4 kartu" (inti perubahan).
 - sw.js CACHE_VERSION v62 -> v63 + snapshot di-regen (app.js & aset berubah).
+
+## v65 — Rekomendasi Gemini AI lebih akurat & presisi terhadap data transaksi
+
+Permintaan owner: rekomendasi AI (Gemini) harus akurat & presisi terhadap data
+transaksi di database.
+
+### Akar masalah
+- Ringkasan yang dikirim ke Edge Function analyze-finance cuma total kasar +
+  top 5 kategori + anggaran tanpa persen -- model dipaksa menebak/membulatkan
+  sendiri (sering keliru menyebut nominal/kategori), tidak ada angka turunan
+  (rata2 harian, proyeksi, persen terpakai), tidak ada transaksi terbesar /
+  pembanding bulan lalu / pola.
+- Prompt Edge Function longgar ("jangan mengarang") tanpa aturan kutip angka;
+  output tidak disanitasi; kartu dibatasi 3.
+
+### Perbaikan
+1. `src/domain/ai-summary.js` (BARU, murni, 10 unit test): membangun ringkasan
+   presisi; field LAMA dipertahankan nama/nilai (kompatibel dgn function yang
+   masih live), ditambah: sisa_hari_dalam_bulan, selisih_bulan_ini,
+   tingkat_menabung_persen, rata_rata_pengeluaran_harian,
+   proyeksi_pengeluaran_akhir_bulan, top_kategori (8 + persen_dari_total),
+   status_anggaran (persen_terpakai & sisa, urut desc), kategori_bulan_lalu,
+   kategori_naik_vs_bulan_lalu (kenaikan % dihitung klien, >=50rb & >=30%),
+   riwayat_enam_bulan (kronologis), transaksi_terbesar_bulan_ini (top 3 dgn
+   akun/tanggal/keterangan), transaksi_kecil_bulan_ini,
+   pengeluaran_akhir_pekan_bulan_ini (+persen), estimasi saldo gabungan.
+2. app.src.js buildFinanceSummaryForAI -> wrapper ke modul (3 pemakai otomatis
+   kebagian: Rekomendasi AI, Ringkasan Bulanan, Tanya AI); index.html import +
+   expose; sw.js PRECACHE + modul baru.
+3. Edge Function analyze-finance (perlu DEPLOY ULANG manual oleh owner):
+   prompt insights kini WAJIB mengutip minimal satu angka pasti per kartu,
+   format Rp utuh, target saran dihitung dari angka data, dilarang menyebut
+   kategori di luar data, pakai angka turunan yang dikirim (bukan hitung ulang
+   kasar), maks 5 kartu (sebelumnya 3); prompt Tanya AI & Ringkasan Bulanan
+   ikut diperkuat grounding; output disanitasi server-side (title/message
+   teks, severity whitelist info/warning/success, slice 5).
+   Catatan: versi function lama tetap berfungsi (field lama utuh) -- tapi agar
+   aturan presisi aktif, jalankan: supabase functions deploy analyze-finance
+
+### Bukti
+- Unit baru 10 (ai-summary) -- total 614/614, lint 0, verify-hud 64/64, error
+  halaman 0. SW CACHE_VERSION v63 -> v64 + snapshot. app.js & css di-rebuild
+  (css +18 byte artefak deterministik).
+- Probe Playwright (stub invoke analyze-finance): payload ringkasan memuat
+  SEMUA field baru (tingkat_menabung 78.3, rata2 harian 54.333, proyeksi
+  1.629.990, status anggaran dgn persen_terpakai/sisa, top-3 transaksi dgn
+  akun-tanggal-keterangan); 5 kartu AI hasil (stub) dirender utuh; 0 error.

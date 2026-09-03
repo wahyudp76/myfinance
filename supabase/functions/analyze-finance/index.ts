@@ -9,7 +9,13 @@
 //
 // SUMBER FILE INI: di-recover langsung dari deployment live (Supabase MCP get_edge_function)
 // tanggal 25 Agustus 2026 -- sebelumnya TIDAK ADA sama sekali di git manapun (lihat
-// docs/AUDIT_REPORT_2026-08.md §4.7 dan commit riwayat Phase 6 di branch ini). ada function LAIN
+// docs/AUDIT_REPORT_2026-08.md §4.7 dan commit riwayat Phase 6 di branch ini).
+//
+// v65 (2026-09-03): prompt & sanitasi diperbarui untuk presisi (setiap insight wajib
+// mengutip angka pasti dari ringkasan, maks 5 kartu, output disanitasi). Ringkasan yang
+// dikirim client juga lebih kaya (lihat src/domain/ai-summary.js). PERLU DEPLOY ULANG:
+//     supabase functions deploy analyze-finance
+ ada function LAIN
 // bernama "smooth-processor" yang deploy live juga masih aktif berisi versi LAMA fitur ini
 // (pakai Anthropic Claude, bukan Gemini, cuma 2 dari 4 mode) -- itu bukan file ini, tidak
 // dipanggil dari index.html sama sekali, dan disarankan dihapus manual
@@ -292,10 +298,15 @@ Deno.serve(async (req: Request) => {
       const qaPrompt = commonContext +
         `User bertanya: "${String(question).trim()}"\n\n` +
         `Jawab pertanyaan itu dalam Bahasa Indonesia, singkat (maksimal 3-4 kalimat), HANYA berdasarkan ` +
-        `angka pada ringkasan di atas. Kalau ringkasan datanya tidak cukup untuk menjawab pertanyaan itu ` +
-        `secara spesifik (misal user tanya soal kategori/periode yang tidak ada di ringkasan), katakan ` +
-        `dengan jujur bahwa datanya tidak tersedia di ringkasan ini, jangan mengarang angka. ` +
-        `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basi pembuka.`;
+        `angka pada ringkasan di atas. Setiap kali menyebut nominal, gunakan ANGKA PERSIS dari data ` +
+        `(tulis lengkap sebagai Rupiah: "Rp 1.234.567"), jangan membulatkan seenaknya, jangan mengarang ` +
+        `angka, kategori, atau transaksi yang tidak ada di data. Ringkasan sudah memuat angka turunan ` +
+        `(rata_rata_pengeluaran_harian, proyeksi_pengeluaran_akhir_bulan, persen_terpakai tiap anggaran, ` +
+        `kenaikan per kategori vs bulan lalu, top transaksi terbesar) -- pakai itu untuk jawaban yang ` +
+        `presisi, jangan menghitung ulang secara kasar. Kalau ringkasan datanya tidak cukup untuk menjawab ` +
+        `pertanyaan itu secara spesifik (misal user tanya soal kategori/periode yang tidak ada di ` +
+        `ringkasan), katakan dengan jujur bahwa datanya tidak tersedia di ringkasan ini. ` +
+        `Balas HANYA teks jawabannya saja, tanpa format JSON, tanpa markdown, tanpa basa-basa pembuka.`;
 
       let answerText: string;
       try {
@@ -311,17 +322,28 @@ Deno.serve(async (req: Request) => {
     }
 
     // Mode wawasan otomatis (dipanggil dari renderInsights() di dashboard) -- balasannya array
-    // JSON berisi maksimal 3 kartu insight.
+    // JSON berisi maksimal 5 kartu insight (v65; sebelumnya 3).
     if (!(await checkRateLimit(supabase, userData.user.id, "insights"))) {
       return rateLimitResponse("rekomendasi AI");
     }
 
     const prompt = commonContext +
-      `Berikan MAKSIMAL 3 rekomendasi/insight yang KONKRET, SPESIFIK, dan actionable dalam Bahasa Indonesia, ` +
-      `HANYA berdasarkan angka pada data di atas (jangan mengarang angka atau kategori yang tidak ada di data). ` +
-      `Kalau datanya terlalu sedikit/kosong untuk disimpulkan, cukup kasih 1 insight umum yang menyemangati/mengingatkan. ` +
+      `Berikan MAKSIMAL 5 rekomendasi/insight yang KONKRET, SPESIFIK, presisi, dan actionable dalam Bahasa Indonesia. ` +
+      `ATURAN KETEPATAN (wajib): ` +
+      `(a) HANYA berdasarkan angka pada data di atas -- jangan mengarang angka, kategori, akun, atau transaksi apa pun; ` +
+      `(b) SETIAP insight WAJIB mengutip minimal SATU angka pasti dari data (nominal Rupiah utuh, mis. "Rp 450.000" ` +
+      `-- jangan menulis "sekitar 400 ribuan"), atau persen yang sudah tersedia di data; ` +
+      `(c) kalau menyarankan target/nilai batas, hitung dari angka data (mis. "pengeluaran kategori X rata-rata ` +
+      `Rp 500.000/bulan, coba tetapkan batas Rp 400.000") -- jangan asal sebut angka; ` +
+      `(d) jangan menyebut kategori yang tidak tercantum di ringkasan; ` +
+      `(e) gunakan angka turunan yang SUDAH disediakan (rata_rata_pengeluaran_harian, ` +
+      `proyeksi_pengeluaran_akhir_bulan, persen_terpakai per anggaran, sisa anggaran, selisih bulan ini, ` +
+      `kategori_naik_vs_bulan_lalu, transaksi_terbesar_bulan_ini, riwayat_enam_bulan) -- jangan menghitung ulang ` +
+      `secara kasar dari angka lain; ` +
+      `(f) kalau datanya terlalu sedikit/kosong untuk disimpulkan, akui keterbatasannya dan beri 1 saran umum yang ` +
+      `mendorong pencatatan rutin. ` +
       `Balas HANYA dalam bentuk JSON array valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar array), formatnya:\n` +
-      `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat", "severity": "info" | "warning" | "success"}]`;
+      `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat dengan angka persis", "severity": "info" | "warning" | "success"}]`;
 
     let rawText: string;
     try {
@@ -345,6 +367,20 @@ Deno.serve(async (req: Request) => {
         severity: "info",
       }];
     }
+
+    // Sanitasi output (v65): jaga kontrak {title, message, severity} tetap valid --
+    // buang item yang tidak punya title/message teks, paksa severity ke daftar yang
+    // dikenal UI (info/warning/success), batasi panjang pesan, dan potong maks 5 kartu
+    // supaya section dashboard tidak kebanjiran.
+    const knownSeverity = new Set(["info", "warning", "success"]);
+    insights = (Array.isArray(insights) ? insights : [])
+      .filter((it) => it && typeof it === "object" && typeof it.title === "string" && it.title.trim() && typeof it.message === "string" && it.message.trim())
+      .map((it) => ({
+        title: it.title.trim().slice(0, 80),
+        message: it.message.trim().slice(0, 500),
+        severity: knownSeverity.has(it.severity) ? it.severity : "info",
+      }))
+      .slice(0, 5);
 
     return jsonResponse({ insights });
   } catch (e) {
