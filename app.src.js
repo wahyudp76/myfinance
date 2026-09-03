@@ -3547,19 +3547,20 @@ async function currentUserId() {
         // ========================== MASTER FETCH ==========================
         async function loadData() {
             setSyncLoading(true); // slice design #3: skeleton Dashboard / overlay utk tab lain
-            // Gerbang chart lazy (Tier-2 #5): tunggu chart.js+datalabels siap sebelum
-            // rantai render grafik jalan. Semua chart hanya dirender pasca-login, jadi
-            // dalam praktik promise ini sudah lama selesai (unduhan dimulai saat halaman
-            // dibuka, paralel dgn app script). Gagal dimuat -> lanjut tanpa chart
-            // (paritas perilaku versi CDN-off), error sudah dicatat loader.
-            if (window.__mfChartLibReady) { try { await window.__mfChartLibReady; } catch (e) {} }
+            // v68 (optimasi sinkronisasi): tarikan 6 tabel DIMULAI SEGERA di sini, TIDAK lagi
+            // menunggu chart lib. Sebelumnya `await window.__mfChartLibReady` (unduhan+parse
+            // chart.js ~204KB + datalabels, bisa 1-4 dtk di koneksi lambat) ada DI DEPAN fetch
+            // data -- setiap buka app, sinkronisasi ke Supabase baru mulai SETELAH chart lib
+            // tuntas (berurutan). Padahal chart lib cuma dibutuhkan saat RENDER grafik
+            // (pasca-login). Sekarang unduhan chart & tarikan data berjalan PARALEL: yang
+            // mana pun selesai duluan tidak memblokir yang lain.
             
             const targetBulan = document.getElementById('budgetFilterMonth').value || todayDateStr().slice(0, 7);
 
             // Pensyahan api.run (slice penutup): getSyncData() adapter di-inline di sini --
             // Promise.all 6 service, urutan & bentuk hasil { transactions, budgets, assets,
             // settings, customIcons, recurring } sama persis dgn getSyncData lama.
-            (async () => {
+            const syncFetch = (async () => {
                 const [transactions, budgets, assets, customIcons, settings, recurring] = await Promise.all([
                     transactionService.list(),
                     servicesModule.fetchMonthBudgets(supabaseClient, targetBulan),
@@ -3569,7 +3570,12 @@ async function currentUserId() {
                     servicesModule.listRecurring(supabaseClient),
                 ]);
                 return { transactions, budgets, assets, settings, customIcons, recurring };
-            })().then((response) => {
+            })();
+            // Gerbang chart lazy (Tier-2 #5): SEKARANG hanya menahan RENDER grafik, bukan fetch
+            // data (lihat catatan v68 di atas). Gagal dimuat -> lanjut tanpa chart (paritas
+            // perilaku versi CDN-off), error sudah dicatat loader.
+            if (window.__mfChartLibReady) { try { await window.__mfChartLibReady; } catch (e) {} }
+            syncFetch.then((response) => {
                 globalData = response.transactions || [];
                 cloudBudgets = response.budgets || {};
                 globalAssets = response.assets || [];
@@ -3636,9 +3642,18 @@ async function currentUserId() {
                 processDataForUI(globalData); 
                 renderReportTab();
 
-                // currentMonthBudgetsCache dipakai wawasan "Peringatan Anggaran" -- di-refresh async di
-                // sini (tidak menahan render lain di atas), lalu render ulang wawasan saja begitu datang.
-                refreshCurrentMonthBudgetsCache(() => { if (lastInsightsCtx) renderInsights(lastInsightsCtx); });
+                // v68: kalau bulan yang baru di-fetch (targetBulan) = bulan kalender berjalan, data
+                // response.budgets yang SUDAH turun dipakai langsung sebagai currentMonthBudgetsCache
+                // (dipakai wawasan "Peringatan Anggaran" + skor kesehatan) -- hemat 1 request REST
+                // /rest/v1/budgets + render ulang ekstra di tiap sinkronisasi. Kalau bulan berbeda
+                // (user lagi membuka bulan lain di tab Anggaran), baru refetch bulan berjalan async
+                // persis perilaku lama.
+                if (targetBulan === currentMonthStr()) {
+                    currentMonthBudgetsCache = (response.budgets && typeof response.budgets === 'object') ? response.budgets : {};
+                    if (lastInsightsCtx) { renderInsights(lastInsightsCtx); renderHealthScore(lastInsightsCtx); }
+                } else {
+                    refreshCurrentMonthBudgetsCache(() => { if (lastInsightsCtx) renderInsights(lastInsightsCtx); });
+                }
                 
                 if(document.getElementById('view-akun-detail').classList.contains('block')) { openAccountDetail(document.getElementById('detail-account-name').innerText); }
                 if(document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }

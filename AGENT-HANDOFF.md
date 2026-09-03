@@ -1100,3 +1100,50 @@ sekali, murni penambahan/perapian deklaratif di index.html + bump SW.
   import() dinamis, atau bundling ESM) -- sengaja TIDAK dilakukan di v67
   (berisiko tinggi thd 200+ onclick= & bridge classic/module; owner memilih
   jalur aman). Ajukan tersendiri bila mau lanjut.
+
+## v68 — Akselerasi sinkronisasi data (loadData): hapus serialisasi chart lib + request budgets ganda
+
+Permintaan owner: "kecepatan untuk sync data masih sangat lama, lakukan improvement
+untuk load data sync ke database". Audit alur loadData() (6 tabel via
+getSyncData adapter in-line: transactions, budgets, assets, customIcons, settings,
+recurring) menemukan 2 pemborosan SISI CLIENT + 1 sisa SISI DB (lihat langkah
+lanjut DB di bawah).
+
+### Temuan & perubahan (app.src.js, loadData)
+1. **Fetch data berjalan SERIAL di belakang unduhan chart lib.** loadData() lama:
+   `await window.__mfChartLibReady` (chart.js 204KB + datalabels, bisa 1-4 dtk di
+   koneksi lambat) DI DEPAN Promise.all 6 tabel -- tiap buka app, sinkronisasi ke
+   Supabase baru mulai SETELAH chart lib tuntas, padahal chart cuma dipakai saat
+   RENDER grafik. FIX v68: fetch di-const-kan `const syncFetch = (async () => {...})()`
+   dan DIBUAT PALING AWAL; gerbang chart dipindah ke belakangnya dan hanya menahan
+   `syncFetch.then(...)` (rantai render). Efek: unduhan chart & tarikan data
+   PARALEL; total waktu = max(chart, data) bukan chart + data.
+2. **Request budgets bulan berjalan dobel di tiap sinkronisasi.** loadData fetch
+   `fetchMonthBudgets(targetBulan)` (default = bulan berjalan) lalu
+   `refreshCurrentMonthBudgetsCache()` fetch ULANG bulan yang sama untuk
+   currentMonthBudgetsCache (wawasan/skor kesehatan). FIX v68: saat
+   `targetBulan === currentMonthStr()`, response.budgets yang SUDAH turun
+   dipakai langsung sebagai cache (seed) + renderInsights/renderHealthScore
+   sekali; kalau bulan beda (user di tab Anggaran bulan lain) baru refetch async
+   persis perilaku lama. Hemat 1 request REST /rest/v1/budgets + 1 render ulang
+   per sinkronisasi. Idiom sama dengan saveBudgets() (baris ~4890).
+
+### Bukti
+- Guard regresi baru tests/unit/sync-load-order.test.js (2 test): syncFetch
+  dibuat SEBELUM gerbang chart + seeding budgets dari response.budgets ada di
+  rantai. Unit 625/625 (sebelumnya 623), lint 0.
+- Probe Playwright (scratch, dihapus): chartjs ditunda 3,5 dtk -> GET
+  /rest/v1/transactions mulai 442 ms (chart lib baru selesai 3.638 ms, overlap
+  ~3,2 dtk); budgetGets == 1 (sebelumnya 2); 0 page error. verify-hud 64/64 PASS.
+- SW CACHE_VERSION v67 -> v68 + snapshot; app.js rebuilt (453.090 -> 224.494 B,
+  -50,5% vs sumber).
+
+### LANGKAH LANJUT DB (belum dikerjakan -- butuh token sbp_ + OK owner)
+- `sql/rls_performance_fix.sql` (auth.uid() -> (select auth.uid()) initplan,
+  lint Supabase auth_rls_initplan) KEMUNGKINAN BESAR BELUM diterapkan live
+  (tidak ada catatan penerapan; composite index sudah live sejak v59). Efek:
+  tiap query paging mengevaluasi auth.uid() sekali per query, bukan per baris
+  -- makin terasa makin besar data per user. Rencana: (1) introspect
+  pg_policies live via Management API database/query, (2) cocokkan nama policy
+  dgn file (migration_rls_hardening 08-31 mungkin mengubah nama), (3) terapkan
+  file/varian nama live, (4) verifikasi ekspresi (select auth.uid()).
