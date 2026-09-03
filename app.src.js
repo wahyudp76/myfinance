@@ -4374,10 +4374,12 @@ async function currentUserId() {
         // (globalData via aggregate yang dilempar processDataForUI + currentMonthBudgetsCache) --
         // tidak ada fetch tambahan di sini supaya ringan dipanggil tiap render dashboard.
         // ========================== SKOR KESEHATAN FINANSIAL ==========================
-        // 4 komponen berbobot (total 100 kalau semua ada datanya; kalau user belum punya budget
-        // bulan ini, komponen "Kepatuhan Anggaran" di-skip & sisanya di-rescale ke /100 -- supaya
-        // orang yang belum pasang budget tidak otomatis dapat skor jelek gara2 "melanggar" budget
-        // yang bahkan belum dia buat).
+        // 7 komponen berbobot (v66; skor dinormalisasi /100 dari bobot yang berlaku):
+        // Tingkat Menabung 40, Kepatuhan Anggaran 25 (kredit parsial per kategori),
+        // Konsistensi Bulanan 20, Aktivitas Pencatatan 15 (target hari berjalan),
+        // Kendali Transaksi Kecil 10, Keseimbangan Pengeluaran 10, Pola Belanja
+        // Akhir Pekan 5. Komponen yang datanya tidak tersedia di-skip (mis. belum
+        // punya budget bulan ini) -- user tidak dihukum karena data yang belum ada.
         // computeFinancialHealthScore() lama sudah dipindah ke src/domain/insights.js -- lihat
         // pemanggilannya di renderHealthScore().
 

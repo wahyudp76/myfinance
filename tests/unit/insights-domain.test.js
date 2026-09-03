@@ -362,3 +362,133 @@ test("buildInsightsContext: tanpa transaksi -> semua kolom tambahan kosong aman"
   assert.deepEqual(ctx.weekendTx, { count: 0, out: 0 });
   assert.deepEqual(ctx.prevMonthCatOutMap, {});
 });
+
+// ===================== v66: parameter skor kesehatan tambahan & presisi =====================
+
+function healthCtx(overrides = {}) {
+  return {
+    monthIn: 2_000_000, monthOut: 1_000_000,
+    monthCatOutMap: { "Makanan & Minuman": 400_000, Transportasi: 300_000, Hiburan: 200_000, "Lain-lain": 100_000 },
+    monthlyMap: { "Agu 2026": { in: 2_000_000, out: 1_000_000 }, "Jul 2026": { in: 2_000_000, out: 900_000 } },
+    monthTxCount: 20,
+    smallTx: { count: 4, total: 80_000 },      // 8% dari 1jt -> sebagian kredit
+    weekendTx: { count: 6, out: 300_000 },      // 30% -> penuh
+    ...overrides,
+  };
+}
+
+test("computeFinancialHealthScore: komponen baru muncul saat context kaya (v64) tersedia", () => {
+  const { components } = computeFinancialHealthScore(healthCtx(), { currentMonthBudgets: { Transportasi: 350_000 } });
+  const labels = components.map((c) => c.label);
+  for (const want of ["Tingkat Menabung", "Kepatuhan Anggaran", "Konsistensi Bulanan", "Aktivitas Pencatatan",
+    "Kendali Transaksi Kecil", "Keseimbangan Pengeluaran", "Pola Belanja Akhir Pekan"]) {
+    assert.ok(labels.includes(want), `komponen ${want} harus ada`);
+  }
+});
+
+test("computeFinancialHealthScore: Kendali Transaksi Kecil -- <=5% total penuh, >=30% nol, linear", () => {
+  const base = { monthIn: 1_000_000, monthOut: 1_000_000, monthCatOutMap: { A: 1_000_000 }, monthlyMap: {}, monthTxCount: 10 };
+  const get = (total) => computeFinancialHealthScore(
+    { ...base, smallTx: { count: 9, total } },
+    { currentMonthBudgets: {} },
+  ).components.find((c) => c.label === "Kendali Transaksi Kecil");
+  assert.equal(get(50_000).score, 10);      // 5% -> penuh
+  assert.equal(get(300_000).score, 0);      // 30% -> nol
+  assert.equal(get(175_000).score, 5);      // 17.5% -> 5 (tengah)
+  assert.equal(get(0).score, 10);           // tanpa kebocoran -> penuh
+});
+
+test("computeFinancialHealthScore: Kendali Transaksi Kecil di-skip bila ctx.smallTx absen", () => {
+  const { components } = computeFinancialHealthScore(
+    { monthIn: 1_000_000, monthOut: 1_000_000, monthCatOutMap: { A: 1_000_000 }, monthlyMap: {}, monthTxCount: 10 },
+    { currentMonthBudgets: {} },
+  );
+  assert.equal(components.find((c) => c.label === "Kendali Transaksi Kecil"), undefined);
+});
+
+test("computeFinancialHealthScore: Keseimbangan Pengeluaran -- share <=40% penuh, >=80% nol", () => {
+  const base = { monthIn: 1_000_000, monthOut: 1_000_000, monthlyMap: {}, monthTxCount: 10, smallTx: { count: 0, total: 0 } };
+  // Bangun peta kategori supaya kategori TERBESAR persis share yang dimau.
+  const get = (share) => {
+    const s = Math.round(share * 1_000_000);
+    const map = share <= 0.4
+      ? { A: s, B: Math.round((1_000_000 - s) * 0.5), C: 1_000_000 - s - Math.round((1_000_000 - s) * 0.5) }
+      : { A: s, B: 1_000_000 - s };
+    return computeFinancialHealthScore({ ...base, monthCatOutMap: map }, { currentMonthBudgets: {} })
+      .components.find((c) => c.label === "Keseimbangan Pengeluaran");
+  };
+  assert.ok(Math.abs(get(0.3).score - 10) < 1e-9);
+  assert.ok(Math.abs(get(0.6).score - 5) < 1e-9);
+  assert.ok(Math.abs(get(0.85).score - 0) < 1e-9);
+});
+
+test("computeFinancialHealthScore: Pola Belanja Akhir Pekan -- porsi <=35% penuh; >=75% nol; dihitung bila >=5 transaksi", () => {
+  const base = { monthIn: 1_000_000, monthOut: 1_000_000, monthCatOutMap: { A: 1_000_000 }, monthlyMap: {}, monthTxCount: 10, smallTx: { count: 0, total: 0 } };
+  const get = (out, count = 8) => computeFinancialHealthScore(
+    { ...base, weekendTx: { count, out } },
+    { currentMonthBudgets: {} },
+  ).components.find((c) => c.label === "Pola Belanja Akhir Pekan");
+  assert.equal(get(300_000).score, 5); // 30% -> penuh
+  assert.equal(get(500_000).score, 3.125); // 50% -> (0.75-0.5)/0.4*5
+  assert.equal(get(800_000).score, 0); // 80% -> nol
+  // kurang dari 5 transaksi akhir pekan -> tidak dihukum, komponen di-skip
+  const { components } = computeFinancialHealthScore({ ...base, weekendTx: { count: 2, out: 900_000 } }, { currentMonthBudgets: {} });
+  assert.equal(components.find((c) => c.label === "Pola Belanja Akhir Pekan"), undefined);
+});
+
+test("computeFinancialHealthScore: Aktivitas Pencatatan presisi -- target mengikuti hari berjalan (1 tx/2 hari)", () => {
+  const base = { monthIn: 1_000_000, monthOut: 500_000, monthCatOutMap: { A: 500_000 }, monthlyMap: {}, smallTx: { count: 0, total: 0 } };
+  const get = (now, count) => computeFinancialHealthScore(
+    { ...base, now, monthTxCount: count },
+    { currentMonthBudgets: {} },
+  ).components.find((c) => c.label === "Aktivitas Pencatatan");
+  // Hari ke-10 -> target 5 transaksi: 5 tx = penuh, 2 tx = 40%
+  assert.equal(get(new Date(2026, 7, 10), 5).score, 15);
+  assert.equal(get(new Date(2026, 7, 10), 2).score, 6);
+  // Hari ke-31 -> target 15 (cap): 10 tx = 10
+  assert.equal(get(new Date(2026, 7, 31), 10).score, 10);
+  // Tanpa ctx.now -> fallback 15/bulan (perilaku lama)
+  assert.equal(get(undefined, 15).score, 15);
+});
+
+test("computeFinancialHealthScore: Kepatuhan Anggaran kredit PARSIAL -- over tipis tidak langsung 0", () => {
+  const get = (spent, budget) => computeFinancialHealthScore(
+    { monthIn: 0, monthOut: 0, monthCatOutMap: { Hiburan: spent }, monthlyMap: {}, monthTxCount: 0 },
+    { currentMonthBudgets: { Hiburan: budget } },
+  ).components.find((c) => c.label === "Kepatuhan Anggaran");
+  assert.equal(get(80_000, 100_000).score, 25);       // dalam budget -> penuh
+  assert.equal(get(150_000, 100_000).score, 12.5);    // over 50% -> kredit 0.5
+  assert.equal(get(500_000, 100_000).score, 0);       // over 400% -> 0
+});
+
+test("computeFinancialHealthScore: skor akhir menormalisasi ke 100 dari total bobot komponen yang berlaku", () => {
+  // Semua 7 komponen berlaku & sempurna -> 100
+  const perfect = computeFinancialHealthScore(
+    { ...healthCtx(), smallTx: { count: 1, total: 10_000 }, weekendTx: { count: 6, out: 100_000 }, now: new Date(2026, 7, 30) },
+    { currentMonthBudgets: { Transportasi: 500_000, "Makanan & Minuman": 600_000, Hiburan: 300_000 } },
+  );
+  assert.equal(perfect.finalScore, 100);
+  assert.equal(perfect.components.length, 7);
+
+  // Semua 7 berlaku tapi buruk semua -> 0
+  const terrible = computeFinancialHealthScore(
+    {
+      monthIn: 100_000, monthOut: 900_000, monthCatOutMap: { A: 850_000, B: 50_000 },
+      monthlyMap: { "Agu 2026": { in: 100_000, out: 900_000 } }, monthTxCount: 0, now: new Date(2026, 7, 30),
+      smallTx: { count: 10, total: 800_000 }, weekendTx: { count: 8, out: 800_000 },
+    },
+    { currentMonthBudgets: { A: 10_000 } },
+  );
+  assert.equal(terrible.finalScore, 0);
+});
+
+test("computeFinancialHealthScore: skor komponen tetap <= max-nya masing-masing (tidak pernah negatif/overflow)", () => {
+  const { components } = computeFinancialHealthScore(
+    { ...healthCtx(), now: new Date(2026, 7, 30), smallTx: { count: 50, total: 5_000_000 }, weekendTx: { count: 20, out: 5_000_000 },
+      monthCatOutMap: { A: 2_000_000 }, monthIn: 1_000_000, monthOut: 3_000_000 },
+    { currentMonthBudgets: { A: 10_000 } },
+  );
+  for (const c of components) {
+    assert.ok(c.score >= 0 && c.score <= c.max, `${c.label}: ${c.score} dalam [0, ${c.max}]`);
+  }
+});

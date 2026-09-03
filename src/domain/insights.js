@@ -13,32 +13,57 @@
  */
 
 /**
- * Skor kesehatan keuangan bulan ini (0-100), dari 4 komponen berbobot:
- * tingkat menabung, kepatuhan anggaran, konsistensi bulanan, aktivitas
- * pencatatan. Komponen yang datanya tidak tersedia (mis. belum ada budget
- * bulan ini) di-skip, bukan dianggap 0 -- supaya user yang belum pasang
- * budget tidak dihukum skornya.
+ * Skor kesehatan keuangan bulan ini (0-100) -- v66: diperluas dari 4 menjadi
+ * 7 komponen berbobot supaya lebih presisi, teliti & komprehensif mencerminkan
+ * kondisi finansial riil:
+ *   1. Tingkat Menabung            (maks 40) -- acuan 20% pemasukan = penuh.
+ *   2. Kepatuhan Anggaran          (maks 25) -- kredit PARSIAL per kategori:
+ *      dalam budget = 1, over = menyusut proporsional (bukan hitam-putih).
+ *   3. Konsistensi Bulanan         (maks 20) -- % 6 bulan terakhir net positif.
+ *   4. Aktivitas Pencatatan        (maks 15) -- target disesuaikan hari
+ *      berjalan (1 transaksi tiap 2 hari; bulan baru tidak dihukum).
+ *   5. Kendali Transaksi Kecil     (maks 10, BARU) -- total jajan <= Rp 25.000
+ *      dibanding total pengeluaran (ctx.smallTx, v64).
+ *   6. Keseimbangan Pengeluaran    (maks 10, BARU) -- konsentrasi kategori
+ *      terbesar; >40% total mulai mengurangi skor (risiko 1 pos dominan).
+ *   7. Pola Belanja Akhir Pekan    (maks 5, BARU) -- belanja Sabtu/Minggu
+ *      >= 35% total & >= 5 transaksi mulai mengurangi skor (ctx.weekendTx).
+ * Komponen yang datanya tidak tersedia di-skip (bukan 0): user tanpa budget /
+ * tanpa data pola tidak dihukum -- skor dinormalisasi ke /100 dari total bobot
+ * komponen yang benar2 berlaku.
  *
- * @param {object} ctx - dashboard aggregation context (lihat aggregateDashboardData()):
- *   { monthIn, monthOut, monthCatOutMap, monthlyMap, monthTxCount }.
+ * @param {object} ctx - context (dari buildInsightsContext()/aggregateDashboardData()):
+ *   { monthIn, monthOut, monthCatOutMap, monthlyMap, monthTxCount, now?,
+ *     smallTx?, weekendTx? } -- kolom pola (v64) opsional; bila absen komponen
+ *   5/7 di-skip.
  * @param {object} deps
  * @param {Record<string, number>} deps.currentMonthBudgets - budget kategori bulan ini (currentMonthBudgetsCache).
  * @returns {{ finalScore: number, components: Array<{label: string, score: number, max: number}> }}
  */
 export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
   const components = [];
+  const monthIn = Number(ctx.monthIn) || 0;
+  const monthOut = Number(ctx.monthOut) || 0;
+  const clamp01 = (n) => Math.max(0, Math.min(1, n));
 
   // 1. Tingkat menabung bulan ini (maks 40) -- target acuan 20% dari pemasukan = skor penuh.
-  if (ctx.monthIn > 0) {
-    const savingsRate = (ctx.monthIn - ctx.monthOut) / ctx.monthIn;
+  if (monthIn > 0) {
+    const savingsRate = (monthIn - monthOut) / monthIn;
     components.push({ label: "Tingkat Menabung", score: Math.max(0, Math.min(40, (savingsRate / 0.20) * 40)), max: 40 });
   }
 
-  // 2. Kepatuhan anggaran (maks 25) -- % kategori yg pengeluarannya masih <= budget-nya.
+  // 2. Kepatuhan anggaran (maks 25) -- kredit PER-KATEGORI: dalam budget = 1;
+  //    over dihitung parsial (1 - kelebihan/budget), bukan langsung 0, supaya
+  //    sedikit meleset tidak disamakan dengan jebol total.
   const budgetCats = Object.keys(currentMonthBudgets || {}).filter((c) => Number(currentMonthBudgets[c]) > 0);
   if (budgetCats.length > 0) {
-    const withinBudget = budgetCats.filter((c) => (ctx.monthCatOutMap[c] || 0) <= Number(currentMonthBudgets[c])).length;
-    components.push({ label: "Kepatuhan Anggaran", score: (withinBudget / budgetCats.length) * 25, max: 25 });
+    const creditSum = budgetCats.reduce((sum, c) => {
+      const budget = Number(currentMonthBudgets[c]);
+      const spent = Number((ctx.monthCatOutMap || {})[c]) || 0;
+      const credit = spent <= budget ? 1 : Math.max(0, 1 - (spent - budget) / budget);
+      return sum + credit;
+    }, 0);
+    components.push({ label: "Kepatuhan Anggaran", score: (creditSum / budgetCats.length) * 25, max: 25 });
   }
 
   // 3. Konsistensi bulanan (maks 20) -- dari beberapa bulan terakhir yg ada datanya, berapa
@@ -51,9 +76,39 @@ export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
     }
   }
 
-  // 4. Aktivitas pencatatan (maks 15) -- kebiasaan mencatat transaksi cukup rutin bulan ini
-  //    (acuan: 15 transaksi/bulan = skor penuh, ~1 transaksi tiap 2 hari).
-  components.push({ label: "Aktivitas Pencatatan", score: Math.max(0, Math.min(15, (ctx.monthTxCount / 15) * 15)), max: 15 });
+  // 4. Aktivitas pencatatan (maks 15) -- v66 presisi: target mengikuti hari
+  //    berjalan (~1 transaksi tiap 2 hari, maks 15/bulan) kalau ctx.now ada,
+  //    sehingga awal bulan tidak dihukum; fallback 15/bulan tanpa ctx.now.
+  const monthTxCount = Number(ctx.monthTxCount) || 0;
+  const dayOfMonth = ctx.now instanceof Date ? ctx.now.getDate() : 0;
+  const expectedTx = dayOfMonth > 0 ? Math.min(15, Math.max(1, Math.ceil(dayOfMonth / 2))) : 15;
+  components.push({ label: "Aktivitas Pencatatan", score: 15 * Math.min(1, monthTxCount / expectedTx), max: 15 });
+
+  // 5. Kendali Transaksi Kecil (maks 10, BARU v66) -- total jajan harian
+  //    (<= Rp 25.000/transaksi, ctx.smallTx) yang "menggerus tanpa terasa":
+  //    <= 5% total pengeluaran = penuh; >= 30% = 0; linear di antaranya.
+  const smallTx = ctx.smallTx;
+  if (smallTx && monthOut > 0) {
+    const leakPct = (Number(smallTx.total) || 0) / monthOut;
+    components.push({ label: "Kendali Transaksi Kecil", score: 10 * clamp01((0.30 - leakPct) / 0.25), max: 10 });
+  }
+
+  // 6. Keseimbangan Pengeluaran (maks 10, BARU v66) -- konsentrasi ke SATU
+  //    kategori: share kategori terbesar <= 40% total = penuh; >= 80% = 0.
+  const catEntries = Object.entries(ctx.monthCatOutMap || {});
+  if (monthOut > 0 && catEntries.length > 0) {
+    const topShare = Math.max(...catEntries.map(([, v]) => Number(v) || 0)) / monthOut;
+    components.push({ label: "Keseimbangan Pengeluaran", score: 10 * clamp01((0.80 - topShare) / 0.40), max: 10 });
+  }
+
+  // 7. Pola Belanja Akhir Pekan (maks 5, BARU v66) -- belanja Sabtu/Minggu
+  //    (ctx.weekendTx) yang dominan menandakan pengeluaran impulsif: porsi
+  //    <= 35% total = penuh; >= 75% = 0; cuma dihitung kalau >= 5 transaksi.
+  const weekendTx = ctx.weekendTx;
+  if (weekendTx && monthOut > 0 && (Number(weekendTx.count) || 0) >= 5) {
+    const wkndShare = (Number(weekendTx.out) || 0) / monthOut;
+    components.push({ label: "Pola Belanja Akhir Pekan", score: 5 * clamp01((0.75 - wkndShare) / 0.40), max: 5 });
+  }
 
   const totalScore = components.reduce((s, c) => s + c.score, 0);
   const totalMax = components.reduce((s, c) => s + c.max, 0);

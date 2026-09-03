@@ -1024,3 +1024,38 @@ transaksi di database.
   jalan; butuh sesi user login asli utk full path Gemini -- tes dari app).
 - Prompt presisi v65 (wajib kutip angka, maks 5 kartu, sanitasi output)
   sekarang AKTIF di production. GEMINI_API_KEY tidak disentuh deploy.
+
+## v66 — Skor Kesehatan Finansial: 4 -> 7 parameter (lebih presisi & komprehensif)
+
+Permintaan owner: parameter penilaian skor kesehatan finansial di Dashboard
+harus ditambah supaya lebih akurat & mencerminkan kondisi finansial riil.
+
+### Perubahan (src/domain/insights.js, computeFinancialHealthScore)
+Bobot lama dipertahankan; 3 komponen BARU memakai context kaya v64
+(buildInsightsContext), total bobot saat semua berlaku = 125 -> dinormalisasi /100:
+1. Tingkat Menabung 40 (tetap, acuan 20% pemasukan)
+2. Kepatuhan Anggaran 25 -- sekarang KREDIT PARSIAL per kategori: dalam budget=1,
+   over menyusut proporsional (1 - kelebihan/budget), bukan hitam-putih 0.
+3. Konsistensi Bulanan 20 (tetap)
+4. Aktivitas Pencatatan 15 -- PRESISI: target mengikuti hari berjalan (~1 tx/2
+   hari, cap 15) bila ctx.now ada; fallback 15/bulan tanpa now. Awal bulan tidak
+   dihukum.
+5. Kendali Transaksi Kecil 10 (BARU) -- total jajan <= Rp 25rb vs pengeluaran:
+   <=5% penuh, >=30% nol (ctx.smallTx).
+6. Keseimbangan Pengeluaran 10 (BARU) -- konsentrasi kategori terbesar:
+   <=40% total penuh, >=80% nol.
+7. Pola Belanja Akhir Pekan 5 (BARU) -- belanja Sabtu/Minggu: <=35% penuh,
+   >=75% nol, dihitung hanya bila >=5 transaksi (ctx.weekendTx).
+Komponen dengan data tak tersedia tetap di-skip (user tanpa budget / tanpa pola
+tidak dihukum); skor dinormalisasi dari bobot yang berlaku. Komentar app.src.js
+& index.html diselaraskan ("4 komponen" -> "7 komponen").
+
+### Bukti
+- Unit insights-domain bertambah 9 (39 total; semua test lama tetap hijau tanpa
+  perubahan ekspektasi -- desain kompatibel mundur), total unit 623/623, lint 0.
+- Browser nyata (stub): skor 84 band Sehat dengan rincian dinamis per parameter
+  (Tingkat Menabung 100%, Konsistensi 60%, Aktivitas 100%, Kendali Transaksi
+  Kecil 100%, Keseimbangan 27% ...); error halaman 0; verify-hud 64/64 PASS.
+- sw.js CACHE_VERSION v64 -> v65 + snapshot di-regen; app.js di-rebuild
+  (komentar & data alur tidak berubah). Tidak ada perubahan Edge Function
+  (tidak perlu deploy ulang).
