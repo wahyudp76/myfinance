@@ -158,6 +158,9 @@ let __catstyle = (function () {
             if (jenis === 'Pemasukan') return { icon: "fa-arrow-down", bg: "bg-emerald-100", color: "text-emerald-500", parent: "Lain-lain", parentName: "Lain-lain" };
             return { icon: "fa-arrow-up", bg: "bg-rose-100", color: "text-rose-500", parent: "Lain-lain", parentName: "Lain-lain" };
         },
+        categorizeParentFromLookup: function ({ categoryDict, subCategoryLookup, catName, jenis }) {
+            return this.resolveBaseCategoryStyle({ categoryDict, subCategoryLookup, catName, jenis }).parentName;
+        },
     };
 })();
 function adoptCategoryStyleModule() {
@@ -743,6 +746,22 @@ async function currentUserId() {
                 return Object.assign({}, base, { icon: override.value, bg: parentStyle.bg, color: parentStyle.color, image: null });
             }
             return base;
+        }
+
+        // Resolusi NAMA PARENT kategori -- versi murni dari __catstyle (modul ter-tes
+        // src/domain/category-style.js, v74). Di-inject sebagai DI `categorizeParent` /
+        // `categorizeExpenseParent` ke modul ter-tes (reports/insights/dashboard).
+        // SEBELUMNYA 4 call-site menulis `(kategori) => getCategoryStyle(kategori, ...).parentName`
+        // yang redundan: getCategoryStyle() membangun SETELURUH objek gaya (termasuk baca
+        // appSettings.categoryStyles utk override ikon/warna/gambar), padahal untuk parentName
+        // IA TIDAK PERNAH DIPAKAI (override hanya menyentuh icon/bg/color/image -- lihat
+        // getCategoryStyle). Perilaku identik (parentName = dari resolveBaseCategoryStyle),
+        // tapi lebih cepat & logikanya kini ter-uji unit.
+        function categorizeParent(catName, jenis) {
+            return __catstyle.categorizeParentFromLookup({ categoryDict, subCategoryLookup, catName, jenis });
+        }
+        function categorizeExpenseParent(catName) {
+            return categorizeParent(catName, 'Pengeluaran');
         }
 
         // ========================== UTILITIES ==========================
@@ -4334,7 +4353,7 @@ async function currentUserId() {
                 txIdrAmount,
                 transferTargetAmount,
                 parseTgl,
-                categorizeExpenseParent: (kategori) => getCategoryStyle(kategori, 'Pengeluaran').parentName,
+                categorizeExpenseParent: categorizeExpenseParent,
             });
 
             animateRupiah(document.getElementById('dash-total'), totalIn - totalOut, true);
@@ -4477,7 +4496,7 @@ async function currentUserId() {
                     now,
                     parseTgl,
                     txIdrAmount,
-                    categorizeExpenseParent: (kategori) => getCategoryStyle(kategori, 'Pengeluaran').parentName,
+                    categorizeExpenseParent: categorizeExpenseParent,
                 }
             );
             renderInsights(insightsCtx);
@@ -5713,7 +5732,7 @@ async function currentUserId() {
             // sekarang src/domain/reports.js (dipakai juga oleh tests/unit/reports-domain.test.js).
             const { dailyMap, outEntries, inEntries } = servicesModule.computeMonthlyBreakdown(globalData, {
                 year, month, txIdrAmount, parseTgl,
-                categorizeParent: (kategori, jenis) => getCategoryStyle(kategori, jenis).parentName,
+                categorizeParent: categorizeParent,
             });
 
             if(charts.catOut) charts.catOut.destroy(); let hasOutCat = outEntries.length > 0;
@@ -5783,7 +5802,7 @@ async function currentUserId() {
             const { labels, series } = servicesModule.computeCategoryTrend(globalData, 6, {
                 now: new Date(),
                 txIdrAmount,
-                categorizeExpenseParent: (kategori) => getCategoryStyle(kategori, 'Pengeluaran').parentName,
+                categorizeExpenseParent: categorizeExpenseParent,
             });
 
             if (charts.catTrend) { charts.catTrend.destroy(); charts.catTrend = null; }

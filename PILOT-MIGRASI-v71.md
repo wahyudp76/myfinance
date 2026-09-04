@@ -1,10 +1,11 @@
-# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v74)
+# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v76)
 
-> Lokasi: sandbox lokal (`local-only`), **belum di-push ke GitHub**.
+> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = commit `7e22e9c`; v76 berikutnya).
 > Ini hasil **3 langkah inkremental** yang diminta: ① adopsi swap call-site,
 > ② konsolidasi/penghapusan definisi global, ③ ukur gain dengan Lighthouse.
-> **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates) dan **gaya/parent
-> kategori** (category-style) → kini 3 keluarga helper termigrasi, semuanya ter-uji.
+> **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates), **gaya/parent
+> kategori** (category-style), **`transferTargetAmount`**, dan terakhir swap 4 call-site DI
+> `categorizeParent`/`categorizeExpenseParent` → kini **5 benchmark** termigrasi & ter-uji.
 > Semua tanpa menyentuh produksi; hanya dimuat & diuji di sandbox + browser headless.
 
 ---
@@ -14,8 +15,24 @@
 | Langkah | Status | Bukti |
 |---|---|---|
 | ① Adopsi — modul jadi sumber kebenaran | ✅ | **format**, **dates**, **category-style** semuanya di-adopt (`__fmt`, `__dates`, `__catstyle`) saat `servicesModule` siap. |
-| ② Konsolidasi — global jadi delegasi tipis | ✅ | `formatRp/formatShortVal/txIdrAmount/deepCloneDict`, `parseTgl/toDateStr/todayDateStr`, `resolveBaseCategoryStyle` kini delegasi ke modul ter-tes. Nama global dipertahankan (kontrak 200+ `onclick=` & harness E2E). |
-| ③ Ukur dengan Lighthouse | ✅ | **perf 60 · a11y 100 · BP 100 · CLS 0** (semua ≥ ambang). Tidak ada regresi performa. |
+| ② Konsolidasi — global jadi delegasi tipis | ✅ | `formatRp/formatShortVal/txIdrAmount/deepCloneDict/transferTargetAmount`, `parseTgl/toDateStr/todayDateStr`, `resolveBaseCategoryStyle`, `categorizeParent/categorizeExpenseParent` kini delegasi ke modul ter-tes. Nama global dipertahankan (kontrak 200+ `onclick=` & harness E2E). |
+| ③ Ukur dengan Lighthouse | ✅ | **perf 55–60 · a11y 100 · BP 100 · CLS 0** (semua ≥ ambang). Tidak ada regresi performa. |
+
+### v75 & v76 (lanjutan pola, setelah di-push)
+
+- **v75 — `transferTargetAmount` → modul `format.js`** (commit `7e22e9c`, di-push ke `main`).
+  Helper ini sudah ada di `format.js` (teruji); diselesaikan dengan menambahkannya ke adaptor
+  `__fmt` + delegator global (pola yang sama), sehingga hanya ada satu sumber kebenaran.
+  SW bump `myfinance-v75`.
+- **v76 — swap 4 call-site DI `categorizeParent`/`categorizeExpenseParent`** (commit berikutnya).
+  Empat call-site di `app.src.js` sebelumnya menulis arrow `(kategori, jenis) =>
+  getCategoryStyle(...).parentName` — memanggil `getCategoryStyle` (stateful, baca
+  `appSettings.categoryStyles`) hanya untuk membaca `.parentName`, padahal override gaya
+  TIDAK pernah menyentuh `parentName` (hanya icon/bg/color/image). Tidak berlaku salah; namun
+  redundan & tak-ter-uji. Diganti delegator murni `categorizeParent`/`categorizeExpenseParent`
+  yang memanggil `__catstyle.categorizeParentFromLookup` (sudah ada di modul `category-style.js`,
+  ter-uji). Konsumen DI: `reports.js` (`computeMonthlyBreakdown`/`computeCategoryTrend`),
+  `insights.js`, `dashboard.js`. SW bump `myfinance-v76`.
 
 ---
 
@@ -39,17 +56,17 @@ satu bit** (dibuktikan guard konsistensi byte-compatible).
 ## Apa yang berubah (diff akhir)
 
 ```
- M app.src.js                 | +143 (3 adaptor + 3 adopt* + delegator)
- M app.js                     |  +2   (build minified app.src.js, -51,0%)
+ M app.src.js                 | +180 (3 adaptor + 3 adopt* + delegator + categorizeParent/ExpenseParent)
+ M app.js                     |  +2   (build minified app.src.js, -51,1%)
  M index.html                 | +27   (import formatCtx/dateCtx/categoryStyleCtx + di servicesModule)
- M sw.js                      |  +2   (CACHE_VERSION v70 -> v74)
+ M sw.js                      |  +2   (CACHE_VERSION v70 -> v76)
  M tests/unit/sw-cache.snapshot | regen (konvensi repo)
-?? src/domain/format.js       |  baru (modul kanonik format/monetary)
+?? src/domain/format.js       |  baru (modul kanonik format/monetary, incl. transferTargetAmount)
 ?? src/domain/dates.js        |  baru (modul kanonik tanggal)
-?? src/domain/category-style.js | baru (modul resolusi gaya/parent kategori)
-?? tests/unit/format-domain.test.js    | baru (12 tes)
+?? src/domain/category-style.js | baru (modul resolusi gaya/parent kategori, incl. categorizeParentFromLookup)
+?? tests/unit/format-domain.test.js    | baru (14 tes)
 ?? tests/unit/dates-domain.test.js     | baru (11 tes)
-?? tests/unit/category-style.test.js   | baru (9 tes)
+?? tests/unit/category-style.test.js   | baru (14 tes, termasuk guard konsistensi + WIRING call-site)
 ```
 
 **Tidak menyentuh:** `styles.*`, `css/*`, `supabase/functions`, `sql/`, data. Tidak ada migrasi DB.
@@ -87,12 +104,12 @@ function resolveBaseCategoryStyle(catName, jenis){ return __catstyle.resolveBase
 
 | Check | Hasil |
 |---|---|
-| `node --test tests/unit/*.test.js` | **666 tests · 666 pass · 0 fail · 0 skip** |
+| `node --test tests/unit/*.test.js` | **673 tests · 673 pass · 0 fail · 0 skip** |
 | `npx eslint .` (seluruh repo) | **0 masalah** |
-| `npm run build:app` (drift) | `app.js` **idempotent & identik** |
+| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 226.355 B) |
 | `node scripts/verify-hud.mjs` (E2E, :8123) | **64 PASS · 0 halaman error** |
-| Runtime adopsi (headless) | `__fmt`, `__dates`, `__catstyle` **semuanya ter-adopsi ke modul**; helper global ada; hasil benar (0 pageerror) |
-| Lighthouse | **perf 60 · a11y 100 · BP 100 · CLS 0** (PASS) |
+| Runtime adopsi (headless) | `__fmt`, `__dates`, `__catstyle` **semuanya ter-adopsi ke modul**; `categorizeParent`/`categorizeExpenseParent` global ada & benar (0 pageerror) |
+| Lighthouse | **perf 55–60 · a11y 100 · BP 100 · CLS 0** (PASS, dalam rentang noise) |
 
 **Bukti runtime paling kuat** (headless, 0 page error):
 - `__fmtAdopted=true` (terbukti `__fmt.formatRibuanDigits` ada — hanya dimiliki modul),
@@ -121,8 +138,7 @@ Catatan kecil: keempat helper ini memang **cross-cutting**, jadi tidak bisa di-m
 
 ## Langkah berikut (kalau mau lanjut)
 1. **Perluas pola yang sama** ke helper monolit lain yang DI-DI ke modul ter-tes namun masih
-   belum diekstrak, mis. `categorizeParent`/`categorizeExpenseParent` (sibungkus `getCategoryStyle(...).parentName`),
-   `transferTargetAmount`, atau `formatInputRibuan` (DOM-bound). Kandidat terbaik berikutnya adalah
+   belum diekstrak, mis. `formatInputRibuan` (DOM-bound). Kandidat terbaik berikutnya adalah
    yang **murni & sering dipakai**; ulangi: buat modul → tes konsistensi → adopt → delegasi → `verify-hud`.
 2. **Pertimbangkan** memindahkan "bag" `servicesModule` ke modul terpusat agar `index.html`
    tidak terus melebar (juga memudahkan drафt pemborong 3 adaptor -> 1 objek).
@@ -131,6 +147,7 @@ Catatan kecil: keempat helper ini memang **cross-cutting**, jadi tidak bisa di-m
 ---
 
 ## Catatan keamanan token
-Token yang Anda tempel **tidak dipakai sama sekali** (mode local-only) dan sudah ada di riwayat
-percakapan → **anggap terkompromi. Revoke di GitHub** → Settings → Developer settings →
-Fine-grained tokens, lalu buat baru bila mau push ke branch+PR nanti.
+Token yang Anda tempel sudah dipakai **sekali untuk push ke `main`** (atas izin Anda; dipakai
+inline lewat URL, tidak disimpan). Karena sudah ada di riwayat percakapan & sudah dipakai,
+**anggap terkompromi. Revoke di GitHub** → Settings → Developer settings → Fine-grained tokens,
+lalu buat baru bila mau push lagi ke branch+PR nanti.
