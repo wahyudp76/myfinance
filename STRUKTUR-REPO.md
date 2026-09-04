@@ -90,7 +90,7 @@ myfinance/
 │   │   ├── chart-palette.js    # palet colorblind-safe
 │   │   ├── sparkline.js        # sparkline SVG
 │   │   ├── format.js           # format angka/Rp, txIdrAmount, deepCloneDict, transferTargetAmount (family, adopsi __fmt)
-│   │   ├── dates.js            # parseTgl/toDateStr/todayDateStr (family, adopsi __dates)
+│   │   ├── dates.js            # parseTgl/toDateStr/todayDateStr/currentMonthStr (family, adopsi __dates)
 │   │   ├── category-style.js   # resolveBaseCategoryStyle/categorizeParentFromLookup (family, adopsi __catstyle)
 │   │   ├── sanitize.js         # escapeHtml/jsStr murni (anti-XSS render, family, adopsi __sanitize)
 │   │   ├── slugify.js          # slugify/slugifyCtx murni (family, adopsi __slugify)

@@ -123,6 +123,12 @@ let __dates = (function () {
             var d = new Date();
             return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         },
+        currentMonthStr: function () {
+            // Self-contained (tidak bergantung pada __dates) supaya default tetap
+            // drop-in berdiri sendiri; logika identik dgn implementasi monolit asli.
+            var n = new Date();
+            return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+        },
     };
 })();
 function adoptDatesModule() {
@@ -4621,7 +4627,7 @@ async function currentUserId() {
         // penuh) dan setiap kali user menyimpan anggaran utk bulan ini, supaya wawasan anggaran selalu
         // mengacu ke bulan berjalan tanpa perlu fetch ulang di setiap render dashboard.
         let currentMonthBudgetsCache = {};
-        function currentMonthStr() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
+        function currentMonthStr() { return __dates.currentMonthStr(); } // delegasi ke src/domain/dates.js (v80)
         function refreshCurrentMonthBudgetsCache(onDone) {
             // Pensyahan api.run (slice budgets): panggil service langsung (src/services/supabase/budgets.js),
             // callback sukses/gagal persis versi adapter lama (termasuk console.error ala buildRunner).

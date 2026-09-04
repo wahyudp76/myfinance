@@ -41,7 +41,13 @@ export function todayDateStr() {
   return toDateStr(new Date());
 }
 
+/** Bulan berjalan sebagai "YYYY-MM" (filter/penyiapan cache budget & laporan). */
+export function currentMonthStr() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** Objek DI (default-injection) yang dipakai monolit untuk meng-inject ke modul ter-tes. */
 export function dateCtx() {
-  return { parseTgl, toDateStr, todayDateStr };
+  return { parseTgl, toDateStr, todayDateStr, currentMonthStr };
 }

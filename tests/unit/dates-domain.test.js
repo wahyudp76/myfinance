@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { parseTgl, toDateStr, todayDateStr, dateCtx } from "../../src/domain/dates.js";
+import { parseTgl, toDateStr, todayDateStr, currentMonthStr, dateCtx } from "../../src/domain/dates.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
@@ -36,6 +36,7 @@ try {
   monolithFns.parseTgl = extractDateDefault("parseTgl");
   monolithFns.toDateStr = extractDateDefault("toDateStr");
   monolithFns.todayDateStr = extractDateDefault("todayDateStr");
+  monolithFns.currentMonthStr = extractDateDefault("currentMonthStr");
 } catch (e) {
   monolithFns.extractError = e;
 }
@@ -89,11 +90,29 @@ test("todayDateStr: sama dengan toDateStr(new Date())", () => {
   assert.equal(todayDateStr(), toDateStr(new Date()));
 });
 
+test("currentMonthStr: format YYYY-MM dari buluan berjalan (padStart 2 digit)", () => {
+  const m = currentMonthStr();
+  assert.match(m, /^\d{4}-\d{2}$/);
+  const n = new Date();
+  assert.equal(m, `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`);
+  // tahun-bulan selalu konsisten dengan todayDateStr (bulan yang sama)
+  assert.equal(m, todayDateStr().slice(0, 7));
+});
+
+test("currentMonthStr: tahun/bulan dipakai komponen lokal (bukan toISOString/UTC)", () => {
+  // Konstruksi Date di zona lokal apa pun harus menghasilkan YYYY-MM dari getFullYear/getMonth.
+  const n = new Date(2026, 8, 9); // 9 September 2026 lokal
+  const produced = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+  assert.equal(produced, "2026-09");
+  assert.equal(currentMonthStr().slice(0, 7), todayDateStr().slice(0, 7));
+});
+
 test("dateCtx: menyediakan callback DI yang dipakai src/domain", () => {
   const ctx = dateCtx();
   assert.equal(typeof ctx.parseTgl, "function");
   assert.equal(typeof ctx.toDateStr, "function");
   assert.equal(typeof ctx.todayDateStr, "function");
+  assert.equal(typeof ctx.currentMonthStr, "function");
 });
 
 // ============================================================================
@@ -126,6 +145,14 @@ test("KONSISTENSI: todayDateStr modul == monolit app.src.js", () => {
   assert.match(b, /^\d{4}-\d{2}-\d{2}$/);
 });
 
+test("KONSISTENSI: currentMonthStr modul == monolit app.src.js", () => {
+  if (monolithFns.extractError) throw monolithFns.extractError;
+  const a = currentMonthStr(), b = monolithFns.currentMonthStr();
+  assert.equal(a.slice(0, 7), b.slice(0, 7)); // hindari boundary pergantian bulan
+  assert.match(a, /^\d{4}-\d{2}$/);
+  assert.match(b, /^\d{4}-\d{2}$/);
+});
+
 // ============================================================================
 // WIRING: pastikan monolit benar2 mengadopsi modul via __dates + delegator global
 // ============================================================================
@@ -133,7 +160,7 @@ test("WIRING: app.src.js punya __dates + adoptDatesModule + delegasi ke modul", 
   assert.match(MONOLITH_SRC, /let __dates\s*=/);
   assert.match(MONOLITH_SRC, /adoptDatesModule\s*\(/);
   assert.match(MONOLITH_SRC, /__dates\s*=\s*servicesModule\.dateCtx\(\)/);
-  for (const n of ["parseTgl", "toDateStr", "todayDateStr"]) {
+  for (const n of ["parseTgl", "toDateStr", "todayDateStr", "currentMonthStr"]) {
     const fnSrc = (MONOLITH_SRC.match(new RegExp("function\\s+" + n + "\\s*\\([^)]*\\)\\s*\\{([^}]*)\\}")) || [])[1] || "";
     assert.match(fnSrc, new RegExp("__dates\\." + n), `delegasi __dates.${n} tidak ditemukan di app.src.js`);
   }

@@ -1,13 +1,14 @@
-# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v79)
+# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v80)
 
-> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = `edd3d77`, v79 = commit berikutnya).
+> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = `edd3d77`, v79 = `0ab996a`, v80 = commit berikutnya).
 > Ini hasil **3 langkah inkremental** yang diminta: ① adopsi swap call-site,
 > ② konsolidasi/penghapusan definisi global, ③ ukur gain dengan Lighthouse.
 > **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates), **gaya/parent
 > kategori** (category-style), **`transferTargetAmount`**, swap 4 call-site DI
 > `categorizeParent`/`categorizeExpenseParent`, **escape string (escapeHtml/jsStr)**,
-> **escaping field CSV (`csvField`→`csvEscape`, sekaligus menutup celah injection)**, dan
-> terakhir **`slugify` + `detectAssetCategoryIcon`** (slugify.js, asset-icons.js).
+> **escaping field CSV (`csvField`→`csvEscape`, sekaligus menutup celah injection)**,
+> **`slugify` + `detectAssetCategoryIcon`** (slugify.js, asset-icons.js), dan terakhir
+> **`currentMonthStr` → keluarga `dates`** (dates.js).
 > Semua tanpa menyentuh produksi; hanya dimuat & diuji di sandbox + browser headless.
 
 ---
@@ -52,7 +53,7 @@
   versi lemah). Kini monolit mengadopsi modul via `__csv` + delegator `csvField`→`__csv.csvEscape`,
   sehingga semua jalur ekspor (transaksi & aset) memakai escaper ber-guard yang sama.
   Guard konsistensi + WIRING dijamin `tests/unit/csv-escape-domain.test.js`. SW bump `myfinance-v78`.
-- **v79 — `slugify` → `slugify.js` dan `detectAssetCategoryIcon` → `asset-icons.js`** (commit berikutnya).
+- **v79 — `slugify` → `slugify.js` dan `detectAssetCategoryIcon` → `asset-icons.js`** (commit `0ab996a`, di-push ke `main`).
   Dua helper murni/deterministik yang di-inject sebagai DI ke `src/ui/budgets.js` (`slugify`)
   dan `src/ui/assets.js` (`detectAssetCategoryIcon`) — dua modul UI yang **sudah ter-tes** dengan
   mock, sehingga helper tak-ber-rumah itu menjadi "makanan" bagi modul ter-tes. Kini keduanya
@@ -61,6 +62,14 @@
   (default = impl. asli) dan global `slugify`/`detectAssetCategoryIcon` menjadi delegator tipis.
   Guard konsistensi (modul == default monolit) + WIRING dijamin `tests/unit/slugify-domain.test.js`
   & `tests/unit/asset-icons-domain.test.js`. SW bump `myfinance-v79`.
+- **v80 — `currentMonthStr` → keluarga `dates` (dates.js)** (commit berikutnya).
+  `currentMonthStr()` (bulan berjalan `YYYY-MM`, dipakai di penyiapan cache budget & filter bulan)
+  adalah helper **murni & state-free** yang sebelumnya hanya hidup di monolit tanpa rumah,
+  padahal satu keluarga dengan `parseTgl`/`toDateStr`/`todayDateStr` yang SUDAH ada di
+  `src/domain/dates.js`. Kini modul `dates.js` menambah `currentMonthStr()` ke `dateCtx()` +
+  implementasi default `__dates` di monolit, dan global `currentMonthStr` menjadi delegator tipis.
+  Guard konsistensi (modul == default monolit) + WIRING dijamin `tests/unit/dates-domain.test.js`.
+  SW bump `myfinance-v80`.
 
 ---
 
@@ -96,7 +105,7 @@ satu bit** (dibuktikan guard konsistensi byte-compatible).
 ?? src/domain/slugify.js        | baru (modul slug murni: slugify/slugifyCtx)
 ?? src/domain/asset-icons.js    | baru (modul ikon kategori aset: detectAssetCategoryIcon/assetIconCtx)
 ?? tests/unit/format-domain.test.js    | baru (14 tes)
-?? tests/unit/dates-domain.test.js     | baru (11 tes)
+?? tests/unit/dates-domain.test.js     | (v80) +currentMonthStr (11 -> 14 tes, incl. guard konsistensi + WIRING)
 ?? tests/unit/category-style.test.js   | baru (14 tes, termasuk guard konsistensi + WIRING call-site)
 ?? tests/unit/sanitize-domain.test.js  | baru (9 tes, termasuk guard konsistensi + WIRING)
 ?? tests/unit/csv-escape-domain.test.js | baru (10 tes, termasuk guard konsistensi + WIRING)
@@ -139,11 +148,11 @@ function resolveBaseCategoryStyle(catName, jenis){ return __catstyle.resolveBase
 
 | Check | Hasil |
 |---|---|
-| `node --test tests/unit/*.test.js` | **706 tests · 706 pass · 0 fail · 0 skip** |
+| `node --test tests/unit/*.test.js` | **709 tests · 709 pass · 0 fail · 0 skip** |
 | `npx eslint .` (seluruh repo) | **0 masalah** |
-| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 227.448 B) |
+| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 227.504 B) |
 | `node scripts/verify-hud.mjs` (E2E, :8123) | **64 PASS · 0 halaman error** |
-| Runtime adopsi (headless) | `__fmt`, `__dates`, `__catstyle`, `__sanitize`, `__slugify`, `__assetIcon` **semuanya ter-adopsi ke modul**; `escapeHtml`/`jsStr`/`categorizeParent`/`slugify`/`detectAssetCategoryIcon` global ada & benar (0 pageerror) |
+| Runtime adopsi (headless) | `__fmt`, `__dates` (+`currentMonthStr`), `__catstyle`, `__sanitize`, `__slugify`, `__assetIcon`, `__csv` **semuanya ter-adopsi ke modul**; `escapeHtml`/`jsStr`/`categorizeParent`/`slugify`/`detectAssetCategoryIcon`/`currentMonthStr` global ada & benar (0 pageerror) |
 | Lighthouse | **perf 58 · a11y 100 · BP 100 · CLS 0** (PASS) |
 
 **Bukti runtime paling kuat** (headless, 0 page error):
