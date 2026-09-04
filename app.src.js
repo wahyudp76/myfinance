@@ -170,6 +170,31 @@ function adoptCategoryStyleModule() {
     }
 }
 
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v77): helper ESCAPE string murni (escapeHtml, jsStr).
+// Sama pola dgn __fmt/__dates/__catstyle: default = implementasi monolit asli
+// (byte-compatible), lalu di-adopt dari src/domain/sanitize.js ketika
+// servicesModule siap. escapeHtml dipakai ~50x & jsStr ~20x pada render
+// (termasuk pelolosan nilai user) sehingga single-source + unit test bernilai
+// nyata utk lapisan anti-XSS. Guard konsistensi & wiring dijamin
+// tests/unit/sanitize-domain.test.js.
+let __sanitize = (function () {
+    return {
+        escapeHtml: function (str) {
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        },
+        jsStr: function (str) {
+            return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        },
+    };
+})();
+function adoptSanitizeModule() {
+    if (servicesModule && typeof servicesModule.sanitizeCtx === 'function') {
+        try { __sanitize = servicesModule.sanitizeCtx(); }
+        catch (e) { /* biarkan default __sanitize (perilaku lama) */ }
+    }
+}
+
 // Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
 // services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
 // pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
@@ -200,6 +225,8 @@ async function initSupabaseClient() {
     adoptDatesModule();
     // Adopsi resolusi gaya/parent kategori dari modul ter-tes (v73).
     adoptCategoryStyleModule();
+    // Adopsi helper escape string murni dari modul ter-tes (src/domain/sanitize.js) (v77).
+    adoptSanitizeModule();
     return authModule;
 }
 
@@ -1068,8 +1095,12 @@ async function currentUserId() {
         }
 
         // ========================== SETTINGS AND SYNC ACTIONS ==========================
-        function escapeHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-        function jsStr(str) { return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+                // Delegator tipis ke modul ter-tes (src/domain/sanitize.js, v77) -- pola yg sama dgn
+        // helper lain: nama global dipertahankan (kontrak onclick=/harness E2E), isi diambil
+        // dari satu sumber kebenaran __sanitize (default = implementasi monolit asli).
+        function escapeHtml(str) { return __sanitize.escapeHtml(str); }
+        function jsStr(str) { return __sanitize.jsStr(str); }
+
         function slugify(str) { return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
 
         // Kolom "tanggal" transaksi/aset di database bertipe DATE (tanpa jam), jadi selalu berbentuk

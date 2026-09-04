@@ -1,11 +1,11 @@
-# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v76)
+# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v77)
 
-> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = commit `7e22e9c`; v76 berikutnya).
+> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = commit `7e22e9c`, v76 = `3541cda`, v77 = commit berikutnya).
 > Ini hasil **3 langkah inkremental** yang diminta: ① adopsi swap call-site,
 > ② konsolidasi/penghapusan definisi global, ③ ukur gain dengan Lighthouse.
 > **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates), **gaya/parent
-> kategori** (category-style), **`transferTargetAmount`**, dan terakhir swap 4 call-site DI
-> `categorizeParent`/`categorizeExpenseParent` → kini **5 benchmark** termigrasi & ter-uji.
+> kategori** (category-style), **`transferTargetAmount`**, swap 4 call-site DI
+> `categorizeParent`/`categorizeExpenseParent`, dan terakhir **escape string (escapeHtml/jsStr)**.
 > Semua tanpa menyentuh produksi; hanya dimuat & diuji di sandbox + browser headless.
 
 ---
@@ -24,7 +24,7 @@
   Helper ini sudah ada di `format.js` (teruji); diselesaikan dengan menambahkannya ke adaptor
   `__fmt` + delegator global (pola yang sama), sehingga hanya ada satu sumber kebenaran.
   SW bump `myfinance-v75`.
-- **v76 — swap 4 call-site DI `categorizeParent`/`categorizeExpenseParent`** (commit berikutnya).
+- **v76 — swap 4 call-site DI `categorizeParent`/`categorizeExpenseParent`** (commit `3541cda`).
   Empat call-site di `app.src.js` sebelumnya menulis arrow `(kategori, jenis) =>
   getCategoryStyle(...).parentName` — memanggil `getCategoryStyle` (stateful, baca
   `appSettings.categoryStyles`) hanya untuk membaca `.parentName`, padahal override gaya
@@ -33,6 +33,14 @@
   yang memanggil `__catstyle.categorizeParentFromLookup` (sudah ada di modul `category-style.js`,
   ter-uji). Konsumen DI: `reports.js` (`computeMonthlyBreakdown`/`computeCategoryTrend`),
   `insights.js`, `dashboard.js`. SW bump `myfinance-v76`.
+- **v77 — helper escape string murni `escapeHtml`/`jsStr` → modul `sanitize.js`** (commit berikutnya).
+  Dua escaper ini dulu hanya hidup di monolit (tanpa rumah & unit test) padahal dipakai
+  **~50× (escapeHtml) & ~20× (jsStr)** di seluruh render, termasuk pelolosan nilai user —
+  lapisan anti-XSS/anti penyisipan sintaks. Di-pindah ke `src/domain/sanitize.js` (murni,
+  total) + `sanitizeCtx()`, lalu monolit mengadopsinya via `__sanitize` (default = impl. asli)
+  dan `escapeHtml`/`jsStr` global menjadi delegator tipis (kontrak dipertahankan).
+  Guard konsistensi (modul == default monolit) + WIRING dijamin `tests/unit/sanitize-domain.test.js`.
+  SW bump `myfinance-v77`.
 
 ---
 
@@ -64,9 +72,11 @@ satu bit** (dibuktikan guard konsistensi byte-compatible).
 ?? src/domain/format.js       |  baru (modul kanonik format/monetary, incl. transferTargetAmount)
 ?? src/domain/dates.js        |  baru (modul kanonik tanggal)
 ?? src/domain/category-style.js | baru (modul resolusi gaya/parent kategori, incl. categorizeParentFromLookup)
+?? src/domain/sanitize.js       | baru (modul escape/pelolosan string murni: escapeHtml/jsStr)
 ?? tests/unit/format-domain.test.js    | baru (14 tes)
 ?? tests/unit/dates-domain.test.js     | baru (11 tes)
 ?? tests/unit/category-style.test.js   | baru (14 tes, termasuk guard konsistensi + WIRING call-site)
+?? tests/unit/sanitize-domain.test.js  | baru (9 tes, termasuk guard konsistensi + WIRING)
 ```
 
 **Tidak menyentuh:** `styles.*`, `css/*`, `supabase/functions`, `sql/`, data. Tidak ada migrasi DB.
@@ -104,12 +114,12 @@ function resolveBaseCategoryStyle(catName, jenis){ return __catstyle.resolveBase
 
 | Check | Hasil |
 |---|---|
-| `node --test tests/unit/*.test.js` | **673 tests · 673 pass · 0 fail · 0 skip** |
+| `node --test tests/unit/*.test.js` | **682 tests · 682 pass · 0 fail · 0 skip** |
 | `npx eslint .` (seluruh repo) | **0 masalah** |
-| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 226.355 B) |
+| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 226.647 B) |
 | `node scripts/verify-hud.mjs` (E2E, :8123) | **64 PASS · 0 halaman error** |
-| Runtime adopsi (headless) | `__fmt`, `__dates`, `__catstyle` **semuanya ter-adopsi ke modul**; `categorizeParent`/`categorizeExpenseParent` global ada & benar (0 pageerror) |
-| Lighthouse | **perf 55–60 · a11y 100 · BP 100 · CLS 0** (PASS, dalam rentang noise) |
+| Runtime adopsi (headless) | `__fmt`, `__dates`, `__catstyle`, `__sanitize` **semuanya ter-adopsi ke modul**; `escapeHtml`/`jsStr`/`categorizeParent` global ada & benar (0 pageerror) |
+| Lighthouse | **perf 60 · a11y 100 · BP 100 · CLS 0** (PASS) |
 
 **Bukti runtime paling kuat** (headless, 0 page error):
 - `__fmtAdopted=true` (terbukti `__fmt.formatRibuanDigits` ada — hanya dimiliki modul),

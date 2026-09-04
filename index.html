@@ -215,6 +215,10 @@
         // di src/domain/category-style.js -- monolit men-delegasi dgn memasukkan
         // categoryDict/subCategoryLookup miliknya (lihat __catstyle).
         import { categoryStyleCtx } from './src/domain/category-style.js';
+        // PILOT MIGRASI (v77): helper escape/pelolosan string murni
+        // (escapeHtml/jsStr) di src/domain/sanitize.js -- satu sumber kebenaran
+        // untuk lapisan anti-XSS render; monolit mengadopsinya via __sanitize.
+        import { sanitizeCtx } from './src/domain/sanitize.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -301,6 +305,8 @@
             dateCtx,
             // PILOT MIGRASI (v73): resolusi gaya/parent kategori (src/domain/category-style.js).
             categoryStyleCtx,
+            // PILOT MIGRASI (v77): helper escape/pelolosan string (src/domain/sanitize.js).
+            sanitizeCtx,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
