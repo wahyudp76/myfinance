@@ -228,6 +228,52 @@ function adoptCsvModule() {
     }
 }
 
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v79): slugify -- slug nama kategori/parent utk id DOM
+// & pengelompokan budget. Murni & total (string -> string); dulu hidup di
+// monolit tanpa unit test, padahal di-inject ke modul ter-tes src/ui/budgets.js.
+// Default = implementasi monolit asli; di-adopt dari src/domain/slugify.js.
+// Guard konsistensi & wiring dijamin tests/unit/slugify-domain.test.js.
+let __slugify = (function () {
+    return {
+        slugify: function (str) { return String(str).replace(/[^a-zA-Z0-9]/g, '_'); },
+    };
+})();
+function adoptSlugifyModule() {
+    if (servicesModule && typeof servicesModule.slugifyCtx === 'function') {
+        try { __slugify = servicesModule.slugifyCtx(); }
+        catch (e) { /* biarkan default __slugify (perilaku lama) */ }
+    }
+}
+
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v79): detectAssetCategoryIcon -- pemetaan kategori
+// aset (investasi) ke ikon Font Awesome, murni & deterministik. Dulu hidup di
+// monolit tanpa unit test, padahal di-inject ke modul ter-tes src/ui/assets.js.
+// Default = implementasi monolit asli; di-adopt dari src/domain/asset-icons.js.
+// Guard konsistensi & wiring dijamin tests/unit/asset-icons-domain.test.js.
+let __assetIcon = (function () {
+    return {
+        detectAssetCategoryIcon: function (kategori) {
+            const k = String(kategori || '').toLowerCase();
+            if (k.includes('saham')) return 'fa-chart-line';
+            if (k.includes('reksa')) return 'fa-layer-group';
+            if (k.includes('emas') || k.includes('logam')) return 'fa-coins';
+            if (k.includes('kripto') || k.includes('crypto') || k.includes('bitcoin')) return 'fa-bitcoin-sign';
+            if (k.includes('properti') || k.includes('tanah') || k.includes('rumah')) return 'fa-house';
+            if (k.includes('deposito') || k.includes('tabungan')) return 'fa-piggy-bank';
+            if (k.includes('obligasi') || k.includes('bond')) return 'fa-file-contract';
+            return 'fa-gem';
+        },
+    };
+})();
+function adoptAssetIconModule() {
+    if (servicesModule && typeof servicesModule.assetIconCtx === 'function') {
+        try { __assetIcon = servicesModule.assetIconCtx(); }
+        catch (e) { /* biarkan default __assetIcon (perilaku lama) */ }
+    }
+}
+
 // Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
 // services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
 // pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
@@ -262,6 +308,10 @@ async function initSupabaseClient() {
     adoptSanitizeModule();
     // Adopsi escaper field CSV ber-guard dari modul ter-tes (src/domain/export-csv.js) (v78).
     adoptCsvModule();
+    // Adopsi slug murni dari modul ter-tes (src/domain/slugify.js) (v79).
+    adoptSlugifyModule();
+    // Adopsi pemetaan ikon kategori aset murni (src/domain/asset-icons.js) (v79).
+    adoptAssetIconModule();
     return authModule;
 }
 
@@ -1136,7 +1186,10 @@ async function currentUserId() {
         function escapeHtml(str) { return __sanitize.escapeHtml(str); }
         function jsStr(str) { return __sanitize.jsStr(str); }
 
-        function slugify(str) { return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
+        // Delegator tipis ke modul ter-tes (src/domain/slugify.js, v79) -- pola yg sama
+        // dgn helper lain: nama global dipertahankan (kontrak onclick= & DI ke modul UI),
+        // isi diambil dari satu sumber kebenaran __slugify (default = impl. monolit asli).
+        function slugify(str) { return __slugify.slugify(str); }
 
         // Kolom "tanggal" transaksi/aset di database bertipe DATE (tanpa jam), jadi selalu berbentuk
         // string polos "YYYY-MM-DD" (lihat sql/schema.sql). Kalau string tanggal SEPERTI INI langsung
@@ -2214,17 +2267,10 @@ async function currentUserId() {
         // Reksadana, dst) bebas diketik user jadi tidak ada tabel ikon tetapnya. Ini cuma tebakan
         // heuristik berdasarkan nama, dengan fallback ikon permata generik (senada dengan ikon
         // "Belum ada aset" di kondisi kosong).
-        function detectAssetCategoryIcon(kategori) {
-            const k = String(kategori || '').toLowerCase();
-            if (k.includes('saham')) return 'fa-chart-line';
-            if (k.includes('reksa')) return 'fa-layer-group';
-            if (k.includes('emas') || k.includes('logam')) return 'fa-coins';
-            if (k.includes('kripto') || k.includes('crypto') || k.includes('bitcoin')) return 'fa-bitcoin-sign';
-            if (k.includes('properti') || k.includes('tanah') || k.includes('rumah')) return 'fa-house';
-            if (k.includes('deposito') || k.includes('tabungan')) return 'fa-piggy-bank';
-            if (k.includes('obligasi') || k.includes('bond')) return 'fa-file-contract';
-            return 'fa-gem';
-        }
+        // Delegator tipis ke modul ter-tes (src/domain/asset-icons.js, v79) -- pola yg
+        // sama dgn helper lain: nama global dipertahankan (DI ke modul UI ter-tes),
+        // isi diambil dari satu sumber kebenaran __assetIcon (default = impl. monolit asli).
+        function detectAssetCategoryIcon(kategori) { return __assetIcon.detectAssetCategoryIcon(kategori); }
 
         // Helper bersama untuk pola "donut ringkas + legend 2 teratas + daftar rincian" yang dipakai di
         // 5 tempat (Komposisi Kas & Rekening, Alokasi Aset per Kategori, Distribusi Pengeluaran/Pemasukan

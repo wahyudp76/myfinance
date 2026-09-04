@@ -219,6 +219,10 @@
         // (escapeHtml/jsStr) di src/domain/sanitize.js -- satu sumber kebenaran
         // untuk lapisan anti-XSS render; monolit mengadopsinya via __sanitize.
         import { sanitizeCtx } from './src/domain/sanitize.js';
+        // PILOT MIGRASI (v79): slug nama kategori/parent (src/domain/slugify.js)
+        // & pemetaan kategori aset -> ikon (src/domain/asset-icons.js) murni.
+        import { slugifyCtx } from './src/domain/slugify.js';
+        import { assetIconCtx } from './src/domain/asset-icons.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -307,6 +311,9 @@
             categoryStyleCtx,
             // PILOT MIGRASI (v77): helper escape/pelolosan string (src/domain/sanitize.js).
             sanitizeCtx,
+            // PILOT MIGRASI (v79): slug + ikon kategori aset (src/domain/slugify.js, asset-icons.js).
+            slugifyCtx,
+            assetIconCtx,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>

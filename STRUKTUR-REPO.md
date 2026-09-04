@@ -62,7 +62,7 @@ myfinance/
 │   ├── bootstrap/              # Boot & load pipeline
 │   │   ├── app.js              # createAppBootstrap (orchestrates start/stop, generation guard)
 │   │   └── loader.js           # createBootstrapLoader (de-dup in-flight load + generation counter)
-│   ├── domain/                 # ★ Logika murni (pure functions) — 30 file, teruji unit
+│   ├── domain/                 # ★ Logika murni (pure functions) — 32 file, teruji unit
 │   │   ├── transactions.js     # filter/cari, compute views, insertTransactionRow, dll
 │   │   ├── accounts.js         # total/grafik/agregasi akun
 │   │   ├── budgets.js          # realisasi vs anggaran, deteksi ambang
@@ -92,7 +92,9 @@ myfinance/
 │   │   ├── format.js           # format angka/Rp, txIdrAmount, deepCloneDict, transferTargetAmount (family, adopsi __fmt)
 │   │   ├── dates.js            # parseTgl/toDateStr/todayDateStr (family, adopsi __dates)
 │   │   ├── category-style.js   # resolveBaseCategoryStyle/categorizeParentFromLookup (family, adopsi __catstyle)
-│   │   └── sanitize.js         # escapeHtml/jsStr murni (anti-XSS render, family, adopsi __sanitize)
+│   │   ├── sanitize.js         # escapeHtml/jsStr murni (anti-XSS render, family, adopsi __sanitize)
+│   │   ├── slugify.js          # slugify/slugifyCtx murni (family, adopsi __slugify)
+│   │   └── asset-icons.js      # detectAssetCategoryIcon/assetIconCtx murni (family, adopsi __assetIcon)
 │   ├── services/               # ★ Akses data (Supabase / edge) + kontrak
 │   │   ├── transactions.js     # createTransactionService, mapTransactionRow
 │   │   ├── user-id.js          # identitas user
