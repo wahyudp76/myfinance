@@ -195,6 +195,39 @@ function adoptSanitizeModule() {
     }
 }
 
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v78): escaping FIELD CSV (quote RFC-4180 + netralisir
+// formula/spreadsheet-injection). Dulu monolit punya csvField() -- hasil quote
+// RFC-4180 SENDIRI (lemah: sel berawalan '=', '+', '-', '@', TAB, CR TIDAK
+// dinetralisir), yang dipakai di exportTransactionsCsv & exportAssetsCsv
+// (baris 4162 & 5697). Padahal modul src/domain/export-csv.js sudah punya
+// csvEscape() (ter-unit-test) yang === csvField + guard injection. Jadi ada
+// DUPLIKASI logika DAN celah keamanan yang tidak konsisten (jalur Pengaturan
+// sudah memakai modul ber-guard, dua jalur lain memakai versi lemah).
+//
+// Solusi (pola sama dgn __fmt/__dates/__catstyle/__sanitize): __csv gw = satu
+// sumber kebenaran; default = implementasi modul yang sama (dgn guard), lalu
+// di-adopt dari servicesModule.csvEscape. Fungsi global csvField dipertahankan
+// sebagai delegator tipis (kontrak .map(csvField) di kedua jalur ekspor). Guard
+// konsistensi & wiring dijamin tests/unit/csv-escape-domain.test.js.
+let __csv = (function () {
+    return {
+        csvEscape: function (value) {
+            let s = value == null ? '' : String(value);
+            // Netralisir sel yang diawali karakter formula spreadsheet (= + - @ TAB CR),
+            // KECUALI angka polos (biar kolom nominal tetap bisa di-SUM).
+            if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(?:[.,]\d+)?$/.test(s)) s = "'" + s;
+            return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        },
+    };
+})();
+function adoptCsvModule() {
+    if (servicesModule && typeof servicesModule.csvEscape === 'function') {
+        try { __csv = { csvEscape: servicesModule.csvEscape }; }
+        catch (e) { /* biarkan default __csv (perilaku lama, sudah ber-guard) */ }
+    }
+}
+
 // Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
 // services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
 // pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
@@ -227,6 +260,8 @@ async function initSupabaseClient() {
     adoptCategoryStyleModule();
     // Adopsi helper escape string murni dari modul ter-tes (src/domain/sanitize.js) (v77).
     adoptSanitizeModule();
+    // Adopsi escaper field CSV ber-guard dari modul ter-tes (src/domain/export-csv.js) (v78).
+    adoptCsvModule();
     return authModule;
 }
 
@@ -4129,11 +4164,11 @@ async function currentUserId() {
 
         // Bungkus satu nilai jadi field CSV yang aman (RFC 4180): field yang mengandung koma,
         // kutip, atau baris baru dibungkus tanda kutip, dan kutip di dalamnya di-escape jadi "".
-        function csvField(value) {
-            const str = (value === null || value === undefined) ? '' : String(value);
-            if (/[",\n\r]/.test(str)) { return '"' + str.replace(/"/g, '""') + '"'; }
-            return str;
-        }
+        // KEAMANAN: versi lama cuma quote RFC-4180 -- sel berawalan karakter formula spreadsheet
+        // ('=', '+', '-', '@', TAB, CR) TIDAK dinetralisir (risiko CSV/spreadsheet injection,
+        // lihat OWASP). Kini delegasi ke __csv.csvEscape (modul ter-tes export-csv.js, v78) yang
+        // juga menetralisir karakter tsb (kecuali angka polos biar kolom nominal tetap bisa di-SUM).
+        function csvField(value) { return __csv.csvEscape(value); }
 
         function exportTransactionsCsv() {
             if (!lastFilteredTransactions || lastFilteredTransactions.length === 0) {

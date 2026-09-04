@@ -1,11 +1,12 @@
-# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v77)
+# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v78)
 
-> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = commit `7e22e9c`, v76 = `3541cda`, v77 = commit berikutnya).
+> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = commit berikutnya).
 > Ini hasil **3 langkah inkremental** yang diminta: ① adopsi swap call-site,
 > ② konsolidasi/penghapusan definisi global, ③ ukur gain dengan Lighthouse.
 > **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates), **gaya/parent
 > kategori** (category-style), **`transferTargetAmount`**, swap 4 call-site DI
-> `categorizeParent`/`categorizeExpenseParent`, dan terakhir **escape string (escapeHtml/jsStr)**.
+> `categorizeParent`/`categorizeExpenseParent`, **escape string (escapeHtml/jsStr)**, dan
+> terakhir **escaping field CSV (`csvField`→`csvEscape`, sekaligus menutup celah injection)**.
 > Semua tanpa menyentuh produksi; hanya dimuat & diuji di sandbox + browser headless.
 
 ---
@@ -33,7 +34,7 @@
   yang memanggil `__catstyle.categorizeParentFromLookup` (sudah ada di modul `category-style.js`,
   ter-uji). Konsumen DI: `reports.js` (`computeMonthlyBreakdown`/`computeCategoryTrend`),
   `insights.js`, `dashboard.js`. SW bump `myfinance-v76`.
-- **v77 — helper escape string murni `escapeHtml`/`jsStr` → modul `sanitize.js`** (commit berikutnya).
+- **v77 — helper escape string murni `escapeHtml`/`jsStr` → modul `sanitize.js`** (commit `833f33f`).
   Dua escaper ini dulu hanya hidup di monolit (tanpa rumah & unit test) padahal dipakai
   **~50× (escapeHtml) & ~20× (jsStr)** di seluruh render, termasuk pelolosan nilai user —
   lapisan anti-XSS/anti penyisipan sintaks. Di-pindah ke `src/domain/sanitize.js` (murni,
@@ -41,6 +42,15 @@
   dan `escapeHtml`/`jsStr` global menjadi delegator tipis (kontrak dipertahankan).
   Guard konsistensi (modul == default monolit) + WIRING dijamin `tests/unit/sanitize-domain.test.js`.
   SW bump `myfinance-v77`.
+- **v78 — konsolidasi escaping field CSV `csvField` → modul `csvEscape`** (commit berikutnya).
+  Monolit punya `csvField()` sendiri yang HANYA quote RFC-4180 (tanpa netralisasi formula),
+  dipakai di `exportTransactionsCsv` & `exportAssetsCsv`; padahal `src/domain/export-csv.js`
+  sudah punya `csvEscape()` ter-uji yang = csvField + guard **spreadsheet/formula injection**
+  (sel `=`/`+`/`-`/`@`/TAB/CR dinetralisir kecuali angka polos). Ada duplikasi logika DAN
+  inkonsistensi keamanan (jalur Pengaturan sudah memakai modul ber-guard, dua jalur lain
+  versi lemah). Kini monolit mengadopsi modul via `__csv` + delegator `csvField`→`__csv.csvEscape`,
+  sehingga semua jalur ekspor (transaksi & aset) memakai escaper ber-guard yang sama.
+  Guard konsistensi + WIRING dijamin `tests/unit/csv-escape-domain.test.js`. SW bump `myfinance-v78`.
 
 ---
 
@@ -77,6 +87,7 @@ satu bit** (dibuktikan guard konsistensi byte-compatible).
 ?? tests/unit/dates-domain.test.js     | baru (11 tes)
 ?? tests/unit/category-style.test.js   | baru (14 tes, termasuk guard konsistensi + WIRING call-site)
 ?? tests/unit/sanitize-domain.test.js  | baru (9 tes, termasuk guard konsistensi + WIRING)
+?? tests/unit/csv-escape-domain.test.js | baru (10 tes, termasuk guard konsistensi + WIRING)
 ```
 
 **Tidak menyentuh:** `styles.*`, `css/*`, `supabase/functions`, `sql/`, data. Tidak ada migrasi DB.
@@ -114,9 +125,9 @@ function resolveBaseCategoryStyle(catName, jenis){ return __catstyle.resolveBase
 
 | Check | Hasil |
 |---|---|
-| `node --test tests/unit/*.test.js` | **682 tests · 682 pass · 0 fail · 0 skip** |
+| `node --test tests/unit/*.test.js` | **692 tests · 692 pass · 0 fail · 0 skip** |
 | `npx eslint .` (seluruh repo) | **0 masalah** |
-| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 226.647 B) |
+| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 226.936 B) |
 | `node scripts/verify-hud.mjs` (E2E, :8123) | **64 PASS · 0 halaman error** |
 | Runtime adopsi (headless) | `__fmt`, `__dates`, `__catstyle`, `__sanitize` **semuanya ter-adopsi ke modul**; `escapeHtml`/`jsStr`/`categorizeParent` global ada & benar (0 pageerror) |
 | Lighthouse | **perf 60 · a11y 100 · BP 100 · CLS 0** (PASS) |
