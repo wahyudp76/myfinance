@@ -223,6 +223,9 @@
         // & pemetaan kategori aset -> ikon (src/domain/asset-icons.js) murni.
         import { slugifyCtx } from './src/domain/slugify.js';
         import { assetIconCtx } from './src/domain/asset-icons.js';
+        // PILOT MIGRASI (v81): database bank/e-wallet/aset + deteksi ikon otomatis
+        // (src/domain/bank-icons.js) -- satu sumber kebenaran untuk logo akun & picker.
+        import { bankIconCtx } from './src/domain/bank-icons.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -314,6 +317,8 @@
             // PILOT MIGRASI (v79): slug + ikon kategori aset (src/domain/slugify.js, asset-icons.js).
             slugifyCtx,
             assetIconCtx,
+            // PILOT MIGRASI (v81): database bank/e-wallet + deteksi ikon (src/domain/bank-icons.js).
+            bankIconCtx,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>

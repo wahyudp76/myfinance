@@ -280,6 +280,67 @@ function adoptAssetIconModule() {
     }
 }
 
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v81): bankWalletDatabase + detectAutoAccountIcon --
+// database logo bank/e-wallet/platform investasi dan deteksi ikon otomatis.
+// Dulu hidup di monolit (global `bankWalletDatabase` + `detectAutoAccountIcon`)
+// tanpa unit test. Default = implementasi monolit asli (data + logika);
+// di-adopt dari src/domain/bank-icons.js. bankWalletDatabase global tetap
+// ada sbg mirror agar pencarian saran akun/aset (searchAccountModalSuggestions,
+// searchAssetBankSuggestions) tetap memakai data yang sama.
+// Guard konsistensi & wiring dijamin tests/unit/bank-icons-domain.test.js.
+let __bankIcon = (function () {
+    const db = [
+        { name: "Bank Central Asia (BCA)", category: "Bank", keywords: ["bca", "central asia"], url: "icons/banks/bca.svg" },
+        { name: "Bank Mandiri", category: "Bank", keywords: ["mandiri"], url: "icons/banks/mandiri.svg" },
+        { name: "Bank Rakyat Indonesia (BRI)", category: "Bank", keywords: ["bri", "rakyat indonesia"], url: "icons/banks/bri.svg" },
+        { name: "Bank Negara Indonesia (BNI)", category: "Bank", keywords: ["bni", "negara indonesia"], url: "icons/banks/bni.png" },
+        { name: "Bank Syariah Indonesia (BSI)", category: "Bank", keywords: ["bsi", "syariah indonesia"], url: "icons/banks/bsi.svg" },
+        { name: "Bank Jago", category: "Bank", keywords: ["jago", "bank jago"], url: "icons/banks/jago.svg" },
+        { name: "GoPay", category: "E-Wallet", keywords: ["gopay", "go-pay"], url: "icons/banks/gopay.svg" },
+        { name: "OVO", category: "E-Wallet", keywords: ["ovo"], url: "icons/banks/ovo.svg" },
+        { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "icons/banks/dana.svg" },
+        { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay", "shopee pay"], url: "icons/banks/shopeepay.svg" },
+        { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], badge: "BB", color: "bg-green-600" },
+        { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], badge: "AJ", color: "bg-blue-500" },
+        { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], badge: "SB", color: "bg-emerald-500" },
+        { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], badge: "BR", color: "bg-teal-600" },
+        { name: "Pluang", category: "Investasi", keywords: ["pluang"], badge: "PL", color: "bg-slate-800" },
+        { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], badge: "ID", color: "bg-blue-600" },
+        { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], badge: "TC", color: "bg-blue-400" },
+        { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], badge: "PT", color: "bg-slate-900" },
+        { name: "IPOT", category: "Investasi", keywords: ["ipot", "indopremier"], badge: "IP", color: "bg-indigo-600" },
+        { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" },
+    ];
+    return {
+        bankWalletDatabase: db,
+        detectAutoAccountIcon: function (name) {
+            if (!name) return null;
+            const n = name.toLowerCase();
+            if (n.includes('tunai') || n.includes('cash')) return { type: 'icon-plain', value: 'fa-money-bill-wave', color: 'text-emerald-500' };
+            if (n.includes('investasi') || n.includes('saham') || n.includes('reksadana')) return { type: 'icon-plain', value: 'fa-chart-line', color: 'text-purple-600' };
+            let match = null, bestLen = 0;
+            db.forEach(item => {
+                item.keywords.forEach(kw => { if (n.includes(kw) && kw.length > bestLen) { match = item; bestLen = kw.length; } });
+            });
+            if (match) {
+                if (match.url) return { type: 'image', value: match.url, alt: name };
+                if (match.badge) return { type: 'badge', value: match.badge, color: match.color };
+            }
+            return null;
+        },
+    };
+})();
+function adoptBankIconModule() {
+    if (servicesModule && typeof servicesModule.bankIconCtx === 'function') {
+        try {
+            __bankIcon = servicesModule.bankIconCtx();
+            bankWalletDatabase = __bankIcon.bankWalletDatabase; // sinkronkan mirror picker ke modul
+        }
+        catch (e) { /* biarkan default __bankIcon (perilaku lama) */ }
+    }
+}
+
 // Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
 // services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
 // pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
@@ -318,6 +379,8 @@ async function initSupabaseClient() {
     adoptSlugifyModule();
     // Adopsi pemetaan ikon kategori aset murni (src/domain/asset-icons.js) (v79).
     adoptAssetIconModule();
+    // Adopsi database bank/e-wallet + deteksi ikon otomatis (src/domain/bank-icons.js) (v81).
+    adoptBankIconModule();
     return authModule;
 }
 
@@ -810,29 +873,9 @@ async function currentUserId() {
         // Logo bank/e-wallet kini SELF-HOSTED di icons/banks/ (tidak lagi hotlink Wikimedia --
         // 5 dari 10 URL lama sudah 404: Mandiri/BNI/Jago/GoPay/ShopeePay). File SVG dari
         // Wikimedia Commons (nama file saat diunduh), ShopeePay = marka buatan-sendiri.
-        const bankWalletDatabase = [
-            { name: "Bank Central Asia (BCA)", category: "Bank", keywords: ["bca","central asia"], url: "icons/banks/bca.svg" },
-            { name: "Bank Mandiri", category: "Bank", keywords: ["mandiri"], url: "icons/banks/mandiri.svg" },
-            { name: "Bank Rakyat Indonesia (BRI)", category: "Bank", keywords: ["bri","rakyat indonesia"], url: "icons/banks/bri.svg" },
-            { name: "Bank Negara Indonesia (BNI)", category: "Bank", keywords: ["bni","negara indonesia"], url: "icons/banks/bni.png" },
-            { name: "Bank Syariah Indonesia (BSI)", category: "Bank", keywords: ["bsi","syariah indonesia"], url: "icons/banks/bsi.svg" },
-            { name: "Bank Jago", category: "Bank", keywords: ["jago", "bank jago"], url: "icons/banks/jago.svg" },
-            { name: "GoPay", category: "E-Wallet", keywords: ["gopay","go-pay"], url: "icons/banks/gopay.svg" },
-            { name: "OVO", category: "E-Wallet", keywords: ["ovo"], url: "icons/banks/ovo.svg" },
-            { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "icons/banks/dana.svg" },
-            { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay","shopee pay"], url: "icons/banks/shopeepay.svg" },
-            // Tambahan untuk Platform Aset/Investasi (Bisa jadi akun juga)
-            { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], badge: "BB", color: "bg-green-600" },
-            { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], badge: "AJ", color: "bg-blue-500" },
-            { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], badge: "SB", color: "bg-emerald-500" },
-            { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], badge: "BR", color: "bg-teal-600" },
-            { name: "Pluang", category: "Investasi", keywords: ["pluang"], badge: "PL", color: "bg-slate-800" },
-            { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], badge: "ID", color: "bg-blue-600" },
-            { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], badge: "TC", color: "bg-blue-400" },
-            { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], badge: "PT", color: "bg-slate-900" },
-            { name: "IPOT", category: "Investasi", keywords: ["ipot", "indopremier"], badge: "IP", color: "bg-indigo-600" },
-            { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" }
-        ];
+        // (v81) bankWalletDatabase kini BERSUMBER dari modul ter-tes src/domain/bank-icons.js
+        // via __bankIcon (satu sumber kebenaran; mirror global hanya utk picker UI).
+        let bankWalletDatabase = __bankIcon.bankWalletDatabase;
 
         // Menghitung gaya BAWAAN kategori (tanpa override kustom user) -- dipakai oleh getCategoryStyle()
         // dan juga oleh modal kustomisasi kategori saat user klik "Reset ke Bawaan" (perlu tahu tampilan
@@ -1113,19 +1156,7 @@ async function currentUserId() {
         // Mendeteksi logo otomatis dari database bank/e-wallet berdasarkan nama akun.
         // Mengembalikan null kalau tidak ada yang cocok (logo tidak ditemukan).
         function detectAutoAccountIcon(name) {
-            if (!name) return null;
-            const n = name.toLowerCase();
-            if (n.includes('tunai') || n.includes('cash')) return { type: 'icon-plain', value: 'fa-money-bill-wave', color: 'text-emerald-500' };
-            if (n.includes('investasi') || n.includes('saham') || n.includes('reksadana')) return { type: 'icon-plain', value: 'fa-chart-line', color: 'text-purple-600' };
-            let match = null, bestLen = 0;
-            bankWalletDatabase.forEach(item => {
-                item.keywords.forEach(kw => { if (n.includes(kw) && kw.length > bestLen) { match = item; bestLen = kw.length; } });
-            });
-            if (match) {
-                if (match.url) return { type: 'image', value: match.url, alt: name };
-                if (match.badge) return { type: 'badge', value: match.badge, color: match.color };
-            }
-            return null;
+            return __bankIcon.detectAutoAccountIcon(name); // delegasi ke src/domain/bank-icons.js (v81)
         }
 
         // Merender objek ikon (auto-detect ATAU kustom pilihan/upload user) jadi HTML.
