@@ -1,6 +1,6 @@
-# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v81)
+# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v82)
 
-> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = `edd3d77`, v79 = `0ab996a`, v80 = `22c4e76`, v81 = commit berikutnya).
+> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = `edd3d77`, v79 = `0ab996a`, v80 = `22c4e76`, v81 = `c8deae1`, v82 = commit berikutnya).
 > Ini hasil **3 langkah inkremental** yang diminta: ① adopsi swap call-site,
 > ② konsolidasi/penghapusan definisi global, ③ ukur gain dengan Lighthouse.
 > **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates), **gaya/parent
@@ -9,7 +9,8 @@
 > **escaping field CSV (`csvField`→`csvEscape`, sekaligus menutup celah injection)**,
 > **`slugify` + `detectAssetCategoryIcon`** (slugify.js, asset-icons.js),
 > **`currentMonthStr` → keluarga `dates`** (dates.js), dan terakhir
-> **`bankWalletDatabase` + `detectAutoAccountIcon` → keluarga `bank-icons`** (bank-icons.js).
+> **`bankWalletDatabase` + `detectAutoAccountIcon` → keluarga `bank-icons`** (bank-icons.js), dan
+> **`getAccountCurrency` → keluarga `account-currency`** (account-currency.js).
 > Semua tanpa menyentuh produksi; hanya dimuat & diuji di sandbox + browser headless.
 
 ---
@@ -71,7 +72,7 @@
   implementasi default `__dates` di monolit, dan global `currentMonthStr` menjadi delegator tipis.
   Guard konsistensi (modul == default monolit) + WIRING dijamin `tests/unit/dates-domain.test.js`.
   SW bump `myfinance-v80`.
-- **v81 — `bankWalletDatabase` + `detectAutoAccountIcon` → keluarga `bank-icons` (bank-icons.js)** (commit berikutnya).
+- **v81 — `bankWalletDatabase` + `detectAutoAccountIcon` → keluarga `bank-icons` (bank-icons.js)** (commit `c8deae1`, di-push ke `main`).
   `bankWalletDatabase` (daftar logo bank/e-wallet/platform investasi, SELF-HOSTED di `icons/banks/`
   atau badge huruf) & `detectAutoAccountIcon(name)` (deteksi ikon otomatis) sebelumnya hanya hidup
   di monolit tanpa unit test. `detectAutoAccountIcon` dipakai saat menampilkan ikon akun otomatis,
@@ -82,6 +83,15 @@
   menjadi mirror `__bankIcon.bankWalletDatabase` (disinkronkan saat adopsi) agar picker tetap pakai
   data yang sama. Guard konsistensi (modul == default monolit) + WIRING dijamin
   `tests/unit/bank-icons-domain.test.js`. SW bump `myfinance-v81`.
+- **v82 — `getAccountCurrency` → keluarga `account-currency` (account-currency.js)** (commit berikutnya).
+  `getAccountCurrency(akun)` sebelumnya hanya hidup di monolit (global, tanpa unit test), padahal
+  berupa lookup murni: `(appSettings.account_currencies && appSettings.account_currencies[akun]) || 'IDR'`.
+  Satu-satunya bagian stateful adalah sumber datanya (`appSettings.account_currencies`, cache user di
+  monolit). Fungsi ini di-**pure-kan** dengan menyerahkan PETA mata uang sebagai parameter DI
+  (`resolveAccountCurrency(currencies, akun)`); kepemilikan state tetap di monolit yang meneruskan
+  `appSettings.account_currencies`. Monolit mengadopsi modul via `__accountCurrency` dan global
+  `getAccountCurrency` menjadi delegator tipis. Guard konsistensi (modul == default monolit) + WIRING
+  dijamin `tests/unit/account-currency-domain.test.js`. SW bump `myfinance-v82`.
 
 ---
 
@@ -117,6 +127,7 @@ satu bit** (dibuktikan guard konsistensi byte-compatible).
 ?? src/domain/slugify.js        | baru (modul slug murni: slugify/slugifyCtx)
 ?? src/domain/asset-icons.js    | baru (modul ikon kategori aset: detectAssetCategoryIcon/assetIconCtx)
 ?? src/domain/bank-icons.js     | baru (modul bank/e-wallet: bankWalletDatabase + detectAutoAccountIcon/bankIconCtx)
+?? src/domain/account-currency.js | baru (modul resolusi mata uang akun murni: resolveAccountCurrency/accountCurrencyCtx)
 ?? tests/unit/format-domain.test.js    | baru (14 tes)
 ?? tests/unit/dates-domain.test.js     | (v80) +currentMonthStr (11 -> 14 tes, incl. guard konsistensi + WIRING)
 ?? tests/unit/category-style.test.js   | baru (14 tes, termasuk guard konsistensi + WIRING call-site)
@@ -125,6 +136,7 @@ satu bit** (dibuktikan guard konsistensi byte-compatible).
 ?? tests/unit/slugify-domain.test.js     | baru (7 tes, termasuk guard konsistensi + WIRING)
 ?? tests/unit/asset-icons-domain.test.js | baru (7 tes, termasuk guard konsistensi + WIRING)
 ?? tests/unit/bank-icons-domain.test.js  | baru (11 tes, termasuk guard konsistensi data+logika + WIRING)
+?? tests/unit/account-currency-domain.test.js | baru (7 tes, termasuk guard konsistensi + WIRING)
 ```
 
 **Tidak menyentuh:** `styles.*`, `css/*`, `supabase/functions`, `sql/`, data. Tidak ada migrasi DB.
@@ -162,12 +174,12 @@ function resolveBaseCategoryStyle(catName, jenis){ return __catstyle.resolveBase
 
 | Check | Hasil |
 |---|---|
-| `node --test tests/unit/*.test.js` | **720 tests · 720 pass · 0 fail · 0 skip** |
+| `node --test tests/unit/*.test.js` | **727 tests · 727 pass · 0 fail · 0 skip** |
 | `npx eslint .` (seluruh repo) | **0 masalah** |
-| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 227.881 B) |
+| `npm run build:app` (drift) | `app.js` **idempotent & identik** (`app.js` 228.175 B) |
 | `node scripts/verify-hud.mjs` (E2E, :8123) | **64 PASS · 0 halaman error** |
-| Runtime adopsi (headless) | `__fmt`, `__dates` (+`currentMonthStr`), `__catstyle`, `__sanitize`, `__slugify`, `__assetIcon`, `__csv`, `__bankIcon` **semuanya ter-adopsi ke modul**; `escapeHtml`/`jsStr`/`categorizeParent`/`slugify`/`detectAssetCategoryIcon`/`currentMonthStr`/`detectAutoAccountIcon` global ada & benar (0 pageerror) |
-| Lighthouse | **perf 61 · a11y 100 · BP 100 · CLS 0** (PASS) |
+| Runtime adopsi (headless) | `__fmt`, `__dates` (+`currentMonthStr`), `__catstyle`, `__sanitize`, `__slugify`, `__assetIcon`, `__csv`, `__bankIcon`, `__accountCurrency` **semuanya ter-adopsi ke modul**; `escapeHtml`/`jsStr`/`categorizeParent`/`slugify`/`detectAssetCategoryIcon`/`currentMonthStr`/`detectAutoAccountIcon`/`getAccountCurrency` global ada & benar (0 pageerror) |
+| Lighthouse | **perf 62 · a11y 100 · BP 100 · CLS 0** (PASS) |
 
 **Bukti runtime paling kuat** (headless, 0 page error):
 - `__fmtAdopted=true` (terbukti `__fmt.formatRibuanDigits` ada — hanya dimiliki modul),

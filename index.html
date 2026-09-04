@@ -226,6 +226,9 @@
         // PILOT MIGRASI (v81): database bank/e-wallet/aset + deteksi ikon otomatis
         // (src/domain/bank-icons.js) -- satu sumber kebenaran untuk logo akun & picker.
         import { bankIconCtx } from './src/domain/bank-icons.js';
+        // PILOT MIGRASI (v82): resolusi mata uang default akun murni
+        // (src/domain/account-currency.js) -- peta mata uang di-pass sbg DI.
+        import { accountCurrencyCtx } from './src/domain/account-currency.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -319,6 +322,8 @@
             assetIconCtx,
             // PILOT MIGRASI (v81): database bank/e-wallet + deteksi ikon (src/domain/bank-icons.js).
             bankIconCtx,
+            // PILOT MIGRASI (v82): resolusi mata uang akun murni (src/domain/account-currency.js).
+            accountCurrencyCtx,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>

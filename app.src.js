@@ -341,6 +341,28 @@ function adoptBankIconModule() {
     }
 }
 
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v82): resolveAccountCurrency -- resolusi mata uang
+// default akun (lookup murni, fallback 'IDR'). Dulu hidup di monolit
+// (global getAccountCurrency = (appSettings.account_currencies && ...[akun]) || 'IDR')
+// tanpa unit test. Di-pure-kan: fungsi modul menerima PETA mata uang sbg DI;
+// monolit tetap memegang state (appSettings.account_currencies) & meneruskannya.
+// Default = implementasi monolit asli; di-adopt dari src/domain/account-currency.js.
+// Guard konsistensi & wiring dijamin tests/unit/account-currency-domain.test.js.
+let __accountCurrency = (function () {
+    return {
+        resolveAccountCurrency: function (currencies, akun) {
+            return (currencies && currencies[akun]) || 'IDR';
+        },
+    };
+})();
+function adoptAccountCurrencyModule() {
+    if (servicesModule && typeof servicesModule.accountCurrencyCtx === 'function') {
+        try { __accountCurrency = servicesModule.accountCurrencyCtx(); }
+        catch (e) { /* biarkan default __accountCurrency (perilaku lama) */ }
+    }
+}
+
 // Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
 // services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
 // pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
@@ -381,6 +403,8 @@ async function initSupabaseClient() {
     adoptAssetIconModule();
     // Adopsi database bank/e-wallet + deteksi ikon otomatis (src/domain/bank-icons.js) (v81).
     adoptBankIconModule();
+    // Adopsi resolusi mata uang akun murni (src/domain/account-currency.js) (v82).
+    adoptAccountCurrencyModule();
     return authModule;
 }
 
@@ -2838,7 +2862,7 @@ async function currentUserId() {
         }
 
         function getAccountCurrency(akun) {
-            return (appSettings.account_currencies && appSettings.account_currencies[akun]) || 'IDR';
+            return __accountCurrency.resolveAccountCurrency(appSettings.account_currencies, akun); // delegasi ke src/domain/account-currency.js (v82)
         }
 
         function updateCurrencyHintUI(mataUang, kurs, tanggalKurs, loading, error) {
