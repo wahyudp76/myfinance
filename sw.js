@@ -27,7 +27,7 @@
 // logout) -> app.js berubah, bump versi supaya pengguna mengambil bundle baru.
 // v70: fix clear cache data saat logout, DATA_CACHE tidak lagi terhapus tiap deploy,
 // navigasi hanya cache respons OK, escape badge kategori aset.
-const CACHE_VERSION = 'myfinance-v70';
+const CACHE_VERSION = 'myfinance-v75';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';

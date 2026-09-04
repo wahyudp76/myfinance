@@ -197,6 +197,24 @@
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
         import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
+        // PILOT MIGRASI MONOLIT → MODUL (v71): helper format/monetary murni
+        // (formatRp, txIdrAmount, formatShortVal, deepCloneDict) kini punya rumah
+        // kanonik yang ter-tes unit di src/domain/format.js (lihat
+        // tests/unit/format-domain.test.js). formatCtx() disediakan di sini
+        // lewat jalur servicesModule yang sama dgn semua modul domain lain, agar
+        // blok classic (monolit) bisa mulai MENGADOPInya tanpa menghapus definisi
+        // global lama (proses bertahap: definisi global monolit dilepas per-feature
+        // SETELAH konsistensi terverifikasi di test).
+        import { formatCtx } from './src/domain/format.js';
+        // PILOT MIGRASI (v73): helper tanggal murni (parseTgl/toDateStr/todayDateStr)
+        // kini punya rumah kanonik ter-tes di src/domain/dates.js (pola sama dengan
+        // src/domain/format.js). dateCtx() disediakan lewat jalur servicesModule agar
+        // blok classic (monolit) mengadopsinya tanpa menghapus definisi global lama.
+        import { dateCtx } from './src/domain/dates.js';
+        // PILOT MIGRASI (v73): resolusi gaya/parent kategori murni (dari lookups)
+        // di src/domain/category-style.js -- monolit men-delegasi dgn memasukkan
+        // categoryDict/subCategoryLookup miliknya (lihat __catstyle).
+        import { categoryStyleCtx } from './src/domain/category-style.js';
 
         window.__myfinanceAuth = {
             initAuthClient, getSession, getCurrentUser, signIn, signUp, signOut,
@@ -274,6 +292,15 @@
             // Detail Akun (src/ui/accounts.js).
             renderAccountDetailChartsUI,
             suggestCategory, getExchangeRate, scanReceipt,
+            // PILOT MIGRASI MONOLIT → MODUL (v71): set helper format/monetary kanonik
+            // (src/domain/format.js) ter-tes unit, disediakan via jalur servicesModule
+            // yang sama agar blok classic bisa mengadopsinya tanpa menghapus definisi
+            // global lama terlebih dahulu.
+            formatCtx,
+            // PILOT MIGRASI (v73): helper tanggal kanonik (src/domain/dates.js).
+            dateCtx,
+            // PILOT MIGRASI (v73): resolusi gaya/parent kategori (src/domain/category-style.js).
+            categoryStyleCtx,
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>

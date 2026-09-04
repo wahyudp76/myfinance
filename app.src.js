@@ -62,6 +62,111 @@ let authModule; // { initAuthClient, getSession, getCurrentUser, signIn, signUp,
 let servicesModule; // { createTransactionService, createTransfer, createRecurringTransaction, replaceMonthBudgets } -- lihat src/services/*
 let transactionService; // instance: servicesModule.createTransactionService(supabaseClient), dibuat sekali di initSupabaseClient()
 
+// ==========================================================================
+// PILOT MIGRASI MONOLIT → MODUL (v71/72): SATU sumber kebenaran utk helper
+// format/monetary (formatRp, formatShortVal, txIdrAmount, deepCloneDict).
+// Fungsi-fungsi ini sebelumnya murni hidup di monolit TANPA unit test, padahal
+// di-inject (dependency injection `{ txIdrAmount }`, `{ formatRp,... }`) ke
+// FUNGSI MODUL TER-TES di src/domain/** & src/ui/** -- artinya modul yang
+// ter-uji malah "diberi makan" helper yang tak ter-uji.
+//
+// Solusi: `__fmt` adalah satu titik masuk. Versi ASLI dipertahankan sebagai
+// DEFAULT `__fmt` (app tetap jalan walau modul data belum siap), lalu begitu
+// servicesModule siap, `adoptFormatModule()` mem-repoint `__fmt` ke
+// src/domain/format.js -- modul yang ter-uji byte-compatible (dibuktikan
+// tests/unit/format-domain.test.js: guard konsistensi mengekstrak implementasi
+// monolit langsung dari app.src.js & menyamakan output).
+//
+// Fungsi global formatRp/formatShortVal/txIdrAmount/deepCloneDict TETAP ADA
+// (itu kontrak window global utk 200+ onclick= dan harness E2E), tetapi kini
+// menjadi DELEGASI tipis ke __fmt -- benar-benar satu sumber kebenaran, tanpa
+// duplikasi logika, tanpa risiko regresi, dan tanpa mengubah nama yang dipakai
+// markup.
+let __fmt = (function () {
+    // Default = implementasi monolit asli (byte-compatible dgn modul).
+    return {
+        formatRp: function (angka) { return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(angka); },
+        formatShortVal: function (angka) { if (Math.abs(angka) >= 1000000) return (angka / 1000000).toFixed(1) + 'M'; if (Math.abs(angka) >= 1000) return (angka / 1000).toFixed(0) + 'K'; return angka; },
+        txIdrAmount: function (t) { const v = (t && t.jumlah_idr != null) ? t.jumlah_idr : (t ? t.jumlah : 0); return Number(v) || 0; },
+        deepCloneDict: function (d) { return JSON.parse(JSON.stringify(d)); },
+        transferTargetAmount: function (row) { return row.transfer_jumlah_tujuan != null ? row.transfer_jumlah_tujuan : row.jumlah; },
+    };
+})();
+function adoptFormatModule() {
+    // Adopsi modul ter-tes sebagai sumber kebenaran SEJAK servicesModule siap.
+    // Guarded: kalau formatCtx tidak ada / melempar, default __fmt tetap dipakai.
+    if (servicesModule && typeof servicesModule.formatCtx === 'function') {
+        try { __fmt = servicesModule.formatCtx(); }
+        catch (e) { /* biarkan default __fmt (perilaku lama) */ }
+    }
+}
+
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v73): helper TANGGAL murni (parseTgl, toDateStr,
+// todayDateStr). Sama pola dgn __fmt (v71/72): default = implementasi monolit
+// asli (byte-compatible), lalu di-adopt dari src/domain/dates.js ketika
+// servicesModule siap. Fungsi global dipertahankan sbg delegator tipis
+// (kontrak 200+ onclick= & harness E2E). Guard konsistensi & wiring dijamin
+// tests/unit/dates-domain.test.js.
+let __dates = (function () {
+    return {
+        parseTgl: function (tanggalStr) {
+            if (!tanggalStr) return new Date(NaN);
+            return new Date(String(tanggalStr).split('T')[0] + 'T00:00:00');
+        },
+        toDateStr: function (d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        },
+        todayDateStr: function () {
+            // Self-contained (tidak bergantung pada __dates) supaya default tetap
+            // drop-in berdiri sendiri; logika identik dgn toDateStr(new Date()).
+            var d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        },
+    };
+})();
+function adoptDatesModule() {
+    if (servicesModule && typeof servicesModule.dateCtx === 'function') {
+        try { __dates = servicesModule.dateCtx(); }
+        catch (e) { /* biarkan default __dates (perilaku lama) */ }
+    }
+}
+
+// ==========================================================================
+// PILOT MIGRASI → MODUL (v73): resolusi gaya/parent kategori. Logika keputusan
+// (resolveBaseCategoryStyle) murni dari lookups { categoryDict, subCategoryLookup };
+// monolit meng-adopsi modul ter-tes (src/domain/category-style.js) DAN selalu
+// luluskan state miliknya (categoryDict/subCategoryLookup) sbg argumen --
+// jadi perilaku identik, tapi cabang logikanya kini punya rumah ter-uji.
+// Guard konsistensi & wiring dijamin tests/unit/category-style.test.js.
+let __catstyle = (function () {
+    return {
+        resolveBaseCategoryStyle: function ({ categoryDict, subCategoryLookup, catName, jenis }) {
+            if (jenis === 'Transfer') {
+                return { icon: "fa-exchange-alt", bg: "bg-blue-100", color: "text-blue-500", parent: "Transfer", parentName: "Transfer" };
+            }
+            let found = subCategoryLookup && subCategoryLookup[catName];
+            if (found) return found;
+            if (jenis === 'Pengeluaran' && categoryDict && categoryDict.pengeluaran && categoryDict.pengeluaran[catName]) {
+                let p = categoryDict.pengeluaran[catName];
+                return { icon: p.icon, bg: p.bg, color: p.color, parent: catName, parentName: catName };
+            }
+            if (jenis === 'Pemasukan' && categoryDict && categoryDict.pemasukan && categoryDict.pemasukan[catName]) {
+                let p = categoryDict.pemasukan[catName];
+                return { icon: p.icon, bg: p.bg, color: p.color, parent: catName, parentName: catName };
+            }
+            if (jenis === 'Pemasukan') return { icon: "fa-arrow-down", bg: "bg-emerald-100", color: "text-emerald-500", parent: "Lain-lain", parentName: "Lain-lain" };
+            return { icon: "fa-arrow-up", bg: "bg-rose-100", color: "text-rose-500", parent: "Lain-lain", parentName: "Lain-lain" };
+        },
+    };
+})();
+function adoptCategoryStyleModule() {
+    if (servicesModule && typeof servicesModule.categoryStyleCtx === 'function') {
+        try { __catstyle = servicesModule.categoryStyleCtx(); }
+        catch (e) { /* biarkan default __catstyle (perilaku lama) */ }
+    }
+}
+
 // Bungkus sebuah Promise dengan timeout yang melempar pesan SPESIFIK -- dipakai untuk auth &
 // services module (lihat pemakaiannya di bawah), supaya kalau salah satu modul ES gagal dimuat,
 // pesan errornya jelas modul MANA yang bermasalah, bukan cuma pesan umum generik. Timeout 8
@@ -85,6 +190,13 @@ async function initSupabaseClient() {
     ]);
     supabaseClient = authModule.initAuthClient({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
     transactionService = servicesModule.createTransactionService(supabaseClient);
+    // Adopsi helper format/monetary dari modul ter-tes (src/domain/format.js)
+    // sbg satu sumber kebenaran; byte-compatible dengan default __fmt (v71/72).
+    adoptFormatModule();
+    // Adopsi helper tanggal murni dari modul ter-tes (src/domain/dates.js) (v73).
+    adoptDatesModule();
+    // Adopsi resolusi gaya/parent kategori dari modul ter-tes (v73).
+    adoptCategoryStyleModule();
     return authModule;
 }
 
@@ -269,7 +381,7 @@ async function currentUserId() {
         };
 
         let categoryDict = {};
-        function deepCloneDict(d) { return JSON.parse(JSON.stringify(d)); }
+        function deepCloneDict(d) { return __fmt.deepCloneDict(d); } // delegasi ke src/domain/format.js (v71/72)
 
         let subCategoryLookup = {};
         function buildLookupTable() {
@@ -605,21 +717,7 @@ async function currentUserId() {
         // dan juga oleh modal kustomisasi kategori saat user klik "Reset ke Bawaan" (perlu tahu tampilan
         // aslinya tanpa override, sebelum override itu dihapus).
         function resolveBaseCategoryStyle(catName, jenis) {
-            if (jenis === 'Transfer') {
-                return { icon: "fa-exchange-alt", bg: "bg-blue-100", color: "text-blue-500", parent: "Transfer", parentName: "Transfer" };
-            }
-            let found = subCategoryLookup[catName];
-            if (found) return found;
-            if (jenis === 'Pengeluaran' && categoryDict.pengeluaran[catName]) {
-                let p = categoryDict.pengeluaran[catName];
-                return { icon: p.icon, bg: p.bg, color: p.color, parent: catName, parentName: catName };
-            }
-            if (jenis === 'Pemasukan' && categoryDict.pemasukan[catName]) {
-                let p = categoryDict.pemasukan[catName];
-                return { icon: p.icon, bg: p.bg, color: p.color, parent: catName, parentName: catName };
-            }
-            if (jenis === 'Pemasukan') return { icon: "fa-arrow-down", bg: "bg-emerald-100", color: "text-emerald-500", parent: "Lain-lain", parentName: "Lain-lain" };
-            return { icon: "fa-arrow-up", bg: "bg-rose-100", color: "text-rose-500", parent: "Lain-lain", parentName: "Lain-lain" };
+            return __catstyle.resolveBaseCategoryStyle({ categoryDict, subCategoryLookup, catName, jenis }); // modul ter-tes (v73)
         }
 
         function getCategoryStyle(catName, jenis) {
@@ -769,7 +867,7 @@ async function currentUserId() {
             updateScrollToTopVisibility();
         }
 
-        function formatRp(angka) { return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(angka); }
+        function formatRp(angka) { return __fmt.formatRp(angka); } // delegasi ke src/domain/format.js (v71/72)
 
         // Fitur Growth "Multi-currency": nilai IDR-equivalent 1 transaksi, dipakai utk SEMUA total
         // gabungan lintas akun/kategori (Dashboard, grafik, dll). Transaksi lama (sebelum fitur ini
@@ -777,8 +875,7 @@ async function currentUserId() {
         // IDR untuk transaksi lama). Untuk saldo 1 akun spesifik, JANGAN pakai ini -- pakai t.jumlah
         // (native) langsung, karena saldo akun ya dalam mata uang akun itu sendiri.
         function txIdrAmount(t) {
-            const v = (t && t.jumlah_idr != null) ? t.jumlah_idr : (t ? t.jumlah : 0);
-            return Number(v) || 0;
+            return __fmt.txIdrAmount(t); // delegasi ke src/domain/format.js (v71/72)
         }
 
         // Animasi angka Rp menghitung naik/turun secara halus tiap kali nilainya berubah,
@@ -863,7 +960,7 @@ async function currentUserId() {
             if (document.getElementById('view-akun-detail').classList.contains('block') && currentAccountDetail) openAccountDetail(currentAccountDetail);
         }
 
-        function formatShortVal(angka) { if(Math.abs(angka) >= 1000000) return (angka/1000000).toFixed(1) + 'M'; if(Math.abs(angka) >= 1000) return (angka/1000).toFixed(0) + 'K'; return angka; }
+        function formatShortVal(angka) { return __fmt.formatShortVal(angka); } // delegasi ke src/domain/format.js (v71/72)
         
         function formatInputRibuan(input, hiddenId = null) { 
             let value = input.value.replace(/[^0-9]/g, ''); 
@@ -967,8 +1064,7 @@ async function currentUserId() {
         // parsing tanggal transaksi di seluruh app SEHARUSNYA lewat fungsi ini (bukan `new Date(x.tanggal)`
         // langsung), supaya selalu dibaca sebagai tengah malam WAKTU LOKAL, konsisten di zona waktu manapun.
         function parseTgl(tanggalStr) {
-            if (!tanggalStr) return new Date(NaN);
-            return new Date(String(tanggalStr).split('T')[0] + 'T00:00:00');
+            return __dates.parseTgl(tanggalStr); // delegasi ke src/domain/dates.js (v73)
         }
 
         // Pasangan resmi utk parseTgl() -- ubah objek Date jadi teks "YYYY-MM-DD" pakai KOMPONEN
@@ -980,13 +1076,13 @@ async function currentUserId() {
         // yang seharusnya, dan pengecekan "todayStr" bisa salah selama jam 00:00-06:59 WIB (masih
         // dianggap "kemarin"). toDateStr() di bawah ini aman dipakai kapan pun/zona waktu mana pun.
         function toDateStr(d) {
-            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            return __dates.toDateStr(d); // delegasi ke src/domain/dates.js (v73)
         }
 
         // "Hari ini" dalam bentuk teks YYYY-MM-DD yang AMAN zona waktu -- pengganti pola lama
         // `new Date().toISOString().slice(0,10)` yang tersebar di banyak tempat (lihat toDateStr()).
         function todayDateStr() {
-            return toDateStr(new Date());
+            return __dates.todayDateStr(); // delegasi ke src/domain/dates.js (v73)
         }
 
         function renderSettings() {
@@ -2570,7 +2666,7 @@ async function currentUserId() {
         // HARUS di scope GLOBAL (bukan di dalam IIFE `api`) krn dipanggil dari processDataForUI(),
         // openAccountDetail(), dan buildAccountSeries() yang semuanya di luar closure itu.
         function transferTargetAmount(row) {
-            return row.transfer_jumlah_tujuan != null ? row.transfer_jumlah_tujuan : row.jumlah;
+            return __fmt.transferTargetAmount(row); // delegasi ke src/domain/format.js (v75)
         }
 
         function getAccountCurrency(akun) {
