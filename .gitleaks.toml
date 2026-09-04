@@ -57,7 +57,20 @@ regexes = ['''eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*cm9sZSI6ImFub24[A-Za-z0-9_-]*\.[A
 
 [[allowlists]]
 description = """
-Kunci AES fixture di tests/unit/bibit-market.test.js.
+Nama file Font Awesome (fa-*.woff2) di dokumentasi/riwayat -- bukan kredensial.
+
+Gitelaks rule bawaan `generic-api-key` salah menandai frasa dokumentasi Indonesia
+"subset rapi: fa-brands-400.woff2" karena substring "rapi:" mengandung pola `api:`
+yang mirip penugasan API key, dan nama berkas `fa-*.woff2` mengandung 10+ karakter
+huruf/angka/titik. Nilainya adalah nama aset webfont publik ATAU teks prosa -- tidak
+membuka akses apa pun. Dikunci ke pola nilai (`fa-` + nama + `.woff2`) supaya GitHub
+PAT / service_role key / kredensial lain TETAP terdeteksi (diuji: tetap merah).
+"""
+regexes = ['''fa-[a-z0-9-]+\.woff2\b''']
+
+[[allowlists]]
+description = """
+
 
 Bukan kredensial: konstanta dummy ("0123456789abcdef" diulang dua kali) yang
 dipakai encryptLikeBibit() untuk MEMBUAT payload uji, lalu didekripsi lagi di
