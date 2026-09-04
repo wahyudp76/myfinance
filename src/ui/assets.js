@@ -118,7 +118,7 @@ export function renderAssetView({
                     <div class="min-w-0">
                         <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${escapeHtml(a.nama)}</p>
                         <div class="flex items-center gap-1.5 mt-0.5">
-                            <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">${a.kategori}</span>
+                            <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">${escapeHtml(a.kategori)}</span>
                             <span class="text-[10px] text-slate-400 truncate">${escapeHtml(a.platform)}</span>
                         </div>
                     </div>

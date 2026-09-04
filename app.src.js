@@ -6474,6 +6474,7 @@ async function currentUserId() {
 
         function showLoginView() {
             resetAppState();
+            clearOfflineDataCache(); // semua jalur logout (tombol, sesi kedaluwarsa, dicabut dari perangkat lain)
             document.getElementById('appShell').classList.add('hidden');
             hideAuthGate();
             document.getElementById('loginView').classList.remove('hidden');
@@ -6516,14 +6517,22 @@ async function currentUserId() {
         // berkali-kali kalau user login/logout beberapa kali dalam satu sesi tab yang sama.
         function initStaticUIListeners() {
             document.querySelectorAll('[data-logout-btn]').forEach(el => {
-                // Tier-3 #10: saat keluar, minta service worker membuang cache data
-                // (GET /rest/v1) supaya sesi berikutnya di perangkat ini tidak bisa
-                // membaca sisa data akun lama.
+                // v70 BUG FIX: pembersihan cache data (Tier-3 #10) dulu ditulis DI LUAR
+                // handler klik -> hanya jalan sekali saat listener dipasang (bootstrap),
+                // BUKAN saat pengguna keluar. Kini dipanggil di dalam handler + di
+                // showLoginView() (mencakup logout lewat sesi kedaluwarsa/dicabut).
+                el.addEventListener('click', () => { clearOfflineDataCache(); auth.signOut(); });
+            });
+        }
+
+        // Minta service worker membuang cache data offline (GET /rest/v1) supaya sesi
+        // berikutnya di perangkat ini tidak bisa membaca sisa data akun lama.
+        function clearOfflineDataCache() {
+            try {
                 if (navigator.serviceWorker && navigator.serviceWorker.controller) {
                     navigator.serviceWorker.controller.postMessage({ type: 'MYFINANCE_CLEAR_DATA_CACHE' });
                 }
-                el.addEventListener('click', () => auth.signOut());
-            });
+            } catch (e) { /* tanpa SW (mode dev) -- abaikan */ }
         }
 
         // Dipanggil setiap kali sesi login baru aktif (baik saat halaman pertama dibuka dengan

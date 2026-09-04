@@ -134,7 +134,7 @@ test("renderAssetView: kartu aset -> nama/platform di-escape, logo platform, onc
   assert.match(html, /onclick="event\.stopPropagation\(\); deleteAssetData\('a2'\)"/);
   assert.match(html, /data-p="Antam"/); // getAccountLogo(a.platform)
   assert.match(html, /Sea&lt;b&gt;bank&lt;\/b&gt;/); // escapeHtml nama
-  assert.match(html, />Emas<\/span>/); // kategori badge (tidak di-escape di kode lama -- verbatim)
+  assert.match(html, />Emas<\/span>/); // kategori badge (v70: kini di-escape; teks polos tetap verbatim)
 });
 
 test("renderAssetView: kartu aset -> modal & nilai formatRp, return hijau utk naik / merah utk turun dgn nilai absolut", () => {

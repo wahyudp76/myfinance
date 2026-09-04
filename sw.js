@@ -25,7 +25,9 @@
 // styles.css (Phase 7, "split monolith") -- ditambahkan ke precache list di bawah.
 // v69: guard stabilitas sinkronisasi (generasi commit, null-safe DOM, cancel saat
 // logout) -> app.js berubah, bump versi supaya pengguna mengambil bundle baru.
-const CACHE_VERSION = 'myfinance-v69';
+// v70: fix clear cache data saat logout, DATA_CACHE tidak lagi terhapus tiap deploy,
+// navigasi hanya cache respons OK, escape badge kategori aset.
+const CACHE_VERSION = 'myfinance-v70';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -137,7 +139,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) => Promise.all(
-      names.filter((n) => n !== CACHE_VERSION).map((n) => caches.delete(n))
+      // v70 BUG FIX: DATA_CACHE dulu ikut terhapus di sini tiap deploy (bertentangan
+      // dgn komentar di atas) -> data offline pengguna hilang setiap rilis.
+      names.filter((n) => n !== CACHE_VERSION && n !== DATA_CACHE).map((n) => caches.delete(n))
     )).then(() => self.clients.claim())
   );
 });
@@ -194,8 +198,12 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+        // v70 BUG FIX: hanya simpan respons OK -- halaman error (404/503 saat GitHub
+        // Pages sedang deploy) sebelumnya ikut di-cache & jadi fallback offline.
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+        }
         return res;
       }).catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
     );

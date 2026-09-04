@@ -1223,3 +1223,43 @@ WHATSAPP_BOT_NUMBER = aksi konfigurasi owner, sudah didokumentasikan sejak audit
 - WHATSAPP_BOT_NUMBER di app.src.js masih placeholder 628XXXXXXXXXX (fitur
   WhatsApp link butuh nomor device Fonnte asli).
 - Leaked-password-protection Supabase Auth masih nonaktif (setting dashboard).
+
+## v70 — Perawatan: audit bug (2026-09-04) -- cache data logout, SW activate/navigate, escape badge aset
+
+Permintaan owner: "pahami struktur, lakukan maintenance dan analisa potensi bug".
+Baseline sebelum audit hijau (lint 0, unit 630/630, verify-hud 64/64). Audit
+menyusuri sw.js, jalur auth/logout, parse tanggal (parseTgl/toDateStr/UTC-in-
+UTC-out di export-csv & market-sync: SEMUA konsisten, aman), recurring catch-up,
+titik render innerHTML. Ditemukan 4 bug nyata, semuanya diperbaiki:
+
+1. **[SEDANG, privasi] Cache data offline TIDAK PERNAH dibuang saat logout.**
+   `initStaticUIListeners()` menulis `postMessage(MYFINANCE_CLEAR_DATA_CACHE)`
+   DI LUAR `addEventListener('click')` -> hanya jalan sekali saat bootstrap
+   (ketika cache masih kosong), bukan saat pengguna keluar. Tujuan Tier-3 #10
+   ("akun kedua di perangkat sama tidak bisa baca sisa data akun lama") selama
+   ini tidak tercapai. Fix: helper `clearOfflineDataCache()` dipanggil di
+   handler klik DAN di `showLoginView()` (jalur terpusat: tombol, sesi
+   kedaluwarsa, dicabut dari perangkat lain).
+2. **[RENDAH] sw.js `activate` menghapus DATA_CACHE tiap bump CACHE_VERSION** --
+   bertentangan dgn komentar "sengaja TIDAK ikut versi agar tidak terbuang tiap
+   deploy". Fix: `n !== DATA_CACHE` di filter.
+3. **[RENDAH] sw.js navigasi men-cache respons apa pun**, termasuk 404/503 saat
+   GitHub Pages sedang deploy -> halaman error bisa jadi fallback offline.
+   Fix: `if (res && res.ok)` sebelum `cache.put` (konsisten dgn cabang SWR).
+4. **[RENDAH] Badge kategori aset (`src/ui/assets.js`) dirender tanpa escapeHtml**
+   -- satu-satunya field aset yang lolos (nama/platform sudah). Kategori bisa
+   berasal dari restore backup (mapRestoreRows tidak memvalidasi). Fix: escape.
+   Uji `ui-assets.test.js` baris 137 diperbarui komentarnya (assert tetap sama).
+
+Guard regresi baru: `tests/unit/logout-cache-guards.test.js` (4 test statis).
+CACHE_VERSION v69 -> v70, snapshot SW di-regen, app.js di-rebuild.
+
+### Catatan yang DILIHAT tapi SENGAJA tidak diubah
+- `whatsapp-webhook` `todayWIB()` mengasumsikan UTC+7 utk semua user (sudah
+  didokumentasikan di kode; perlu keputusan produk, bukan bug).
+- `tests/unit/ui-assets.test.js` shim `jsStr` hanya escape `'` (tidak `\`) --
+  cukup utk uji, produksi pakai versi lengkap di app.src.js.
+
+### Bukti v70
+lint 0, unit 634/634, verify-hud 64/64 PASS (0 error halaman), build:app
+dijalankan (app.js sinkron), snapshot SW sinkron.
