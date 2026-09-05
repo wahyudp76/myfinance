@@ -669,7 +669,9 @@ async function currentUserId() {
         let accountHistoryPage = 1;
         let categoryHistoryPage = 1;
         let categoryDetailName = null;
+        let recentTransactionsPage = 1;
         const DETAIL_HISTORY_PAGE_SIZE = 10;
+        const RECENT_TRANSACTIONS_PAGE_SIZE = 10;
 
         // Membagi riwayat berdasarkan grup tanggal, sehingga satu tanggal tidak pernah
         // terpotong di tengah halaman. Batas 10 transaksi adalah target; bila satu tanggal
@@ -5102,12 +5104,30 @@ async function currentUserId() {
             return ia < ib ? -1 : ia > ib ? 1 : 0;
         }
 
+        function setRecentTransactionsPage(page) {
+            recentTransactionsPage = Number(page) || 1;
+            renderRecentList(globalData || []);
+        }
+
+        function recentTransactionsPaginationHtml(page, totalPages) {
+            if (totalPages <= 1) return '';
+            const buttons = Array.from({ length: totalPages }, (_, i) => {
+                const n = i + 1;
+                const active = n === page;
+                return `<button type="button" onclick="setRecentTransactionsPage(${n})" aria-label="Halaman ${n}" aria-current="${active ? 'page' : 'false'}" class="min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}">${n}</button>`;
+            }).join('');
+            return `<div class="flex flex-wrap items-center justify-center gap-1.5 pt-2"><span class="text-[10px] font-semibold text-slate-400 mr-1">Halaman</span>${buttons}</div>`;
+        }
+
         function renderRecentList(data) {
             const container = document.getElementById('recent-transactions-list');
             let sortedData = [...data].sort(txServerCompare);
-            let recent = sortedData.slice(0, 5);
+            const totalPages = Math.max(1, Math.ceil(sortedData.length / RECENT_TRANSACTIONS_PAGE_SIZE));
+            recentTransactionsPage = Math.min(Math.max(1, recentTransactionsPage), totalPages);
+            const pageStart = (recentTransactionsPage - 1) * RECENT_TRANSACTIONS_PAGE_SIZE;
+            let recent = sortedData.slice(pageStart, pageStart + RECENT_TRANSACTIONS_PAGE_SIZE);
             if(recent.length === 0) { container.innerHTML = ''; return; }
-            // HUD: bar nominal proporsional terhadap transaksi terbesar di antara 5 teratas.
+            // HUD: bar nominal proporsional terhadap transaksi pada halaman aktif.
             const hudMaxAmt = Math.max(...recent.map(r => Math.abs(Number(r.jumlah) || 0)), 1);
             container.innerHTML = recent.map((row, idx) => {
                 let color = row.jenis === 'Pemasukan' ? 'text-emerald-500' : (row.jenis === 'Pengeluaran' ? 'text-rose-500' : 'text-blue-500');
@@ -5119,7 +5139,7 @@ async function currentUserId() {
                     <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms" onclick="switchView('transaksi')">
                         ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-bold text-slate-800 truncate"><span class="hud-mono hud-tx-id" aria-hidden="true">TX-${String(idx + 1).padStart(2, '0')}</span> ${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
+                            <p class="text-xs md:text-sm font-bold text-slate-800 truncate"><span class="hud-mono hud-tx-id" aria-hidden="true">TX-${String(pageStart + idx + 1).padStart(2, '0')}</span> ${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
                             <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 flex items-center">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} ${row.keterangan? '• ' + escapeHtml(row.keterangan) : ''}</p>
                             <div class="hud-bar mt-1.5" style="max-width:150px" aria-hidden="true"><div class="hud-bar-fill" style="width:${hudBarPct}%"></div></div>
                         </div>
@@ -5129,6 +5149,7 @@ async function currentUserId() {
                         </div>
                     </div>`;
             }).join('');
+            container.innerHTML += recentTransactionsPaginationHtml(recentTransactionsPage, totalPages);
         }
 
         // ========================== HUD: SPARKLINE & STATUS ==========================
