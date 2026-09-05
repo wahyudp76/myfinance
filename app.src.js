@@ -4631,10 +4631,10 @@ async function currentUserId() {
                 if (entries.length === 0) {
                     leaderboardEl.innerHTML = `<div class="text-center text-xs text-slate-400 py-10">Belum ada pengeluaran bulan ini 🎉</div>`;
                 } else {
-                    const totalOut = Object.values(monthCatOutMap).reduce((sum, value) => sum + Number(value || 0), 0);
+                    const totalTopOut = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
                     leaderboardEl.innerHTML = entries.map(([cat, val]) => {
                         let style = getCategoryStyle(cat, 'Pengeluaran');
-                        let pct = totalOut > 0 ? Math.round((val / totalOut) * 100) : 0;
+                        let pct = totalTopOut > 0 ? Math.round((val / totalTopOut) * 100) : 0;
                         let barWidth = Math.max(2, pct);
                         let barColorClass = style.bg.replace(/-\d+$/, '-400');
                         return `<div class="flex items-center gap-3">
