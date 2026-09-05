@@ -104,7 +104,7 @@ export function renderCategoryDetailMonthData({
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 12, bottom: 38 } },
+      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 12, bottom: 28 } },
       plugins: {
         legend: { display: true, position: "bottom", labels: { boxWidth: 10, padding: 10, font: { size: 9, weight: "bold" } } },
         datalabels: {

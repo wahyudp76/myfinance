@@ -164,7 +164,7 @@ export function renderAccountDetailCharts({
         responsive: true, maintainAspectRatio: false,
         // Beri ruang khusus DI BAWAH legend sebelum batang dimulai. Tanpa padding ini,
         // datalabel pada batang tertinggi bisa naik ke area legend dan saling menimpa.
-        layout: { padding: { top: 12, right: 4, bottom: cashflowIsNarrow ? 52 : 42, left: 4 } },
+        layout: { padding: { top: 12, right: 4, bottom: cashflowIsNarrow ? 34 : 28, left: 4 } },
         plugins: {
           legend: { position: cashflowLegendPosition, labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
           datalabels: {

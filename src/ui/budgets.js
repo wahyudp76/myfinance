@@ -258,7 +258,7 @@ export function renderBudgetView({
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          layout: { padding: { top: 12, bottom: 64 } },
+          layout: { padding: { top: 12, bottom: 28 } },
           plugins: {
             legend: { position: "bottom", align: "center", fullSize: true, labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
             datalabels: {
