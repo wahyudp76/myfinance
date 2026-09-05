@@ -94,14 +94,14 @@ export function renderInsightCard(ins, idx) {
   const short = ins.short || ins.message || "";
   return `
     <button type="button" data-insight-idx="${idx}"
-        class="group text-left bg-white rounded-xl p-2.5 md:p-3 border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5 transition-all duration-200 flex items-start gap-2.5 cursor-pointer"
+        class="group text-left bg-white hud-kpi rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 md:gap-2.5 cursor-pointer"
         aria-haspopup="dialog" aria-label="Lihat detail: ${escapeHtml(ins.title)}">
-        <div class="w-7 h-7 rounded-lg ${ins.bg} ${ins.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${ins.icon} text-xs"></i></div>
+        <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl ${ins.bg} ${ins.color} flex items-center justify-center flex-shrink-0"><i class="fas ${ins.icon} text-xs md:text-sm"></i></div>
         <div class="min-w-0 flex-1">
-            <p class="text-[11px] md:text-xs font-bold text-slate-800 leading-tight line-clamp-1">${escapeHtml(ins.title)}</p>
-            <p class="text-[10px] md:text-[11px] text-slate-500 leading-snug line-clamp-2 mt-0.5">${escapeHtml(short)}</p>
+            <p class="text-[10px] md:text-[10px] text-slate-400 font-medium leading-tight truncate">${escapeHtml(ins.title)}</p>
+            <p class="text-[11px] md:text-xs font-bold text-slate-800 leading-snug line-clamp-1 truncate">${escapeHtml(short)}</p>
         </div>
-        <i class="fas fa-chevron-right text-[10px] text-slate-300 group-hover:text-indigo-400 transition-colors flex-shrink-0 mt-1"></i>
+        <i class="fas fa-chevron-right text-[10px] text-slate-300 group-hover:text-indigo-400 transition-colors flex-shrink-0"></i>
     </button>`;
 }
 
@@ -150,7 +150,7 @@ export function renderInsights({
     return;
   }
 
-  container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">` +
+  container.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-4">` +
     insights.map((ins, i) => renderInsightCard(ins, i)).join("") +
     `</div>`;
 

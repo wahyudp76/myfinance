@@ -190,6 +190,10 @@ test("renderInsightCard: memakai `short` (ringkasan singkat), pakai `message` sb
   assert.match(a, /Naik 20%/);           // short dipakai
   assert.match(a, /fa-chart-line/);
   assert.match(a, /bg-orange-100/);
+  // gaya horizontal ala KPI ("rata-rata harian, pengeluaran terbesar"): ikon kiri + caption + nilai, sejajar
+  assert.match(a, /hud-kpi/);
+  assert.match(a, /items-center/);
+  assert.match(a, /text-slate-400 font-medium leading-tight truncate/); // caption (title)
   // fallback: tanpa `short` -> pakai message (data lama tetap tampil)
   const b = renderInsightCard({ title: "t", message: "pesan detail", icon: "fa-x", bg: "bg-slate-100", color: "text-slate-600" }, 0);
   assert.match(b, /pesan detail/);
@@ -229,7 +233,7 @@ test("renderInsights: kartu di-render sebagai grid compact + requestAiInsight(fa
   });
   renderInsights(deps);
   const html = deps.document.getElementById("insights-container").innerHTML;
-  assert.match(html, /grid grid-cols-1/); // grid compact
+  assert.match(html, /grid grid-cols-2 sm:grid-cols-3/); // grid side-by-side, ala KPI "rata-rata harian"
   assert.match(html, /data-insight-idx="1"/);
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], [false]);
