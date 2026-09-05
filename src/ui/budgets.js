@@ -51,7 +51,7 @@ import { hudBarDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud
 // (mis. 300.000 / 700.000), batang tertinggi & label nilainya MENIMPA legend.
 function budgetCompareScales(labels, formatShortVal, opts) {
   const scales = hudLineScales(labels, formatShortVal, opts);
-  scales.y.grace = "40%";
+  scales.y.grace = "10%";
   return scales;
 }
 
