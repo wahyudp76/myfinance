@@ -60,6 +60,8 @@ jobs:
           check-latest: true
       - name: Run unit tests
         run: npm run test:unit
+      - name: Check source syntax
+        run: node --check app.src.js
 
   # Gerbang kebocoran kredensial. Repo ini menyimpan SEMUA rahasia di GitHub
   # Actions secrets & Supabase dashboard; job ini yang menegakkan aturan itu

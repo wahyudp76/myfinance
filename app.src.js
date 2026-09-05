@@ -1569,7 +1569,7 @@ async function currentUserId() {
         }
         // Ekspor CSV transaksi per rentang -- builder murni di src/domain/export-csv.js
         // (teruji unit); di sini hanya pengambilan rentang, unduhan blob, dan toast.
-        function exportTransactionsCsv() {
+        function exportTransactionsCsvByRange() {
             const rangeEl = document.getElementById('csv-export-range');
             const range = (rangeEl && rangeEl.value) || 'month';
             const rows = servicesModule.filterTransactionsForRange(globalData, range, todayDateStr());
