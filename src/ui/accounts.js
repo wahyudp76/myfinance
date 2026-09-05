@@ -165,6 +165,11 @@ export function renderAccountDetailCharts({
           legend: { position: "top", labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
           datalabels: {
             display: (ctx) => {
+              // Pada mobile/range 30 hari, lebar tiap batang sangat sempit. Label
+              // nominal sengaja disembunyikan agar tidak naik ke area legend atau
+              // bertabrakan dengan label batang sebelahnya; nilai tetap tersedia
+              // melalui tooltip saat batang disentuh.
+              if (cashflowIsNarrow) return false;
               if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
               if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
               return true;

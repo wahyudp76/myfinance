@@ -144,16 +144,16 @@ test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Ke
   assert.equal(cashflow.config.options.plugins.tooltip.callbacks.label({ dataset: { label: "Masuk" }, raw: 2500 }), "Masuk: Rp 2.500");
 });
 
-test("renderAccountDetailCharts: SEMPIT -> selectSparseLabelIndices(magnitudes gabungan abs(in)+abs(out), 4) & filter display menghormati set + nilai 0", () => {
+test("renderAccountDetailCharts: SEMPIT -> label nominal disembunyikan agar tidak menimpa legend; sparse selection tetap dihitung", () => {
   const { deps, chartInstances, domain } = makeDeps({ isChartNarrow: () => true });
   renderAccountDetailCharts(deps);
   assert.deepEqual(domain.sparse.mags, [150000, 0, 250000]); // |100000|+|50000|, |0|+|0|, |250000|+|0|
   assert.equal(domain.sparse.max, 4); // lebih ketat dari chart 1-dataset (5)
   const cashflow = chartInstances.find(c => c.config.type === "bar");
   const display = cashflow.config.options.plugins.datalabels.display;
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 0 }), true);  // di set + > 0
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 0 }), false); // mobile: label disembunyikan
   assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 1 }), false); // nilai 0
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 2 }), false); // >0 tapi di luar set
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 2 }), false); // mobile: label disembunyikan
   const colorFn = cashflow.config.options.plugins.datalabels.color;
   assert.equal(colorFn({ datasetIndex: 0 }), "#047857"); // via chartLabelColor (dataset 0 = Masuk)
 });
