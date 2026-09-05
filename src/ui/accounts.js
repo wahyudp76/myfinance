@@ -145,9 +145,10 @@ export function renderAccountDetailCharts({
     const cashflowIsNarrow = isChartNarrow(cashflowContainerWidth, bucketLabels.length);
     const cashflowMagnitudes = bucketLabels.map((_, i) => Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0));
     const cashflowIndicesToShow = cashflowIsNarrow ? selectSparseLabelIndices(cashflowMagnitudes, 4) : null;
-    // Pada mobile, letakkan legend di BAWAH chart. Ini memberi pemisahan fisik
-    // yang tidak mungkin ditembus label batang tertinggi dari sisi atas.
-    const cashflowLegendPosition = cashflowIsNarrow ? "bottom" : "top";
+    // Semua mode menempatkan legend di BAWAH chart agar label batang selalu
+    // punya area terpisah dari legend. Pada mobile, sparse labels menjaga angka
+    // tetap terbaca tanpa menampilkan 30 label yang saling bertabrakan.
+    const cashflowLegendPosition = "bottom";
 
     charts.accCashflow = new Chart(document.getElementById("accountDetailChart").getContext("2d"), {
       plugins: [hudGlowPlugin], // DNA batang HUD: glow cyan
@@ -163,7 +164,7 @@ export function renderAccountDetailCharts({
         responsive: true, maintainAspectRatio: false,
         // Beri ruang khusus DI BAWAH legend sebelum batang dimulai. Tanpa padding ini,
         // datalabel pada batang tertinggi bisa naik ke area legend dan saling menimpa.
-        layout: { padding: { top: cashflowIsNarrow ? 12 : 42, right: 4, bottom: cashflowIsNarrow ? 48 : 2, left: 4 } },
+        layout: { padding: { top: 12, right: 4, bottom: cashflowIsNarrow ? 52 : 42, left: 4 } },
         plugins: {
           legend: { position: cashflowLegendPosition, labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
           datalabels: {
@@ -172,7 +173,6 @@ export function renderAccountDetailCharts({
               // nominal sengaja disembunyikan agar tidak naik ke area legend atau
               // bertabrakan dengan label batang sebelahnya; nilai tetap tersedia
               // melalui tooltip saat batang disentuh.
-              if (cashflowIsNarrow) return false;
               if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
               if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
               return true;

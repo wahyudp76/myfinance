@@ -151,9 +151,9 @@ test("renderAccountDetailCharts: SEMPIT -> label nominal disembunyikan agar tida
   assert.equal(domain.sparse.max, 4); // lebih ketat dari chart 1-dataset (5)
   const cashflow = chartInstances.find(c => c.config.type === "bar");
   const display = cashflow.config.options.plugins.datalabels.display;
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 0 }), false); // mobile: label disembunyikan
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 0 }), true); // label sparse tetap ditampilkan
   assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 1 }), false); // nilai 0
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 2 }), false); // mobile: label disembunyikan
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 2 }), false); // di luar sparse set
   const colorFn = cashflow.config.options.plugins.datalabels.color;
   assert.equal(colorFn({ datasetIndex: 0 }), "#047857"); // via chartLabelColor (dataset 0 = Masuk)
 });

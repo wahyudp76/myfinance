@@ -258,9 +258,9 @@ export function renderBudgetView({
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          layout: { padding: { top: 6, bottom: 18 } },
+          layout: { padding: { top: 12, bottom: 42 } },
           plugins: {
-            legend: { position: "top", labels: { boxWidth: 10, font: { size: 10, weight: "bold" } } },
+            legend: { position: "bottom", labels: { boxWidth: 10, padding: 12, font: { size: 10, weight: "bold" } } },
             datalabels: {
               display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
               color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? "#c7d2fe" : realisasiColors[ctx.dataIndex]),

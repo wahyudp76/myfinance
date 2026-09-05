@@ -36,9 +36,9 @@ export function buildTxTrendConfig({ chartLabels, chartNet, labelIndicesToShow, 
     }] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 16, bottom: 16 } },
+      layout: { padding: { top: 12, bottom: 38 } },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 9, weight: 'bold' } } },
         // Label angka di tiap batang -- di ATAS batang kalau net positif (hijau), di
         // BAWAH batang kalau net negatif (merah), biar tidak nabrak batangnya sendiri.
         // Batang net 0 (hari tanpa transaksi) sengaja tidak dikasih label, biar tidak
@@ -94,9 +94,9 @@ export function buildCashflow7Config({ labels7, last7Order, last7Map, themeAccen
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
+      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 12, bottom: 34 } },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 9, weight: 'bold' } } },
         datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185'), font: { size: 8, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2 },
         tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': Rp ' + formatRp(ctx.raw) } }
       },
@@ -120,7 +120,7 @@ export function buildMonthlyConfig({ monthLabels, monthlyMap, themeAccentColor, 
   return {
     type: 'bar',
     data: { labels: monthLabels.length ? monthLabels : ['Bulan Ini'], datasets: [{ label: 'Masuk', data: monthLabels.length ? monthLabels.map(l => monthlyMap[l].in) : [0], ...hudBarDataset({ from: (themeAccentColor('income500') || '#10b981') }) }, { label: 'Keluar', data: monthLabels.length ? monthLabels.map(l => monthlyMap[l].out) : [0], ...hudBarDataset({ from: '#f43f5e' }) }] },
-    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } }, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 11, weight: 'bold' } } }, datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? (themeAccentColor('income500') || '#10b981') : '#f43f5e'), font: { size: 9, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2 } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' }, color: '#67e8f9' } }, y: { grid: { color: chartGridColor() }, ticks: { font: { size: 10 } } } } },
+    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 12, bottom: 40 } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10, weight: 'bold' } } }, datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0, color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? (themeAccentColor('income500') || '#10b981') : '#f43f5e'), font: { size: 9, weight: 'bold' }, formatter: (v) => formatShortVal(v), anchor: 'end', align: 'top', offset: 2 } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' }, color: '#67e8f9' } }, y: { grid: { color: chartGridColor() }, ticks: { font: { size: 10 } } } } },
     plugins: [hudGlowPlugin]
   };
 }
@@ -184,10 +184,10 @@ export function buildAssetDetailConfig({ history, lineColor, isUp, formatRp, for
 export function buildYearlyNetConfig({ monthLabels, monthlyNet, themeAccentColor, formatShortVal, chartGridColor }) {
   return {
     type: 'bar',
-    data: { labels: monthLabels, datasets: [{ data: monthlyNet, ...hudBarDataset({ from: monthlyNet.map(v => v >= 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185'), maxBarThickness: 44 }) }] },
+    data: { labels: monthLabels, datasets: [{ label: 'Arus Kas Bersih', data: monthlyNet, ...hudBarDataset({ from: monthlyNet.map(v => v >= 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185'), maxBarThickness: 44 }) }] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, datalabels: { display: false },
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 9, weight: 'bold' } } }, datalabels: { display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== 0, color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? (themeAccentColor('incomeBar') || '#34d399') : '#fb7185', font: { size: 8, weight: 'bold' }, formatter: (v) => (v >= 0 ? '+' : '-') + formatShortVal(Math.abs(v)), anchor: 'end', align: 'top', offset: 2 },
         tooltip: { callbacks: { label: (ctx) => (ctx.parsed.y >= 0 ? '+' : '-') + 'Rp' + formatShortVal(Math.abs(ctx.parsed.y)) } } },
       scales: hudLineScales(monthLabels, formatShortVal, { yGrid: chartGridColor() })
     },

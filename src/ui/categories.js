@@ -104,9 +104,9 @@ export function renderCategoryDetailMonthData({
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
+      responsive: true, maintainAspectRatio: false, layout: { padding: { top: 12, bottom: 38 } },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: "bottom", labels: { boxWidth: 10, padding: 10, font: { size: 9, weight: "bold" } } },
         datalabels: {
           display: (ctx) => {
             if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
