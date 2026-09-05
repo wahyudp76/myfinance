@@ -3923,6 +3923,7 @@ async function currentUserId() {
             // Gerbang chart lazy (Tier-2 #5): SEKARANG hanya menahan RENDER grafik, bukan fetch
             // data (lihat catatan v68 di atas). Gagal dimuat -> lanjut tanpa chart (paritas
             // perilaku versi CDN-off), error sudah dicatat loader.
+            if (typeof window.__loadChartLibs === 'function') window.__loadChartLibs();
             if (window.__mfChartLibReady) { try { await window.__mfChartLibReady; } catch (e) {} }
             syncFetch.then((response) => {
                 // v69: komit hanya jika panggilan ini masih TERAKHIR DAN akun masih sama (belum
