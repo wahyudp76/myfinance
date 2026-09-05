@@ -74,7 +74,7 @@ myfinance/
 │   │   ├── calendar.js         # ringkasan kalender, proyeksi jatuh tempo
 │   │   ├── categories.js       # kategorisasi & proporsi sub-kategori
 │   │   ├── dashboard.js        # agregasi data dashboard
-│   │   ├── insights.js         # wawasan keuangan (hitung di browser, gratis)
+│   │   ├── insights.js         # wawasan keuangan (hitung di browser, gratis; tiap insight punya `short`+`detail`)
 │   │   ├── ai-summary.js       # rekomendasi Gemini (edge function)
 │   │   ├── backup.js           # build/validate backup + restore
 │   │   ├── export-csv.js       # ekspor CSV (dengan sanitasi formula injection)
@@ -110,7 +110,7 @@ myfinance/
 │   │       └── edge.js          # suggestCategory, getExchangeRate, scanReceipt
 │   └── ui/                      # ★ Render/DRY pengganti fungsi render duplikat
 │       ├── accounts.js / assets.js / budgets.js / calendar.js / categories.js
-│       ├── charts.js / goals-debts.js / insights.js / recurring.js
+│       ├── charts.js / goals-debts.js / insights.js / recurring.js  # insights: kartu compact + modal detail
 │       ├── skeletons.js         # placeholder saat loading
 │       └── modal-a11y.js        # aksesibilitas modal (focus trap, label)
 │

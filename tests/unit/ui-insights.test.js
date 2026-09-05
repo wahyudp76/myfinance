@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderHealthScore, renderInsights } from "../../src/ui/insights.js";
+import { renderHealthScore, renderInsights, renderInsightCard, buildInsightDetailHtml, openInsightDetail, closeInsightDetail } from "../../src/ui/insights.js";
 
 /**
  * Stub `document` minimal -- cuma implementasi getElementById() yang
@@ -179,4 +179,96 @@ test("renderInsights: dataCtx, currentMonthBudgets, formatRp & formatShortVal di
   assert.equal(calls[0].opts.currentMonthBudgets.transportasi, 200000);
   assert.equal(calls[0].opts.formatRp(1500), "Rp1500");
   assert.equal(calls[0].opts.formatShortVal(42), "42");
+});
+
+// ===================== Kartu compact & modal detail (redesign) =====================
+
+test("renderInsightCard: memakai `short` (ringkasan singkat), pakai `message` sbg fallback; ada data-insight-idx", () => {
+  const a = renderInsightCard({ title: "Pengeluaran naik", message: "Naik 20% dari bulan lalu.", short: "Naik 20%", icon: "fa-chart-line", bg: "bg-orange-100", color: "text-orange-600" }, 3);
+  assert.match(a, /data-insight-idx="3"/);
+  assert.match(a, /Pengeluaran naik/);
+  assert.match(a, /Naik 20%/);           // short dipakai
+  assert.match(a, /fa-chart-line/);
+  assert.match(a, /bg-orange-100/);
+  // fallback: tanpa `short` -> pakai message (data lama tetap tampil)
+  const b = renderInsightCard({ title: "t", message: "pesan detail", icon: "fa-x", bg: "bg-slate-100", color: "text-slate-600" }, 0);
+  assert.match(b, /pesan detail/);
+});
+
+test("renderInsightCard: title & isi di-escape (anti-XSS saat nama kategori/akun tak tepercaya)", () => {
+  const html = renderInsightCard({ title: "<img src=x onerror=alert(1)>", message: "<script>bad()</script>", icon: "fa-x", bg: "bg-slate-100", color: "text-slate-600" }, 0);
+  // escapeHtml mengubah '<' menjadi &lt; -> tag tidak lagi aktif (tidak bisa dieksekusi).
+  assert.ok(!html.includes("<script>"), "Tidak boleh ada tag <script> mentah");
+  assert.ok(!html.includes("<img"), "Tidak boleh ada tag <img> mentah");
+  assert.ok(html.includes("&lt;script&gt;"), "harus ter-encode menjadi &lt;script&gt;");
+  assert.ok(html.includes("&lt;img"), "harus ter-encode menjadi &lt;img");
+});
+
+test("buildInsightDetailHtml: tampilkan judul + detail whitespace-pre-line + tombol tutup", () => {
+  const html = buildInsightDetailHtml({ title: "Pengeluaran Melebihi Pemasukan", short: "Defisit", detail: "Line 1\n\nLine 2\n- poin a\n- poin b", icon: "fa-arrow-trend-down", bg: "bg-rose-100", color: "text-rose-600" });
+  assert.match(html, /Pengeluaran Melebihi Pemasukan/);
+  assert.match(html, /whitespace-pre-line/);
+  assert.match(html, /- poin a/);
+  assert.match(html, /data-close-insight/);
+  assert.match(html, /fa-xmark/);
+});
+
+test("buildInsightDetailHtml: fallback ke message bila tidak ada detail (data lama)", () => {
+  const html = buildInsightDetailHtml({ title: "t", message: "pesan fallback", icon: "fa-x", bg: "bg-slate-100", color: "text-slate-600" });
+  assert.match(html, /pesan fallback/);
+});
+
+test("renderInsights: kartu di-render sebagai grid compact + requestAiInsight(false) tetap dipanggil 1x", () => {
+  const calls = [];
+  const deps = makeInsightsDeps({
+    computeFinancialInsights: () => [
+      { icon: "fa-wallet", bg: "bg-amber-100", color: "text-amber-600", title: "A", message: "mA", short: "sA" },
+      { icon: "fa-wallet", bg: "bg-amber-100", color: "text-amber-600", title: "B", message: "mB", short: "sB" },
+    ],
+    requestAiInsight: (...a) => calls.push(a),
+  });
+  renderInsights(deps);
+  const html = deps.document.getElementById("insights-container").innerHTML;
+  assert.match(html, /grid grid-cols-1/); // grid compact
+  assert.match(html, /data-insight-idx="1"/);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], [false]);
+});
+
+test("openInsightDetail / closeInsightDetail: bikin modal di body, set innerHTML, buka lalu tutup", () => {
+  // document stub minimal yg mendukung createElement + body (element ber-clasList & addEventListener).
+  function makeEl(tag) {
+    const el = {
+      tagName: tag.toUpperCase(), id: "", className: "", innerHTML: "", style: {},
+      classList: {
+        _set: new Set(),
+        add: (...c) => c.forEach((x) => el.classList._set.add(x)),
+        remove: (...c) => c.forEach((x) => el.classList._set.delete(x)),
+        contains: (c) => el.classList._set.has(c),
+      },
+      setAttribute: () => {}, getAttribute: () => null,
+      addEventListener: () => {}, removeEventListener: () => {},
+    };
+    return el;
+  }
+  const entries = {};
+  const doc = {
+    getElementById: (id) => entries[id] || null,
+    createElement: (tag) => makeEl(tag),
+    body: { appendChild: (el) => { entries[el.id] = el; } },
+    addEventListener: () => {}, removeEventListener: () => {},
+  };
+  openInsightDetail(doc, { title: "X", short: "sX", detail: "dX", icon: "fa-x", bg: "bg-slate-100", color: "text-slate-600" });
+  const modal = entries["insight-detail-modal"];
+  assert.ok(modal, "modal harus dibuat");
+  assert.match(modal.innerHTML, /X/);
+  assert.match(modal.innerHTML, /dX/);
+  assert.ok(modal.classList.contains("flex"), "harus terbuka (flex)");
+  closeInsightDetail(doc, modal);
+  assert.ok(!modal.classList.contains("flex"), "harus tertutup setelah close");
+});
+
+test("openInsightDetail: no-op bila document tak punya body/createElement (aman di test lama)", () => {
+  const fakeDoc = { getElementById: () => null };
+  assert.doesNotThrow(() => openInsightDetail(fakeDoc, { title: "t" }));
 });

@@ -134,7 +134,9 @@ export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
  * @param {Record<string, number>} deps.currentMonthBudgets - budget kategori bulan ini.
  * @param {(angka: number) => string} deps.formatRp - format rupiah penuh ("1.234.567").
  * @param {(angka: number) => string} deps.formatShortVal - format rupiah ringkas ("1.2M"/"500K").
- * @returns {Array<{icon: string, bg: string, color: string, title: string, message: string}>}
+ * @returns {Array<{icon: string, bg: string, color: string, title: string, message: string,
+ *   short?: string, detail?: string}>} -- `short` = ringkasan singkat utk kartu compact;
+ *   `detail` = penjabaran lengkap utk modal (mungkin berisi baris baru "\n\n" / daftar "- ").
  */
 export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, formatShortVal }) {
   const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap } = ctx;
@@ -176,6 +178,12 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-indigo-600",
       title: "Review Bulan Ini",
       message: msg,
+      short: "Ringkasan angka pemasukan, pengeluaran & sisa bulan ini.",
+      detail: "Ini adalah rekap cepat dari semua transaksi yang tercatat bulan ini.\n\n"
+        + `${msg}\n\n`
+        + "Gunakan angka ini sebagai dasar untuk menilai apakah arus kas berjalan sehat atau perlu "
+        + "dikoreksi. Kalau masih surplus, lanjutkan pola yang ada. Kalau mulai defisit, tinjau "
+        + "kembali pengeluaran non-prioritas sebelum akhir bulan.",
     });
   }
 
@@ -190,6 +198,14 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-rose-600",
       title: "Pengeluaran Melebihi Pemasukan",
       message: `Pengeluaran Rp ${formatRp(monthOut)} sudah melebihi pemasukan Rp ${formatRp(monthIn)} (defisit Rp ${formatRp(deficit)}).${top ? ` Kategori terbesar: "${top}" (Rp ${formatRp(monthCatOutMap[top])}).` : ""} Coba tahan pengeluaran non-prioritas sisa bulan ini.`,
+      short: "Pengeluaran lebih besar dari pemasukan bulan ini (defisit).",
+      detail: "Kamu sedang mengalami defisit: total pengeluaran melebihi total pemasukan bulan ini.\n\n"
+        + `Dari data tercatat, pengeluaran mencapai Rp ${formatRp(monthOut)} sementara pemasukan Rp ${formatRp(monthIn)}, sehingga ada selisih (defisit) Rp ${formatRp(deficit)}.`
+        + (top ? `\n\nKategori yang paling besar menyumbang saat ini adalah "${top}" (Rp ${formatRp(monthCatOutMap[top])}).` : "")
+        + "\n\nBerikut beberapa hal yang bisa dilakukan:\n"
+        + "- Tunda dulu pengeluaran non-prioritas (hiburan, jajan, langganan yang bisa ditunda) sampai akhir bulan.\n"
+        + "- Cek pemasukan yang mungkin belum dicatat (pending transfer, invoice belum masuk).\n"
+        + "- Kalau defisit berulang, pertimbangkan menyusun ulang anggaran kategori.",
     });
   } else if (monthOut > 0 && monthIn === 0) {
     urgent.push({
@@ -198,6 +214,13 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-amber-600",
       title: "Belum Ada Pemasukan Bulan Ini",
       message: `Sudah ada ${monthRows} transaksi pengeluaran (Rp ${formatRp(monthOut)}) tapi belum ada pemasukan tercatat. Pastikan semua pemasukan (gaji, freelance, dll) sudah dicatat.`,
+      short: "Ada pengeluaran, tetapi belum ada pemasukan yang tercatat.",
+      detail: `Sudah tercatat ${monthRows} transaksi pengeluaran senilai Rp ${formatRp(monthOut)}, tetapi belum ada pemasukan yang masuk bulan ini.\n\n`
+        + "Ini menandakan salah satu dari dua kemungkinan:\n"
+        + "- Memang belum ada yang diterima (mis. gaji masih di awal/tengah bulan), atau\n"
+        + "- Ada pemasukan yang belum sempat kamu catat (transfer, pendapatan sampingan, dll).\n\n"
+        + "Supaya arus kas dan skor kesehatan akurat, pastikan semua pemasukan sudah dicatat. "
+        + "Kalau benar-benar belum ada pemasukan, pertimbangkan menunda pengeluaran besar hingga dana masuk.",
     });
   }
 
@@ -221,6 +244,14 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: over ? "text-rose-600" : "text-amber-600",
       title: over ? "Anggaran Terlampaui" : "Anggaran Mulai Menipis",
       message: `Anggaran "${worstBudget.cat}" sudah terpakai ${(worstBudget.pctUsed * 100).toFixed(0)}% (Rp ${formatRp(worstBudget.spent)} dari Rp ${formatRp(worstBudget.budget)}), padahal baru ${(pctMonthElapsed * 100).toFixed(0)}% bulan berjalan.`,
+      short: `Anggaran "${worstBudget.cat}" ${over ? "terlampaui" : "menipis"} ($ {(worstBudget.pctUsed * 100).toFixed(0)}%).`,
+      detail: `Kategori anggaran "${worstBudget.cat}" ${over ? "SUDAH melewati batas anggarannya" : "sudah terpakai jauh lebih cepat dari progres bulan berjalan"}.\n\n`
+        + `Sudah terpakai ${(worstBudget.pctUsed * 100).toFixed(0)}% dari anggaran Rp ${formatRp(worstBudget.budget)} `
+        + `(tercatat Rp ${formatRp(worstBudget.spent)}), sementara baru ${(pctMonthElapsed * 100).toFixed(0)}% bulan berjalan.\n\n`
+        + "Ini berarti laju pengeluaran di kategori ini jauh lebih tinggi dari biasanya. Langkah yang disarankan:\n"
+        + "- Tahan atau tunda pengeluaran di kategori ini sampai bulan berikutnya.\n"
+        + "- Tinjau apakah anggarannya memang terlalu rendah untuk kebutuhan riil, lalu sesuaikan di Pengaturan.\n"
+        + "- Kalau sering melewati anggaran, pisahkan pengeluaran rutin vs non-rutin agar lebih terkontrol.",
     });
   }
 
@@ -241,6 +272,12 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-orange-600",
       title: "Pengeluaran Kategori Naik",
       message: `Pengeluaran "${bestSpike.cat}" bulan ini Rp ${formatRp(bestSpike.cur)}, naik ${bestSpike.pctUp.toFixed(0)}% dari rata-rata 3 bulan terakhir (Rp ${formatRp(Math.round(bestSpike.avg3mo))}).`,
+      short: `Pengeluaran "${bestSpike.cat}" naik ${bestSpike.pctUp.toFixed(0)}%.`,
+      detail: `Kategori "${bestSpike.cat}" bulan ini tercatat Rp ${formatRp(bestSpike.cur)}, naik ${bestSpike.pctUp.toFixed(0)}% dibanding rata-rata 3 bulan terakhir (Rp ${formatRp(Math.round(bestSpike.avg3mo))}).\n\n`
+        + "Kenaikan yang cukup besar (di atas 30% dan > Rp 20.000) layak ditelusuri: apakah karena kebutuhan "
+        + "sekali waktu (mis. tambahan belanja, perbaikan) atau memang mulai rutin.\n\n"
+        + "Kalau hanya sekali, itu wajar. Kalau mulai berulang, cek kembali transaksinya dan sesuaikan "
+        + "anggaran atau batasi kategorinya bulan depan.",
     });
   }
 
@@ -255,6 +292,13 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
         color: "text-sky-600",
         title: "Fokus Pengeluaran Terbesar",
         message: `"${cat}" menghabiskan Rp ${formatRp(val)} = ${toPct(share)} dari total pengeluaran bulan ini. Kalau ini bukan kebutuhan pokok, coba tetapkan batas bulanannya.`,
+        short: `"${cat}" mendominasi pengeluaran (${toPct(share)}).`,
+        detail: `Satu kategori, "${cat}", menghabiskan Rp ${formatRp(val)} atau ${toPct(share)} dari total pengeluaran bulan ini.\n\n`
+          + "Ketika satu pos menguasai hampir separuh pengeluaran, keuangan kamu jadi rentan: kalau pos itu "
+          + "membengkak sekali saja, seluruh anggaran bisa terganggu.\n\n"
+          + "Langkah yang disarankan:\n"
+          + "- Kalau itu kebutuhan pokok (mis. transportasi/makan), coba tetapkan batas bulanan supaya tidak membengkak.\n"
+          + "- Kalau itu pengeluaran fleksibel, pertimbangkan menekan proporsinya agar lebih seimbang.",
       });
     }
   }
@@ -269,6 +313,13 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-orange-600",
       title: "Transaksi Terbesar",
       message: `Transaksi "${big.kategori}" senilai Rp ${formatRp(big.jumlah)}${big.akun ? ` di ${big.akun}` : ""}${when ? ` (${when})` : ""} = ${toPct(big.jumlah / monthOut)} pengeluaran bulan ini. Pastikan nilainya memang sesuai kebutuhan.`,
+      short: `Satu transaksi ${toPct(big.jumlah / monthOut)} dari pengeluaran bulan ini.`,
+      detail: `Ada satu transaksi sebesar Rp ${formatRp(big.jumlah)}${big.akun ? ` di ${big.akun}` : ""}${when ? ` (${when})` : ""} `
+        + `yang setara ${toPct(big.jumlah / monthOut)} dari total pengeluaran bulan ini.\n\n`
+        + "Karena sangat besar, transaksi ini hampir sendirian membentuk arus kas bulanan. Hal yang perlu dicek:\n"
+        + "- Apakah nilainya memang sesuai kebutuhan / sudah tepat.\n"
+        + "- Apakah ini pengeluaran sekali waktu atau bakal berulang.\n"
+        + "- Kalau berulang, pastikan ada dananya dan tidak memaksa pengeluaran lain ikut terpotong.",
     });
   }
 
@@ -290,6 +341,13 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-amber-600",
       title: "Pos Berulang Naik",
       message: `"${worstRecur.cat}" bulan lalu Rp ${formatRp(worstRecur.prev)} menjadi Rp ${formatRp(worstRecur.cur)} (naik ${worstRecur.pctUp.toFixed(0)}%). Cek apakah tagihan/langganan memang naik atau ada transaksi tak biasa.`,
+      short: `Pos berulang "${worstRecur.cat}" naik ${worstRecur.pctUp.toFixed(0)}%.`,
+      detail: `Pos berulang "${worstRecur.cat}" bulan lalu Rp ${formatRp(worstRecur.prev)} menjadi Rp ${formatRp(worstRecur.cur)} bulan ini, `
+        + `naik ${worstRecur.pctUp.toFixed(0)}%.\n\n`
+        + "Karena ini pos rutin (tagihan/langganan), kenaikan ini akan terasa terus menerus. Layak dicek:\n"
+        + "- Apakah tagihan/langganan memang menaikkan harga, atau ada paket/charge tambahan.\n"
+        + "- Kalau hanya transaksi sekali waktu yang kebetulan di kategori yang sama, bedakan dari kenaikan rutin.\n"
+        + "- Kalau tagihan naik, pertimbangkan negosiasi atau ganti ke paket yang lebih hemat.",
     });
   }
 
@@ -302,6 +360,15 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-orange-600",
       title: "Banyak Transaksi Kecil",
       message: `Ada ${small.count} transaksi kecil (masing-masing ≤ Rp 25.000) bulan ini dengan total Rp ${formatRp(small.total)} -- biasanya dari jajan/konsumsi harian. Memangkas sebagian kecil saja bisa menghemat signifikan.`,
+      short: `${small.count} transaksi kecil senilai Rp ${formatRp(small.total)}.`,
+      detail: `Tercatat ${small.count} transaksi berukuran kecil (masing-masing ≤ Rp 25.000) bulan ini, `
+        + `total Rp ${formatRp(small.total)} -- biasanya berasal dari jajan/konsumsi harian.\n\n`
+        + "Pengeluaran kecil sering terasa sepele, tetapi akumulasinya bisa besar. Ini pilihan paling mudah "
+        + "dipangkas tanpa mengorbankan kebutuhan pokok.\n\n"
+        + "Cara menghemat:\n"
+        + "- Identifikasi 2-3 transaksi kecil yang paling sering (mis. kopi/snack) lalu kurangi frekuensinya.\n"
+        + "- Buat batas harian/mingguan untuk pengeluaran fleksibel.\n"
+        + "- Kalau total ini saja dikurangi sepertiga, itu sudah penghematan yang terasa di akhir bulan.",
     });
   }
 
@@ -314,6 +381,14 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-violet-600",
       title: "Belanja Padat di Akhir Pekan",
       message: `${toPct(wknd.out / monthOut)} pengeluaran bulan ini (Rp ${formatRp(wknd.out)}, ${wknd.count} transaksi) terjadi di akhir pekan. Coba rencanakan belanja kebutuhan di awal pekan biar lebih terkontrol.`,
+      short: `${toPct(wknd.out / monthOut)} pengeluaran terjadi di akhir pekan.`,
+      detail: `${toPct(wknd.out / monthOut)} dari pengeluaran bulan ini (Rp ${formatRp(wknd.out)} lewat ${wknd.count} transaksi) `
+        + "terjadi pada Sabtu/Minggu.\n\n"
+        + "Belanja besar di akhir pekan sering tidak terkontrol karena bersifat impulsif. Jika pola ini begitu dominan, "
+        + "coba:\n"
+        + "- Pindahkan belanja kebutuhan pokok ke awal pekan (saat lebih terencana).\n"
+        + "- Buat daftar belanja sebelum ke luar rumah dan patuhi itu.\n"
+        + "- Batasi plafon per outing supaya tetap terkontrol.",
     });
   }
 
@@ -327,6 +402,13 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
         color: diff >= 0 ? "text-emerald-600" : "text-rose-600",
         title: "Tingkat Menabung",
         message: `Kamu menabung ${rateThis.toFixed(0)}% dari pemasukan bulan ini, ${diff >= 0 ? "naik" : "turun"} ${Math.abs(diff).toFixed(0)} poin dibanding bulan lalu (${rateLast.toFixed(0)}%).`,
+        short: `Tingkat menabung ${rateThis.toFixed(0)}% (${diff >= 0 ? "naik" : "turun"} ${Math.abs(diff).toFixed(0)} poin).`,
+        detail: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini -- ${diff >= 0 ? "lebih tinggi" : "lebih rendah"} `
+          + `${Math.abs(diff).toFixed(0)} poin dibanding bulan lalu (${rateLast.toFixed(0)}%).\n\n`
+          + "Tingkat menabung adalah indikator paling penting untuk kesehatan keuangan jangka panjang.\n\n"
+          + "Saran:\n"
+          + "- Kalau masih naik, coba targetkan ke 20%+ dan rutin di awal bulan (bayar diri sendiri duluan).\n"
+          + "- Kalau turun, cek apa yang menggerusnya bulan ini dan koreksi sebelum jadi kebiasaan.",
       });
     }
   }
@@ -340,6 +422,11 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-emerald-600",
       title: "Pengeluaran Turun",
       message: `Pengeluaran bulan ini Rp ${formatRp(monthOut)}, ${downPct.toFixed(0)}% lebih hemat dari bulan lalu (Rp ${formatRp(prevMonthOut)}). Pertahankan pola ini!`,
+      short: `Pengeluaran turun ${downPct.toFixed(0)}% dari bulan lalu.`,
+      detail: `Pengeluaran bulan ini Rp ${formatRp(monthOut)}, ${downPct.toFixed(0)}% lebih hemat dari bulan lalu (Rp ${formatRp(prevMonthOut)}).\n\n`
+        + "Ini kabar baik! Untuk mempertahankannya, catat kebiasaan yang berhasil supaya bisa diulang bulan berikutnya.\n\n"
+        + "Kalau penurunan ini karena menunda pengeluaran (bukan benar-benar mengurangi kebutuhan), waspadai "
+        + "kemungkinan 'balas dendam' belanja di bulan depan. Jaga agar tetap terkendali dan rutin.",
     });
   }
 
@@ -351,6 +438,13 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
       color: "text-emerald-600",
       title: "Menabung Konsisten",
       message: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini (Rp ${formatRp(Math.max(0, monthIn - monthOut))}). Kebiasaan bagus -- pertahankan!`,
+      short: `Kamu menyisihkan ${rateThis.toFixed(0)}% pemasukan bulan ini.`,
+      detail: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini, sekitar Rp ${formatRp(Math.max(0, monthIn - monthOut))}.\n\n`
+        + "Menabung 20-30% secara konsisten adalah fondasi keuangan yang sehat. Kamu sudah melakukan ini dengan baik.\n\n"
+        + "Untuk memaksimalkannya:\n"
+        + "- Otomatiskan: sisihkan dana tabungan di awal bulan, bukan sisa di akhir.\n"
+        + "- Pisahkan tabungan ke rekening/dana terpisah supaya tidak mudah tersentuh.\n"
+        + "- Kalau sudah nyaman, naikkan persentase atau arahkan ke tujuan spesifik (dana darurat, investasi).",
     });
   }
 
@@ -366,6 +460,14 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
         color: "text-violet-600",
         title: "Proyeksi Akhir Bulan",
         message: `Dengan laju pengeluaran saat ini (~Rp ${formatShortVal(avgDaily)}/hari), total pengeluaran bulan ini diperkirakan mencapai Rp ${formatShortVal(projected)} kalau berlanjut sampai akhir bulan.`,
+        short: `Proyeksi pengeluaran akhir bulan ±Rp ${formatShortVal(projected)}.`,
+        detail: `Berdasarkan rata-rata pengeluaran harian sejauh ini (sekitar Rp ${formatShortVal(avgDaily)}/hari), `
+          + `proyeksi total pengeluaran akhir bulan mencapai sekitar Rp ${formatShortVal(projected)}.\n\n`
+          + "Ini perkiraan, bukan angka pasti -- sangat bergantung pada sisa hari dan pengeluaran yang masih akan terjadi.\n\n"
+          + "Gunakan proyeksi ini untuk:\n"
+          + "- Menyesuaikan sisa anggaran agar tidak jebol di akhir bulan.\n"
+          + "- Menunda atau mengecilkan rencana pengeluaran besar kalau proyeksi sudah mendekati batas.\n"
+          + "- Sebagai kontrol diri agar laju harian tetap stabil.",
       });
     }
   }

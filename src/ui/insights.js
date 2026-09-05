@@ -39,6 +39,8 @@
  * @param {(dataCtx: object, opts: {currentMonthBudgets: object}) => {finalScore: number, components: Array<{label: string, score: number, max: number}>}} ctx.computeFinancialHealthScore -
  *   dari src/domain/insights.js (via servicesModule).
  */
+import { escapeHtml } from "../domain/sanitize.js";
+
 export function renderHealthScore({ document, dataCtx, currentMonthBudgets, computeFinancialHealthScore, accentColor }) {
   const numEl = document.getElementById("health-score-number");
   if (!numEl) return;
@@ -83,6 +85,55 @@ export function renderHealthScore({ document, dataCtx, currentMonthBudgets, comp
  * @param {(angka: number) => string} ctx.formatShortVal
  * @param {(force: boolean) => void} ctx.requestAiInsight - pemicu analisis AI (didefinisikan di index.html).
  */
+/**
+ * Bangun innerHTML kartu "wawasan" yang COMPACT. `short` (bila ada) = ringkasan
+ * singkat di kartu; fallback ke `message` supaya data lama (tanpa `short`) tetap
+ * berfungsi dan test tetap hijau. `idx` dipakai sbg `data-insight-idx` utk klik.
+ */
+export function renderInsightCard(ins, idx) {
+  const short = ins.short || ins.message || "";
+  return `
+    <button type="button" data-insight-idx="${idx}"
+        class="group text-left bg-white rounded-xl p-2.5 md:p-3 border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5 transition-all duration-200 flex items-start gap-2.5 cursor-pointer"
+        aria-haspopup="dialog" aria-label="Lihat detail: ${escapeHtml(ins.title)}">
+        <div class="w-7 h-7 rounded-lg ${ins.bg} ${ins.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${ins.icon} text-xs"></i></div>
+        <div class="min-w-0 flex-1">
+            <p class="text-[11px] md:text-xs font-bold text-slate-800 leading-tight line-clamp-1">${escapeHtml(ins.title)}</p>
+            <p class="text-[10px] md:text-[11px] text-slate-500 leading-snug line-clamp-2 mt-0.5">${escapeHtml(short)}</p>
+        </div>
+        <i class="fas fa-chevron-right text-[10px] text-slate-300 group-hover:text-indigo-400 transition-colors flex-shrink-0 mt-1"></i>
+    </button>`;
+}
+
+/**
+ * Build innerHTML modal detail wawasan. `detail` (bila ada) ditampilkan dengan
+ * `whitespace-pre-line` supaya paragraf & daftar "- " yang dibuat domain tetap
+ * terlihat rapi. `message`/`short` jadi fallback bila `detail` tidak ada (data lama).
+ * Modal di-overlay penuh; klik backdrop / tombol tutup / tombol X akan menutup.
+ */
+export function buildInsightDetailHtml(ins) {
+  const short = ins.short || ins.message || "";
+  const detail = ins.detail || ins.message || "";
+  const safeBg = ins.bg || "bg-slate-100", safeColor = ins.color || "text-slate-600";
+  return `
+    <div data-close-insight="true" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <div class="flex items-start gap-3 p-4 md:p-5 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl ${safeBg} ${safeColor} flex items-center justify-center flex-shrink-0"><i class="fas ${ins.icon} text-base"></i></div>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm md:text-base font-bold text-slate-800">${escapeHtml(ins.title)}</p>
+                <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-snug">${escapeHtml(short)}</p>
+            </div>
+            <button type="button" data-close-insight="true" aria-label="Tutup penjelasan" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0 transition-colors"><i class="fas fa-xmark text-sm"></i></button>
+        </div>
+        <div class="max-h-[60vh] overflow-y-auto p-4 md:p-5 whitespace-pre-line text-xs md:text-sm text-slate-600 leading-relaxed">${escapeHtml(detail)}</div>
+    </div>`;
+}
+
+/**
+ * Render daftar Wawasan Keuangan (elemen `#insights-container`) sbg grid kartu
+ * COMPACT yang bisa diklik -> membuka modal penjabaran detail.
+ */
 export function renderInsights({
   document, dataCtx, currentMonthBudgets, computeFinancialInsights,
   formatRp, formatShortVal, requestAiInsight,
@@ -99,18 +150,79 @@ export function renderInsights({
     return;
   }
 
-  container.innerHTML = insights.map(ins => `
-    <div class="bg-white rounded-2xl p-3.5 md:p-4 border border-slate-100 shadow-sm flex items-start gap-3">
-        <div class="w-9 h-9 rounded-xl ${ins.bg} ${ins.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${ins.icon} text-sm"></i></div>
-        <div class="min-w-0">
-            <p class="text-xs md:text-sm font-bold text-slate-800">${ins.title}</p>
-            <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">${ins.message}</p>
-        </div>
-    </div>`).join("");
+  container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">` +
+    insights.map((ins, i) => renderInsightCard(ins, i)).join("") +
+    `</div>`;
+
+  // Delegasi klik pada container (bukan per-kartu). Di-stub test `document`
+  // tidak punya addEventListener -> guard biar tidak error; di browser asli
+  // klik kartu akan membuka modal detail.
+  if (container && typeof container.addEventListener === "function") {
+    container.addEventListener("click", (e) => {
+      const target = e && e.target && typeof e.target.closest === "function" ? e.target.closest("[data-insight-idx]") : null;
+      if (target) {
+        const idx = Number(target.getAttribute("data-insight-idx"));
+        openInsightDetail(document, insights[idx]);
+      }
+    });
+  }
 
   // Wawasan rule-based di atas selalu instan & gratis; di sisi ini kita juga minta analisis
   // Gemini yang lebih dalam lewat Edge Function (lihat requestAiInsight()) -- TAPI cuma
   // benar2 manggil Gemini kalau belum ada cache tersimpan; kalau sudah ada, cache itu yang
   // ditampilkan (lihat requestAiInsight()).
   requestAiInsight(false);
+}
+
+/**
+ * Buka modal detail wawasan (append overlay ke `document.body` bila belum ada).
+ * Klik backdrop / tombol tutup / X / Escape akan menutup. Aman di environment
+ * tanpa DOM penuh (guard `document.body` / `createElement`/`querySelector`).
+ */
+export function openInsightDetail(document, ins) {
+  if (!ins || !document) return;
+  if (!document.body || typeof document.createElement !== "function") return;
+
+  const id = "insight-detail-modal";
+  let modal = document.getElementById(id);
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = id;
+    modal.className = "fixed inset-0 z-[95] hidden items-center justify-center p-4";
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = buildInsightDetailHtml(ins);
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+
+  if (typeof modal.addEventListener === "function") {
+    // Hapus listener lama supaya tidak menumpuk saat modal dibuka berulang.
+    modal.style.display = "";
+    // Gunakan satu handler idempoten.
+    const handler = (e) => {
+      const el = e && e.target && typeof e.target.closest === "function" ? e.target.closest("[data-close-insight]") : null;
+      if (el) closeInsightDetail(document, modal);
+    };
+    modal.__closeHandler && modal.removeEventListener("click", modal.__closeHandler);
+    modal.__closeHandler = handler;
+    modal.addEventListener("click", handler);
+  }
+  if (typeof document.addEventListener === "function") {
+    const keyHandler = (e) => { if (e && e.key === "Escape") closeInsightDetail(document, modal); };
+    if (modal.__keyHandler) document.removeEventListener("keydown", modal.__keyHandler);
+    modal.__keyHandler = keyHandler;
+    document.addEventListener("keydown", keyHandler);
+  }
+}
+
+/** Tutup & bersihkan modal detail wawasan. */
+export function closeInsightDetail(document, modal) {
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+  if (typeof document.addEventListener === "function" && modal.__keyHandler) {
+    document.removeEventListener("keydown", modal.__keyHandler);
+    modal.__keyHandler = null;
+  }
 }
