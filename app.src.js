@@ -669,10 +669,10 @@ async function currentUserId() {
         let accountHistoryPage = 1;
         let categoryHistoryPage = 1;
         let categoryDetailName = null;
-        const DETAIL_HISTORY_PAGE_SIZE = 20;
+        const DETAIL_HISTORY_PAGE_SIZE = 10;
 
         // Membagi riwayat berdasarkan grup tanggal, sehingga satu tanggal tidak pernah
-        // terpotong di tengah halaman. Batas 20 transaksi adalah target; bila satu tanggal
+        // terpotong di tengah halaman. Batas 10 transaksi adalah target; bila satu tanggal
         // memiliki lebih dari 20 transaksi, seluruhnya tetap tampil bersama.
         function paginateHistoryGroups(groupEntries, page) {
             const pages = [];
