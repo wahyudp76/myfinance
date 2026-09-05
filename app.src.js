@@ -4644,7 +4644,7 @@ async function currentUserId() {
                                     <p class="text-xs font-bold text-slate-700 truncate">${cat}</p>
                                     <div class="flex items-center gap-2 flex-shrink-0"><p class="text-[10px] font-extrabold text-indigo-500">${pct}%</p><p class="text-[11px] font-bold text-slate-500">Rp ${formatShortVal(val)}</p></div>
                                 </div>
-                                <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/70">
                                     <div class="h-full rounded-full ${barColorClass} transition-all duration-700 ease-out" style="width:${barWidth}%;"></div>
                                 </div>
                             </div>
