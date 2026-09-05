@@ -666,6 +666,53 @@ async function currentUserId() {
         let calendarInstance;
         let _calendarWasMobile = null; // breakpoint mobile/desktop terakhir kali renderCalendar() penuh dijalankan 
         let currentAccountDetail = null;
+        let accountHistoryPage = 1;
+        let categoryHistoryPage = 1;
+        let categoryDetailName = null;
+        const DETAIL_HISTORY_PAGE_SIZE = 20;
+
+        // Membagi riwayat berdasarkan grup tanggal, sehingga satu tanggal tidak pernah
+        // terpotong di tengah halaman. Batas 20 transaksi adalah target; bila satu tanggal
+        // memiliki lebih dari 20 transaksi, seluruhnya tetap tampil bersama.
+        function paginateHistoryGroups(groupEntries, page) {
+            const pages = [];
+            let current = [];
+            let count = 0;
+            (groupEntries || []).forEach((entry) => {
+                const rowCount = entry[1].length;
+                if (current.length && count + rowCount > DETAIL_HISTORY_PAGE_SIZE) {
+                    pages.push(current);
+                    current = [];
+                    count = 0;
+                }
+                current.push(entry);
+                count += rowCount;
+            });
+            if (current.length) pages.push(current);
+            const totalPages = Math.max(1, pages.length);
+            const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+            return { entries: pages[safePage - 1] || [], page: safePage, totalPages };
+        }
+
+        function historyPaginationHtml(page, totalPages, handler) {
+            if (totalPages <= 1) return '';
+            const buttons = Array.from({ length: totalPages }, (_, i) => {
+                const n = i + 1;
+                const active = n === page;
+                return `<button type="button" onclick="${handler}(${n})" aria-label="Halaman ${n}" aria-current="${active ? 'page' : 'false'}" class="min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}">${n}</button>`;
+            }).join('');
+            return `<div class="flex flex-wrap items-center justify-center gap-1.5 p-4 border-t border-slate-100 bg-slate-50/50"><span class="text-[10px] font-semibold text-slate-400 mr-1">Halaman</span>${buttons}</div>`;
+        }
+
+        function setAccountHistoryPage(page) {
+            accountHistoryPage = Number(page) || 1;
+            if (currentAccountDetail) openAccountDetail(currentAccountDetail, true);
+        }
+
+        function setCategoryHistoryPage(page) {
+            categoryHistoryPage = Number(page) || 1;
+            if (categoryDetailName && categoryDetailJenis) openCategoryDetail(categoryDetailName, categoryDetailJenis, true);
+        }
         let currentEditId = null; 
         let currentAssetEditId = null;
         // Flag "Simpan & Catat Lagi": diset oleh tombol repeat, dibaca & langsung di-reset
@@ -6054,7 +6101,8 @@ async function currentUserId() {
         }
         
         // ========================== ACCOUNT DETAIL ==========================
-        function openAccountDetail(accName) {
+        function openAccountDetail(accName, preserveHistoryPage = false) {
+            if (!preserveHistoryPage && currentAccountDetail !== accName) accountHistoryPage = 1;
             currentAccountDetail = accName;
             document.getElementById('detail-account-name').innerText = accName;
             document.getElementById('detail-account-logo').innerHTML = getAccountLogo(accName);
@@ -6112,7 +6160,9 @@ async function currentUserId() {
                     groups.get(key).push(row);
                 });
 
-                tbody.innerHTML = Array.from(groups.entries()).map(([dateKey, rows]) => {
+                const accountPage = paginateHistoryGroups(Array.from(groups.entries()), accountHistoryPage);
+                accountHistoryPage = accountPage.page;
+                tbody.innerHTML = accountPage.entries.map(([dateKey, rows]) => {
                     const d = parseTgl(dateKey);
                     const dow = d.getDay(); // 0=Minggu ... 6=Sabtu
                     const badgeClass = dow === 0 ? 'bg-rose-500 text-white' : (dow === 6 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500');
@@ -6171,6 +6221,7 @@ async function currentUserId() {
                             <div class="divide-y divide-slate-50">${rowsHtml}</div>
                         </div>`;
                 }).join('');
+                tbody.innerHTML += historyPaginationHtml(accountHistoryPage, accountPage.totalPages, 'setAccountHistoryPage');
             }
 
             renderAccountDetailCharts();
@@ -6226,7 +6277,9 @@ async function currentUserId() {
         // reportFilterMonth (bulan yg lagi aktif di Laporan saat kategori ini diklik).
         let categoryDetailYear = null, categoryDetailMonth = null, categoryDetailJenis = null, categoryDetailSpecificData = [];
 
-        function openCategoryDetail(categoryName, jenis) {
+        function openCategoryDetail(categoryName, jenis, preserveHistoryPage = false) {
+            if (!preserveHistoryPage && (categoryDetailName !== categoryName || categoryDetailJenis !== jenis)) categoryHistoryPage = 1;
+            categoryDetailName = categoryName;
             const filterVal = document.getElementById('reportFilterMonth').value || todayDateStr().slice(0, 7);
             const [year, month] = filterVal.split('-');
             categoryDetailYear = Number(year); categoryDetailMonth = Number(month); categoryDetailJenis = jenis;
@@ -6263,7 +6316,9 @@ async function currentUserId() {
                     groups.get(key).push(row);
                 });
 
-                tbody.innerHTML = Array.from(groups.entries()).map(([dateKey, rows]) => {
+                const categoryPage = paginateHistoryGroups(Array.from(groups.entries()), categoryHistoryPage);
+                categoryHistoryPage = categoryPage.page;
+                tbody.innerHTML = categoryPage.entries.map(([dateKey, rows]) => {
                     const d = parseTgl(dateKey);
                     const dow = d.getDay(); // 0=Minggu ... 6=Sabtu
                     const badgeClass = dow === 0 ? 'bg-rose-500 text-white' : (dow === 6 ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500');
@@ -6302,6 +6357,7 @@ async function currentUserId() {
                             <div class="divide-y divide-slate-50">${rowsHtml}</div>
                         </div>`;
                 }).join('');
+                tbody.innerHTML += historyPaginationHtml(categoryHistoryPage, categoryPage.totalPages, 'setCategoryHistoryPage');
             }
 
             renderCategoryDetailMonthData();
