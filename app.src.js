@@ -3910,13 +3910,21 @@ async function currentUserId() {
             // Promise.all 6 service, urutan & bentuk hasil { transactions, budgets, assets,
             // settings, customIcons, recurring } sama persis dgn getSyncData lama.
             const syncFetch = (async () => {
+                // Transaksi, budget, dan aset adalah data inti. Pengaturan, ikon custom,
+                // dan transaksi berulang bersifat tambahan: kegagalan salah satu tabel
+                // opsional tidak boleh membuat seluruh dashboard gagal dimuat (misalnya
+                // instalasi lama belum memiliki tabel recurring_transactions).
+                const optional = (promise, fallback, label) => Promise.resolve(promise).catch((error) => {
+                    console.warn(`Data cloud opsional gagal dimuat (${label}); memakai default lokal.`, error);
+                    return fallback;
+                });
                 const [transactions, budgets, assets, customIcons, settings, recurring] = await Promise.all([
                     transactionService.list(),
                     servicesModule.fetchMonthBudgets(supabaseClient, targetBulan),
                     servicesModule.listAssets(supabaseClient),
-                    servicesModule.getCustomIcons(supabaseClient),
-                    servicesModule.getSettings(supabaseClient),
-                    servicesModule.listRecurring(supabaseClient),
+                    optional(servicesModule.getCustomIcons(supabaseClient), {}, 'custom_icons'),
+                    optional(servicesModule.getSettings(supabaseClient), null, 'settings'),
+                    optional(servicesModule.listRecurring(supabaseClient), [], 'recurring_transactions'),
                 ]);
                 return { transactions, budgets, assets, settings, customIcons, recurring };
             })();
