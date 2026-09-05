@@ -1,6 +1,6 @@
-# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v82)
+# Pilot Migrasi Monolit → Modul — Laporan Lengkap (v71→v82) — SELESAI
 
-> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = `edd3d77`, v79 = `0ab996a`, v80 = `22c4e76`, v81 = `c8deae1`, v82 = commit berikutnya).
+> Lokasi: sandbox lokal → **sudah di-push ke `main`** (v75 = `7e22e9c`, v76 = `3541cda`, v77 = `833f33f`, v78 = `edd3d77`, v79 = `0ab996a`, v80 = `22c4e76`, v81 = `c8deae1`, v82 = `01d2042`).
 > Ini hasil **3 langkah inkremental** yang diminta: ① adopsi swap call-site,
 > ② konsolidasi/penghapusan definisi global, ③ ukur gain dengan Lighthouse.
 > **Lanjutan:** pola yang sama diperluas ke helper **tanggal** (dates), **gaya/parent
@@ -8,10 +8,16 @@
 > `categorizeParent`/`categorizeExpenseParent`, **escape string (escapeHtml/jsStr)**,
 > **escaping field CSV (`csvField`→`csvEscape`, sekaligus menutup celah injection)**,
 > **`slugify` + `detectAssetCategoryIcon`** (slugify.js, asset-icons.js),
-> **`currentMonthStr` → keluarga `dates`** (dates.js), dan terakhir
+> **`currentMonthStr` → keluarga `dates`** (dates.js),
 > **`bankWalletDatabase` + `detectAutoAccountIcon` → keluarga `bank-icons`** (bank-icons.js), dan
 > **`getAccountCurrency` → keluarga `account-currency`** (account-currency.js).
 > Semua tanpa menyentuh produksi; hanya dimuat & diuji di sandbox + browser headless.
+>
+> **STATUS: SELESAI.** Seluruh kandidat helper *murni* di monolit sudah dipindah ke modul
+> ber-tes. Satu-satunya yang tersisa, `formatInputRibuan`, **sengaja ditinggalkan** karena
+> **DOM-bound** (memutasi `input.value` & membaca `document.getElementById`), sehingga bukan
+> fungsi murni dan tidak cocok dengan pola modul-pure; refactor-nya berisiko mengubah kontrak
+> call-site `onclick=`.
 
 ---
 
