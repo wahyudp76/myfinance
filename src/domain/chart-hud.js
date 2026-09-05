@@ -228,6 +228,9 @@ export function hudLineScales(labels, formatShort, { yGrid } = {}) {
       },
     },
     y: {
+      // Ruang atas kecil agar batang/garis memakai lebih banyak tinggi plot.
+      // Label nilai tetap punya ruang dan tidak terdorong terlalu jauh dari data.
+      grace: "10%",
       grid: { color: typeof yGrid === "string" ? yGrid : "rgba(34,211,238,0.10)" },
       ticks: { font: { size: 9 }, callback: (v) => "Y·" + fmt(v) },
     },
