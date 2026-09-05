@@ -160,16 +160,16 @@ export function renderAccountDetailCharts({
         responsive: true, maintainAspectRatio: false,
         // Beri ruang khusus DI BAWAH legend sebelum batang dimulai. Tanpa padding ini,
         // datalabel pada batang tertinggi bisa naik ke area legend dan saling menimpa.
-        layout: { padding: { top: 42, right: 4, bottom: 2, left: 4 } },
+        layout: { padding: { top: 72, right: 4, bottom: 2, left: 4 } },
         plugins: {
-          legend: { position: "top", labels: { boxWidth: 10, padding: 10, font: { size: 10, weight: "bold" } } },
+          legend: { position: "top", labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
           datalabels: {
             display: (ctx) => {
               if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
               if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
               return true;
             },
-            color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 4
+            color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 4, clamp: true, clip: true
           },
           tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ": Rp " + formatRp(ctx.raw) } }
         },
