@@ -4632,11 +4632,12 @@ async function currentUserId() {
                     leaderboardEl.innerHTML = `<div class="text-center text-xs text-slate-400 py-10">Belum ada pengeluaran bulan ini 🎉</div>`;
                 } else {
                     const totalTopOut = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
-                    leaderboardEl.innerHTML = entries.map(([cat, val]) => {
+                    const progressColors = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#f43f5e'];
+                    leaderboardEl.innerHTML = entries.map(([cat, val], idx) => {
                         let style = getCategoryStyle(cat, 'Pengeluaran');
                         let pct = totalTopOut > 0 ? Math.round((val / totalTopOut) * 100) : 0;
                         let barWidth = Math.max(2, pct);
-                        let barColorClass = style.bg.replace(/-\d+$/, '-400');
+                        let progressColor = progressColors[idx] || '#6366f1';
                         return `<div class="flex items-center gap-3">
                             ${categoryIconHtml(style, 'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', 'text-xs')}
                             <div class="flex-1 min-w-0">
@@ -4645,7 +4646,7 @@ async function currentUserId() {
                                     <div class="flex items-center gap-2 flex-shrink-0"><p class="text-[10px] font-extrabold text-indigo-500">${pct}%</p><p class="text-[11px] font-bold text-slate-500">Rp ${formatShortVal(val)}</p></div>
                                 </div>
                                 <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/70">
-                                    <div class="h-full rounded-full ${barColorClass} transition-all duration-700 ease-out" style="width:${barWidth}%;"></div>
+                                    <div class="h-full rounded-full ${barColorClass} transition-all duration-700 ease-out" style="width:${barWidth}%;background-color:${progressColor};"></div>
                                 </div>
                             </div>
                         </div>`;
