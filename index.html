@@ -2,10 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <!-- Tema tampilan: dipasang SEDINI MUNGKIN (sebelum body dirender sama sekali) supaya tidak ada
-         kedipan sesaat warna terang sebelum berpindah ke gelap ("flash of wrong theme"). Preferensi
-         disimpan di localStorage (bukan Supabase) karena ini pengaturan PERANGKAT/browser ini, bukan
-         data akun -- alasannya sama kenapa opsi "Sistem" (ikut OS) masuk akal sebagai salah satu pilihan. -->
+    
     <script>
         (function () {
             try {
@@ -20,38 +17,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>MyFinance Dashboard</title>
     <meta name="description" content="Dashboard keuangan pribadi -- catat transaksi, kelola budget, dan pantau aset dalam satu tempat.">
-    <!-- PENTING: ini aplikasi PRIBADI (butuh login, berisi data keuangan), bukan situs publik --
-         noindex/nofollow supaya tidak pernah ter-index mesin pencari walau URL deploy-nya ketahuan
-         orang lain. Lihat juga robots.txt yang disertakan sebagai lapisan tambahan. -->
+    
     <meta name="robots" content="noindex, nofollow, noarchive">
 
-    <!-- KEAMANAN via <meta> (2026-08-31): GitHub Pages TIDAK bisa mengirim header
-         keamanan kustom (file _headers diabaikan), jadi kebijakan yang sama
-         diterapkan lewat meta tag supaya aktif DI HOSTING APA PUN.
-         - Content-Security-Policy: sumber daya yang diizinkan PERSIS domain yang
-           dipakai app: self + Supabase (https/wss). SELALU sinkron
-           dengan versi header di file _headers (utk hosting Netlify/Cloudflare).
-           2026-09-02 (v59): SEMUA dependensi JS pihak ketiga kini self-hosted
-           di vendor/ (supabase-js 2.113.0 + polyfill esm-node-*, Chart.js
-           4.5.1, datalabels 2.0.0, FullCalendar 6.1.10) -- jsdelivr & esm.sh
-           DIHAPUS dari script-src: nol origin script pihak ketiga.
-           2026-09-01: 'unsafe-eval' DIHAPUS dari script-src. Sebelumnya ada tanpa
-           alasan yang tercatat; setelah diperiksa, tidak ada satu pun eval() atau
-           new Function() di kode kita SENDIRI, dan ketiga library vendor sudah
-           diuji langsung di browser dgn CSP baru ini (Chart.js instantiate,
-           FullCalendar render, supabase-js createClient dari esm.sh) -- nol
-           pelanggaran CSP. Menghapusnya menutup jalur eksekusi string-ke-kode,
-           yaitu bagian yang membuat celah XSS berubah dari "mengganggu" jadi
-           "eksekusi kode penuh". JANGAN menambahkannya kembali tanpa membuktikan
-           library mana yang benar-benar membutuhkannya.
-           CATATAN: frame-ancestors sengaja TIDAK ada di sini (diabaikan browser
-           bila lewat meta) -- pelindung anti-embed tetap X-Frame-Options/frame-
-           ancestors di _headers saat hosting pindah ke platform yang mendukung.
-         - Referrer-Policy: meta ekuivalen header, aktif di mana pun. -->
+    
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="referrer" content="strict-origin-when-cross-origin">
 
-    <!-- PWA: bisa di-"Add to Home Screen" dari Android/iOS -->
+    
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#05070f">
     <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
@@ -60,34 +33,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MyFinance">
-    <!-- Preconnect ke origin API yang dipakai segera setelah boot -- browser bisa
-         mulai DNS lookup + TLS handshake lebih awal, jadi begitu app memanggil
-         Supabase (validasi session / login), koneksinya sudah siap.
-         2026-09-02 (v59): preconnect jsdelivr & esm.sh DIHAPUS -- semua dependensi
-         JS pihak ketiga kini self-hosted di vendor/ (same-origin), tidak ada lagi
-         origin CDN pihak ketiga di jalur kritis. -->
+    
     <link rel="preconnect" href="https://uxfngmxghupdlwoeoxgh.supabase.co">
-    <!-- Font self-host (slice loading): variable woff2 27KB utk weight 400-800,
-         di-preload di sini + @font-face (font-display:swap) ada di styles.css.
-         Tidak ada lagi DNS/TLS ke Google Fonts & stylesheet render-blocking.
-         fetchpriority=high: font ini dipakai teks utama (hero & form login),
-         biar FCP tidak nunggu giliran request lain. -->
+    
     <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin fetchpriority="high">
-    <!-- Ikon FA (subset 18KB) juga di-preload: @font-face-nya baru diketahui
-         setelah css/fontawesome-all.min.css selesai diunduh -- preload menutup
-         celah 1 RTT waterfall itu, jadi ikon langsung tampil begitu CSS jalan. -->
+    
     <link rel="preload" href="webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossorigin>
-    <!-- v67 (optimasi bobot): preload jalur kritis JAVASCRIPT. app.js (~224KB)
-         tag-nya di AKHIR <body> -- tanpa preload, browser baru tahu keberadaannya
-         setelah seluruh HTML terunduh & ter-parse, jadi unduhan 224KB itu baru
-         mulai paling akhir (waterfall). Dengan preload di kepala dokumen, unduhan
-         app.js berjalan PARALEL dengan CSS/font sejak awal. Begitu juga
-         vendor/supabase-js-2.113.0.bundle.min.mjs + polyfill esm-node-*: file2 ini
-         adalah rantai import level-2 dari src/services/supabase/client.js (baru
-         diminta setelah modul level-1 terunduh); modulepreload membuatnya ikut
-         diunduh lebih awal sehingga layar login/sesi tidak menunggu 2-3 gelombang
-         round-trip berurutan. Preload & import berbagi cache yang sama -- tetap
-         satu kali unduh, tidak dobel. -->
+    
     <link rel="preload" href="app.js" as="script">
     <link rel="modulepreload" href="vendor/supabase-js-2.113.0.bundle.min.mjs">
     <link rel="modulepreload" href="vendor/esm-node-async_hooks.mjs">
@@ -95,48 +47,12 @@
     <link rel="modulepreload" href="vendor/esm-node-events.mjs">
     <link rel="modulepreload" href="vendor/esm-node-process.mjs">
     <link rel="modulepreload" href="vendor/esm-node-tty.mjs">
-    <!-- Tailwind CSS -- build statis: css/tailwind.css dibangun oleh `npm run build:css`
-         (input css/tailwind.src.css + tailwind.config.js) dan HASILNYA DI-COMMIT ke repo,
-         supaya GitHub Pages tetap hosting statis murni tanpa langkah build di server.
-         Ini menggantikan Play CDN yang men-generate style saat runtime (warning console,
-         flash gaya saat first paint, varian dark:/arbitrary tak tersedia penuh).
-         darkMode:'class' kini di tailwind.config.js -- tema tetap manual lewat class "dark"
-         di <html> (skrip tema + menu Pengaturan), bukan prefers-color-scheme murni.
-         PENTING: link ini harus tetap DI SEBELUM styles.css agar rule custom di styles.css
-         menang saat specificity sama. Setelah ubah kelas Tailwind di markup/modul, jalankan
-         `npm run build:css` lalu commit ulang css/tailwind.css (CI menjaga drift ini). -->
+    
     <link rel="stylesheet" href="css/tailwind.css">
-    <!-- Font Awesome -->
+    
     <link href="css/fontawesome-all.min.css" rel="stylesheet">
-    <!-- FullCalendar: SENGAJA TIDAK dimuat di sini -- lihat loadFullCalendarLib() di bawah.
-         Library ini (~280KB) cuma dipakai di tab Kalender; dimuat lazy (disisipkan lewat DOM
-         secara dinamis) hanya saat tab itu pertama kali dibuka, supaya parsing/eksekusinya tidak
-         membebani load pertama untuk user yang belum tentu pernah buka tab Kalender dalam sesi
-         itu. sw.js tetap precache URL-nya (lihat PRECACHE_URLS) jadi begitu dibutuhkan, biasanya
-         sudah ada di cache (nyaris instan), cuma parse/eksekusinya yang ditunda. -->
-    <!-- ==========================================================================
-         AUTH MODULE BRIDGE (Phase 3 -- lihat docs/supabase-native-migration-plan.md)
-         ==========================================================================
-         Supabase client + operasi auth (signIn/signUp/signOut/session) sekarang SATU
-         sumber kebenaran: src/auth/* (dipakai juga oleh tests/parity/*) -- bukan lagi
-         ditulis manual di dalam <script> gabungan di bawah seperti sebelumnya.
-
-         src/auth/* pakai ES import/export, sedangkan <script> gabungan di bawah SENGAJA
-         TETAP "classic" (bukan type="module") -- app ini punya 200+ atribut onclick=/
-         onchange= langsung di HTML yang memanggil fungsi lewat scope GLOBAL (window),
-         dan itu TIDAK berlaku untuk isi <script type="module"> (top-level binding di
-         situ tidak otomatis jadi properti window). Mengonversi SELURUH app jadi module
-         berarti menulis ulang 200+ pemanggilan itu sekaligus -- perubahan besar & berisiko
-         yang di luar cakupan langkah Auth ini (rencananya: domain lain menyusul satu per
-         satu, lihat docs/architecture-modernization-plan.md Phase 4). Untuk sekarang,
-         modul ini dijembatani ke window.__myfinanceAuth.
-
-         Promise di bawah SENGAJA di script classic TERPISAH, SEBELUM <script type="module">:
-         <script type="module"> selalu dieksekusi "deferred" (baru jalan setelah SELURUH
-         dokumen selesai di-parse) -- yaitu BELAKANGAN dari <script> gabungan di body (yang
-         posisinya di akhir <body>, dieksekusi blocking begitu parser sampai di situ, nyaris
-         di akhir dokumen). Tanpa jembatan Promise+event ini, script gabungan bisa saja
-         mencoba memakai window.__myfinanceAuth SEBELUM modul-nya selesai dieksekusi. -->
+    
+    
     <script>
         window.__myfinanceAuthReady = new Promise((resolve) => {
             window.addEventListener('myfinance:auth-ready', () => resolve(window.__myfinanceAuth), { once: true });
@@ -327,39 +243,18 @@
         };
         window.dispatchEvent(new Event('myfinance:services-ready'));
     </script>
-    <!-- ====================================================================
-         CSS APLIKASI -- dipindah ke styles.css (Phase 7, "split monolith" --
-         lihat docs/supabase-native-migration-plan.md). Sebelumnya digabung
-         inline di sini lewat tag <style>; sekarang file terpisah, dimuat di
-         posisi yang PERSIS SAMA di cascade CSS (tidak mengubah urutan relatif
-         terhadap Tailwind/Font Awesome di atas). Semua LOGIC JavaScript masih
-         satu <script> gabungan di bagian bawah sebelum </body> -- belum
-         dipecah, itu langkah terpisah & jauh lebih berisiko (lihat catatan di
-         situ soal 200+ atribut onclick= yang bergantung pada scope global).
-         ==================================================================== -->
+    
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="text-slate-800">
 
-    <!-- ==========================================================================
-         LOGIN VIEW -- gabungan dari bekas login.html. Ditampilkan/disembunyikan
-         lewat JS (showLoginView() / showAppShell() di app.js), bukan navigasi
-         ke file terpisah lagi.
-         ========================================================================== -->
-    <!-- role="main" (v59, a11y): audit landmark-one-main Lighthouse gagal karena
-         dokumen tanpa landmark utama. loginView & appShell DUA-DUANYA diberi
-         role="main" -- hanya satu yang tampil pada satu waktu (satunya
-         display:none via class .hidden, dikeluarkan dari accessibility tree),
-         sehingga selalu TEPAT SATU main landmark, di state login MAUPUN app.
-         (Sengaja memakai kata Indonesia: token bahasa Inggris yang kebetulan
-         nama kelas Tailwind, di file yang discan build CSS (index.html/app.js/
-         src), akan ikut terekstrak jadi kelas CSS.) -->
+    
+    
     <div id="loginView" role="main">
         <div class="w-full max-w-sm">
             <div class="text-center mb-6">
 
-                <!-- Maskot kartun -- dompet ceria bergaya kustom (bukan karakter berlisensi),
-                     supaya layar login terasa lebih ramai & hangat, bukan sekadar ikon polos. -->
+                
                 <div class="login-mascot-wrap">
                     <div class="login-mascot-glow"></div>
                     <svg class="login-mascot-svg" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -374,16 +269,16 @@
                             </linearGradient>
                         </defs>
 
-                        <!-- sparkle kecil di sekeliling maskot -->
+                        
                         <path class="login-sparkle" fill="#fbbf24" d="M14,20 L16.24,25.76 L22,28 L16.24,30.24 L14,36 L11.76,30.24 L6,28 L11.76,25.76 Z"/>
                         <circle class="login-sparkle delay1" cx="150" cy="30" r="3.5" fill="#34d399" style="fill: var(--accent-400, #34d399)"/>
                         <path class="login-sparkle delay2" fill="#f472b6" d="M12,128 L13.6,131.8 L17.4,133.4 L13.6,135 L12,138.8 L10.4,135 L6.6,133.4 L10.4,131.8 Z"/>
 
-                        <!-- badan dompet -->
+                        
                         <rect x="18" y="42" width="124" height="94" rx="26" fill="url(#mascotBody)"/>
                         <rect x="18" y="42" width="124" height="46" rx="23" fill="url(#mascotFlap)"/>
 
-                        <!-- wajah ceria -->
+                        
                         <circle cx="64" cy="98" r="7" fill="#171029"/>
                         <circle cx="96" cy="98" r="7" fill="#171029"/>
                         <circle cx="61.5" cy="95" r="2" fill="#ffffff"/>
@@ -392,7 +287,7 @@
                         <circle cx="110" cy="106" r="6" fill="#f472b6" opacity="0.55"/>
                         <path d="M62,113 Q80,128 98,113" stroke="#171029" stroke-width="5" fill="none" stroke-linecap="round"/>
 
-                        <!-- koin kecil nangkring di pojok -->
+                        
                         <circle cx="128" cy="52" r="18" fill="#fbbf24" stroke="#ffffff" stroke-width="4"/>
                         <text x="128" y="58" font-size="16" font-weight="800" text-anchor="middle" fill="#92400e" font-family="Arial, sans-serif">Rp</text>
                     </svg>
@@ -403,18 +298,18 @@
             </div>
 
             <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-                <!-- Tab switch Login / Daftar -->
+                
                 <div class="grid grid-cols-2 gap-1 bg-slate-50 rounded-xl p-1 mb-6">
                     <button type="button" id="tab-login" class="tab-btn active text-sm font-semibold py-2 rounded-lg transition-colors">Masuk</button>
                     <button type="button" id="tab-signup" class="tab-btn text-sm font-semibold py-2 rounded-lg transition-colors">Daftar</button>
                 </div>
 
-                <!-- Pesan error -->
+                
                 <div id="authError" class="hidden mb-4 bg-rose-50 text-rose-600 text-xs font-semibold rounded-xl px-3 py-2.5 flex items-start gap-2">
                     <i class="fas fa-triangle-exclamation mt-0.5"></i>
                     <span id="authErrorMsg">Terjadi kesalahan.</span>
                 </div>
-                <!-- Pesan sukses (misal setelah daftar, minta cek email) -->
+                
                 <div id="authSuccess" class="hidden mb-4 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-xl px-3 py-2.5 flex items-start gap-2">
                     <i class="fas fa-circle-check mt-0.5"></i>
                     <span id="authSuccessMsg"></span>
@@ -454,14 +349,13 @@
         </div>
     </div>
 
-    <!-- Auth Gate: menutup seluruh layar sampai status login terverifikasi,
-         supaya orang yang belum login tidak sempat melihat kerangka data. -->
+    
     <div id="authGate" style="position:fixed;inset:0;background:#f8fafc;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
         <i class="fas fa-circle-notch fa-spin" style="font-size:26px;color:#151928;"></i>
         <p style="color:#64748b;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;">Memeriksa sesi login...</p>
     </div>
 
-    <!-- Loading Overlay -->
+    
     <div id="loading" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] hidden items-center justify-center flex-col transition-all duration-300">
         <div class="relative flex justify-center items-center w-44 h-44">
             <div class="absolute animate-ping w-36 h-36 rounded-full bg-indigo-400 opacity-30"></div>
@@ -474,20 +368,20 @@
         <p class="mt-6 text-white font-bold tracking-widest text-sm uppercase animate-pulse">Menyinkronkan Data...</p>
     </div>
 
-    <!-- Indikator Pull-to-Refresh (tarik ke bawah dari paling atas utk sinkron ulang, gaya app mobile) -->
+    
     <div id="pullToRefreshIndicator" class="fixed left-0 right-0 flex justify-center pointer-events-none z-30" style="top: 0; transform: translateY(-60px); opacity: 0;">
         <div class="w-10 h-10 rounded-full bg-white shadow-lg border border-slate-100 flex items-center justify-center mt-3">
             <i id="pullToRefreshIcon" class="fas fa-arrow-down text-slate-400 text-sm" style="transition: transform 0.15s ease, color 0.15s ease;"></i>
         </div>
     </div>
 
-    <!-- Tombol Kembali ke Atas (muncul otomatis setelah scroll ke bawah) -->
+    
     <button id="scrollToTopBtn" onclick="scrollActiveViewToTop()" aria-label="Kembali ke atas"
         class="hidden fixed bottom-28 md:bottom-6 right-4 md:right-6 z-30 w-11 h-11 rounded-full bg-white text-slate-500 shadow-lg border border-slate-100 items-center justify-center hover:bg-slate-50 hover:text-[#151928] transition-all active:scale-90">
         <i class="fas fa-arrow-up text-sm"></i>
     </button>
 
-    <!-- Toast Notifikasi (error/sukses/info) -->
+    
     <div id="errorToast" class="fixed top-4 inset-x-0 z-[110] hidden px-4 pointer-events-none" role="status" aria-live="polite">
         <div id="errorToastCard" class="bg-white rounded-2xl shadow-2xl ring-1 ring-rose-100 px-4 py-3 flex items-center gap-3 max-w-sm mx-auto transition-all duration-300 opacity-0 -translate-y-3 pointer-events-auto">
             <div id="errorToastIconWrap" class="w-8 h-8 rounded-full bg-rose-100 text-rose-500 flex items-center justify-center flex-shrink-0"><i id="errorToastIcon" class="fas fa-triangle-exclamation text-xs"></i></div>
@@ -496,19 +390,15 @@
         </div>
     </div>
 
-    <!-- Banner offline (muncul otomatis kalau koneksi internet putus) -->
+    
     <div id="offlineBanner" class="fixed top-0 inset-x-0 z-[120] hidden bg-amber-500 text-white text-xs font-bold text-center py-2 px-4" role="status" aria-live="polite">
         <i class="fas fa-circle-exclamation mr-1.5"></i>Tidak ada koneksi internet — perubahan tidak akan tersimpan sampai online lagi.
     </div>
 
-    <!-- ==========================================================================
-         APP SHELL -- seluruh tampilan dashboard (topbar, sidebar, konten, modal
-         dipicu dari sini). Disembunyikan (class "hidden") sampai status login
-         terverifikasi oleh bootstrapAuth() di app.js.
-         ========================================================================== -->
+    
     <div id="appShell" role="main" class="hidden h-screen flex flex-col md:flex-row">
 
-    <!-- Mobile Top Bar -->
+    
     <div class="md:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between z-20 shadow-sm flex-shrink-0 pt-safe">
         <div class="flex items-center">
             <div class="bg-[#151928] text-white p-1.5 rounded-lg mr-2 flex items-center justify-center shadow-md shadow-slate-900/10"><i class="fas fa-bolt text-xs"></i></div>
@@ -522,7 +412,7 @@
         </div>
     </div>
 
-    <!-- SIDEBAR (Desktop) -->
+    
     <aside id="sidebar" class="hidden md:flex w-64 bg-white border-r border-slate-100 flex-col justify-between flex-shrink-0 h-full">
         <div>
             <div class="flex h-20 items-center px-6 mb-4">
@@ -563,7 +453,7 @@
         </div>
     </aside>
 
-    <!-- Bottom Navigation Bar (Mobile) -->
+    
     <div class="md:hidden liquid-glass-nav fixed left-4 right-4 flex items-center justify-around py-2 z-40 rounded-[28px]">
         <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-2 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-satellite-dish text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Beranda</span></button>
         <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-crosshairs text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Budget</span></button>
@@ -572,17 +462,16 @@
             <span class="text-[10px] mt-1 font-bold text-[#151928] tracking-tight">Catat</span>
         </div>
         <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-wave-square text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Analisis</span></button>
-        <!-- Diubah dari Kalender menjadi Aset sesuai permintaan -->
+        
         <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-database text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Aset</span></button>
     </div>
 
-    <!-- MAIN CONTENT -->
+    
     <main class="flex-1 flex flex-col h-full overflow-hidden relative">
         
-        <!-- DASHBOARD VIEW -->
+        
         <div id="view-dashboard" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 block relative">
-            <!-- Skeleton sinkronisasi (slice design #3): layer menutupi konten selama loadData()
-                 saat tab Dashboard aktif -- diisi setSyncLoading(), disembunyikan begitu data dirender. -->
+            
             <div id="dashboard-skeleton" class="hidden absolute inset-0 z-20 overflow-hidden p-4 md:p-8 lg:px-12" role="status" aria-label="Memuat data..."></div>
             <header class="mb-6 md:mb-8 flex justify-between items-end">
                 <div>
@@ -599,8 +488,7 @@
                 </button>
             </header>
 
-            <!-- Empty-state onboarding (Tier-3 #8): tampil hanya saat BELUM ada transaksi
-                 sama sekali (toggle updateDashboardEmptyState di akhir loadData). -->
+            
             <div id="dashboard-empty-state" class="hidden mb-6 md:mb-8 bg-white rounded-2xl md:rounded-3xl border-2 border-dashed border-indigo-200 p-6 md:p-10 text-center">
                 <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-200 mb-4"><i class="fas fa-wand-magic-sparkles text-white text-2xl"></i></div>
                 <h3 class="text-lg md:text-xl font-extrabold text-slate-800">Selamat datang di MyFinance! 👋</h3>
@@ -671,9 +559,7 @@
                 <div id="insight-top-cat-wrap" class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5"></div>
             </div>
 
-            <!-- Skor Kesehatan Finansial (Perluasan AI -- murni hitungan deterministik dari data
-                 bulan ini, BUKAN generate Gemini, supaya angkanya presisi & tidak butuh Edge
-                 Function/API key. Lihat computeFinancialHealthScore() -- 7 komponen berbobot (v66). -->
+            
             <div class="bg-white rounded-2xl p-4 md:p-5 border border-slate-100 shadow-sm mb-6 md:mb-8">
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
@@ -764,7 +650,7 @@
             <div id="recent-transactions-list" class="space-y-3 pb-8"></div>
         </div>
 
-        <!-- TRANSAKSI VIEW -->
+        
         <div id="view-transaksi" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <button onclick="switchView('dashboard')" class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Dashboard</button>
             <header class="mb-6 md:mb-8 flex flex-row justify-between items-end">
@@ -782,15 +668,15 @@
                 <div class="relative w-full h-full pb-4"><canvas id="txTrendChart"></canvas></div>
             </div>
 
-            <!-- Search and Filter Bar -->
+            
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <!-- Search Input -->
+                
                 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center relative focus-within:ring-2 focus-within:ring-indigo-400 transition">
                     <span class="text-slate-400 pl-2 pr-3"><i class="fas fa-search"></i></span>
                     <input type="text" id="txSearchInput" oninput="debouncedFilterTransactions()" placeholder="Cari kategori, keterangan, atau akun..." class="w-full bg-transparent border-none outline-none text-xs md:text-sm text-slate-700">
                 </div>
                 
-                <!-- Filter Option -->
+                
                 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 flex-wrap">
                     <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Filter:</div>
                     <div class="flex items-center gap-2 flex-1 justify-end flex-wrap">
@@ -812,7 +698,7 @@
                 </div>
             </div>
 
-            <!-- Filter Nominal (tersembunyi, dibuka lewat ikon slider di atas) -->
+            
             <div id="txAmountFilterPanel" class="hidden bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 mb-6 -mt-2 flex items-center gap-3 flex-wrap">
                 <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nominal:</span>
                 <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
@@ -834,7 +720,7 @@
             </div>
         </div>
 
-        <!-- BUDGET VIEW -->
+        
         <div id="view-budget" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
@@ -850,7 +736,7 @@
                 </div>
             </header>
 
-            <!-- Summary Card -->
+            
             <div class="bg-[#171a25] rounded-[24px] p-6 md:p-8 relative overflow-hidden mb-6 md:mb-8 shadow-xl shadow-slate-200/50">
                 <div class="hud-barcode" aria-hidden="true" style="position:absolute;top:14px;right:16px;width:72px;height:16px;z-index:6"></div>
                 <div class="hud-dots" aria-hidden="true" style="position:absolute;bottom:14px;left:18px;width:64px;height:24px;opacity:.3;z-index:6"></div>
@@ -887,7 +773,7 @@
                 </div>
             </div>
 
-            <!-- Budget Chart -->
+            
             <div class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm mb-6 md:mb-8 h-64 md:h-80 flex flex-col relative">
                 <h4 class="text-sm font-bold text-slate-700 mb-1">Bagan Komparasi Budget</h4>
                 <p class="text-xs text-slate-400 mb-3">Rencana vs realisasi pengeluaran bulanan</p>
@@ -898,20 +784,20 @@
                 </div>
             </div>
 
-            <!-- Per Category List -->
+            
             <div class="mb-6 md:mb-8">
                 <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 md:mb-4">Perincian Budget per Kategori</h4>
                 <div id="budget-category-list" class="space-y-3"></div>
             </div>
             
-            <!-- Categories without budget yet -->
+            
             <div id="budget-unset-wrap" class="mb-8 hidden">
                 <h4 class="text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3 md:mb-4">Kategori Belum Dikonfigurasi</h4>
                 <div id="budget-unset-list" class="flex flex-wrap gap-2"></div>
             </div>
         </div>
 
-        <!-- LAPORAN VIEW -->
+        
         <div id="view-laporan" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
@@ -925,7 +811,7 @@
             </header>
             
             <div class="grid grid-cols-1 gap-4 md:gap-6 mb-8">
-                <!-- Ringkasan Tahunan -->
+                
                 <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
                     <div class="flex items-center justify-between mb-1">
                         <h4 class="text-xs md:text-sm font-bold text-slate-700">Ringkasan Tahun Ini</h4>
@@ -961,14 +847,14 @@
                     </div>
                 </div>
 
-                <!-- Trend Bar Chart -->
+                
                 <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
                     <h4 class="text-xs md:text-sm font-bold text-slate-700 mb-1">Tren Pemasukan vs Pengeluaran</h4>
                     <p class="text-xs text-slate-400 mb-4 md:mb-6">Perbandingan 6 Bulan Terakhir</p>
                     <div class="h-48 md:h-72"><canvas id="monthlyChart"></canvas></div>
                 </div>
                 
-                <!-- Category Doughnuts -->
+                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm chart-card">
                         <div class="flex justify-between items-center mb-1">
@@ -996,14 +882,14 @@
                     </div>
                 </div>
 
-                <!-- Daily Trend Line Chart -->
+                
                 <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
                     <h4 class="text-xs md:text-sm font-bold text-slate-700 mb-1" id="title-daily-report">Trend Transaksi</h4>
                     <p class="text-xs text-slate-400 mb-4 md:mb-6">Arus kas pemasukan & pengeluaran tanggal 1-31 di bulan terpilih</p>
                     <div class="h-48 md:h-64"><canvas id="dailyChart"></canvas></div>
                 </div>
 
-                <!-- Category Trend Line Chart (6 bulan terakhir, lintas kategori) -->
+                
                 <div class="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm">
                     <h4 class="text-xs md:text-sm font-bold text-slate-700 mb-1">Tren Kategori Pengeluaran</h4>
                     <p class="text-xs text-slate-400 mb-4 md:mb-6">5 kategori pengeluaran terbesar, 6 bulan terakhir (bukan cuma bulan yang lagi difilter di atas)</p>
@@ -1013,7 +899,7 @@
                     </div>
                 </div>
 
-                <!-- Ringkasan Bulanan -->
+                
                 <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
                         <div class="flex items-center gap-2 min-w-0">
@@ -1028,7 +914,7 @@
                     <div id="monthly-summary-container" class="p-4 md:p-5"></div>
                 </div>
 
-                <!-- Tanya AI -->
+                
                 <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style="height: 440px;">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2 flex-shrink-0">
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-wand-magic-sparkles text-xs"></i></div>
@@ -1046,7 +932,7 @@
             </div>
         </div>
 
-        <!-- ASET VIEW (Baru) -->
+        
         <div id="view-aset" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
@@ -1066,7 +952,7 @@
                 </div>
             </header>
 
-            <!-- Kekayaan Bersih (Net Worth = total Aset - total Utang) -->
+            
             <div class="bg-gradient-to-br from-[#151928] to-indigo-900 rounded-2xl p-5 md:p-6 shadow-lg mb-6 md:mb-8 text-white">
                 <p class="text-[10px] md:text-xs font-bold text-white/60 uppercase tracking-wide mb-1">Kekayaan Bersih</p>
                 <p id="networth-total" class="text-3xl md:text-4xl font-extrabold mb-4 truncate">Rp 0</p>
@@ -1088,7 +974,7 @@
                 </div>
             </div>
 
-            <!-- Summary Cards -->
+            
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 md:mb-8">
                 <div class="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100 shadow-sm">
                     <p class="text-[10px] md:text-xs font-bold text-indigo-500 uppercase tracking-wide mb-1">Total Nilai Saat Ini</p>
@@ -1107,7 +993,7 @@
                 </div>
             </div>
 
-            <!-- Best/Worst Performer -->
+            
             <div id="asset-performer-row" class="hidden gap-4 mb-6 md:mb-8">
                 <div class="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100 flex items-center gap-3 min-w-0">
                     <div class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-trophy text-xs"></i></div>
@@ -1127,7 +1013,7 @@
                 </div>
             </div>
 
-            <!-- Asset Chart & List -->
+            
             <div class="bg-white rounded-2xl p-4 md:p-5 border border-slate-100 shadow-sm mb-6">
                 <div class="flex items-center justify-between mb-1">
                     <h4 class="text-sm font-bold text-slate-700">Alokasi per Kategori</h4>
@@ -1142,19 +1028,19 @@
             </div>
 
             <div class="mb-8">
-                <!-- Asset List -->
+                
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                         <h4 class="text-sm font-bold text-slate-800">Daftar Aset Aktif</h4>
                         <span class="text-xs text-slate-400"><i class="fas fa-list"></i> <span id="asset-count">0</span> item</span>
                     </div>
                     <div class="flex-1 overflow-y-auto p-2" id="asset-list-container">
-                        <!-- Items rendered dynamically -->
+                        
                     </div>
                 </div>
             </div>
 
-            <!-- Tujuan Keuangan (Financial Goals) -->
+            
             <div class="mb-8">
                 <div class="flex items-center justify-between mb-4">
                     <div>
@@ -1166,11 +1052,11 @@
                     </button>
                 </div>
                 <div id="goals-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <!-- Items rendered dynamically -->
+                    
                 </div>
             </div>
 
-            <!-- Utang & Cicilan (Debt Tracker) -->
+            
             <div class="mb-8">
                 <div class="flex items-center justify-between mb-4">
                     <div>
@@ -1182,12 +1068,12 @@
                     </button>
                 </div>
                 <div id="debts-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <!-- Items rendered dynamically -->
+                    
                 </div>
             </div>
         </div>
 
-        <!-- KALENDER VIEW -->
+        
         <div id="view-kalender" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8">
                 <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Kalender Transaksi</h2>
@@ -1222,7 +1108,7 @@
             </div>
         </div>
 
-        <!-- PENGATURAN VIEW -->
+        
         <div id="view-pengaturan" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                 <div>
@@ -1237,7 +1123,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5 pb-12">
 
-                <!-- AKUN SAYA (Supabase Auth + Profil) -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div data-user-avatar class="profile-avatar-frame w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mr-3 flex-shrink-0 text-xl"><i class="fas fa-user"></i></div>
@@ -1254,7 +1140,7 @@
                     </button>
                 </div>
 
-                <!-- BOT WHATSAPP (Fonnte) -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-500 flex items-center justify-center mr-3 flex-shrink-0 text-xl"><i class="fab fa-whatsapp"></i></div>
@@ -1268,8 +1154,7 @@
                     </div>
                 </div>
 
-                <!-- DATA & CADANGAN (gabungan backup/restore lama + kartu "Cadangan Data"
-                     yang duplikat & ber-tombol mati; plus ekspor CSV per rentang) -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-500 flex items-center justify-center mr-3 flex-shrink-0 text-xl"><i class="fas fa-database"></i></div>
@@ -1304,7 +1189,7 @@
                     </div>
                 </div>
 
-                <!-- TAMPILAN (Tema Terang/Gelap/Sistem) -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-circle-half-stroke text-sm"></i></div>
@@ -1337,7 +1222,7 @@
                             <span class="text-[10px] font-semibold text-slate-600">Ramah Buta Warna</span>
                         </button>
                     </div>
-                    <!-- Warna Aksen (fitur tema warna) -- swatch dirender oleh renderThemePicker() -->
+                    
                     <div class="mt-4 pt-4 border-t border-slate-100">
                         <div class="flex items-center justify-between mb-2">
                             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"><i class="fas fa-palette text-indigo-400 mr-1"></i>Warna Aksen</p>
@@ -1351,7 +1236,7 @@
                     </div>
                 </div>
 
-                <!-- PREFERENSI (privasi nominal + tampilan awal aplikasi) -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-sliders text-sm"></i></div>
@@ -1375,7 +1260,7 @@
                     </div>
                 </div>
 
-                <!-- TENTANG APLIKASI & PENYIMPANAN -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-circle-info text-sm"></i></div>
@@ -1403,7 +1288,7 @@
                     </button>
                 </div>
 
-                <!-- TRANSAKSI BERULANG (langganan, gaji, cicilan, tagihan rutin) -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 rounded-2xl bg-violet-50 text-violet-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-repeat text-sm"></i></div>
@@ -1417,7 +1302,7 @@
                     </button>
                 </div>
 
-                <!-- AKUN / E-WALLET / ASET -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col h-[480px]">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-wallet text-sm"></i></div>
@@ -1432,7 +1317,7 @@
                     <ul id="list-accounts" class="space-y-1.5 overflow-y-auto flex-1 pr-1 -mr-1"></ul>
                 </div>
 
-                <!-- KATEGORI PEMASUKAN -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col h-[480px]">
                     <div class="flex items-center mb-3">
                         <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-piggy-bank text-sm"></i></div>
@@ -1464,7 +1349,7 @@
                     <div id="list-tree-pemasukan" class="space-y-1.5 overflow-y-auto flex-1 pr-1 -mr-1"></div>
                 </div>
 
-                <!-- KATEGORI PENGELUARAN -->
+                
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col h-[480px]">
                     <div class="flex items-center mb-3">
                         <div class="w-10 h-10 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-basket-shopping text-sm"></i></div>
@@ -1499,7 +1384,7 @@
             </div>
         </div>
 
-        <!-- ACCOUNT DETAIL VIEW -->
+        
         <div id="view-akun-detail" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8">
                 <button onclick="switchView('dashboard')" class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Dashboard</button>
@@ -1523,7 +1408,7 @@
                 </div>
             </header>
 
-            <!-- Stat Cards -->
+            
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
                 <div class="bg-emerald-50 rounded-xl md:rounded-2xl p-4 md:p-5 border border-emerald-100 shadow-sm">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2 md:mb-3"><i class="fas fa-arrow-down text-xs md:text-sm"></i></div>
@@ -1547,7 +1432,7 @@
                 </div>
             </div>
 
-            <!-- Insight Chips -->
+            
             <div class="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
                 <div class="bg-white hud-kpi rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5">
                     <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-receipt text-xs md:text-sm"></i></div>
@@ -1566,7 +1451,7 @@
                 <div id="detail-account-top-cat-wrap" class="bg-white rounded-2xl p-2.5 md:p-4 border border-slate-100 shadow-sm flex items-center gap-2 md:gap-2.5"></div>
             </div>
 
-            <!-- Filter Rentang Grafik -->
+            
             <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 mb-6 md:mb-8">
                 <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Rentang Grafik:</div>
                 <select id="accountDetailPeriod" onchange="renderAccountDetailCharts()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
@@ -1578,7 +1463,7 @@
                 </select>
             </div>
 
-            <!-- Chart Row: Tren Saldo & Arus Kas -->
+            
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
                 <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50">
@@ -1596,7 +1481,7 @@
                 </div>
             </div>
 
-            <!-- Chart: Distribusi Kategori -->
+            
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6 md:mb-8">
                 <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
                     <div>
@@ -1635,7 +1520,7 @@
             </div>
         </div>
 
-        <!-- CATEGORY DETAIL VIEW -->
+        
         <div id="view-kategori-detail" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8">
                 <button onclick="switchView('laporan')" class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Laporan</button>
@@ -1682,9 +1567,9 @@
 
     </main>
 
-    </div><!-- /#appShell -->
+    </div>
 
-    <!-- MODAL FORM (CATAT / EDIT TRANSAKSI) -->
+    
     <div id="modalForm" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex justify-end">
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalFormContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center">
@@ -1698,7 +1583,7 @@
             
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
                 <form id="formInput" onsubmit="submitForm(event)">
-                    <!-- TYPE SELECTOR -->
+                    
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-5 md:mb-6 shadow-inner">
                         <label class="flex-1 text-center cursor-pointer relative">
                             <input type="radio" name="jenis" value="Pengeluaran" class="peer sr-only" checked onchange="handleFormTypeChange()">
@@ -1733,7 +1618,7 @@
                             <p id="akun-currency-hint" class="hidden text-[10px] text-indigo-500 font-semibold mt-1"></p>
                         </div>
                         
-                        <!-- CUSTOM CATEGORY SELECTOR UI -->
+                        
                         <div>
                             <label for="kategori" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-kategori">Kategori</label>
                             <input type="hidden" id="kategori" required>
@@ -1744,13 +1629,7 @@
                                 </div>
                                 <i class="fas fa-chevron-down text-slate-400 text-xs"></i>
                             </div>
-                            <!-- CUMA muncul kalau jenis=Transfer & akun tujuannya berbeda mata uang dari akun
-                                 sumber -- lihat handleTransferDestAccountChangeForCurrency(). Menampilkan
-                                 estimasi berapa yg akan DITERIMA di akun tujuan (dalam mata uang tujuan),
-                                 dihitung dari nilai IDR sisi sumber dibagi kurs tujuan -- BUKAN cuma
-                                 menyamakan nominal sisi sumber apa adanya (itu penyebab bug lama: transfer
-                                 USD 100 tercatat seolah2 akun tujuan nambah 100 dalam mata uang APAPUN akun
-                                 itu, padahal semestinya dikonversi). -->
+                            
                             <p id="transfer-dest-currency-hint" class="hidden text-[10px] text-indigo-500 font-semibold mt-1"></p>
                         </div>
 
@@ -1774,7 +1653,7 @@
         </div>
     </div>
 
-    <!-- MODAL FORM ASET -->
+    
     <div id="modalAsset" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex justify-end">
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalAssetContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
@@ -1852,7 +1731,7 @@
         </div>
     </div>
 
-    <!-- MODAL TUJUAN KEUANGAN (Financial Goals) -->
+    
     <div id="modalGoal" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex justify-end">
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalGoalContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
@@ -1902,7 +1781,7 @@
         </div>
     </div>
 
-    <!-- MODAL SETOR DANA (tambah progres ke satu tujuan) -->
+    
     <div id="modalGoalContribute" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-white w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalGoalContributeContent">
             <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
@@ -1926,7 +1805,7 @@
         </div>
     </div>
 
-    <!-- MODAL TAMBAH/UBAH UTANG -->
+    
     <div id="modalDebt" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex justify-end">
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalDebtContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-rose-50/50">
@@ -1981,7 +1860,7 @@
         </div>
     </div>
 
-    <!-- MODAL BAYAR CICILAN (kurangi sisa utang satu item) -->
+    
     <div id="modalDebtPay" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-white w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalDebtPayContent">
             <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
@@ -2005,7 +1884,7 @@
         </div>
     </div>
 
-    <!-- MODAL DETAIL ASET (riwayat & performa) -->
+    
     <div id="modalAssetDetail" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-lg mx-auto h-[92vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalAssetDetailContent">
             <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
@@ -2056,7 +1935,7 @@
         </div>
     </div>
 
-    <!-- MODAL TAMBAH / EDIT AKUN -->
+    
     <div id="modalAccount" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[92vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalAccountContent">
 
@@ -2074,7 +1953,7 @@
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
 
-                <!-- Preview + Nama Akun -->
+                
                 <div class="flex items-center gap-3">
                     <div id="acc-modal-preview" class="w-14 h-14 rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden"></div>
                     <div class="flex-1 min-w-0 relative">
@@ -2089,7 +1968,7 @@
                 </div>
                 <p id="acc-modal-status" class="text-[10px] font-bold text-slate-400 flex items-center -mt-3"></p>
 
-                <!-- Mata Uang (fitur Growth "Multi-currency") -->
+                
                 <div>
                     <label for="acc-modal-currency" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mata Uang Akun</label>
                     <input type="text" id="acc-modal-currency" maxlength="3" placeholder="IDR" autocomplete="off" oninput="this.value = this.value.toUpperCase()"
@@ -2097,7 +1976,7 @@
                     <p class="text-[10px] text-slate-400 mt-1">Kosongkan/isi "IDR" kalau akun ini Rupiah biasa. Isi kode 3 huruf (mis. USD, SGD, EUR) kalau akun/rekening luar negeri -- transaksi di akun ini otomatis dikonversi ke Rupiah pakai kurs terkini untuk total gabungan.</p>
                 </div>
 
-                <!-- Icon Picker -->
+                
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide">Ikon Akun</label>
@@ -2120,7 +1999,7 @@
                     </div>
                 </div>
 
-                <!-- Saldo Awal -->
+                
                 <div id="acc-modal-saldo-wrap">
                     <label for="acc-modal-saldo-display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Saldo Awal (Opsional)</label>
                     <div class="flex items-center bg-white rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-blue-400 transition overflow-hidden">
@@ -2139,7 +2018,7 @@
         </div>
     </div>
 
-    <!-- MODAL KUSTOMISASI KATEGORI (ikon, warna, atau gambar kustom) -->
+    
     <div id="modalCategoryStyle" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[85vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalCategoryStyleContent">
 
@@ -2157,12 +2036,12 @@
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
 
-                <!-- Preview -->
+                
                 <div class="flex flex-col items-center">
                     <div id="catstyle-preview" class="w-16 h-16 rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm flex items-center justify-center overflow-hidden"></div>
                 </div>
 
-                <!-- Icon/Color/Image Picker -->
+                
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide" id="catstyle-section-label">Ikon & Warna</label>
@@ -2194,8 +2073,8 @@
         </div>
     </div>
 
-    <!-- MODAL EDIT PROFIL (foto, nama, data diri) -->
-    <!-- MODAL SYNC NAB/UP MANUAL (reksadana: salin NAB/UP terkini dari app Bibit/Bareksa) -->
+    
+    
     <div id="modalManualNav" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[96] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-sm mx-auto rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalManualNavContent">
             <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl">
@@ -2216,8 +2095,7 @@
                     <input type="number" step="any" min="0" id="manual-nav-units" placeholder="Contoh: 120.5" oninput="previewManualNav()"
                         class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
                 </div>
-                <!-- v57: tanggal data pasar (NAB/UP/harga yang disalin) -- divalidasi isBibitNavDate
-                     (murni, src/domain/market-sync.js): format riil, tidak masa depan, tidak basi >30 hari. -->
+                
                 <div>
                     <label for="manual-nav-date" id="manual-nav-date-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Tanggal data pasar</label>
                     <input type="date" id="manual-nav-date" aria-describedby="manual-nav-date-hint"
@@ -2252,7 +2130,7 @@
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
 
-                <!-- Foto Profil -->
+                
                 <div class="flex flex-col items-center">
                     <label for="profile-modal-upload-input" class="relative cursor-pointer group">
                         <div id="profile-modal-preview" class="profile-avatar-frame w-24 h-24 rounded-full bg-white ring-1 ring-slate-200 shadow-sm flex items-center justify-center overflow-hidden"><i class="fas fa-user text-3xl text-slate-300"></i></div>
@@ -2281,14 +2159,14 @@
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm resize-none"></textarea>
                 </div>
 
-                <!-- Info akun login (email tidak diubah dari sini -- identity Supabase Auth) -->
+                
                 <div class="bg-white rounded-2xl ring-1 ring-slate-100 p-3">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5"><i class="fas fa-id-card text-indigo-400 mr-1"></i>Akun Login</p>
                     <p id="profile-modal-email" class="text-xs font-bold text-slate-700 truncate">-</p>
                     <p class="text-[10px] text-slate-400 mt-0.5">Bergabung sejak <span id="profile-modal-since" class="font-semibold">-</span> · email login tidak dapat diubah dari aplikasi</p>
                 </div>
 
-                <!-- Keamanan: ganti kata sandi (supabase.auth.updateUser) -->
+                
                 <div class="border-t border-slate-100 pt-4">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2"><i class="fas fa-shield-halved text-emerald-500 mr-1"></i>Keamanan — Ganti Kata Sandi</p>
                     <div class="space-y-2">
@@ -2308,7 +2186,7 @@
         </div>
     </div>
 
-    <!-- MODAL DAFTAR TRANSAKSI BERULANG -->
+    
     <div id="modalRecurringList" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[92vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalRecurringListContent">
             <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
@@ -2328,7 +2206,7 @@
         </div>
     </div>
 
-    <!-- MODAL TAMBAH/EDIT TRANSAKSI BERULANG -->
+    
     <div id="modalRecurringForm" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[97] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[92vh] md:h-auto md:max-h-[90vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalRecurringFormContent">
             <div class="w-full flex justify-center pt-3 pb-1 md:hidden">
@@ -2411,7 +2289,7 @@
         </div>
     </div>
 
-    <!-- MODAL CATEGORY SELECTOR -->
+    
     <div id="modalCategorySelector" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[85vh] md:h-[600px] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalCategorySelectorContent">
             
@@ -2435,7 +2313,7 @@
         </div>
     </div>
 
-    <!-- MODAL ATUR BUDGET MODERN & HIERARKIS -->
+    
     <div id="modalBudget" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-end md:items-center">
         <div class="bg-slate-50 w-full md:max-w-lg mx-auto h-[85vh] md:h-auto md:max-h-[85vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalBudgetContent">
             <div class="flex items-center justify-between p-5 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl md:rounded-t-3xl">
@@ -2446,8 +2324,7 @@
                 <button onclick="closeBudgetModal()" aria-label="Tutup" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition flex-shrink-0"><i class="fas fa-xmark"></i></button>
             </div>
 
-            <!-- Salin dari bulan lalu: budget apa adanya ATAU nominal realisasi -- prefill
-                 input di bawah (tidak langsung simpan; user tetap tekan Simpan). -->
+            
             <div class="px-4 pt-3 bg-white flex gap-2 flex-shrink-0">
                 <button type="button" onclick="copyPrevMonthBudget('budget')" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl py-2.5 text-[11px] font-bold transition flex items-center justify-center gap-1.5"><i class="fas fa-copy"></i> Salin Budget Bulan Lalu</button>
                 <button type="button" onclick="copyPrevMonthBudget('realisasi')" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl py-2.5 text-[11px] font-bold transition flex items-center justify-center gap-1.5"><i class="fas fa-chart-simple"></i> Salin Realisasi Bulan Lalu</button>
@@ -2461,7 +2338,7 @@
         </div>
     </div>
 
-    <!-- MODAL KONFIRMASI -->
+    
     <div id="modalConfirm" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] hidden flex items-center justify-center p-4">
         <div id="modalConfirmContent" class="bg-white rounded-3xl shadow-2xl w-full max-w-xs p-6 text-center transform transition-all duration-200 scale-95 opacity-0">
             <div class="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4"><i class="fas fa-trash text-xl"></i></div>
@@ -2473,7 +2350,7 @@
         </div>
     </div>
 
-    <!-- MODAL DETAIL KALENDER -->
+    
     <div id="modalCalendarDetail" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] hidden flex justify-center items-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -2485,9 +2362,7 @@
     </div>
 
 
-    <!-- COMMAND PALETTE (Tier-3 #9): Ctrl/Cmd+K -- pencarian global transaksi,
-         kategori, akun, navigasi. role=dialog+aria-modal -> otomatis ikut focus-trap/Esc
-         infra modal-a11y; controller & markup hasil di app script bawah. -->
+    
     <div id="modalPalette" role="dialog" aria-modal="true" aria-label="Pencarian cepat" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[105] hidden p-4 pt-[12vh] justify-center items-start">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
             <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
@@ -2499,13 +2374,7 @@
         </div>
     </div>
 
-    <!-- Chart.js & DataLabels: LAZY setelah login (Tier-2 performance #6).
-         Library grafik (~205KB) tidak dibutuhkan layar login. Loader hanya menyiapkan
-         fungsi; request dan parse baru dimulai saat loadData() dipanggil setelah user
-         berhasil login. Ini mengurangi pekerjaan jalur kritis login/FCP tanpa mengubah
-         urutan Chart.js -> DataLabels atau perilaku dashboard setelah login.
-         FullCalendar tetap lazy hanya saat tab Kalender dibuka.
-         Semua URL lokal + pinned untuk CSP dan determinisme build. -->
+    
     <script>
         window.__loadChartLibs = function () {
             if (window.__mfChartLibReady) return window.__mfChartLibReady;
@@ -2533,16 +2402,7 @@
     </script>
 
 
-    <!-- ==========================================================================
-         SCRIPT -- dulunya digabung jadi satu <script> inline (urutan di dalamnya
-         tetap penting): 1) supabase-client.js  2) auth.js  3) api.js  4) app.js
-         (termasuk alur bootstrap auth + init dashboard di bagian paling bawah
-         app.js). Sejak v54 isi file itu DIEKSTRAK byte-exact ke app.js
-         (classic script eksternal -- tetap satu file, satu scope global, TANPA
-         perubahan logika; bukan pemecahan modul Phase 4). <script src> tetap di
-         posisi yang sama persis, jadi urutan eksekusi terhadap script lain
-         (loader chart di atas, SW register di bawah) tidak berubah.
-         ========================================================================== -->
+    
     <script src="app.js"></script>
 
     <script>

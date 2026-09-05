@@ -28,7 +28,7 @@
 // v70: fix clear cache data saat logout, DATA_CACHE tidak lagi terhapus tiap deploy,
 // navigasi hanya cache respons OK, escape badge kategori aset.
 // v85: pagination riwayat detail akun & kategori (pengeluaran/pemasukan).
-const CACHE_VERSION = 'myfinance-v92';
+const CACHE_VERSION = 'myfinance-v93';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
