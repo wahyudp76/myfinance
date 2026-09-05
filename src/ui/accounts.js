@@ -177,7 +177,7 @@ export function renderAccountDetailCharts({
               if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
               return true;
             },
-            color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 4, clamp: true, clip: true
+            color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 4, clamp: true
           },
           tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ": Rp " + formatRp(ctx.raw) } }
         },
