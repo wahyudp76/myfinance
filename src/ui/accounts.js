@@ -145,6 +145,9 @@ export function renderAccountDetailCharts({
     const cashflowIsNarrow = isChartNarrow(cashflowContainerWidth, bucketLabels.length);
     const cashflowMagnitudes = bucketLabels.map((_, i) => Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0));
     const cashflowIndicesToShow = cashflowIsNarrow ? selectSparseLabelIndices(cashflowMagnitudes, 4) : null;
+    // Pada mobile, letakkan legend di BAWAH chart. Ini memberi pemisahan fisik
+    // yang tidak mungkin ditembus label batang tertinggi dari sisi atas.
+    const cashflowLegendPosition = cashflowIsNarrow ? "bottom" : "top";
 
     charts.accCashflow = new Chart(document.getElementById("accountDetailChart").getContext("2d"), {
       plugins: [hudGlowPlugin], // DNA batang HUD: glow cyan
@@ -160,9 +163,9 @@ export function renderAccountDetailCharts({
         responsive: true, maintainAspectRatio: false,
         // Beri ruang khusus DI BAWAH legend sebelum batang dimulai. Tanpa padding ini,
         // datalabel pada batang tertinggi bisa naik ke area legend dan saling menimpa.
-        layout: { padding: { top: 72, right: 4, bottom: 2, left: 4 } },
+        layout: { padding: { top: cashflowIsNarrow ? 12 : 42, right: 4, bottom: cashflowIsNarrow ? 48 : 2, left: 4 } },
         plugins: {
-          legend: { position: "top", labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
+          legend: { position: cashflowLegendPosition, labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
           datalabels: {
             display: (ctx) => {
               // Pada mobile/range 30 hari, lebar tiap batang sangat sempit. Label
