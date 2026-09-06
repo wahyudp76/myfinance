@@ -35,7 +35,10 @@
 // v87: pembulatan logo mengikuti outline box-nya per logo (rounded-[inherit] di
 // renderAccountIconObj + overflow-hidden di kotak logo kartu aset/detail/modal akun
 // + saran pencarian akun/platform) -> app.js, index.html, css/tailwind.css berubah.
-const CACHE_VERSION = 'myfinance-v126';
+// v90: nav bawah mobile dibuat jauh lebih transparan ala liquid glass (dark
+// alpha 0.90 -> 0.45 + blur 28px; light 0.72 -> 0.62; chip aktif 0.14 -> 0.18)
+// -> styles.css berubah.
+const CACHE_VERSION = 'myfinance-v127';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';

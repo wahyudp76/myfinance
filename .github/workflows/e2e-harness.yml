@@ -1,6 +1,6 @@
 # E2E HARNESS — pagar regresi UI browser-nyata untuk kedua ritual verifikasi.
 # =============================================================================
-# MENJALANKAN: scripts/verify-hud.mjs (64 cek HUD dashboard) dan
+# MENJALANKAN: scripts/verify-hud.mjs (65 cek HUD dashboard) dan
 # scripts/verify-asset-logos.mjs (17 cek logo platform aset) di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
@@ -92,7 +92,7 @@ jobs:
 
       # Harness dijalankan TERPISAH per script supaya ringkasan CI langsung
       # menunjukkan harness mana yang bermasalah.
-      - name: verify-hud (64 cek HUD dashboard, stub Supabase)
+      - name: verify-hud (65 cek HUD dashboard, stub Supabase)
         env:
           HUD_URL: http://127.0.0.1:8123/
         run: node scripts/verify-hud.mjs

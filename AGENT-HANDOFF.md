@@ -1454,3 +1454,40 @@ README.md (badge E2E Harness di samping badge CI).
 **Tanpa dampak app:** workflow & docs saja — TANPA ubah app.src.js/index.html,
 TANPA rebuild, TANPA bump SW (v126 tetap). Push commit ini otomatis memicu
 run pertama workflow (trigger push ke main) = validasi langsung.
+
+## v90 — UI mobile: nav bawah dibuat jauh lebih transparan (liquid glass sungguhan)
+
+**GEJALA (permintaan user):** pada tampilan mobile/Android, bottom nav terasa
+seperti bar solid — kaskade CSS berakhir di `html.dark .liquid-glass-nav {
+background: rgba(5,9,20,0.90) !important }` (alpha 90%!), sehingga efek
+"kaca cair" tinggal nama.
+
+**FIX (styles.src.css, 3 titik):**
+1. Blok efektif dark (line ~846): alpha **0.90 -> 0.45**, border cyan 0.32 ->
+   0.36, plus `box-shadow` yang WAJIB mengulang glow blok ~734 (box-shadow
+   tidak menumpuk antar-rule) + inset specular `inset 0 1px 1px
+   rgba(226,255,255,0.18)` utk kesan kaca melengkung.
+2. Blok dasar (line ~210, sumber backdrop-filter utk dark & light):
+   blur(20px) saturate(180%) -> **blur(28px) saturate(190%)**; light
+   background 0.72 -> 0.62. Dark mewarisi blur 28px dari sini.
+3. Chip item aktif dark: alpha 0.14 -> 0.18 supaya tetap menonjol di glass
+   yang lebih jernih.
+Fallback `@supports not backdrop-filter` tetap 0.97 opaque (browser lama tetap
+terbaca). Item non-aktif text-slate-400 & label "Catat" (#7dd3fc) tetap kontras.
+
+**Verifikasi terprogram (sebelum vs sesudah, computed style headless):**
+BEFORE: bg rgba(5,9,20,0.9), blur(20px) saturate(1.8), border 0.32.
+AFTER : bg rgba(5,9,20,0.45), blur(28px) saturate(1.9), border 0.36.
+
+**Guard regresi baru:** verify-hud +1 cek (64 -> **65**): "mobile: nav bawah
+liquid glass (alpha < 0.6 + blur aktif)" — computed backgroundColor alpha
+HARUS < 0.6 dan backdrop-filter wajib mengandung blur(). Kalau suatu saat
+alpha merangkak naik lagi (nav kembali solid), CI langsung merah. Angka 65
+disinkronkan ke e2e-harness.yml (nama step + komentar) & STRUKTUR-REPO.md.
+
+**Build/deploy:** hanya styles.src.css -> styles.css (build:css); tailwind.css
+tak tersentuh; app.js tak berubah. SW v126 -> **v127** + snapshot regen
+(hash ea557113ed2715cb…). Unit 753/753, lint 0, verify-hud **65/65** (0 error
+halaman), verify-asset-logos 17/17. Screenshot before/after di workspace:
+/home/user/verifikasi-nav/ (01-before-solid, 02-after-liquid-glass,
+03-perbandingan).

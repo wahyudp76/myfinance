@@ -662,6 +662,20 @@ ok("mobile: nav bawah item aktif neon cyan", await mobile.evaluate(() => {
   const el = document.querySelector(".liquid-glass-nav-active");
   return el && getComputedStyle(el).color === "rgb(103, 232, 249)";
 }));
+// (v90) Nav bawah harus benar-benar KACA CAIR: background alpha rendah
+// (konten di belakang tembus) + backdrop-filter blur aktif. Kalau alpha
+// merangkak >= 0.6 berarti nav pelan-pelan kembali solid -- gagalkan.
+ok("mobile: nav bawah liquid glass (alpha < 0.6 + blur aktif)", await mobile.evaluate(() => {
+  const el = document.querySelector(".liquid-glass-nav");
+  if (!el) return false;
+  const cs = getComputedStyle(el);
+  const m = (cs.backgroundColor || "").match(/rgba?\(([^)]+)\)/i);
+  if (!m) return false;
+  const parts = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
+  const alpha = parts.length >= 4 ? parts[3] : 1; // "rgb(...)" tanpa alpha = solid
+  const blur = cs.backdropFilter || cs.webkitBackdropFilter || "";
+  return alpha > 0 && alpha < 0.6 && /blur\(/i.test(blur);
+}));
 ok("mobile: kontrol native ikut skema gelap", await mobile.evaluate(() =>
   getComputedStyle(document.documentElement).colorScheme.includes("dark")));
 await mobile.click("#fabMobileCatat");
