@@ -1491,3 +1491,13 @@ tak tersentuh; app.js tak berubah. SW v126 -> **v127** + snapshot regen
 halaman), verify-asset-logos 17/17. Screenshot before/after di workspace:
 /home/user/verifikasi-nav/ (01-before-solid, 02-after-liquid-glass,
 03-perbandingan).
+
+**POST-SCRIPT v90 (fix CI merah):** commit pertama (c2e7048) sempat MEMBUAT
+JOB ESLINT CI MERAH -- regex di check baru pakai escape `\/` di dalam
+character class (`/[\s,\/]+/`) yang ditandai `no-useless-escape` (di dalam
+`[...]`, `/` memang tak perlu di-escape). Lint lokal SEBELUMNYA terlihat
+hijau karena keliru dipipe `tail -1` sehingga baris error tertelan -- PELAJARAN
+PROSES: saat memverifikasi gerbang, SELALU tampilkan output penuh + echo exit
+code, jangan pipe ke tail. Fix: `/[\s,\/]+/` -> `/[\s,/]+/` (e6ec1a4 utk
+nomor commit lihat git log). E2E Harness & job lain di c2e7048 sudah hijau;
+hanya ESLint yang perlu diulang.
