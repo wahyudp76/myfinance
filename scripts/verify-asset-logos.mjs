@@ -115,10 +115,14 @@ const cardLogos = await page.evaluate(() => {
     const img = logoBox?.querySelector("img") || null;
     const badge = logoBox?.querySelector("span");
     const icon = logoBox?.querySelector("i");
+    // v126: radius logo HARUS mengikuti radius box-nya (rounded-[inherit]).
+    const boxRadius = logoBox ? getComputedStyle(logoBox).borderRadius : null;
+    const imgRadius = img ? getComputedStyle(img).borderRadius : null;
     return {
       nama,
       imgSrc: img ? img.getAttribute("src") : null,
       imgLoaded: img ? (img.complete && img.naturalWidth > 0) : false,
+      radiusOk: img ? boxRadius === imgRadius && parseFloat(boxRadius) > 0 : null,
       badgeText: badge && !badge.querySelector("i") ? badge.textContent.trim() : null,
       iconClass: icon ? icon.className : null,
     };
@@ -136,6 +140,12 @@ ok("IPOT -> badge 'IP' (tanpa file lokal -- by design)", byName["Portofolio IPOT
 ok("Dana -> logo e-wallet DANA (icons/banks/dana.svg), BUKAN Danamas", byName["Saldo DANA"]?.imgSrc === "icons/banks/dana.svg" && byName["Saldo DANA"]?.imgLoaded === true);
 ok("Platform custom DB 'Kripto Ku' -> img data-URL & TERMUAT", String(byName["Deposito Mini"]?.imgSrc || "").startsWith("data:image/svg+xml") === true && byName["Deposito Mini"]?.imgLoaded === true);
 ok("Platform tak dikenal -> fallback ikon dompet netral (bukan img rusak)", byName["Emas Antam"]?.imgSrc === null && /fa-wallet/.test(String(byName["Emas Antam"]?.iconClass || "")));
+// v126: SEMUA logo img di kartu aset wajib mengikuti radius box-nya (rounded-[inherit]).
+{
+  const withImg = cardLogos.filter((c) => c.imgSrc);
+  const allRounded = withImg.length > 0 && withImg.every((c) => c.radiusOk === true);
+  ok(`v126 pembulatan: semua ${withImg.length} logo img membulat mengikuti box-nya (rounded-[inherit])`, allRounded);
+}
 
 await page.screenshot({ path: `${SHOTS}/01-aset-logos.png`, fullPage: false });
 
@@ -143,10 +153,18 @@ await page.screenshot({ path: `${SHOTS}/01-aset-logos.png`, fullPage: false });
 await page.evaluate(() => openAssetDetailModal("a-1"));
 await page.waitForTimeout(400);
 const detailLogo = await page.evaluate(() => {
-  const img = document.querySelector("#asset-detail-icon img");
-  return img ? { src: img.getAttribute("src"), loaded: img.complete && img.naturalWidth > 0 } : null;
+  const box = document.getElementById("asset-detail-icon");
+  const img = box?.querySelector("img");
+  return img
+    ? {
+        src: img.getAttribute("src"),
+        loaded: img.complete && img.naturalWidth > 0,
+        radiusOk: getComputedStyle(img).borderRadius === getComputedStyle(box).borderRadius && parseFloat(getComputedStyle(box).borderRadius) > 0,
+      }
+    : null;
 });
 ok("detail aset: logo Bibit tampil & TERMUAT", detailLogo?.src === "icons/platforms/bibit.svg" && detailLogo?.loaded === true);
+ok("detail aset: logo ikut membulat mengikuti box-nya (v126)", detailLogo?.radiusOk === true);
 await page.evaluate(() => closeAssetDetailModal());
 await page.waitForTimeout(400);
 

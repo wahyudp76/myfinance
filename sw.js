@@ -32,7 +32,10 @@
 // dipulihkan & di-precache, modul ikon/logo yang terlewat (bank-icons, asset-icons,
 // account-currency, category-style, dates, format, sanitize, slugify, platform-logos
 // domain + service) dilengkapi agar kunjungan pertama offline tetap utuh.
-const CACHE_VERSION = 'myfinance-v125';
+// v87: pembulatan logo mengikuti outline box-nya per logo (rounded-[inherit] di
+// renderAccountIconObj + overflow-hidden di kotak logo kartu aset/detail/modal akun
+// + saran pencarian akun/platform) -> app.js, index.html, css/tailwind.css berubah.
+const CACHE_VERSION = 'myfinance-v126';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';

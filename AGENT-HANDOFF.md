@@ -1345,3 +1345,26 @@ content-range `*/0` -- dibuktikan langsung via probe anon 2026-09-06). Jadi
 15/15 PASS (0 error halaman); verify-hud 63/64 (1 FAIL "5 baris log transaksi"
 terbukti SAMA di pristine HEAD -- bukan regresi v86, kemungkinan sensitif
 lingkungan/waktu); build:app sinkron; snapshot SW v125 sinkron.
+
+## v87 — UI: logo platform membulat mengikuti outline box-nya per logo
+
+**GEJALA:** logo platform di kartu aset dirender persegi persis -- sudut gambar
+"keluar" melewati sudut kotaknya yang membulat (kotak logo kartu aset & detail
+aset rounded-xl; kotak daftar akun rounded-full; saran platform form rounded).
+
+**FIX (universal, 1 kelas):** img di `renderAccountIconObj` (app.src.js) +
+`searchAccountModalSuggestions` (pencarian akun) + `searchAssetBankSuggestions`
+(saran platform aset) kini memakai **`rounded-[inherit]`** -- img mewarisi
+border-radius kontainernya sehingga SETIAP logo otomatis mengikuti outline
+box-nya di mana pun ia dirender, apa pun radius box-nya (xl / full / lg / sm /
+tanpa radius utk badge inline mini). Plus `overflow-hidden` di kotak logo
+kartu aset (src/ui/assets.js), kotak `#asset-detail-icon` & `#detail-account-logo`
+(index.html) supaya konten kotak selalu terpotong tepat mengikuti outline-nya.
+
+**Build:** build:app DULU baru build:css (tailwind memindai app.js utk kelas
+`rounded-[inherit]`) -> app.js & css/tailwind.css berubah, SW bump v125 -> v126,
+snapshot di-regen SETELAH kedua build.
+
+**Bukti v87:** lint 0, unit 753/753, verify-asset-logos **17/17 PASS** --
+termasuk 2 cek pembulatan BARU: computed border-radius img HARUS == computed
+border-radius box-nya (12px di kartu aset & detail aset; > 0).

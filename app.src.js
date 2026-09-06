@@ -1291,7 +1291,13 @@ async function currentUserId() {
             const safeObj = servicesModule.sanitizeIconOverride(obj);
             if (!safeObj) return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
             obj = safeObj;
-            if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i>';">`;
+            // v126: img logo mewarisi border-radius kontainernya (rounded-[inherit]) -- jadi
+            // logo SELALU mengikuti outline box-nya di mana pun ia dirender: kotak logo
+            // kartu aset & detail aset rounded-xl -> logo rounded-xl; kotak daftar akun
+            // rounded-full -> logo ikut membulat penuh; badge inline transaksi mini (tanpa
+            // radius) tidak berubah. Sebelum v126 img selalu kotak persis, sudutnya "keluar"
+            // melewati sudut membulat kotaknya (terlihat jelas di logo memenuhi kotak).
+            if (obj.type === 'image') return `<img src="${obj.value}" class="w-full h-full object-contain rounded-[inherit]" alt="${escapeHtml(obj.alt || '')}" onerror="this.outerHTML='<i class=\\'fas fa-wallet text-slate-400 ${sizeClass}\\'></i>';">`;
             if (obj.type === 'badge') return `<span class="w-full h-full rounded-full ${obj.color} text-white inline-flex items-center justify-center font-extrabold text-[10px] tracking-tight leading-none">${escapeHtml(obj.value)}</span>`;
             if (obj.type === 'icon') return `<span class="w-full h-full rounded-full ${obj.bg} ${obj.color} inline-flex items-center justify-center"><i class="fas ${obj.value} text-[11px]"></i></span>`;
             // 'icon-plain' (akun Tunai/Cash & Investasi/Saham) -- ukuran ikon di-fix kecil & wrapper
@@ -2257,7 +2263,7 @@ async function currentUserId() {
             box.innerHTML = `<div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-2.5 pt-1 pb-1.5">${q ? 'Hasil Pencarian' : 'Populer di Indonesia'}</div>` +
                 results.map(item => {
                     const iconHtml = item.url
-                        ? `<div class="w-7 h-7 rounded-full overflow-hidden bg-white ring-1 ring-slate-100 flex-shrink-0 flex items-center justify-center p-1"><img src="${item.url}" class="w-full h-full object-contain" onerror="this.style.visibility='hidden'"></div>`
+                        ? `<div class="w-7 h-7 rounded-full overflow-hidden bg-white ring-1 ring-slate-100 flex-shrink-0 flex items-center justify-center p-1"><img src="${item.url}" class="w-full h-full object-contain rounded-[inherit]" onerror="this.style.visibility='hidden'"></div>`
                         : `<div class="w-7 h-7 rounded-full ${item.color} text-white flex items-center justify-center font-extrabold text-[10px] flex-shrink-0">${item.badge}</div>`;
                     return `<div onmousedown="pickAccountModalSuggestion('${jsStr(item.name)}')" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-slate-50 cursor-pointer transition">
                         ${iconHtml}
@@ -2734,7 +2740,7 @@ async function currentUserId() {
             if (results.length === 0) { box.classList.add('hidden'); box.innerHTML = ''; return; }
             box.innerHTML = results.map(item => {
                 const iconHtml = item.url
-                    ? `<div class="w-5 h-5 rounded flex-shrink-0 bg-white ring-1 ring-slate-100 flex items-center justify-center p-0.5"><img src="${item.url}" class="w-full h-full object-contain"></div>`
+                    ? `<div class="w-5 h-5 rounded overflow-hidden flex-shrink-0 bg-white ring-1 ring-slate-100 flex items-center justify-center p-0.5"><img src="${item.url}" class="w-full h-full object-contain rounded-[inherit]"></div>`
                     : `<div class="w-5 h-5 rounded ${item.color} text-white flex items-center justify-center font-bold text-[7px] flex-shrink-0">${item.badge}</div>`;
                 return `<div onmousedown="pickAssetBankSuggestion('${jsStr(item.name)}')" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition">
                     ${iconHtml}
