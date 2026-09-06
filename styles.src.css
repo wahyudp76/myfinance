@@ -857,3 +857,32 @@ html.dark .liquid-glass-nav-active i { filter: drop-shadow(0 0 6px rgba(34, 211,
 /* ---------- Topbar mobile: hairline glow bawah ---------- */
 html.dark .bg-white.border-b { box-shadow: 0 8px 26px -14px rgba(34, 211, 238, 0.45); }
 html.dark .bg-white.border-b h1 { text-shadow: 0 0 14px rgba(34, 211, 238, 0.55); letter-spacing: 0.12em; }
+
+/* Performa interaksi: batasi properti transisi agar browser tidak menghitung ulang
+   layout/paint yang tidak perlu pada setiap hover/touch. */
+.account-card, .chart-card {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+/* Android/layar sentuh: scrolling native lebih stabil daripada momentum buatan. */
+.content-area {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+/* Hormati preferensi pengguna dan hemat CPU/baterai pada perangkat yang meminta
+   motion minimum. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Efek dekoratif HUD tidak perlu berputar cepat di layar kecil. */
+@media (max-width: 767px) {
+    .hud-radar-sweep { animation-duration: 10s; }
+    .hud-radar-ring { animation-duration: 30s; }
+}
