@@ -3975,12 +3975,22 @@ async function currentUserId() {
                             String(item.name).toLowerCase() === String(logo.display_name || '').toLowerCase()
                         );
                         if (logo.logo_url) {
+                            const displayName = String(logo.display_name || '').trim();
                             platformLogoByKey[key] = logo.logo_url;
-                            platformLogoByKey[String(logo.display_name || '').toLowerCase()] = logo.logo_url;
+                            platformLogoByKey[displayName.toLowerCase()] = logo.logo_url;
                             if (match) {
                                 match.url = logo.logo_url;
                                 delete match.badge;
                                 delete match.color;
+                            } else if (displayName) {
+                                // Platform custom dari database (mis. GoTo/Danamas Stabil)
+                                // ikut masuk ke picker pencatatan, bukan hanya renderer aset.
+                                __bankIcon.bankWalletDatabase.push({
+                                    name: displayName,
+                                    category: 'Investasi',
+                                    keywords: [key, displayName.toLowerCase()],
+                                    url: logo.logo_url,
+                                });
                             }
                         }
                     });
