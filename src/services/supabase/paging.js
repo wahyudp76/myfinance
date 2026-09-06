@@ -30,7 +30,7 @@
 const DEFAULT_PAGE_SIZE = 1000;
 
 // Batas request PARALEL per pemanggilan -- sopan terhadap PostgREST
-// dan tabel api_rate_limits (lihat sql/migration_rate_limiting_2026-08.sql),
+// dan tabel api_rate_limits (lihat sql/migrations/migration_rate_limiting_2026-08.sql),
 // tapi tetap berlipat lebih cepat daripada berurutan untuk akun besar.
 const MAX_PARALLEL_PAGES = 6;
 

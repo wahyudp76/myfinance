@@ -1500,3 +1500,46 @@ hijau karena keliru dipipe `tail -1` sehingga baris error tertelan -- PELAJARAN
 PROSES: saat memverifikasi gerbang, SELALU tampilkan output penuh + echo exit
 code, jangan pipe ke tail. Fix: `/[\s,\/]+/` -> `/[\s,/]+/` (commit 9f54fe9). E2E Harness & job lain di c2e7048 sudah hijau;
 hanya ESLint yang perlu diulang.
+
+## v91 — AUDIT & PERAPIHAN REPO: konsolidasi SQL ke sql/migrations/ + PILOT-MIGRASI ke docs/
+
+**KONTEKS:** user minta audit semua file/folder, pembersihan yang tak perlu,
+dan perapihan sebelum mulai proyek improve (roadmap Fase 1-4).
+
+**HASIL AUDIT (269 file git-tracked):**
+- File mati/yatim: HAMPIR NOL. Satu-satunya orphan = PILOT-MIGRASI-v71.md
+  (nol referensi di seluruh repo). Tidak ada *.log/.DS_Store/legacy-rows.json
+  fisik. Semua ikon banks/platforms dirujuk (4-5 referensi/file). Semua file
+  docs/ dirujuk minimal 1x. tests/unit non-test = 4 file intentional
+  (helper + fixture snapshot + tool regen).
+- SENGAJA TIDAK dipindah (dokumentasi keputusan, jangan ulangi diskusi):
+  app.src.js & styles.src.css di root (konvensi build: output harus di root
+  karena dilayani; source menempel pada output, dijaga drift-guard);
+  AGENT-HANDOFF.md di root (dirujuk komentar kode di .gitleaks.toml +
+  src/domain/bank-icons.js + settings.js; log operasional aktif);
+  icons/icon-source.svg (source desain menempel pada hasil generate-nya);
+  webfonts/_full + css/_full (SUMBER subset fontawesome, dirujuk
+  scripts/subset-fontawesome.py — bukan file mati!); tests/parity/
+  verify-tailwind-build.mjs (alat verifikasi manual, masih fungsional);
+  scripts/rls-audit/rls-audit{,2,3}*.mjs (fase audit historis, dirujuk docs).
+
+**PERAPIHAN DIEKSEKUSI (git mv, 14 file):**
+1. PILOT-MIGRASI-v71.md -> docs/ (orphan historis).
+2. 13 file SQL (semua migration_*.sql, 2026-08-supabase-native-foundation,
+   event_trigger_ensure_rls, pre_migration_checks_2026-08, rls_performance_fix)
+   -> sql/migrations/ — menyatukan dgn konvensi YYYYMMDD yang sudah ada.
+   sql/ root kini hanya schema.sql (titik masuk instalasi baru) + migrations/.
+3. Update referensi path di 13 file: README.md, STRUKTUR-REPO.md, 4 docs
+   historis, scripts/rls-audit/README.md + rls-audit3 (komentar), 5 Edge
+   Function .ts (komentar), dan src/services/supabase/paging.js (komentar).
+   AGENT-HANDOFF entri lama SENGAJA tidak diubah (log historis; path lama
+   di entri v1-v90 merujuk lokasi pra-v91).
+4. paging.js adalah SATU-SATUNYA file precache yang berubah byte (komentar
+   saja, nol perilaku) -> tetap bump SW v127 -> v128 + snapshot regen
+   (hash 6c79b95e8b4002d9...) supaya cache user konsisten.
+5. STRUKTUR-REPO.md: peta struktur sql/ & docs/ diperbarui.
+
+**VERIFIKASI:** lint 0, unit 753/753, parity 1/1, rebuild app.js/styles.css =
+byte-identik (nol drift), grep sisa path lama = nol (di luar AGENT-HANDOFF
+historis), precache SW tidak menyentuh file yang dipindah. Laporan user:
+/home/user/laporan-audit-perapihan-repo.md.

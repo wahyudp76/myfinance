@@ -26,7 +26,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-// Rate limit server-side (Phase 6) -- lihat sql/migration_rate_limiting_2026-08.sql. Frankfurter
+// Rate limit server-side (Phase 6) -- lihat sql/migrations/migration_rate_limiting_2026-08.sql. Frankfurter
 // gratis & tanpa API key jadi ini bukan proteksi biaya, murni jaga-jaga penyalahgunaan/beban.
 // Limitnya sengaja longgar (dipanggil tiap kali pilih akun non-IDR di form transaksi, wajar
 // terpanggil cukup sering dalam sesi pencatatan yang aktif).

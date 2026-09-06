@@ -51,7 +51,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-// Rate limit server-side (Phase 6) -- lihat sql/migration_rate_limiting_2026-08.sql. Ini tombol
+// Rate limit server-side (Phase 6) -- lihat sql/migrations/migration_rate_limiting_2026-08.sql. Ini tombol
 // klik manual (bukan auto-trigger), tapi tetap dibatasi buat jaga-jaga penyalahgunaan/beban ke
 // CoinGecko & Yahoo Finance yang rate limit publiknya dibagi bersama SEMUA pengguna aplikasi ini.
 const RATE_LIMIT_ACTION = "refresh-asset-price";

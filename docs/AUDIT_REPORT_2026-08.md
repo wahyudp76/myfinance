@@ -73,7 +73,7 @@ Supabase Performance Advisor menandai **hampir semua RLS policy** (transactions 
 
 Juga ditemukan foreign key tanpa index: `whatsapp_link_codes.user_id`.
 
-**Saya sudah menyiapkan migrasinya** di `sql/rls_performance_fix.sql` — sudah saya validasi nama & isi tiap policy-nya **persis sama** dengan yang ada di database live Anda saat ini (jadi dijamin tidak salah target). Sifatnya murni rewrite policy (DROP + CREATE dengan efek akses yang identik) + tambah 1 index — **tidak menyentuh data sama sekali**.
+**Saya sudah menyiapkan migrasinya** di `sql/migrations/rls_performance_fix.sql` — sudah saya validasi nama & isi tiap policy-nya **persis sama** dengan yang ada di database live Anda saat ini (jadi dijamin tidak salah target). Sifatnya murni rewrite policy (DROP + CREATE dengan efek akses yang identik) + tambah 1 index — **tidak menyentuh data sama sekali**.
 
 ➡️ **Belum saya jalankan ke database production** — ini perubahan ke database live, saya perlu konfirmasi Anda dulu. Bilang "jalankan RLS fix" kalau Anda setuju, dan saya eksekusi langsung lewat koneksi Supabase yang tersambung.
 
@@ -131,7 +131,7 @@ Project Supabase Anda punya 6 edge function aktif: `analyze-finance`, `whatsapp-
 
 | # | Item | Risiko kalau dijalankan | Risiko kalau TIDAK dijalankan |
 |---|---|---|---|
-| 1 | Terapkan `sql/rls_performance_fix.sql` ke database live | Sangat rendah — hanya rewrite policy, sudah divalidasi cocok 1:1 dengan policy live saat ini | Query lambat kalau data per-user bertambah banyak |
+| 1 | Terapkan `sql/migrations/rls_performance_fix.sql` ke database live | Sangat rendah — hanya rewrite policy, sudah divalidasi cocok 1:1 dengan policy live saat ini | Query lambat kalau data per-user bertambah banyak |
 | 2 | Terapkan 2 migrasi reliability/transfer + update client code sekaligus | Rendah — additive, tapi mengubah alur simpan budget & transaksi berulang | Bug budget-hilang (non-atomik) & duplikat transaksi berulang tetap ada |
 | 3 | Aktifkan Leaked Password Protection | Tidak ada (setting Auth bawaan Supabase) | User bisa pakai password yang sudah bocor di database lain |
 | 4 | Hapus `smooth-processor` | Tidak ada (tidak dipakai) | Tidak ada, cuma clutter |
@@ -167,7 +167,7 @@ Sebelumnya di §7.4 saya sengaja menahan ini karena butuh keputusan desain. Seka
 Item terakhir yang sebelumnya sengaja ditahan (§4.4/§6/§7 pembuka) sudah diimplementasikan penuh dan diterapkan langsung ke production (database + `index.html`).
 
 ### 8.1 Database
-`sql/migration_transfer_currency_2026-08.sql` diterapkan ke project Supabase live:
+`sql/migrations/migration_transfer_currency_2026-08.sql` diterapkan ke project Supabase live:
 - 4 kolom baru di `transactions`: `transfer_jumlah_tujuan`, `transfer_mata_uang_tujuan`, `transfer_kurs_tujuan`, `transfer_jumlah_tujuan_idr` (semuanya nullable — baris lama tidak terpengaruh).
 - Constraint `transfer_jumlah_tujuan > 0` dan `transfer_kurs_tujuan > 0` (kalau diisi).
 - RPC `create_transfer_transaction(p_tanggal, p_jumlah, p_akun_sumber, p_akun_tujuan, p_mata_uang_sumber, p_mata_uang_tujuan, p_kurs_sumber, p_kurs_tujuan, p_keterangan)` — 1 INSERT atomik, menghitung nominal sisi tujuan lewat `jumlah × kurs_sumber ÷ kurs_tujuan`, plus validasi akun sumber ≠ akun tujuan dan jumlah > 0.

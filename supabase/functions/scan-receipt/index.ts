@@ -27,7 +27,7 @@ const GEMINI_ENDPOINT =
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-// Rate limit -- lihat sql/migration_rate_limiting_2026-08.sql. Foto struk lewat vision API jauh
+// Rate limit -- lihat sql/migrations/migration_rate_limiting_2026-08.sql. Foto struk lewat vision API jauh
 // lebih mahal daripada panggilan teks biasa (analyze-finance), jadi limitnya sengaja lebih
 // ketat. Sebelum ini ditambahkan, TIDAK ADA pembatasan apa pun di function ini -- guard
 // `scanInFlight`-style di index.html cuma mencegah double-klik di 1 tab, gampang dilewati.

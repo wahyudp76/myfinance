@@ -1,4 +1,4 @@
-// VERIFIKASI PASCA-HARDENING utk sql/migration_rls_hardening_2026-08-31.sql.
+// VERIFIKASI PASCA-HARDENING utk sql/migrations/migration_rls_hardening_2026-08-31.sql.
 // Membuktikan 3 hal terhadap live DB (lihat docs/rls-grants-audit-2026-08-31.md §5):
 //   F1: rls_auto_enable hilang dari spec service role
 //   F3: 3 RPC invoker utk anon = "permission denied for function" (bukan RLS di dalam)

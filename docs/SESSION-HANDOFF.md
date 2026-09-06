@@ -77,7 +77,7 @@
   bottom-sheet kaca neon, FAB chamfered, `color-scheme: dark` utk kontrol native). Kontrak visual lama tetap: tooltip #000,
   palet colorblind, Ctrl+K.
 - **Supabase**: project `uxfngmxghupdlwoeoxgh`; 10 tabel, RLS semua aktif; **event trigger `ensure_rls`
-  otomatis meng-ENABLE RLS tabel baru** (JANGAN di-drop — lihat `sql/event_trigger_ensure_rls.sql`);
+  otomatis meng-ENABLE RLS tabel baru** (JANGAN di-drop — lihat `sql/migrations/event_trigger_ensure_rls.sql`);
   5 Edge Functions terpakai; anon key ada di `index.html` (public by design); service key TIDAK ada di repo.
 
 ## Ritual WAJIB (perintis sesi lama — jangan dilanggar)

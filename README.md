@@ -86,7 +86,7 @@ halaman) — bukan dua file HTML terpisah.
    - `budgets` — anggaran per kategori per bulan
    - `assets` — portofolio aset/investasi, **+ riwayat performa** (kolom
      `value_history`) **+ kolom refresh harga otomatis** (`simbol`,
-     `jumlah_unit`, `sumber_harga`, lihat `sql/migration_asset_price_columns_2026-08.sql`)
+     `jumlah_unit`, `sumber_harga`, lihat `sql/migrations/migration_asset_price_columns_2026-08.sql`)
    - `settings` — daftar akun & kategori kustom, **+ data profil (nama,
      no. HP, bio)** (1 baris per user)
    - `custom_icons` — ikon/logo kustom per akun, **+ foto profil** (1 baris
@@ -94,7 +94,7 @@ halaman) — bukan dua file HTML terpisah.
    - `recurring_transactions` — template **Transaksi Berulang** (langganan,
      gaji, cicilan, tagihan rutin)
    - `api_rate_limits` — pembatas jumlah panggilan fitur AI per user per jam
-     (lihat `sql/migration_rate_limiting_2026-08.sql`)
+     (lihat `sql/migrations/migration_rate_limiting_2026-08.sql`)
 
    Lalu jalankan juga **`sql/migrations/20260906_platform_logos.sql`** (tabel
    ke-8): katalog GLOBAL logo platform investasi (Bibit, Stockbit, GoTo,
@@ -105,7 +105,7 @@ halaman) — bukan dua file HTML terpisah.
    tampil -- tabel dipakai untuk menimpa/menambah logo lintas perangkat.
 
    Butuh fitur bot WhatsApp juga? Lanjutkan dengan menjalankan
-   `sql/migration_whatsapp.sql` sesudahnya (lihat bagian 12).
+   `sql/migrations/migration_whatsapp.sql` sesudahnya (lihat bagian 12).
 4. Cek menu **Authentication → Providers**, pastikan **Email** aktif
    (biasanya sudah default aktif).
 5. (Opsional, buat testing lebih cepat) Di **Authentication → Settings**,
@@ -529,12 +529,12 @@ nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
 ## 12. Setup Bot WhatsApp (opsional) & status migrasi
 
 **Migrasi lanjutan — status per 25 Agustus 2026:**
-- ✅ **`sql/migration_reliability_hardening_2026-08.sql`** — **SUDAH diterapkan** ke database
+- ✅ **`sql/migrations/migration_reliability_hardening_2026-08.sql`** — **SUDAH diterapkan** ke database
   production, dan `index.html` **sudah** memanggil RPC barunya
   (`create_recurring_transaction` & `replace_month_budgets`). Transaksi Berulang sekarang
   anti-duplikat di level database, dan penyimpanan Budget sudah atomik (tidak ada lagi
   kondisi "budget sebulan kosong" kalau koneksi putus di tengah simpan).
-- ✅ **`sql/migration_transfer_currency_2026-08.sql`** — **SUDAH diterapkan** ke database
+- ✅ **`sql/migrations/migration_transfer_currency_2026-08.sql`** — **SUDAH diterapkan** ke database
   production, dan `index.html` **sudah** memanggil RPC barunya
   (`create_transfer_transaction`). Transfer antar akun beda mata uang sekarang dicatat
   sebagai satu operasi atomik, dengan kurs kedua sisi (sumber & tujuan) disimpan sebagai
@@ -544,15 +544,15 @@ nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
   Template **Transaksi Berulang** bertipe Transfer BELUM mendukung lintas mata uang
   (tabel `recurring_transactions` belum punya kolom mata uang) -- baru transaksi Transfer
   langsung/manual yang didukung penuh saat ini.
-- ✅ **`sql/migration_asset_price_columns_2026-08.sql`** — **SUDAH diterapkan**. Kolom
+- ✅ **`sql/migrations/migration_asset_price_columns_2026-08.sql`** — **SUDAH diterapkan**. Kolom
   refresh-harga-otomatis (`simbol`, `jumlah_unit`, `sumber_harga`) di tabel `assets`.
-- ✅ **`sql/migration_rate_limiting_2026-08.sql`** — **SUDAH diterapkan**. Tabel
+- ✅ **`sql/migrations/migration_rate_limiting_2026-08.sql`** — **SUDAH diterapkan**. Tabel
   `api_rate_limits` + RPC `check_and_consume_rate_limit()`, dipakai Edge Function
   `analyze-finance`, `scan-receipt`, `get-exchange-rate`, dan `refresh-asset-price` untuk
   membatasi pemakaian AI/API eksternal per user per jam.
 
 **Untuk fitur Bot WhatsApp** (catat transaksi lewat chat WhatsApp):
-1. Jalankan `sql/migration_whatsapp.sql` di SQL Editor (aman, 2 tabel baru saja).
+1. Jalankan `sql/migrations/migration_whatsapp.sql` di SQL Editor (aman, 2 tabel baru saja).
 2. Deploy Edge Function `whatsapp-webhook` (`supabase functions deploy whatsapp-webhook`).
 3. Set secrets: `FONNTE_TOKEN`, `WHATSAPP_WEBHOOK_SECRET` (lihat komentar di
    awal file `supabase/functions/whatsapp-webhook/index.ts` untuk detail lengkap tiap secret).

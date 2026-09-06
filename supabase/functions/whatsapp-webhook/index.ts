@@ -26,7 +26,7 @@ const WEBHOOK_SECRET = Deno.env.get('WHATSAPP_WEBHOOK_SECRET') ?? '';
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
 const GEMINI_MODEL = 'gemini-3.6-flash'; // samain dgn yang sudah dipakai di analyze-finance
 
-// Rate limit khusus jalur Gemini (parseWithGemini) -- lihat sql/migration_rate_limiting_2026-08.sql.
+// Rate limit khusus jalur Gemini (parseWithGemini) -- lihat sql/migrations/migration_rate_limiting_2026-08.sql.
 // parseStrictCommand (format cepat "catat ...") TIDAK kena limit ini krn gratis/tanpa panggilan
 // API eksternal -- cuma bahasa natural yang beneran manggil Gemini yang dibatasi.
 const RATE_LIMIT_ACTION = 'whatsapp-gemini-parse';

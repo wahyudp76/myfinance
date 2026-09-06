@@ -146,23 +146,23 @@ myfinance/
 │   └── README.md           # provenance & prosedur upgrade
 │
 ├── sql/                    # Skema & migrasi Supabase (semua "if not exists" — aman di-run ulang)
-│   ├── schema.sql          # SEMUA tabel inti + RLS (transactions, budgets, assets, settings, custom_icons, recurring_transactions, api_rate_limits)
-│   ├── 2026-08-supabase-native-foundation.sql
-│   ├── migration_asset_price_columns_2026-08.sql
-│   ├── migration_assets_tanggal_nav_2026-09.sql
-│   ├── migration_composite_indexes_2026-09-02.sql
-│   ├── migration_f1_rls_auto_enable_2026-08-31.sql
-│   ├── migration_rate_limiting_2026-08.sql
-│   ├── migration_reliability_hardening_2026-08.sql
-│   ├── migration_rls_hardening_2026-08-31.sql
-│   ├── migration_transfer_currency_2026-08.sql
-│   ├── migration_whatsapp.sql
-│   ├── pre_migration_checks_2026-08.sql
-│   ├── rls_performance_fix.sql
-│   ├── event_trigger_ensure_rls.sql
-│   └── migrations/
+│   ├── schema.sql          # SEMUA tabel inti + RLS (transactions, budgets, assets, settings, custom_icons, recurring_transactions, api_rate_limits) — titik masuk instalasi baru
+│   └── migrations/         # SEMUA migrasi historis & baru (v91: dikonsolidasikan ke sini)
 │       ├── 20260906_platform_logos.sql        # tabel katalog logo platform + RLS baca publik + seed (v86)
-│       └── 20260906_platform_logo_aliases.sql # contoh pola upsert katalog custom (GoTo, Danamas)
+│       ├── 20260906_platform_logo_aliases.sql # contoh pola upsert katalog custom (GoTo, Danamas)
+│       ├── 2026-08-supabase-native-foundation.sql
+│       ├── migration_asset_price_columns_2026-08.sql
+│       ├── migration_assets_tanggal_nav_2026-09.sql
+│       ├── migration_composite_indexes_2026-09-02.sql
+│       ├── migration_f1_rls_auto_enable_2026-08-31.sql
+│       ├── migration_rate_limiting_2026-08.sql
+│       ├── migration_reliability_hardening_2026-08.sql
+│       ├── migration_rls_hardening_2026-08-31.sql
+│       ├── migration_transfer_currency_2026-08.sql
+│       ├── migration_whatsapp.sql
+│       ├── pre_migration_checks_2026-08.sql
+│       ├── rls_performance_fix.sql
+│       └── event_trigger_ensure_rls.sql
 │
 ├── supabase/functions/     # Edge Functions (Deno)
 │   ├── _shared/
@@ -202,7 +202,8 @@ myfinance/
 │   ├── db-migration-status-2026-09-01.md
 │   ├── rls-grants-audit-2026-08-31.md
 │   ├── audit-bug-analysis-2026-09-02.md
-│   └── AUDIT_REPORT_2026-08.md
+│   ├── AUDIT_REPORT_2026-08.md
+│   └── PILOT-MIGRASI-v71.md  (v91: dipindah dari root — dokumen historis pilot migrasi monolit→modul)
 │
 └── .github/
     └── workflows/

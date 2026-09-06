@@ -14,7 +14,7 @@ baris per baris dengan objek yang dijanjikan tiap file di `sql/`.
 
 Ini penting dicatat karena beberapa file dan dokumen di repo masih memakai
 bahasa *"menunggu dijalankan manual"* / *"perlu approval Anda"* (mis. header
-`sql/migration_reliability_hardening_2026-08.sql`, tabel ringkasan
+`sql/migrations/migration_reliability_hardening_2026-08.sql`, tabel ringkasan
 `docs/AUDIT_REPORT_2026-08.md` §1). Kalimat-kalimat itu kini **usang**: kondisi
 nyata database sudah mendahului dokumentasinya. Siapa pun yang membaca repo ini
 tanpa mengecek database live akan menyimpulkan hal yang salah — dan berisiko

@@ -70,7 +70,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_ANON_KEY disediakan otomatis oleh Supabase di semua Edge Function, tidak perlu diset manual.
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-// Rate limit server-side (Phase 6) -- lihat sql/migration_rate_limiting_2026-08.sql, RPC
+// Rate limit server-side (Phase 6) -- lihat sql/migrations/migration_rate_limiting_2026-08.sql, RPC
 // check_and_consume_rate_limit() di tabel public.api_rate_limits (BUKAN tabel `rate_limits` yang
 // dipakai kode "MIN_GAP_MS" di bawah -- itu tabel lain, punya schema berbeda, punya tujuan
 // berbeda: gap ANTAR pesan chat, bukan hitungan total per jam). Sebelum ditambahkan di sini,

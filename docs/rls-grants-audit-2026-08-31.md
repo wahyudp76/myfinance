@@ -36,7 +36,7 @@ Catatan desain yang terverifikasi sesuai dokumentasi SQL:
 - `whatsapp_links` sengaja tanpa policy INSERT utk authenticated (klaim nomor
   hanya boleh lewat verifikasi Edge Function) ✅.
 - `rate_limits` adalah tabel legacy cooldown AI-chat yang SENGAJA dipertahankan
-  (dipakai `analyze-finance`, lihat `sql/migration_rate_limiting_2026-08.sql`
+  (dipakai `analyze-finance`, lihat `sql/migrations/migration_rate_limiting_2026-08.sql`
   header) — RLS aktif + policy "own" hidup ✅.
 
 ## 2. Matriks RPC / grants (hasil live)
@@ -103,14 +103,14 @@ agar tidak mematahkan alur auth).
 - Tidak ditemukan celah kritis/sedang. Temuan = 1 verifikasi dok (F1) + 3
   opsional hardening/konsistensi (F2–F4).
 
-Basis acuan niat desain: `sql/schema.sql`, `sql/rls_performance_fix.sql`,
-`sql/migration_{rate_limiting,whatsapp,reliability_hardening,transfer_currency}_2026-08.sql`.
+Basis acuan niat desain: `sql/schema.sql`, `sql/migrations/rls_performance_fix.sql`,
+`sql/migrations/migration_{rate_limiting,whatsapp,reliability_hardening,transfer_currency}_2026-08.sql`.
 Untuk menjalankan ulang audit: lihat `scripts/rls-audit/README.md`.
 
 ## 5. Tindak lanjut
 
 Temuan F1–F3 telah dibekukan jadi migrasi siap-jalankan:
-**`sql/migration_rls_hardening_2026-08-31.sql`** — F1 drop `rls_auto_enable`
+**`sql/migrations/migration_rls_hardening_2026-08-31.sql`** — F1 drop `rls_auto_enable`
 dengan guard keamanan (hanya jika definisinya benar-benar sekadar pengaktif
 RLS), F2 `default auth.uid()` di `whatsapp_link_codes.user_id`, F3 revoke
 execute anon **dan public** + grant eksplisit `authenticated, service_role`
@@ -124,7 +124,7 @@ function"**, dan jalur app (authenticated) tetap normal.
 ## 6. Verifikasi pasca-hardening (2026-08-31, live)
 
 `scripts/rls-audit/rls-audit3-verify-hardening.mjs` — hasil setelah user
-menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
+menjalankan `sql/migrations/migration_rls_hardening_2026-08-31.sql`:
 
 - **F3 ✅** — anon ke 3 RPC invoker kini `HTTP 401 / 42501 "permission
   denied for function …"` (sebelumnya: RLS violation di dalam), dan jalur
@@ -140,7 +140,7 @@ menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
   §3 F1), lalu drop manual bila definisinya memang helper yang aman.
 
   **Update 2026-08-31 (sesi lanjutan):** tindak lanjut itu kini dibekukan jadi
-  file siap-jalankan **`sql/migration_f1_rls_auto_enable_2026-08-31.sql`** --
+  file siap-jalankan **`sql/migrations/migration_f1_rls_auto_enable_2026-08-31.sql`** --
   mencetak definisi lengkap di pane hasil, drop hanya bila lolos whitelist
   ketat (murni `enable row level security`, bebas verb berbahaya), plus baris
   drop manual terkomentar untuk kasus "sudah dibaca manusia dan aman". Probe
@@ -160,9 +160,9 @@ menjalankan `sql/migration_rls_hardening_2026-08-31.sql`:
   schema `public`. Murni pengaktif RLS (nol verb berbahaya; SECURITY
   DEFINER + search_path pg_catalog = higien; owner postgres). Inilah
   sebabnya seluruh 10 tabel live terbukti RLS aktif di audit ini.
-  Definisi verbatim dibekukan di repo: **`sql/event_trigger_ensure_rls.sql`**
+  Definisi verbatim dibekukan di repo: **`sql/migrations/event_trigger_ensure_rls.sql`**
   (reference copy — jangan dijalankan/di-drop).
-  `sql/migration_f1_rls_auto_enable_2026-08-31.sql` ditandai RESOLVED
+  `sql/migrations/migration_f1_rls_auto_enable_2026-08-31.sql` ditandai RESOLVED
   (arsip proses; guarded-drop-nya memang akan menahan drop ini — definisi
   memuat string 'CREATE TABLE' di daftar tag event).
 
@@ -193,7 +193,7 @@ near-empty (1 settings), 1 akun uji awal ber-data kecil (10 baris),
 1 akun berisi 5 transaksi, 1 akun kosong tanpa login — keempat yang
 terakhir menunggu keputusan pemilik akun, tidak disentuh.
 
-**TEMUAN TERBUKA — migrasi `sql/migration_rls_hardening_2026-08-31.sql`
+**TEMUAN TERBUKA — migrasi `sql/migrations/migration_rls_hardening_2026-08-31.sql`
 BELUM dijalankan di live DB:** `rls_auto_enable` masih muncul di spec
 PostgREST (F1 belum didrop), dan konsekuensinya F2 (default
 `auth.uid()` di `whatsapp_link_codes.user_id`) + F3 (revoke execute anon
