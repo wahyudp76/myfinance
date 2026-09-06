@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { bankWalletDatabase, detectAutoAccountIcon, bankIconCtx } from "../../src/domain/bank-icons.js";
+import { isSafeIconImageUrl } from "../../src/domain/settings.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
@@ -77,23 +78,52 @@ test("detectAutoAccountIcon: kunci paling panjang menang (BCA vs mandiri vs bank
   assert.equal(jago.alt, "Bank Jago");
   const bca = detectAutoAccountIcon("BCA Central Asia");
   assert.equal(bca.value, "icons/banks/bca.svg");
-  // Badge platform investasi
+  // v86: platform investasi kembali memakai logo self-hosted (bukan badge huruf).
   const bibit = detectAutoAccountIcon("Rekdana Bibit");
-  assert.deepEqual(bibit, { type: "badge", value: "BB", color: "bg-green-600" });
-  // "kripto" (6) lebih panjang dari "pintu" (5) -> Indodax menang utk "Pintu Kripto".
+  assert.deepEqual(bibit, { type: "image", value: "icons/platforms/bibit.svg", alt: "Rekdana Bibit" });
+  // "pintu" spesifik (5) menang atas keyword generik di item lain utk nama "Pintu".
   const pintu = detectAutoAccountIcon("Pintu");
-  assert.deepEqual(pintu, { type: "badge", value: "PT", color: "bg-slate-900" });
+  assert.deepEqual(pintu, { type: "image", value: "icons/platforms/pintu.png", alt: "Pintu" });
 });
 
 test("detectAutoAccountIcon: case-insensitive & ambiguitas kripto dipecah ke logo terpanjang", () => {
   // "kripto" ada di Indodax/Tokocrypto/Pintu; nama spesifik platform menang.
   const indodax = detectAutoAccountIcon("INDODAX");
-  assert.deepEqual(indodax, { type: "badge", value: "ID", color: "bg-blue-600" });
+  assert.deepEqual(indodax, { type: "image", value: "icons/platforms/indodax.png", alt: "INDODAX" });
   const toko = detectAutoAccountIcon("Tokocrypto");
-  assert.deepEqual(toko, { type: "badge", value: "TC", color: "bg-blue-400" });
-  // kata "kripto" polos --> tetap punya fallback logo platform pertama yang cocok.
+  assert.deepEqual(toko, { type: "image", value: "icons/platforms/tokocrypto.svg", alt: "Tokocrypto" });
+  // kata "kripto" polos --> fallback logo platform pertama yang cocok (Indodax, v86: image).
   const plain = detectAutoAccountIcon("Akun Kripto");
-  assert.ok(plain && plain.type === "badge");
+  assert.ok(plain && plain.type === "image" && plain.value === "icons/platforms/indodax.png");
+});
+
+test("detectAutoAccountIcon: v86 -- platform baru GoTo/Danamas + guard anti-collision DANA", () => {
+  assert.deepEqual(detectAutoAccountIcon("GoTo"), { type: "image", value: "icons/platforms/goto.svg", alt: "GoTo" });
+  // "Danamas Stabil": keyword "danamas" (8) MENANG atas "dana" (4) milik DANA.
+  const danamas = detectAutoAccountIcon("Danamas Stabil");
+  assert.equal(danamas.value, "icons/platforms/danamas-stabil.png");
+  // "Dana" (e-wallet) TIDAK boleh kebagian logo Danamas Stabil.
+  const dana = detectAutoAccountIcon("Dana");
+  assert.equal(dana.value, "icons/banks/dana.svg");
+  // IPOT tetap badge (belum ada file logo self-hosted terverifikasi).
+  assert.deepEqual(detectAutoAccountIcon("IPOT Indopremier"), { type: "badge", value: "IP", color: "bg-indigo-600" });
+});
+
+test("v86 GUARD LOGO: setiap url bankWalletDatabase LOLOS isSafeIconImageUrl + file-nya ADA di repo", () => {
+  // Ini test yang AKAN MENANGKAP akar bug v86: dulu url icons/platforms/* ada di
+  // katalog, tapi ICON_ASSET_PATH_RE hanya mengizinkan icons/banks/* sehingga
+  // sanitizeIconOverride membuangnya diam-diam -> logo tidak akan pernah tampil.
+  for (const item of bankWalletDatabase) {
+    if (!item.url) continue; // item badge tidak punya url
+    assert.ok(
+      isSafeIconImageUrl(item.url),
+      `url katalog DITOLAK sanitizer (logo tidak akan pernah tampil): ${item.name} -> ${item.url}`,
+    );
+    assert.ok(
+      existsSync(resolve(ROOT, item.url)),
+      `file logo katalog tidak ada di repo: ${item.url} (item: ${item.name})`,
+    );
+  }
 });
 
 test("detectAutoAccountIcon: nama tak dikenal -> null (fallback ikon netral)", () => {

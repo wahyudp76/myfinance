@@ -143,6 +143,10 @@
         // PILOT MIGRASI (v81): database bank/e-wallet/aset + deteksi ikon otomatis
         // (src/domain/bank-icons.js) -- satu sumber kebenaran untuk logo akun & picker.
         import { bankIconCtx } from './src/domain/bank-icons.js';
+        // PILOT MIGRASI (v86): pencocokan nama platform -> URL logo katalog DB
+        // (src/domain/platform-logos.js) -- satu sumber kebenaran untuk lookup
+        // platformLogoByKey di getAccountLogo (tab Aset, detail aset, akun).
+        import { platformLogoCtx } from './src/domain/platform-logos.js';
         // PILOT MIGRASI (v82): resolusi mata uang default akun murni
         // (src/domain/account-currency.js) -- peta mata uang di-pass sbg DI.
         import { accountCurrencyCtx } from './src/domain/account-currency.js';
@@ -239,6 +243,8 @@
             assetIconCtx,
             // PILOT MIGRASI (v81): database bank/e-wallet + deteksi ikon (src/domain/bank-icons.js).
             bankIconCtx,
+            // PILOT MIGRASI (v86): pencocokan logo platform katalog DB (src/domain/platform-logos.js).
+            platformLogoCtx,
             // PILOT MIGRASI (v82): resolusi mata uang akun murni (src/domain/account-currency.js).
             accountCurrencyCtx,
         };

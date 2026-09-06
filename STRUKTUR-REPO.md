@@ -96,6 +96,7 @@ myfinance/
 │   │   ├── slugify.js          # slugify/slugifyCtx murni (family, adopsi __slugify)
 │   │   ├── asset-icons.js      # detectAssetCategoryIcon/assetIconCtx murni (family, adopsi __assetIcon)
 │   │   ├── bank-icons.js       # bankWalletDatabase + detectAutoAccountIcon (family, adopsi __bankIcon)
+│   │   ├── platform-logos.js   # resolvePlatformLogoUrl: katalog logo platform DB (v86, adopsi __platformLogos)
 │   │   └── account-currency.js # resolveAccountCurrency murni (map DI; adopsi __accountCurrency)
 │   ├── services/               # ★ Akses data (Supabase / edge) + kontrak
 │   │   ├── transactions.js     # createTransactionService, mapTransactionRow
@@ -129,9 +130,12 @@ myfinance/
 │
 ├── icons/
 │   ├── favicon-16/32.png, apple-touch-icon.png, icon-192/512.png, icon-source.svg
-│   └── banks/              # logo bank & e-wallet self-hosted
-│       ├── bca.svg / mandiri.svg / bri.svg / bni.png / bsi.svg
-│       └── jago.svg / gopay.svg / ovo.svg / dana.svg / shopeepay.svg
+│   ├── banks/              # logo bank & e-wallet self-hosted
+│   │   ├── bca.svg / mandiri.svg / bri.svg / bni.png / bsi.svg
+│   │   └── jago.svg / gopay.svg / ovo.svg / dana.svg / shopeepay.svg
+│   └── platforms/          # logo platform investasi self-hosted (v86: dipulihkan + GoTo/Danamas baru)
+│       └── bibit.svg / ajaib.ico / stockbit.svg / bareksa.svg / pluang.png /
+│           indodax.png / tokocrypto.svg / pintu.png / mirae.svg / goto.svg / danamas-stabil.png
 │
 ├── vendor/                 # ★ SEMUA dependensi pihak-3 self-hosted (v59) — esm.sh/jsdelivr/cdnjs hilang
 │   ├── supabase-js-2.113.0.bundle.min.mjs
@@ -155,7 +159,10 @@ myfinance/
 │   ├── migration_whatsapp.sql
 │   ├── pre_migration_checks_2026-08.sql
 │   ├── rls_performance_fix.sql
-│   └── event_trigger_ensure_rls.sql
+│   ├── event_trigger_ensure_rls.sql
+│   └── migrations/
+│       ├── 20260906_platform_logos.sql        # tabel katalog logo platform + RLS baca publik + seed (v86)
+│       └── 20260906_platform_logo_aliases.sql # contoh pola upsert katalog custom (GoTo, Danamas)
 │
 ├── supabase/functions/     # Edge Functions (Deno)
 │   ├── _shared/
@@ -174,6 +181,7 @@ myfinance/
 │   ├── subset-fontawesome.py
 │   ├── bench-save-latency.mjs
 │   ├── verify-hud.mjs      # E2E Playwright (49 cek) terhadap http://localhost:8123
+│   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 15 cek)
 │   ├── lighthouse/run.mjs
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │

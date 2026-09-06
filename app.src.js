@@ -301,16 +301,18 @@ let __bankIcon = (function () {
         { name: "OVO", category: "E-Wallet", keywords: ["ovo"], url: "icons/banks/ovo.svg" },
         { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "icons/banks/dana.svg" },
         { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay", "shopee pay"], url: "icons/banks/shopeepay.svg" },
-        { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], badge: "BB", color: "bg-green-600" },
-        { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], badge: "AJ", color: "bg-blue-500" },
-        { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], badge: "SB", color: "bg-emerald-500" },
-        { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], badge: "BR", color: "bg-teal-600" },
-        { name: "Pluang", category: "Investasi", keywords: ["pluang"], badge: "PL", color: "bg-slate-800" },
-        { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], badge: "ID", color: "bg-blue-600" },
-        { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], badge: "TC", color: "bg-blue-400" },
-        { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], badge: "PT", color: "bg-slate-900" },
+        { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], url: "icons/platforms/bibit.svg" },
+        { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], url: "icons/platforms/ajaib.ico" },
+        { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], url: "icons/platforms/stockbit.svg" },
+        { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], url: "icons/platforms/bareksa.svg" },
+        { name: "Pluang", category: "Investasi", keywords: ["pluang"], url: "icons/platforms/pluang.png" },
+        { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], url: "icons/platforms/indodax.png" },
+        { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], url: "icons/platforms/tokocrypto.svg" },
+        { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], url: "icons/platforms/pintu.png" },
         { name: "IPOT", category: "Investasi", keywords: ["ipot", "indopremier"], badge: "IP", color: "bg-indigo-600" },
-        { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" },
+        { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], url: "icons/platforms/mirae.svg" },
+        { name: "GoTo", category: "Investasi", keywords: ["goto", "goto group"], url: "icons/platforms/goto.svg" },
+        { name: "Danamas Stabil", category: "Investasi", keywords: ["danamas", "danamas stabil"], url: "icons/platforms/danamas-stabil.png" },
     ];
     return {
         bankWalletDatabase: db,
@@ -338,6 +340,43 @@ function adoptBankIconModule() {
             bankWalletDatabase = __bankIcon.bankWalletDatabase; // sinkronkan mirror picker ke modul
         }
         catch (e) { /* biarkan default __bankIcon (perilaku lama) */ }
+    }
+}
+
+// ==========================================================================
+// v86: resolvePlatformLogoUrl -- pencocokan nama platform ke URL logo katalog
+// (peta platformLogoByKey, diisi dari tabel Supabase platform_logos). Dulu
+// hidup inline di getAccountLogo() tanpa unit test dan fuzzy-nya ber-false-
+// positive ("Dana" mencocok "danamas-stabil"). Kini murni & ter-uji di
+// src/domain/platform-logos.js; di-adopt lewat servicesModule.platformLogoCtx().
+// Guard konsistensi & wiring dijamin tests/unit/platform-logos-domain.test.js.
+let __platformLogos = (function () {
+    const MIN_FUZZY_LEN = 5;
+    const normalize = (s) => String(s == null ? '' : s).trim().toLowerCase();
+    const compact = (s) => normalize(s).replace(/[^a-z0-9]/g, '');
+    return {
+        resolvePlatformLogoUrl: function (catalog, name) {
+            if (!catalog || typeof catalog !== 'object') return null;
+            const normalized = normalize(name);
+            if (!normalized) return null;
+            if (Object.prototype.hasOwnProperty.call(catalog, normalized) && catalog[normalized]) return catalog[normalized];
+            const cp = compact(name);
+            if (!cp) return null;
+            let fuzzy = null;
+            for (const key of Object.keys(catalog)) {
+                const ck = compact(key);
+                if (ck === cp) return catalog[key] || null;
+                const shorter = Math.min(ck.length, cp.length);
+                if (fuzzy === null && shorter >= MIN_FUZZY_LEN && (ck.includes(cp) || cp.includes(ck))) fuzzy = catalog[key];
+            }
+            return fuzzy || null;
+        },
+    };
+})();
+function adoptPlatformLogosModule() {
+    if (servicesModule && typeof servicesModule.platformLogoCtx === 'function') {
+        try { __platformLogos = servicesModule.platformLogoCtx(); }
+        catch (e) { /* biarkan default __platformLogos (perilaku lama) */ }
     }
 }
 
@@ -403,6 +442,8 @@ async function initSupabaseClient() {
     adoptAssetIconModule();
     // Adopsi database bank/e-wallet + deteksi ikon otomatis (src/domain/bank-icons.js) (v81).
     adoptBankIconModule();
+    // Adopsi pencocokan logo platform katalog DB (src/domain/platform-logos.js) (v86).
+    adoptPlatformLogosModule();
     // Adopsi resolusi mata uang akun murni (src/domain/account-currency.js) (v82).
     adoptAccountCurrencyModule();
     return authModule;
@@ -1269,12 +1310,10 @@ async function currentUserId() {
             for (const candidate of candidates) {
                 const override = appSettings.accountIcons && appSettings.accountIcons[candidate];
                 if (override) return renderAccountIconObj(override, 'text-lg');
-                const normalizedName = String(candidate).trim().toLowerCase();
-                const compactName = normalizedName.replace(/[^a-z0-9]/g, '');
-                const dbLogo = platformLogoByKey[normalizedName] || Object.entries(platformLogoByKey).find(([key]) => {
-                    const compactKey = key.replace(/[^a-z0-9]/g, '');
-                    return compactKey === compactName || compactKey.includes(compactName) || compactName.includes(compactKey);
-                })?.[1];
+                // v86: pencocokan katalog DB dipindah ke modul ter-uji (src/domain/
+                // platform-logos.js) -- versi lama ber-false-positive ("Dana" bisa
+                // mencocok "danamas-stabil" karena containment tanpa batas panjang).
+                const dbLogo = __platformLogos.resolvePlatformLogoUrl(platformLogoByKey, candidate);
                 if (dbLogo) return renderAccountIconObj({ type: 'image', value: dbLogo, alt: candidate }, 'text-xl');
                 const detected = detectAutoAccountIcon(candidate);
                 if (detected && (detected.type === 'image' || detected.type === 'badge')) {

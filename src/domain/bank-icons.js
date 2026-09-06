@@ -20,6 +20,8 @@
  * - bankWalletDatabase : array konstan {name, category, keywords[], url?|badge?, color?}.
  * - detectAutoAccountIcon(name) : null bila tak cocok; else {type, value, (color|alt)}
  *   dengan type = 'icon-plain' | 'image' | 'badge'. Kata kunci paling panjang menang.
+ * - url lokal mengarah ke icons/banks/* atau icons/platforms/* (keduanya self-hosted,
+ *   keduanya diizinkan ICON_ASSET_PATH_RE sejak v86).
  */
 
 /** Daftar logo bank/e-wallet/platform investasi (SELF-HOSTED; tidak hotlink Wikimedia). */
@@ -34,17 +36,26 @@ export const bankWalletDatabase = [
   { name: "OVO", category: "E-Wallet", keywords: ["ovo"], url: "icons/banks/ovo.svg" },
   { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "icons/banks/dana.svg" },
   { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay", "shopee pay"], url: "icons/banks/shopeepay.svg" },
-  // Tambahan untuk Platform Aset/Investasi (Bisa jadi akun juga)
-  { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], badge: "BB", color: "bg-green-600" },
-  { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], badge: "AJ", color: "bg-blue-500" },
-  { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], badge: "SB", color: "bg-emerald-500" },
-  { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], badge: "BR", color: "bg-teal-600" },
-  { name: "Pluang", category: "Investasi", keywords: ["pluang"], badge: "PL", color: "bg-slate-800" },
-  { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], badge: "ID", color: "bg-blue-600" },
-  { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], badge: "TC", color: "bg-blue-400" },
-  { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], badge: "PT", color: "bg-slate-900" },
+  // Tambahan untuk Platform Aset/Investasi (Bisa jadi akun juga).
+  // v86: logo SELF-HOSTED kembali dipakai (icons/platforms/*) -- badge huruf hanya
+  // utk platform yang memang belum punya file lokal (IPOT). Ikon self-hosted =
+  // nol dependensi pihak ketiga, lolos CSP 'self', tetap tampil offline, dan
+  // (sejak v86 juga) lolos sanitizeIconOverride karena ICON_ASSET_PATH_RE kini
+  // mengizinkan folder icons/platforms/. Logo platform LAIN yang disimpan admin
+  // di tabel Supabase platform_logos tetap MENIMPA nilai lokal saat load (lihat
+  // penjelasan di AGENT-HANDOFF v86).
+  { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], url: "icons/platforms/bibit.svg" },
+  { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], url: "icons/platforms/ajaib.ico" },
+  { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], url: "icons/platforms/stockbit.svg" },
+  { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], url: "icons/platforms/bareksa.svg" },
+  { name: "Pluang", category: "Investasi", keywords: ["pluang"], url: "icons/platforms/pluang.png" },
+  { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], url: "icons/platforms/indodax.png" },
+  { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], url: "icons/platforms/tokocrypto.svg" },
+  { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], url: "icons/platforms/pintu.png" },
   { name: "IPOT", category: "Investasi", keywords: ["ipot", "indopremier"], badge: "IP", color: "bg-indigo-600" },
-  { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" },
+  { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], url: "icons/platforms/mirae.svg" },
+  { name: "GoTo", category: "Investasi", keywords: ["goto", "goto group"], url: "icons/platforms/goto.svg" },
+  { name: "Danamas Stabil", category: "Investasi", keywords: ["danamas", "danamas stabil"], url: "icons/platforms/danamas-stabil.png" },
 ];
 
 /** Mendeteksi logo otomatis dari database bank/e-wallet berdasarkan nama akun. */

@@ -75,8 +75,16 @@ export const BADGE_TEXT_RE = /^[A-Za-z0-9 .+&_-]{1,8}$/;
  * kecil -> mime image/* apa pun dari daftar ini).
  */
 export const ICON_DATA_URL_RE = /^data:image\/(?:png|jpe?g|webp|gif|avif|svg\+xml);base64,[A-Za-z0-9+/=\r\n]+$/i;
-/** Path aset ikon bank internal yang diserve aplikasi (lihat icons/banks/). */
-export const ICON_ASSET_PATH_RE = /^icons\/banks\/[A-Za-z0-9_.-]+\.(?:svg|png|jpe?g|webp)$/i;
+/**
+ * Path aset ikon internal yang diserve aplikasi. v86: kini mencakup DUA folder --
+ * `icons/banks/*` (bank & e-wallet) DAN `icons/platforms/*` (logo platform
+ * investasi: Bibit, Stockbit, dst). Sebelum v86 regex hanya mengizinkan
+ * `icons/banks/*`, sehingga SEMUA logo platform aset self-hosted ditolak
+ * diam-diam oleh sanitizeIconOverride di titik render -> jatuh ke ikon dompet
+ * netral. Itu akar bug "logo aset tidak muncul" (lihat AGENT-HANDOFF v86).
+ * `.ico` ikut diizinkan (ajaib.ico): format raster pasif, aman di <img>.
+ */
+export const ICON_ASSET_PATH_RE = /^icons\/(?:banks|platforms)\/[A-Za-z0-9_.-]+\.(?:svg|png|jpe?g|webp|ico)$/i;
 
 /** True kalau `v` adalah token nama kelas tunggal yang aman dipakai di atribut class. */
 export function isSafeClassToken(v) {

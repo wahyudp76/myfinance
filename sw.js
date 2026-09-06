@@ -28,7 +28,11 @@
 // v70: fix clear cache data saat logout, DATA_CACHE tidak lagi terhapus tiap deploy,
 // navigasi hanya cache respons OK, escape badge kategori aset.
 // v85: pagination riwayat detail akun & kategori (pengeluaran/pemasukan).
-const CACHE_VERSION = 'myfinance-v124';
+// v86: fix logo platform aset tidak muncul -- ikon self-hosted icons/platforms/*
+// dipulihkan & di-precache, modul ikon/logo yang terlewat (bank-icons, asset-icons,
+// account-currency, category-style, dates, format, sanitize, slugify, platform-logos
+// domain + service) dilengkapi agar kunjungan pertama offline tetap utuh.
+const CACHE_VERSION = 'myfinance-v125';
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -105,11 +109,38 @@ const PRECACHE_URLS = [
   './src/domain/sparkline.js',
   './src/domain/theme.js',
   './src/domain/transactions.js',
+  // v86: modul keluarga helper/ikon yang sebelumnya TERLEWAT dari precache --
+  // semuanya di-import index.html di jalur kritis (adopsi __fmt/__dates/__sanitize/
+  // __slugify/__catstyle/__assetIcon/__bankIcon/__accountCurrency/__platformLogos),
+  // jadi tanpa ini "kunjungan pertama lalu offline" gagal boot di tengah jalan.
+  './src/domain/account-currency.js',
+  './src/domain/asset-icons.js',
+  './src/domain/bank-icons.js',
+  './src/domain/category-style.js',
+  './src/domain/dates.js',
+  './src/domain/format.js',
+  './src/domain/platform-logos.js',
+  './src/domain/sanitize.js',
+  './src/domain/slugify.js',
+  // v86: logo platform aset self-hosted (lihat src/domain/bank-icons.js) --
+  // sama statusnya dengan icons/banks/*: aset statis jalur kritis tab Aset.
+  './icons/platforms/ajaib.ico',
+  './icons/platforms/bareksa.svg',
+  './icons/platforms/bibit.svg',
+  './icons/platforms/danamas-stabil.png',
+  './icons/platforms/goto.svg',
+  './icons/platforms/indodax.png',
+  './icons/platforms/mirae.svg',
+  './icons/platforms/pintu.png',
+  './icons/platforms/pluang.png',
+  './icons/platforms/stockbit.svg',
+  './icons/platforms/tokocrypto.svg',
   './src/services/supabase/assets.js',
   './src/services/supabase/budgets.js',
   './src/services/supabase/custom-icons.js',
   './src/services/supabase/edge.js',
   './src/services/supabase/paging.js', // paging paralel bersama utk transaksi/aset/recurring (v56)
+  './src/services/supabase/platform-logos.js', // katalog logo platform dari DB (v86)
   './src/services/supabase/recurring.js',
   './src/services/supabase/settings.js',
   './src/services/supabase/transfers.js',

@@ -71,6 +71,23 @@ test("isSafeIconImageUrl: data URL gambar raster/base64 & path logo bank interna
   assert.equal(isSafeIconImageUrl("data:image/svg+xml;base64,PHN2Zy8+"), true);
   assert.equal(isSafeIconImageUrl("icons/banks/bca.svg"), true);
   assert.equal(isSafeIconImageUrl("icons/banks/bni.png"), true);
+  // v86: path logo PLATFORM investasi self-hosted (icons/platforms/*) kini SAH
+  // -- dulu hanya icons/banks/* yang diizinkan, itulah akar bug "logo aset
+  // tidak muncul" (sanitizeIconOverride membuang url platform di titik render).
+  assert.equal(isSafeIconImageUrl("icons/platforms/bibit.svg"), true);
+  assert.equal(isSafeIconImageUrl("icons/platforms/ajaib.ico"), true);
+  assert.equal(isSafeIconImageUrl("icons/platforms/danamas-stabil.png"), true);
+  assert.equal(isSafeIconImageUrl("icons/platforms/goto.svg"), true);
+});
+
+test("isSafeIconImageUrl: path aset internal di luar pola tetap DITOLAK (anti path traversal)", () => {
+  assert.equal(isSafeIconImageUrl("icons/platforms/bibit.svg?x=1"), false); // query string
+  assert.equal(isSafeIconImageUrl("icons/banks/../secrets.env"), false); // segment aneh
+  assert.equal(isSafeIconImageUrl("icons/platforms/sub/dir/bibit.svg"), false); // nested path
+  assert.equal(isSafeIconImageUrl("icons/other/bibit.svg"), false); // folder tak dikenal
+  assert.equal(isSafeIconImageUrl("/etc/passwd"), false);
+  assert.equal(isSafeIconImageUrl("../icons/platforms/bibit.svg"), false);
+  assert.equal(isSafeIconImageUrl("icons/platforms/bibit.exe"), false); // ekstensi non-gambar
 });
 
 test("isSafeIconImageUrl: URL katalog logo terpercaya diterima", () => {

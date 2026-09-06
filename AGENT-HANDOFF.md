@@ -1263,3 +1263,85 @@ CACHE_VERSION v69 -> v70, snapshot SW di-regen, app.js di-rebuild.
 ### Bukti v70
 lint 0, unit 634/634, verify-hud 64/64 PASS (0 error halaman), build:app
 dijalankan (app.js sinkron), snapshot SW sinkron.
+
+## v86 — FIX LOGO ASET: akar ganda ditemukan & ditutup (sanitizer path + RLS katalog DB)
+
+**GEJALA:** logo platform investasi tidak pernah tampil di tab Aset / detail aset /
+form Tambah Aset, meski 10 commit sebelumnya (46db56c..0e9af29) sudah berurutan
+mengejar: CSP img-src → logo dari Supabase → pencocokan → sanitizer remote-host.
+Setelah seluruh rangkaian itu, pengguna tetap hanya melihat badge huruf / ikon dompet.
+
+**AKAR MASALAH #1 (client, akar yang asli):** `ICON_ASSET_PATH_RE` di
+`src/domain/settings.js` sejak v60 hanya mengizinkan `icons/banks/*`. Ketika
+commit 46db56c menambahkan logo self-hosted `icons/platforms/*` ke
+`bankWalletDatabase`, `sanitizeIconOverride` menolak SEMUANYA di titik render
+(`renderAccountIconObj` fallback diam-diam ke ikon dompet) -- inilah mengapa
+logo "tidak muncul" sejak awal. Fix 94023bc kemudian MENGHAPUS ikon self-hosted
+tersebut dan menggantinya badge huruf + harapan logo dari DB -- tidak menutup
+akar masalah, malah menambah dependensi baru.
+
+**AKAR MASALAH #2 (server):** migrasi yang MEMBUAT tabel `platform_logos`
+tidak pernah ter-commit (hanya file alias-nya). Di database live, event trigger
+`ensure_rls` otomatis mengaktifkan RLS saat tabel dibuat, dan TANPA policy
+SELECT katalog global itu terbaca KOSONG oleh semua klien (REST 200 + `[]`,
+content-range `*/0` -- dibuktikan langsung via probe anon 2026-09-06). Jadi
+`platformLogoByKey` tidak pernah terisi.
+
+**FIX (lengkap, berlapis):**
+1. `ICON_ASSET_PATH_RE` kini `icons/(banks|platforms)/*.ext` (+ `.ico` utk
+   ajaib.ico) -- logo self-hosted lolos sanitizer.
+2. Ikon `icons/platforms/*` DIPULIHKAN dari riwayat git (9 file, commit 46db56c
+   + 3c0b522) + 2 logo baru di-self-host (goto.svg dari Wikimedia Commons,
+   danamas-stabil.png dari banksinarmas.com) = 11 file, nol hotlink pihak ketiga.
+3. `bankWalletDatabase` kembali memakai `url:` lokal utk 11 platform (badge
+   hanya IPOT); + entri GoTo & Danamas Stabil dgn keyword anti-collision
+   ("danamas" 8 huruf menang atas "dana" 4 huruf milik e-wallet DANA).
+4. Pencocokan katalog DB dipindah ke modul murni ter-uji
+   `src/domain/platform-logos.js` (adopsi `__platformLogos`, pola __bankIcon):
+   exact normalized → exact compact → containment HANYA bila token pendek
+   >= 5 huruf. Versi lama (`compactKey.includes(compactName)` bebas) ber-false-
+   positive nyata: platform "Dana" bisa kebagian logo "danamas-stabil".
+5. **`sql/migrations/20260906_platform_logos.sql` (file yang hilang) dibuat
+   lengkap & idempotent**: create-if-not-exists + add-column-if-not-exists
+   (tahan drift vs tabel live), unique index platform_key, RLS + policy
+   "Platform logos are publicly readable" (`for select using (true)` -- inilah
+   yang membuka katalog utk anon/authenticated), grant select, seed 11 platform
+   dengan logo_url SELF-HOSTED via `on conflict do update` (memperbaiki baris
+   lama yang logo_url-nya URL remote rawan mati). **PERLU DIJALANKAN SEKALI di
+   SQL Editor project uxfngmxgh** -- file ini juga jadi syarat setup ulang/restore.
+6. `sw.js`: 9 modul ikon/logo yang TERLEWAT dari precache dilengkapi
+   (bank-icons, asset-icons, account-currency, category-style, dates, format,
+   sanitize, slugify, platform-logos domain + service) + 11 file
+   icons/platforms/* di-precache. CACHE_VERSION v124 → **v125**, snapshot
+   di-regen SETELAH build:app.
+7. Guard regresi baru:
+   - `tests/unit/platform-logos-domain.test.js` (perilaku + konsistensi modul
+     vs monolit + wiring, pola bank-icons).
+   - `tests/unit/csp-image-hosts.test.js` -- ICON_REMOTE_HOSTS (settings.js)
+     WAJIB == img-src CSP index.html == img-src CSP _headers (3 tempat, drift
+     langsung merah).
+   - `bank-icons-domain.test.js`: guard baru "setiap url katalog LOLOS
+     sanitizer + file-nya ada di repo" -- test yang AKAN menangkap akar bug
+     ini kalau kembali terjadi.
+8. E2E baru `scripts/verify-asset-logos.mjs`: stub Supabase + seed 9 aset
+   (platform lokal / katalog DB / custom DB / tak dikenal), assert logo
+   TER-RENDER **dan BENAR-BENAR TERMUAT** (`img.complete && naturalWidth > 0`)
+   di kartu aset, detail aset, saran form, dan viewport mobile; guard
+   anti-collision Dana≠Danamas ikut dicek. 15/15 PASS.
+
+**KEPUTUSAN desain yang perlu diketahui:**
+- Logo default = SELF-HOSTED (filosofi v59: nol origin pihak ketiga di jalur
+  kritis). Tabel `platform_logos` tetap dipakai sebagai override/admin-katalog
+  (URL remote tetap boleh selama host masuk ICON_REMOTE_HOSTS == CSP img-src;
+  guard test menjaga keduanya tetap sinkron).
+- CSP img-src & ICON_REMOTE_HOSTS TIDAK dihapus meski seed sekarang lokal --
+  dibutuhkan untuk platform custom dari DB (mis. GoTo/Danamas versi remote,
+  atau platform baru yang ditambah admin). IPOT sengaja tetap badge (belum ada
+  file logo terverifikasi).
+- `ajaib.ico` dipertahankan sebagai .ico (raster pasif, aman di <img>) -- regex
+  sanitizer diperluas, bukan file-nya dikonversi.
+
+**Bukti v86:** lint 0 masalah; unit 753/753 PASS (0 skip); verify-asset-logos
+15/15 PASS (0 error halaman); verify-hud 63/64 (1 FAIL "5 baris log transaksi"
+terbukti SAMA di pristine HEAD -- bukan regresi v86, kemungkinan sensitif
+lingkungan/waktu); build:app sinkron; snapshot SW v125 sinkron.

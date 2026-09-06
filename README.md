@@ -95,6 +95,14 @@ halaman) — bukan dua file HTML terpisah.
    - `api_rate_limits` — pembatas jumlah panggilan fitur AI per user per jam
      (lihat `sql/migration_rate_limiting_2026-08.sql`)
 
+   Lalu jalankan juga **`sql/migrations/20260906_platform_logos.sql`** (tabel
+   ke-8): katalog GLOBAL logo platform investasi (Bibit, Stockbit, GoTo,
+   Danamas Stabil, dll). Beda dari 7 tabel lain: tabel ini milik admin (anon
+   tidak bisa menulis), tapi BOLEH dibaca semua user (policy SELECT publik)
+   supaya logo platform bisa tampil di semua akun. Logo default-nya
+   self-hosted di `icons/platforms/`, jadi tanpa tabel ini pun logo tetap
+   tampil -- tabel dipakai untuk menimpa/menambah logo lintas perangkat.
+
    Butuh fitur bot WhatsApp juga? Lanjutkan dengan menjalankan
    `sql/migration_whatsapp.sql` sesudahnya (lihat bagian 12).
 4. Cek menu **Authentication → Providers**, pastikan **Email** aktif
@@ -318,6 +326,7 @@ lebih layak dipakai sehari-hari, bukan cuma prototipe:
 | **Foto profil** | `custom_icons` | disimpan dengan key khusus `__myfinance_profile_avatar__`, terpisah per user (RLS) |
 | **Transaksi Berulang** (template) | `recurring_transactions` | transaksi NYATA hasil auto-catat tetap masuk ke `transactions` seperti biasa |
 | **Riwayat performa Aset** | `assets` (kolom `value_history`) | array JSON `{tanggal, nilai}`, bertambah tiap kali nilai diperbarui |
+| **Logo platform investasi** | `platform_logos` | katalog global (RLS: baca publik, tulis hanya admin); menimpa/menambah logo default self-hosted `icons/platforms/` |
 
 Setiap tabel dibatasi dengan **Row Level Security**: query dari browser
 (pakai anon key) hanya bisa menyentuh baris milik user yang sedang login —
