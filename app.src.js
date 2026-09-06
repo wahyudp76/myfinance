@@ -3967,12 +3967,14 @@ async function currentUserId() {
                             item.keywords.some((keyword) => String(keyword).toLowerCase() === key) ||
                             String(item.name).toLowerCase() === String(logo.display_name || '').toLowerCase()
                         );
-                        if (match && logo.logo_url) {
-                            match.url = logo.logo_url;
-                            delete match.badge;
-                            delete match.color;
+                        if (logo.logo_url) {
                             platformLogoByKey[key] = logo.logo_url;
                             platformLogoByKey[String(logo.display_name || '').toLowerCase()] = logo.logo_url;
+                            if (match) {
+                                match.url = logo.logo_url;
+                                delete match.badge;
+                                delete match.color;
+                            }
                         }
                     });
                 }
