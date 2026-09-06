@@ -1368,3 +1368,52 @@ snapshot di-regen SETELAH kedua build.
 **Bukti v87:** lint 0, unit 753/753, verify-asset-logos **17/17 PASS** --
 termasuk 2 cek pembulatan BARU: computed border-radius img HARUS == computed
 border-radius box-nya (12px di kartu aset & detail aset; > 0).
+
+## v88 — MAINTENANCE + STABILITY TEST + AUDIT BUG MENYELURUH (health check penuh)
+
+**KONTEKS:** user minta maintenance + cek stability test + audit analisa segala
+potensi bug. Tidak ada gejala; ini health check preventif pasca-v87.
+
+**HASIL STABILITY (semua di b7c4f45, tanpa perubahan app):**
+- Unit: 753/753 PASS di **4 run berturut** (1 baseline + 3 stability) — nol flaky.
+- Parity: 1/1 PASS di 4 run.
+- E2E verify-asset-logos (lokal :8123): **17/17 PASS di 3 run**, error halaman 0.
+- Reproducibility build: rebuild app.js + css menghasilkan byte identik dgn
+  yang di-commit (`git status` kosong) — nol drift.
+- npm audit: **0 vulnerabilities**. Update minor devDeps tersedia (opsional):
+  eslint 10.9.1→10.10.0, playwright 1.62.1→1.63.0. Tailwind 4.x = major,
+  JANGAN auto-upgrade. CI sudah pakai Node 22 via .nvmrc (sandbox lokal v20
+  hanya beda environment, bukan masalah repo).
+- CI b7c4f45: 6/6 success; Pages deployed; live = SW v126, HTTP 200, ~0.14s.
+
+**SATU TEMUAN + FIX (test-only, TANPA ubah app):** verify-hud 63/64 — check
+"5 baris log transaksi + bar nominal" gagal permanen sejak fitur paginasi
+renderRecentList (RECENT_TRANSACTIONS_PAGE_SIZE=10 + div tombol halaman).
+Akar masalah = **stale test expectation**, BUKAN bug app (debug Playwright:
+10 baris .stagger-item + 10 .hud-bar-fill + 1 div paginasi = 11 child; semua
+field user di-escapeHtml, guard NaN lengkap). Check diganti jadi: rows==10 &&
+bars==10 && tombol halaman >=2. verify-hud kini **64/64 PASS** (2 run), error
+halaman 0. scripts/ TIDAK di-precache SW & verify-hud TIDAK dijalankan CI ->
+tanpa bump SW, tanpa rebuild, tanpa redeploy.
+
+**HASIL AUDIT STATIK (app.src.js + src/, pola bug klasik):**
+- XSS: escapeHtml/escapeAttr dipakai 50x; template innerHTML yang di-spot-check
+  statik / numerik / ter-escape; CSP ketat (tanpa unsafe-eval; deps self-hosted).
+- eval/new Function: NOL. console.log tertinggal: NOL. catch kosong: NOL.
+- JSON.parse: 3 lokasi, semua aman (2 deep-clone in-memory, 1 try/catch).
+- localStorage: 7 akses SEMUA try/catch (aman mode privat ketat).
+- Handler global: window error + unhandledrejection -> fallback screen; watchdog
+  boot 12 detik.
+- parseInt/parseFloat: 6 lokasi, semua ada guard `|| 0` / default.
+- Tanggal: dates.js kanonik aman zona waktu (parseTgl tengah malam LOKAL,
+  toDateStr komponen LOKAL — bukan toISOString) + guard test konsistensi.
+- Listener/leak: cuma 20 addEventListener, semua init sekali; debounce timer
+  di-clearTimeout dulu; double-submit guard (disabled+spinner) ada di 3 form.
+- target=_blank: noopener ada. TODO/FIXME: cuma placeholder nomor WhatsApp
+  (memang disengaja utk diisi user).
+- sw.js: addAll per-URL (satu URL gagal tidak meruntuhkan semua), cleanup cache
+  versi lama saat activate, DATA_CACHE dipisah dari cache versi app,
+  network-first utk REST + fallback 503 offline.
+
+**KESIMPULAN:** tidak ditemukan bug aplikasi baru; satu utang test dibayar.
+Commit: scripts/verify-hud.mjs + entri handoff ini.

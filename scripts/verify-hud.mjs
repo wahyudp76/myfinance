@@ -149,8 +149,17 @@ ok("LED status ada & LIVE", (await page.locator(".hud-status").count()) >= 3 &&
   ((await page.locator(".hud-status .hud-status-text").first().textContent()) === "LIVE"));
 ok("sparkline hero (in/out/net) ter-render", await page.evaluate(() =>
   ["spark-in", "spark-out", "spark-net"].every((id) => document.querySelector(`#${id} svg path`))));
-ok("5 baris log transaksi + bar nominal", (await page.locator("#recent-transactions-list > div").count()) === 5 &&
-  (await page.locator("#recent-transactions-list .hud-bar-fill").count()) === 5);
+// v88 (maintenance): renderRecentList kini berpaginasi (RECENT_TRANSACTIONS_PAGE_SIZE=10,
+// commit fitur paginasi) — seed demo 17 tx -> 10 baris .stagger-item + 1 div paginasi.
+// Check lama "tepat 5+5" berasal dari sebelum paginasi dan gagal permanen (stale test).
+{
+  const recentRows = await page.locator("#recent-transactions-list > div.stagger-item").count();
+  const recentBars = await page.locator("#recent-transactions-list .hud-bar-fill").count();
+  const pageBtns = await page.locator("#recent-transactions-list button[onclick^='setRecentTransactionsPage']").count();
+  ok("10 baris log transaksi (paginasi) + bar nominal + tombol halaman",
+    recentRows === 10 && recentBars === 10 && pageBtns >= 2,
+    `rows=${recentRows} bars=${recentBars} pageBtns=${pageBtns}`);
+}
 ok("saldo hero monospace + terisi", await page.evaluate(() => {
   const el = document.getElementById("dash-total");
   return /mono/i.test(getComputedStyle(el).fontFamily) && /^Rp\s?\d/.test(el.textContent.trim());
