@@ -7,13 +7,22 @@
 -- database live. Akibatnya setup ulang/restore project Supabase kehilangan
 -- katalog logo sama sekali.
 --
--- PENTING -- POLA AKAR BUG "LOGO ASET TIDAK MUNCUL" (2026-09-06):
--- Event trigger `ensure_rls` (lihat sql/event_trigger_ensure_rls.sql) OTOMATIS
--- mengaktifkan Row Level Security untuk SETIAP tabel baru di schema public.
--- Tanpa policy SELECT, RLS menolak SEMUA baca dari anon/authenticated secara
--- SENYAP (REST tetap 200 + array kosong -- bukan error). Itulah mengapa tabel
--- platform_logos di project live terbaca KOSONG oleh aplikasi walau barisnya
--- ada: katalog global memang HARUS punya policy baca publik.
+-- PENTING -- POLA AKAR BUG "LOGO ASET TIDAK MUNCUL" (audit live 2026-09-06):
+-- (1) AKAR UTAMA (client): ICON_ASSET_PATH_RE di src/domain/settings.js sejak v60 hanya
+--     mengizinkan icons/banks/*, sehingga semua logo icons/platforms/* DITOLAK
+--     sanitizeIconOverride di titik render; dan URL REMOTE katalog DB juga DITOLAK
+--     sanitizer sampai v124 (ICON_REMOTE_HOSTS baru ditambahkan di situ). Ditambah
+--     cache SW lama masih menyajikan app.js v123 (yang menolak URL remote) beberapa
+--     kunjungan setelah deploy v124. Fix di sisi client ada di commit b952c60.
+-- (2) Sisi database: tabel platform_logos live TERNYATA sudah punya policy baca utk
+--     role AUTHENTICATED saja (qual: is_active = true) -- user login bisa membaca
+--     katalog. Tapi: anon TIDAK bisa (tanpa policy utk anon), logo_url baris yang ada
+--     memakai URL aset BER-HASH pihak ketiga yang rapuh (ganti build = mati) & baris
+--     ipot menunjuk HALAMAN WEB (404), & alias GoTo/Danamas (file 20260906_platform_logo_
+--     aliases.sql) belum pernah dijalankan. File ini memperbaiki semuanya: ganti semua
+--     logo_url utk 11 platform menjadi PATH SELF-HOSTED (icons/platforms/*), nonaktifkan
+--     baris ipot yang rusak, insert goto & danamas-stabil, dan tambah policy baca
+--     PUBLIK (defense-in-depth: anon ikut bisa baca katalog global ini).
 --
 -- File ini IDEMPOTENT (aman dijalankan ulang kapan pun):
 --   1. create table if not exists + alter add column if not exists (tahan
@@ -107,6 +116,11 @@ on conflict (platform_key) do update set
     updated_at   = timezone('utc', now());
 
 -- Catatan: IPOT (Indopremier) SENGAJA tidak di-seed di sini -- belum ada file
--- logo self-hosted yang terverifikasi; katalog lokal memakai badge "IP" dan
--- admin tetap bisa menambah baris IPOT sendiri dengan URL remote yang
--- diizinkan (host harus masuk ICON_REMOTE_HOSTS + CSP img-src).
+-- logo self-hosted yang terverifikasi (URL favicon/logo indopremier semuanya 404,
+-- telah diuji langsung 2026-09-06), & baris lama yang menunjuk HALAMAN WEB
+-- (https://www.indopremier.com/ipot/) dinonaktifkan supaya fallback badge lokal "IP"
+-- yang dipakai. Admin tetap bisa menambahkan baris IPOT sendiri dengan URL remote
+-- yang diizinkan (host harus masuk ICON_REMOTE_HOSTS + CSP img-src).
+update public.platform_logos
+set is_active = false, updated_at = timezone('utc', now())
+where platform_key = 'ipot';
