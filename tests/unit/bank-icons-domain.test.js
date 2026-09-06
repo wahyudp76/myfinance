@@ -90,7 +90,7 @@ test("detectAutoAccountIcon: case-insensitive & ambiguitas kripto dipecah ke log
   const indodax = detectAutoAccountIcon("INDODAX");
   assert.deepEqual(indodax, { type: "image", value: "icons/platforms/indodax.png", alt: "INDODAX" });
   const toko = detectAutoAccountIcon("Tokocrypto");
-  assert.deepEqual(toko, { type: "badge", value: "TC", color: "bg-blue-400" });
+  assert.deepEqual(toko, { type: "image", value: "icons/platforms/tokocrypto.svg", alt: "Tokocrypto" });
   // kata "kripto" polos --> tetap punya fallback logo platform pertama yang cocok.
   const plain = detectAutoAccountIcon("Akun Kripto");
   assert.ok(plain && plain.type === "image");

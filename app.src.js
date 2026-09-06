@@ -307,10 +307,10 @@ let __bankIcon = (function () {
         { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], url: "icons/platforms/bareksa.svg" },
         { name: "Pluang", category: "Investasi", keywords: ["pluang"], url: "icons/platforms/pluang.png" },
         { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], url: "icons/platforms/indodax.png" },
-        { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], badge: "TC", color: "bg-blue-400" },
+        { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], url: "icons/platforms/tokocrypto.svg" },
         { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], url: "icons/platforms/pintu.png" },
         { name: "IPOT", category: "Investasi", keywords: ["ipot", "indopremier"], badge: "IP", color: "bg-indigo-600" },
-        { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" },
+        { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], url: "icons/platforms/mirae.svg" },
     ];
     return {
         bankWalletDatabase: db,
