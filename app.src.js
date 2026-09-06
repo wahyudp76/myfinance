@@ -1270,7 +1270,11 @@ async function currentUserId() {
                 const override = appSettings.accountIcons && appSettings.accountIcons[candidate];
                 if (override) return renderAccountIconObj(override, 'text-lg');
                 const normalizedName = String(candidate).trim().toLowerCase();
-                const dbLogo = platformLogoByKey[normalizedName];
+                const compactName = normalizedName.replace(/[^a-z0-9]/g, '');
+                const dbLogo = platformLogoByKey[normalizedName] || Object.entries(platformLogoByKey).find(([key]) => {
+                    const compactKey = key.replace(/[^a-z0-9]/g, '');
+                    return compactKey === compactName || compactKey.includes(compactName) || compactName.includes(compactKey);
+                })?.[1];
                 if (dbLogo) return renderAccountIconObj({ type: 'image', value: dbLogo, alt: candidate }, 'text-xl');
                 const detected = detectAutoAccountIcon(candidate);
                 if (detected && (detected.type === 'image' || detected.type === 'badge')) {
