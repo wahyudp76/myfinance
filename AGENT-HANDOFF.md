@@ -1498,6 +1498,5 @@ character class (`/[\s,\/]+/`) yang ditandai `no-useless-escape` (di dalam
 `[...]`, `/` memang tak perlu di-escape). Lint lokal SEBELUMNYA terlihat
 hijau karena keliru dipipe `tail -1` sehingga baris error tertelan -- PELAJARAN
 PROSES: saat memverifikasi gerbang, SELALU tampilkan output penuh + echo exit
-code, jangan pipe ke tail. Fix: `/[\s,\/]+/` -> `/[\s,/]+/` (e6ec1a4 utk
-nomor commit lihat git log). E2E Harness & job lain di c2e7048 sudah hijau;
+code, jangan pipe ke tail. Fix: `/[\s,\/]+/` -> `/[\s,/]+/` (commit 9f54fe9). E2E Harness & job lain di c2e7048 sudah hijau;
 hanya ESLint yang perlu diulang.
