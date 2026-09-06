@@ -151,11 +151,21 @@ await page.evaluate(() => closeAssetDetailModal());
 await page.waitForTimeout(400);
 
 // ---------- 3. form Tambah Aset: saran platform memakai logo ----------
-const suggestionLogos = await page.evaluate(() => {
+const suggestionLogos = await page.evaluate(async () => {
+  const waitImgs = (ms) => new Promise((resolve) => {
+    const deadline = Date.now() + ms;
+    const tick = () => {
+      const imgs = [...document.querySelectorAll("#asset-platform-suggestions img")];
+      const allDone = imgs.length > 0 && imgs.every((i) => i.complete);
+      if (allDone || Date.now() > deadline) resolve(); else setTimeout(tick, 50);
+    };
+    tick();
+  });
   openAssetModal(false);
   const box = document.getElementById("asset-platform-suggestions");
   if (!box) return null;
   searchAssetBankSuggestions("");
+  await waitImgs(3000); // tunggu logo saran benar2 termuat (network live bisa lebih lambat)
   const items = [...box.querySelectorAll("div.flex.items-center.gap-2")];
   const out = items.map((it) => ({
     name: it.querySelector("span")?.textContent?.trim() || "",
