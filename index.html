@@ -113,6 +113,7 @@
         import { updateCalendarSummary as updateCalendarSummaryUI, renderCalendar as renderCalendarUI, openCalendarDetail as openCalendarDetailUI } from './src/ui/calendar.js';
         import { renderAccountDetailCharts as renderAccountDetailChartsUI } from './src/ui/accounts.js';
         import { suggestCategory, getExchangeRate, scanReceipt } from './src/services/supabase/edge.js';
+        import { listPlatformLogos } from './src/services/supabase/platform-logos.js';
         // PILOT MIGRASI MONOLIT → MODUL (v71): helper format/monetary murni
         // (formatRp, txIdrAmount, formatShortVal, deepCloneDict) kini punya rumah
         // kanonik yang ter-tes unit di src/domain/format.js (lihat
@@ -221,7 +222,7 @@
             // renderAccountDetailChartsUI: idem, fungsi UI/render chart di halaman
             // Detail Akun (src/ui/accounts.js).
             renderAccountDetailChartsUI,
-            suggestCategory, getExchangeRate, scanReceipt,
+            suggestCategory, getExchangeRate, scanReceipt, listPlatformLogos,
             // PILOT MIGRASI MONOLIT → MODUL (v71): set helper format/monetary kanonik
             // (src/domain/format.js) ter-tes unit, disediakan via jalur servicesModule
             // yang sama agar blok classic bisa mengadopsinya tanpa menghapus definisi

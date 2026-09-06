@@ -35,16 +35,16 @@ export const bankWalletDatabase = [
   { name: "DANA", category: "E-Wallet", keywords: ["dana"], url: "icons/banks/dana.svg" },
   { name: "ShopeePay", category: "E-Wallet", keywords: ["shopeepay", "shopee pay"], url: "icons/banks/shopeepay.svg" },
   // Tambahan untuk Platform Aset/Investasi (Bisa jadi akun juga)
-  { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], url: "icons/platforms/bibit.svg" },
-  { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], url: "icons/platforms/ajaib.ico" },
-  { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], url: "icons/platforms/stockbit.svg" },
-  { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], url: "icons/platforms/bareksa.svg" },
-  { name: "Pluang", category: "Investasi", keywords: ["pluang"], url: "icons/platforms/pluang.png" },
-  { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], url: "icons/platforms/indodax.png" },
-  { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], url: "icons/platforms/tokocrypto.svg" },
-  { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], url: "icons/platforms/pintu.png" },
+  { name: "Bibit", category: "Investasi", keywords: ["bibit", "reksa dana bibit"], badge: "BB", color: "bg-green-600" },
+  { name: "Ajaib", category: "Investasi", keywords: ["ajaib"], badge: "AJ", color: "bg-blue-500" },
+  { name: "Stockbit", category: "Investasi", keywords: ["stockbit"], badge: "SB", color: "bg-emerald-500" },
+  { name: "Bareksa", category: "Investasi", keywords: ["bareksa"], badge: "BR", color: "bg-teal-600" },
+  { name: "Pluang", category: "Investasi", keywords: ["pluang"], badge: "PL", color: "bg-slate-800" },
+  { name: "Indodax", category: "Investasi", keywords: ["indodax", "kripto"], badge: "ID", color: "bg-blue-600" },
+  { name: "Tokocrypto", category: "Investasi", keywords: ["tokocrypto", "kripto"], badge: "TC", color: "bg-blue-400" },
+  { name: "Pintu", category: "Investasi", keywords: ["pintu", "kripto pintu"], badge: "PT", color: "bg-slate-900" },
   { name: "IPOT", category: "Investasi", keywords: ["ipot", "indopremier"], badge: "IP", color: "bg-indigo-600" },
-  { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], url: "icons/platforms/mirae.svg" },
+  { name: "Mirae", category: "Investasi", keywords: ["mirae", "hots"], badge: "MR", color: "bg-orange-500" },
 ];
 
 /** Mendeteksi logo otomatis dari database bank/e-wallet berdasarkan nama akun. */

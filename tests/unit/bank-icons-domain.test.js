@@ -79,21 +79,21 @@ test("detectAutoAccountIcon: kunci paling panjang menang (BCA vs mandiri vs bank
   assert.equal(bca.value, "icons/banks/bca.svg");
   // Badge platform investasi
   const bibit = detectAutoAccountIcon("Rekdana Bibit");
-  assert.deepEqual(bibit, { type: "image", value: "icons/platforms/bibit.svg", alt: "Rekdana Bibit" });
+  assert.deepEqual(bibit, { type: "badge", value: "BB", color: "bg-green-600" });
   // "kripto" (6) lebih panjang dari "pintu" (5) -> Indodax menang utk "Pintu Kripto".
   const pintu = detectAutoAccountIcon("Pintu");
-  assert.deepEqual(pintu, { type: "image", value: "icons/platforms/pintu.png", alt: "Pintu" });
+  assert.deepEqual(pintu, { type: "badge", value: "PT", color: "bg-slate-900" });
 });
 
 test("detectAutoAccountIcon: case-insensitive & ambiguitas kripto dipecah ke logo terpanjang", () => {
   // "kripto" ada di Indodax/Tokocrypto/Pintu; nama spesifik platform menang.
   const indodax = detectAutoAccountIcon("INDODAX");
-  assert.deepEqual(indodax, { type: "image", value: "icons/platforms/indodax.png", alt: "INDODAX" });
+  assert.deepEqual(indodax, { type: "badge", value: "ID", color: "bg-blue-600" });
   const toko = detectAutoAccountIcon("Tokocrypto");
-  assert.deepEqual(toko, { type: "image", value: "icons/platforms/tokocrypto.svg", alt: "Tokocrypto" });
+  assert.deepEqual(toko, { type: "badge", value: "TC", color: "bg-blue-400" });
   // kata "kripto" polos --> tetap punya fallback logo platform pertama yang cocok.
   const plain = detectAutoAccountIcon("Akun Kripto");
-  assert.ok(plain && plain.type === "image");
+  assert.ok(plain && plain.type === "badge");
 });
 
 test("detectAutoAccountIcon: nama tak dikenal -> null (fallback ikon netral)", () => {
