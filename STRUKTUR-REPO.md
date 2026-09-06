@@ -180,8 +180,8 @@ myfinance/
 │   ├── build-styles.mjs    # clean-css styles.src.css → styles.css
 │   ├── subset-fontawesome.py
 │   ├── bench-save-latency.mjs
-│   ├── verify-hud.mjs      # E2E Playwright (49 cek) terhadap http://localhost:8123
-│   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 15 cek)
+│   ├── verify-hud.mjs      # E2E Playwright (64 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
+│   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
 │   ├── lighthouse/run.mjs
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
@@ -270,9 +270,13 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   ```bash
   npm run lint          # ESLint (0 masalah)
   npm test              # lint + unit + parity
-  node scripts/verify-hud.mjs   # 49 cek E2E (butuh: npx http-server . -p 8123 -c-1)
+  node scripts/verify-hud.mjs   # 64 cek E2E (butuh: npx http-server . -p 8123 -c-1)
+  node scripts/verify-asset-logos.mjs # 17 cek E2E logo aset (server sama)
   ```
 - Build drift dijaga CI: `build:css` + `build:app` lalu `git diff --exit-code`.
+- Kedua harness E2E di atas juga berjalan otomatis di CI via workflow
+  `E2E Harness` (`.github/workflows/e2e-harness.yml`): push/PR ke main,
+  jadwal mingguan, dan manual — hermetic (stub Supabase, tanpa secrets).
 
 ---
 

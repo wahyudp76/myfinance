@@ -1,6 +1,7 @@
 # MyFinance Dashboard — Full Supabase New Format Edition
 
 [![CI](https://github.com/wahyudp76/myfinance/actions/workflows/parity.yml/badge.svg)](https://github.com/wahyudp76/myfinance/actions/workflows/parity.yml)
+[![E2E Harness](https://github.com/wahyudp76/myfinance/actions/workflows/e2e-harness.yml/badge.svg)](https://github.com/wahyudp76/myfinance/actions/workflows/e2e-harness.yml)
 
 Versi ini digabung jadi **`index.html` + `styles.css`** (bukan lagi
 `login.html`/`css/style.css` terpisah versi lama -- CSS dipisah lagi ke

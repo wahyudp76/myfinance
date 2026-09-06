@@ -1417,3 +1417,40 @@ tanpa bump SW, tanpa rebuild, tanpa redeploy.
 
 **KESIMPULAN:** tidak ditemukan bug aplikasi baru; satu utang test dibayar.
 Commit: scripts/verify-hud.mjs + entri handoff ini.
+
+## v89 — CI: kedua harness E2E (verify-hud + verify-asset-logos) masuk workflow otomatis
+
+**KONTEKS:** tindak lanjut rekomendasi v88 (utang test verify-hud 63/64 karena
+harness hanya ritual manual). User minta harness E2E dimasukkan ke CI.
+
+**DELIVERABLE: workflow baru `.github/workflows/e2e-harness.yml`** (job:
+"E2E harness (HUD + logo aset)", ubuntu-latest, timeout 10 menit):
+- Trigger: push & pull_request ke main/refactor/** (mirror filosofi parity.yml)
+  + schedule mingguan (Minggu 18:00 UTC = Senin 01:00 WIB) + workflow_dispatch.
+- Steps: checkout@v7 → node dari .nvmrc → npm ci (PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1)
+  → npx playwright install --with-deps chromium → python3 http.server :8123
+  (pola server yang sama dgn job Lighthouse, bind 127.0.0.1) → jalankan kedua
+  harness SEBAGAI STEP TERPISAH → upload screenshot ke artifact HANYA saat
+  gagal (retensi 7 hari) → pkill server (always).
+- Kedua harness env HUD_URL=http://127.0.0.1:8123/.
+- Kenapa aman di PR (beda dgn job parity yang skip PR): kedua script HERMETIC —
+  semua route Supabase di-intercept Playwright, seed deterministik, TANPA
+  secrets, TANPA nunggu deploy Pages; keduanya exit 1 saat FAIL/error halaman
+  jadi benar-benar menggagalkan CI. Justru berguna utk PR Dependabot upgrade
+  playwright/chromium (gate auto-merge dependabot-auto-merge.yml tetap aman:
+  ia hanya melarang check yang gagal/berjalan; skipped diperbolehkan).
+
+**SIMULASI LOKAL SEBELUM PUSH (persis urutan step CI):** npm ci →
+npx playwright install --with-deps chromium → python3 -m http.server 8123
+--bind 127.0.0.1 → HUD_URL=http://127.0.0.1:8123/ node scripts/verify-hud.mjs
+(exit 0) → HUD_URL=... node scripts/verify-asset-logos.mjs (17/17, exit 0).
+Catatan sandbox: node_modules terhapus antar-pesan (dikecualikan snapshot) —
+jalankan npm ci lagi di awal tiap sesi kerja.
+
+**Dokumentasi ikut disinkronkan:** STRUKTUR-REPO.md (jumlah check basi
+49→64 & 15→17 + catatan workflow baru; blok perintah manual diperluas),
+README.md (badge E2E Harness di samping badge CI).
+
+**Tanpa dampak app:** workflow & docs saja — TANPA ubah app.src.js/index.html,
+TANPA rebuild, TANPA bump SW (v126 tetap). Push commit ini otomatis memicu
+run pertama workflow (trigger push ke main) = validasi langsung.

@@ -1,0 +1,121 @@
+# E2E HARNESS — pagar regresi UI browser-nyata untuk kedua ritual verifikasi.
+# =============================================================================
+# MENJALANKAN: scripts/verify-hud.mjs (64 cek HUD dashboard) dan
+# scripts/verify-asset-logos.mjs (17 cek logo platform aset) di dalam CI.
+#
+# LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
+# PERMANEN karena fitur paginasi (10 baris + tombol halaman) mendarat tanpa
+# harness dijalankan ulang — dua harness ini dulunya ritual manual saja, jadi
+# test basi (stale expectation) tidak ketahuan sampai berbulan-bulan. Workflow
+# ini menutup celah itu: kedua harness kini berjalan otomatis.
+#
+# KENAPA AMAN DI-CI (beda dgn job `parity` di parity.yml):
+# - Sepenuhnya HERMETIC: kedua script meng-intercept SEMUA route Supabase
+#   (auth + REST + functions) lewat Playwright `context.route()` dan memakai
+#   seed deterministik — TANPA secrets, TANPA menyentuh cloud, TANPA menunggu
+#   deploy Pages. Boleh jalan di pull_request (termasuk PR Dependabot, yang
+#   memang tidak diberi akses secrets) tanpa batasan apa pun.
+# - Keduanya exit code 1 saat ada FAIL / error halaman, jadi benar-benar
+#   menggagalkan CI (bukan sekadar mencetak merah).
+#
+# Trigger (mengikuti filosofi parity.yml):
+# - push ke main & refactor/** : setiap perubahan kode langsung divalidasi.
+# - pull_request ke main & refactor/** : regresi UI ketahuan SEBELUM merge.
+# - schedule mingguan : menangkap pergeseran environment (runner, Chromium)
+#   yang membuat harness pelan-pelan basi meski kode tidak berubah.
+# - workflow_dispatch : rituaal manual kapan pun, tanpa push.
+name: E2E Harness
+
+on:
+  push:
+    branches:
+      - main
+      - 'refactor/**'
+  pull_request:
+    branches:
+      - main
+      - 'refactor/**'
+  workflow_dispatch:
+  schedule:
+    # Minggu 18:00 UTC = Senin 01:00 WIB (jam sepi).
+    - cron: '0 18 * * 0'
+
+permissions:
+  contents: read
+
+# Push beruntun ke branch yang sama tidak menumpuk antrean runner.
+concurrency:
+  group: e2e-harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-harness:
+    name: E2E harness (HUD + logo aset)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+
+      - name: Install dependencies (reproducible dari lockfile)
+        run: npm ci --no-audit --no-fund
+        env:
+          # Browser TIDAK ikut diunduh saat npm ci -- tetap lewat step
+          # terpisah di bawah agar versi build browser terpin & eksplisit
+          # (pola yang sama dgn job parity & lighthouse di parity.yml).
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Server statis yang sama dgn job Lighthouse (scripts/lighthouse/run.mjs):
+      # python3 http.server, di-bind ke 127.0.0.1 supaya tidak ambigu antara
+      # localhost-vs-IPv6. Proses background tetap hidup antar-step dalam
+      # satu job runner; dibunuh di step cleanup.
+      - name: Serve app statis (:8123)
+        run: |
+          python3 -m http.server 8123 --bind 127.0.0.1 &
+          for i in $(seq 1 10); do
+            if curl -sf http://127.0.0.1:8123/ -o /dev/null; then
+              echo "server statis siap (attempt $i)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server statis gagal naik dalam 10 detik"; exit 1
+
+      # Harness dijalankan TERPISAH per script supaya ringkasan CI langsung
+      # menunjukkan harness mana yang bermasalah.
+      - name: verify-hud (64 cek HUD dashboard, stub Supabase)
+        env:
+          HUD_URL: http://127.0.0.1:8123/
+        run: node scripts/verify-hud.mjs
+
+      - name: verify-asset-logos (17 cek logo platform, stub Supabase)
+        env:
+          HUD_URL: http://127.0.0.1:8123/
+        run: node scripts/verify-asset-logos.mjs
+
+      # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
+      # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug
+      # "kenapa merah" tanpa harus re-run lokal.
+      - name: Upload screenshot harness saat gagal
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-harness-screenshots-${{ github.sha }}
+          path: |
+            /tmp/hud-shots
+            /tmp/asset-logo-shots
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Matikan server statis
+        if: always()
+        run: pkill -f "http.server 8123" || true
