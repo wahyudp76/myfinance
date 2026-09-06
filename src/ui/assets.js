@@ -113,7 +113,7 @@ export function renderAssetView({
             <div class="flex justify-between items-start">
                 <div class="flex items-center min-w-0">
                     <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 flex items-center justify-center mr-3 flex-shrink-0 shadow-sm border border-white">
-                        ${getAccountLogo(a.platform)}
+                        ${getAccountLogo(a.platform, a.nama)}
                     </div>
                     <div class="min-w-0">
                         <p class="text-xs md:text-sm font-bold text-slate-800 truncate">${escapeHtml(a.nama)}</p>

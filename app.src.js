@@ -1264,12 +1264,19 @@ async function currentUserId() {
         // Fallback deteksi lokal tetap berjalan bila katalog belum tersedia.
         const platformLogoByKey = Object.create(null);
 
-        function getAccountLogo(name) {
-            const override = appSettings.accountIcons && appSettings.accountIcons[name];
-            if (override) return renderAccountIconObj(override, 'text-lg');
-            const normalizedName = String(name || '').trim().toLowerCase();
-            const dbLogo = platformLogoByKey[normalizedName];
-            if (dbLogo) return renderAccountIconObj({ type: 'image', value: dbLogo, alt: name }, 'text-xl');
+        function getAccountLogo(name, fallbackName) {
+            const candidates = [name, fallbackName].filter(Boolean);
+            for (const candidate of candidates) {
+                const override = appSettings.accountIcons && appSettings.accountIcons[candidate];
+                if (override) return renderAccountIconObj(override, 'text-lg');
+                const normalizedName = String(candidate).trim().toLowerCase();
+                const dbLogo = platformLogoByKey[normalizedName];
+                if (dbLogo) return renderAccountIconObj({ type: 'image', value: dbLogo, alt: candidate }, 'text-xl');
+                const detected = detectAutoAccountIcon(candidate);
+                if (detected && (detected.type === 'image' || detected.type === 'badge')) {
+                    return renderAccountIconObj(detected, 'text-xl');
+                }
+            }
             return renderAccountIconObj(detectAutoAccountIcon(name), 'text-xl');
         }
 
