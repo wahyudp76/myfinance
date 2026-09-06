@@ -1260,9 +1260,16 @@ async function currentUserId() {
             return `<i class="fas fa-wallet text-slate-500 ${sizeClass}"></i>`;
         }
 
+        // Logo global dari Supabase; dipakai langsung oleh daftar aset dan akun.
+        // Fallback deteksi lokal tetap berjalan bila katalog belum tersedia.
+        const platformLogoByKey = Object.create(null);
+
         function getAccountLogo(name) {
             const override = appSettings.accountIcons && appSettings.accountIcons[name];
             if (override) return renderAccountIconObj(override, 'text-lg');
+            const normalizedName = String(name || '').trim().toLowerCase();
+            const dbLogo = platformLogoByKey[normalizedName];
+            if (dbLogo) return renderAccountIconObj({ type: 'image', value: dbLogo, alt: name }, 'text-xl');
             return renderAccountIconObj(detectAutoAccountIcon(name), 'text-xl');
         }
 
@@ -3964,6 +3971,8 @@ async function currentUserId() {
                             match.url = logo.logo_url;
                             delete match.badge;
                             delete match.color;
+                            platformLogoByKey[key] = logo.logo_url;
+                            platformLogoByKey[String(logo.display_name || '').toLowerCase()] = logo.logo_url;
                         }
                     });
                 }
