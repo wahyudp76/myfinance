@@ -73,6 +73,11 @@ test("isSafeIconImageUrl: data URL gambar raster/base64 & path logo bank interna
   assert.equal(isSafeIconImageUrl("icons/banks/bni.png"), true);
 });
 
+test("isSafeIconImageUrl: URL katalog logo terpercaya diterima", () => {
+  assert.equal(isSafeIconImageUrl("https://bibit.id/logo.svg"), true);
+  assert.equal(isSafeIconImageUrl("https://uxfngmxghupdlwoeoxgh.supabase.co/storage/v1/object/public/logos/bibit.svg"), true);
+});
+
 test("isSafeIconImageUrl: URL/teks mencurigakan DITOLAK", () => {
   assert.equal(isSafeIconImageUrl('x" onerror="alert(1)'), false);
   assert.equal(isSafeIconImageUrl("https://evil.example/x.png"), false);

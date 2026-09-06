@@ -93,8 +93,22 @@ export function isSafeFaIconToken(v) {
  * tambahan: data URL gambar raster/base64 (alfabet base64 tidak mengandung
  * tanda kutip) atau path aset internal icons/banks/*.
  */
+const ICON_REMOTE_HOSTS = new Set([
+  "bibit.id", "stockbit.com", "images.bareksa.com", "image-cdn.pluang.com",
+  "indodax.com", "pintu.co.id", "ajaib.co.id", "commons.wikimedia.org",
+  "upload.wikimedia.org", "www.banksinarmas.com", "www.indopremier.com",
+  "uxfngmxghupdlwoeoxgh.supabase.co",
+]);
+
 export function isSafeIconImageUrl(v) {
-  return typeof v === "string" && (ICON_DATA_URL_RE.test(v) || ICON_ASSET_PATH_RE.test(v));
+  if (typeof v !== "string") return false;
+  if (ICON_DATA_URL_RE.test(v) || ICON_ASSET_PATH_RE.test(v)) return true;
+  try {
+    const url = new URL(v);
+    return url.protocol === "https:" && ICON_REMOTE_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function optionalClassToken(v) {
