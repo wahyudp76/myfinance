@@ -1727,3 +1727,80 @@ sehingga tampil "belum aktif" palsu. Konvensi: fungsi UI di-attach dgn alias
 **VERIFIKASI:** lint 0; unit 797/797 (+12: domain 7 + ui 5); parity 1/1;
 E2E 3/3: verify-hud 69/69 (+4 baru), verify-applock 21/21, verify-asset-logos
 17/17. sw.js v130 -> v131 (+2 file precache) + snapshot regen.
+
+## v95 — `sql/schema.sql` jadi titik masuk instalasi yang BENAR-BENAR lengkap
+
+**MASALAH (ditemukan lewat audit struktur repo, dibuktikan dengan menjalankan
+SQL-nya di PostgreSQL 17 sungguhan — bukan dibaca saja):** `schema.sql`
+didokumentasikan sebagai "titik masuk instalasi baru", tapi isinya cuma 6
+tabel inti: **NOL function**. Padahal app memanggil 4 RPC
+(`create_transfer_transaction`, `create_recurring_transaction`,
+`replace_month_budgets`, `check_and_consume_rate_limit`). Fresh install =
+"hidup tapi rusak": Transfer, simpan Budget, Transaksi Berulang, dan rate
+limit Edge Function semuanya gagal begitu dipakai. Juga hilang: kolom
+multi-currency & recurring di `transactions`, kolom harga di `assets`, serta
+tabel `api_rate_limits` / `platform_logos` / `whatsapp_*` / `rate_limits`.
+(Gejala ini sebagian sudah pernah dicatat `docs/schema-contract-audit.md`
+tapi tidak pernah ditutup.)
+
+**LEBIH BURUK — jalan keluar "jalankan saja semua migrasi" TIDAK JALAN.**
+Dibuktikan dengan mengeksekusi berurutan di database kosong:
+1. `migration_reliability_hardening_2026-08.sql` → **ERROR** `cannot change
+   return type of existing function`: `2026-08-supabase-native-foundation.sql`
+   lebih dulu membuat `replace_month_budgets` `returns integer`, file ini
+   mendefinisikan ulang `returns void`. Karena dibungkus `begin/commit`,
+   SELURUH file rollback — termasuk `create_recurring_transaction` yang tidak
+   pernah lahir.
+2. `rls_performance_fix.sql` → **ERROR** di `public.rate_limits` (tabel warisan
+   yang tidak pernah ada di repo) → semua perbaikan policy initplan-nya ikut
+   rollback.
+3. Urutan alfabetis pun salah: `20260906_platform_logo_aliases.sql` jatuh
+   SEBELUM `20260906_platform_logos.sql` (upsert ke tabel yang belum ada).
+
+**PERBAIKAN:** semua objek produksi dikonsolidasikan ke `sql/schema.sql`
+(166 → ~720 baris). Body ke-4 RPC disalin **byte-identical** dari migrasi
+kanoniknya. Policy ditulis dalam bentuk initplan `(select auth.uid())` supaya
+sama dengan live (`rls_performance_fix`) — `default auth.uid()` di definisi
+kolom sengaja TIDAK ikut diubah. Ditambahkan juga `rate_limits` (warisan):
+tabel ini tidak pernah ada di repo mana pun, padahal `analyze-finance`
+memakainya untuk jeda 8 detik "Tanya AI" — dan karena error select-nya tidak
+diperiksa (hanya `data` yang di-destructure), di project baru jeda itu **gagal
+diam-diam**. Grant/revoke RPC memakai DO block dinamis (pola
+`migration_rls_hardening`) supaya tidak bisa salah tulis signature.
+`sql/migrations/` TIDAK disentuh — statusnya arsip riwayat.
+
+**VERIFIKASI (PostgreSQL 17 lokal + shim `auth.uid()`/`auth.role()`/roles):**
+- `schema.sql` di database kosong: **sukses tanpa error**; dijalankan 2x tetap
+  bersih (idempotensi terjaga).
+- `pg_dump -s` hasil schema.sql **IDENTIK** dengan database referensi yang
+  dibangun dari schema lama + semua migrasi (+ langkah manual drop function
+  & stub `rate_limits`), kecuali satu FK `rate_limits.user_id → auth.users`
+  yang memang sengaja ditambahkan (konsisten dgn tabel lain, live tidak punya).
+- Fungsional: isolasi RLS lintas user OK (A lihat 1 baris, B lihat 0);
+  `replace_month_budgets` OK; `create_transfer_transaction` USD 100 @16.000
+  → `jumlah_idr` = 1.600.000; `create_recurring_transaction` dipanggil 2x →
+  id SAMA, hanya 1 baris (idempotensi); rate limit batas 3 → t,t,t,**f**;
+  `api_rate_limits` tidak terbaca dari client (0 baris); katalog logo 11 baris.
+- Keamanan: `anon` DITOLAK di semua RPC (`permission denied for function`),
+  `authenticated` tetap lolos.
+
+**PAGAR BARU — `tests/unit/sql-schema-completeness.test.js` (5 test):** setiap
+RPC yang dipanggil kode wajib terdefinisi di schema.sql; body RPC wajib identik
+dengan migrasi kanonik (peta `CANONICAL_FUNCTIONS` di file test); tiap tabel &
+kolom yang dibuat migrasi wajib ada di schema.sql; policy wajib bentuk
+initplan. Sudah **diuji negatif**: hapus satu RPC → 2 test merah; ubah body RPC
+diam-diam → merah; kembalikan satu policy ke `auth.uid()` polos → merah.
+
+**Catatan untuk agen berikutnya:** jangan menjalankan file di `sql/migrations/`
+pada project baru, dan kalau menambah RPC/tabel/kolom baru, tulis di
+`sql/schema.sql` (bukan cuma bikin file migrasi) — kalau tidak, test di atas
+langsung merah.
+
+**HARNESS-nya DISIMPAN:** `scripts/schema-verify/` (shim Supabase +
+uji fungsional + README berisi langkah persisnya). Tidak diwire ke CI (butuh
+Postgres lokal), tapi bisa diulang kapan pun — verifikasi di atas reproducible,
+bukan klaim sekali jalan.
+
+**VERIFIKASI REPO:** unit 802/802 hijau (797 + 5 baru); lint 0 masalah. Tidak
+ada file yang di-precache SW yang berubah (SQL & dokumen tidak masuk
+PRECACHE_URLS) → `CACHE_VERSION` sengaja TIDAK di-bump.

@@ -42,8 +42,9 @@ myfinance-app/
 ├── sw.js                   # Service Worker (precache app shell, network-first utk dokumen)
 ├── package.json            # Script test/build + metadata Node (CI: .github/workflows/)
 ├── sql/
-│   ├── schema.sql              # SQL lengkap: tabel inti + Row Level Security
-│   └── *.sql                    # Migrasi tambahan bertanggal, urut dari nama file
+│   ├── schema.sql              # SQL LENGKAP (satu kali Run cukup): 11 tabel +
+│   │                            # 4 RPC + RLS + seed katalog logo
+│   └── migrations/*.sql         # ARSIP RIWAYAT migrasi -- bukan untuk project baru
 ├── supabase/functions/
 │   ├── scan-receipt/index.ts    # Edge Function: baca struk lewat Gemini vision
 │   └── whatsapp-webhook/index.ts # Edge Function: bot WhatsApp (Fonnte)
@@ -79,7 +80,12 @@ halaman) — bukan dua file HTML terpisah.
 1. Buka project Supabase kamu di https://app.supabase.com.
 2. Masuk ke menu **SQL Editor** → **New query**.
 3. Copy-paste **seluruh isi file `sql/schema.sql`** lalu klik **Run**.
-   Ini membuat 7 tabel berikut, semuanya dengan Row Level Security (RLS)
+   **Sekali Run ini sudah cukup** — sejak v95 file itu memuat SELURUH objek
+   yang dipakai produksi (11 tabel + 4 RPC + policy + seed katalog logo).
+   Isi `sql/migrations/` adalah ARSIP RIWAYAT; jangan dijalankan di project
+   baru (dua di antaranya justru error di database kosong — penjelasannya ada
+   di header `schema.sql`).
+   Ini membuat 11 tabel berikut, semuanya dengan Row Level Security (RLS)
    aktif — jadi tiap user cuma bisa lihat & ubah datanya sendiri:
    - `transactions` — transaksi, termasuk kolom multi-currency (`mata_uang`,
      `kurs`, `jumlah_idr`)
@@ -95,17 +101,17 @@ halaman) — bukan dua file HTML terpisah.
      gaji, cicilan, tagihan rutin)
    - `api_rate_limits` — pembatas jumlah panggilan fitur AI per user per jam
      (lihat `sql/migrations/migration_rate_limiting_2026-08.sql`)
+   - `rate_limits` — jeda minimal 8 detik antar pesan "Tanya AI" (tabel
+     warisan, beda tujuan & skema dari `api_rate_limits`; dipakai Edge
+     Function `analyze-finance`)
+   - `platform_logos` — katalog GLOBAL logo platform investasi (Bibit,
+     Stockbit, GoTo, Danamas Stabil, dll). Beda dari tabel lain: milik admin
+     (anon tidak bisa menulis) tapi BOLEH dibaca semua user (policy SELECT
+     publik) supaya logo tampil di semua akun. Sudah ikut ter-seed 11 logo
+     self-hosted dari `icons/platforms/`.
+   - `whatsapp_link_codes` & `whatsapp_links` — kode verifikasi + pemetaan
+     nomor WhatsApp ke akun, untuk bot WhatsApp (lihat bagian 12).
 
-   Lalu jalankan juga **`sql/migrations/20260906_platform_logos.sql`** (tabel
-   ke-8): katalog GLOBAL logo platform investasi (Bibit, Stockbit, GoTo,
-   Danamas Stabil, dll). Beda dari 7 tabel lain: tabel ini milik admin (anon
-   tidak bisa menulis), tapi BOLEH dibaca semua user (policy SELECT publik)
-   supaya logo platform bisa tampil di semua akun. Logo default-nya
-   self-hosted di `icons/platforms/`, jadi tanpa tabel ini pun logo tetap
-   tampil -- tabel dipakai untuk menimpa/menambah logo lintas perangkat.
-
-   Butuh fitur bot WhatsApp juga? Lanjutkan dengan menjalankan
-   `sql/migrations/migration_whatsapp.sql` sesudahnya (lihat bagian 12).
 4. Cek menu **Authentication → Providers**, pastikan **Email** aktif
    (biasanya sudah default aktif).
 5. (Opsional, buat testing lebih cepat) Di **Authentication → Settings**,
@@ -471,7 +477,7 @@ miliknya sendiri, walau key-nya identik.
 ## 10. Kalau ada error saat login/memuat data
 
 - **"Gagal memuat data dari cloud"** → cek koneksi internet, dan pastikan
-  `sql/schema.sql` sudah dijalankan lengkap (ketujuh tabelnya) di project
+  `sql/schema.sql` sudah dijalankan lengkap (kesebelas tabelnya) di project
   Supabase kamu.
 - **"Email atau password salah"** → pastikan sudah mendaftar dulu lewat tab
   **Daftar**.

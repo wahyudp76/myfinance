@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~318 commit · versi terbaru `v70`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v95`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -149,8 +149,15 @@ myfinance/
 │   └── README.md           # provenance & prosedur upgrade
 │
 ├── sql/                    # Skema & migrasi Supabase (semua "if not exists" — aman di-run ulang)
-│   ├── schema.sql          # SEMUA tabel inti + RLS (transactions, budgets, assets, settings, custom_icons, recurring_transactions, api_rate_limits) — titik masuk instalasi baru
-│   └── migrations/         # SEMUA migrasi historis & baru (v91: dikonsolidasikan ke sini)
+│   ├── schema.sql          # ★ TITIK MASUK INSTALASI BARU — SATU KALI RUN CUKUP (v95).
+│   │                       #   11 tabel (transactions, budgets, assets, settings, custom_icons,
+│   │                       #   recurring_transactions, api_rate_limits, rate_limits, platform_logos,
+│   │                       #   whatsapp_link_codes, whatsapp_links) + 4 RPC atomik
+│   │                       #   (create_transfer_transaction, create_recurring_transaction,
+│   │                       #   replace_month_budgets, check_and_consume_rate_limit) + RLS
+│   │                       #   bentuk initplan + seed katalog logo platform.
+│   └── migrations/         # ARSIP RIWAYAT — JANGAN dijalankan di project baru (v95: dua file
+│                           #   di antaranya error di database kosong; lihat header schema.sql)
 │       ├── 20260906_platform_logos.sql        # tabel katalog logo platform + RLS baca publik + seed (v86)
 │       ├── 20260906_platform_logo_aliases.sql # contoh pola upsert katalog custom (GoTo, Danamas)
 │       ├── 2026-08-supabase-native-foundation.sql
@@ -186,6 +193,8 @@ myfinance/
 │   ├── verify-hud.mjs      # E2E Playwright (65 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
 │   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
 │   ├── lighthouse/run.mjs
+│   ├── schema-verify/      # v95: harness manual uji sql/schema.sql di Postgres nyata
+│   │                       #   (shim Supabase + uji RLS/RPC + README) — tidak di CI
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
@@ -311,7 +320,10 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 ### Catatan praktis untuk mulai berkontribusi
 1. Fitur logika baru → tulis pure function di `src/domain/` + test di `tests/unit/`.
 2. Render UI baru → `src/ui/` (re-export ke `index.html` dengan alias `...UI`).
-3. Akses data baru → `src/services/supabase/` + migrasi `sql/` (idempotent).
+3. Akses data baru → `src/services/supabase/` + objek DB baru di `sql/schema.sql`
+   (idempotent). Kalau menambah RPC: definisinya WAJIB ada di `schema.sql`, kalau tidak
+   `tests/unit/sql-schema-completeness.test.js` akan merah — itu pagar supaya instalasi
+   baru tidak pernah lagi "hidup tapi rusak".
 4. Ubah monolit → **edit `app.src.js`** → `npm run build:app`.
 5. Ubah styling → **edit `styles.src.css`** → `npm run build:styles`; ubah class Tailwind →
    `css/tailwind.src.css` → `npm run build:css`.
