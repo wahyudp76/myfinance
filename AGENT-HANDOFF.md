@@ -1941,3 +1941,59 @@ sungguhan dijalankan LOKAL sebelum push** — verify-hud 69/69, verify-asset-log
 17/17, verify-applock 21/21, nol error halaman, screenshot dashboard normal.
 Alasan diverifikasi lokal: GitHub Pages men-deploy langsung dari root repo tiap
 push, jadi `index.html` rusak = situs hidup langsung rusak.
+
+## v99 — Biometrik PER PERANGKAT (laporan pengguna: Face ID mobile "tidak jalan")
+**LAPORAN:** "di desktop bisa pakai fingerprint, tapi di mobile tidak bisa pakai
+Face ID." **Penyebabnya bukan Face ID, dan bukan iOS.**
+
+**AKAR MASALAH:** konfigurasi `app_lock` adalah SATU objek yang ikut roaming
+lewat tabel settings, tapi kredensial WebAuthn platform authenticator TERIKAT
+PERANGKAT. Sampai v98 hanya ada satu slot `credential_id`, sehingga setelah
+laptop mendaftar:
+1. HP menarik setelan yang sama, melihat biometrik "sudah aktif", dan Pengaturan
+   di HP HANYA menampilkan tombol "Matikan" -- HP tidak pernah bisa mendaftar;
+2. tombol buka-biometrik di HP memanggil `allowCredentials` berisi kredensial
+   LAPTOP -> `NotAllowedError` -> tampak seperti "Face ID rusak";
+3. menekan "Matikan" di HP ikut menghapus biometrik laptop.
+
+**PERBAIKAN:** `credentials: [{id,label,added_at}]` (daftar, maks 10) di
+`src/domain/app-lock.js` + fungsi murni `addBiometricCredential`,
+`removeBiometricCredential`, `clearBiometricCredentials`, `biometricCredentialIds`,
+`hasBiometricCredential`, `describeBiometricState`, `biometricLabel`,
+`deviceLabelFromUserAgent`. Perilaku baru:
+- `allowCredentials` memuat SEMUA perangkat terdaftar;
+- Pengaturan menawarkan "Aktifkan" selama PERANGKAT INI belum terdaftar, sambil
+  memberi tahu "Juga aktif di N perangkat lain";
+- "Matikan" mencabut perangkat ini saja; ada tombol terpisah untuk semua perangkat;
+- `excludeCredentials` mencegah satu perangkat mendaftar dua kali;
+- tombol di layar kunci hanya muncul kalau perangkat ini terdaftar (dulu muncul
+  lalu selalu gagal);
+- label mengikuti perangkat ("Face ID / Touch ID" di iPhone, bukan "sidik jari").
+
+**MIGRASI:** `normalizeLockConfig` memindahkan `credential_id` lama ke daftar
+otomatis, dan `credential_id` tetap ditulis sebagai cermin `credentials[0].id`
+supaya app versi lama yang masih ter-cache di perangkat lain tidak rusak.
+`biometric_enabled` kini DITURUNKAN dari panjang daftar -- state "flag true tanpa
+kredensial" (penyebab UI salah) jadi mustahil.
+
+**PENANDA PER PERANGKAT:** `localStorage['myfinance_applock_cred']` menyimpan id
+kredensial yang dibuat perangkat ini (WebAuthn tidak bisa ditanya tanpa
+memanggil get()). Kalau localStorage dibersihkan, penanda ini SELF-HEAL: hasil
+`get()` yang sukses menuliskannya kembali.
+
+**HARNESS BARU `scripts/verify-applock-biometric.mjs` (14 cek):** memakai
+**virtual authenticator CDP**, jadi alur WebAuthn benar-benar dijalankan browser.
+Diuji-negatif terhadap kode v98 dan MERAH tepat di gejala yang dilaporkan
+pengguna: baris Pengaturan cuma "Matikan", pendaftaran perangkat kedua menimpa
+kredensial laptop (entri=1), mematikan menghapus semua (sisa=0). Terhadap v99:
+14/14 PASS.
+
+**JEBAKAN YANG DITEMUKAN SAAT MENULIS HARNESS (catat, mahal waktunya):** WebAuthn
+menolak origin ber-IP -- `http://127.0.0.1:8123` memberi `SecurityError: This is
+an invalid domain` karena RP ID wajib domain terdaftar; hanya `localhost` yang
+dikecualikan. Harness menormalkan URL-nya sendiri, dan step CI-nya memakai
+`http://localhost:8123/`.
+
+**VERIFIKASI:** lint 0; unit 819/819 (+11 tes domain, termasuk 3 tes REGRESI yang
+menamai skenario laptop-lalu-HP); E2E lokal hud 69/69, asset-logos 17/17,
+applock 21/21, applock-biometric 14/14; `CACHE_VERSION` v132 -> v133 + snapshot.

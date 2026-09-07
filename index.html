@@ -2280,7 +2280,7 @@
             <input id="appLockPinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="PIN 6 digit" class="w-full text-center tracking-[0.5em] text-2xl font-bold bg-slate-900/70 border border-cyan-400/30 rounded-2xl py-3.5 text-cyan-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/70 mb-3">
             <p id="appLockStatus" class="text-rose-400 text-xs min-h-[1.1rem] mb-3"></p>
             <button id="appLockUnlockBtn" onclick="appLockSubmit()" class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-cyan-500/25">Buka</button>
-            <button id="appLockBioBtn" onclick="appLockBiometricUnlock()" class="hidden w-full mt-2.5 bg-slate-800/80 border border-cyan-400/30 text-cyan-200 font-semibold py-3 rounded-2xl active:scale-[0.98] transition"><i class="fas fa-fingerprint mr-2"></i>Buka dengan Sidik Jari</button>
+            <button id="appLockBioBtn" onclick="appLockBiometricUnlock()" class="hidden w-full mt-2.5 bg-slate-800/80 border border-cyan-400/30 text-cyan-200 font-semibold py-3 rounded-2xl active:scale-[0.98] transition"><i class="fas fa-fingerprint mr-2"></i><span data-bio-label>Buka dengan biometrik</span></button>
             <button onclick="appLockShowForgot()" class="text-slate-500 hover:text-slate-300 text-xs mt-5 underline underline-offset-4 transition-colors">Lupa PIN?</button>
             <div id="appLockForgotBox" class="hidden mt-4 text-left">
                 <p class="text-slate-400 text-[11px] mb-2 leading-relaxed">Masukkan <b class="text-slate-300">password akun (email)</b> kamu untuk memverifikasi identitas dan mereset PIN.</p>

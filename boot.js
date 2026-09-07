@@ -23,7 +23,8 @@
         import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
         // v92 (Fase 1A/1B): kunci aplikasi + pengingat proaktif — domain murni.
-        import { normalizeLockConfig, isLockEnabled, isValidPinFormat, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec, shouldLockNow } from './src/domain/app-lock.js';
+        import { normalizeLockConfig, isLockEnabled, isValidPinFormat, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec, shouldLockNow,
+            biometricCredentialIds, hasBiometricCredential, addBiometricCredential, removeBiometricCredential, clearBiometricCredentials, biometricLabel, deviceLabelFromUserAgent, describeBiometricState } from './src/domain/app-lock.js';
         import { normalizeReminderPrefs, computeDueReminders, filterUnsent, mergeSentLog } from './src/domain/reminders.js';
         import { buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows } from './src/domain/backup.js';
         import { buildDemoTransactions, isDemoTransaction, DEMO_MARKER } from './src/domain/demo-data.js';
@@ -125,6 +126,7 @@
             // v92 (Fase 1A/1B): kunci aplikasi + pengingat proaktif (domain murni,
             // src/domain/app-lock.js & src/domain/reminders.js).
             normalizeLockConfig, isLockEnabled, isValidPinFormat, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec, shouldLockNow,
+            biometricCredentialIds, hasBiometricCredential, addBiometricCredential, removeBiometricCredential, clearBiometricCredentials, biometricLabel, deviceLabelFromUserAgent, describeBiometricState,
             normalizeReminderPrefs, computeDueReminders, filterUnsent, mergeSentLog,
             // Validasi bentuk override ikon/gaya (settings.js) -- dipakai blok classic sebagai
             // lapisan keamanan render & restore backup (lihat categoryIconHtml/renderAccountIconObj).

@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v98`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v99`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -43,7 +43,7 @@ myfinance/
 ├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v132)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v133)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -293,6 +293,8 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   node scripts/verify-hud.mjs   # 69 cek E2E (butuh: npx http-server . -p 8123 -c-1)
   node scripts/verify-asset-logos.mjs # 17 cek E2E logo aset (server sama)
   node scripts/verify-applock.mjs     # 21 cek E2E kunci aplikasi (server sama)
+  node scripts/verify-applock-biometric.mjs # 14 cek biometrik multi-perangkat (WAJIB lewat
+                                      # http://localhost — WebAuthn menolak origin ber-IP)
   node scripts/schema-verify/run.mjs  # v96: install sql/schema.sql dari nol di
                                       # Postgres nyata + 10 cek RLS/RPC/grant
                                       # (butuh psql; lihat README di folder itu)
@@ -305,6 +307,9 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - Harness E2E juga berjalan otomatis di CI via workflow `E2E Harness`
   (`.github/workflows/e2e-harness.yml`): push/PR ke main, jadwal mingguan, dan
   manual — hermetic (stub Supabase, tanpa secrets). Selain dua harness di atas
+  ada `scripts/verify-applock-biometric.mjs` (v99, 14 cek): memakai virtual authenticator
+  CDP untuk menguji biometrik PER PERANGKAT (bug v92-v98: kredensial roaming satu-slot
+  membuat perangkat kedua tak pernah bisa mendaftar). Dan
   ada `scripts/verify-applock.mjs` (v92, 21 cek): menguji kunci aplikasi +
   pengingat end-to-end lintas reload — stub tabel settings-nya STATEFUL
   (upsert ditulis ke store memori) supaya konfigurasi kunci bertahan antar

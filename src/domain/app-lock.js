@@ -35,8 +35,63 @@ export const APP_LOCK_DEFAULTS = {
     hash: '',
     auto_lock_minutes: 5, // 0 = hanya kunci saat aplikasi DIBUKA (page load), >0 = + timer idle
     biometric_enabled: false,
-    credential_id: null, // base64 rawId WebAuthn (platform authenticator)
+    credential_id: null, // LEGACY (v92-v98): cermin dari credentials[0].id, lihat catatan di bawah
+    credentials: [], // v99: daftar kredensial WebAuthn PER PERANGKAT
 };
+
+/**
+ * BUG v92-v98 YANG DIPERBAIKI DI v99 — kenapa `credentials` harus berupa DAFTAR:
+ *
+ * Konfigurasi ini SATU objek yang ikut roaming lewat tabel settings, tapi
+ * kredensial WebAuthn platform authenticator TERIKAT PERANGKAT: sidik jari yang
+ * didaftarkan di laptop secara fisik tidak ada di HP. Dengan satu slot
+ * `credential_id`, mendaftar di laptop berarti:
+ *   1. HP menarik setelan yang sama, melihat biometrik "sudah aktif", sehingga
+ *      Pengaturan di HP hanya menawarkan "Matikan" -- Face ID TIDAK PERNAH bisa
+ *      didaftarkan di HP sama sekali;
+ *   2. tombol buka-dengan-biometrik di HP memanggil allowCredentials berisi
+ *      kredensial laptop -> NotAllowedError -> terlihat seperti "Face ID rusak";
+ *   3. menekan "Matikan" di HP ikut menghapus biometrik laptop.
+ * Karena itu kredensial disimpan sebagai daftar, dan setiap perangkat mendaftar
+ * sendiri. `credential_id` tetap ditulis sebagai cermin entri pertama supaya
+ * versi app lama yang masih ter-cache di perangkat lain tidak langsung rusak.
+ */
+export const MAX_BIOMETRIC_CREDENTIALS = 10;
+
+/** Satu kredensial = { id (base64 rawId), label (nama perangkat), added_at (ISO) }. */
+function normalizeCredential(raw) {
+    const c = raw && typeof raw === 'object' ? raw : {};
+    const id = typeof c.id === 'string' && c.id ? c.id : null;
+    if (!id) return null;
+    return {
+        id,
+        label: typeof c.label === 'string' && c.label ? c.label.slice(0, 60) : 'Perangkat',
+        added_at: typeof c.added_at === 'string' ? c.added_at : '',
+    };
+}
+
+/**
+ * Normalisasi daftar kredensial + MIGRASI dari bentuk lama satu-slot.
+ * Duplikat id dibuang (id pertama menang), dipotong di MAX_BIOMETRIC_CREDENTIALS.
+ */
+export function normalizeCredentialList(rawList, legacyCredentialId) {
+    const list = Array.isArray(rawList) ? rawList : [];
+    const out = [];
+    const seen = new Set();
+    for (const item of list) {
+        const c = normalizeCredential(item);
+        if (!c || seen.has(c.id)) continue;
+        seen.add(c.id);
+        out.push(c);
+        if (out.length >= MAX_BIOMETRIC_CREDENTIALS) break;
+    }
+    // Migrasi: konfigurasi lama hanya punya credential_id tunggal.
+    const legacy = typeof legacyCredentialId === 'string' && legacyCredentialId ? legacyCredentialId : null;
+    if (legacy && !seen.has(legacy) && out.length < MAX_BIOMETRIC_CREDENTIALS) {
+        out.push({ id: legacy, label: 'Perangkat pertama', added_at: '' });
+    }
+    return out;
+}
 
 /** Kebijakan lockout: setelah 5x salah berturut-turut, cooldown 30 detik. */
 export const LOCKOUT_MAX_FAILS = 5;
@@ -51,13 +106,102 @@ export const LOCKOUT_COOLDOWN_MS = 30000;
 export function normalizeLockConfig(raw) {
     const cfg = raw && typeof raw === 'object' ? raw : {};
     const minutes = Number(cfg.auto_lock_minutes);
+    const credentials = normalizeCredentialList(cfg.credentials, cfg.credential_id);
     return {
         enabled: cfg.enabled === true,
         salt: typeof cfg.salt === 'string' ? cfg.salt : '',
         hash: typeof cfg.hash === 'string' ? cfg.hash : '',
         auto_lock_minutes: Number.isFinite(minutes) && minutes >= 0 ? Math.floor(minutes) : APP_LOCK_DEFAULTS.auto_lock_minutes,
-        biometric_enabled: cfg.biometric_enabled === true,
-        credential_id: typeof cfg.credential_id === 'string' && cfg.credential_id ? cfg.credential_id : null,
+        // DITURUNKAN dari daftar, bukan dipercaya apa adanya: flag true tanpa satu
+        // pun kredensial adalah state mustahil yang dulu bikin UI menawarkan
+        // "Matikan" di perangkat yang belum pernah mendaftar.
+        biometric_enabled: credentials.length > 0,
+        credential_id: credentials.length > 0 ? credentials[0].id : null, // cermin utk versi app lama
+        credentials,
+    };
+}
+
+/** Semua rawId (base64) yang boleh dipakai membuka -- untuk allowCredentials WebAuthn. */
+export function biometricCredentialIds(cfg) {
+    return normalizeLockConfig(cfg).credentials.map((c) => c.id);
+}
+
+/** Apakah kredensial milik PERANGKAT INI (id dari penanda lokal) terdaftar di cloud? */
+export function hasBiometricCredential(cfg, id) {
+    if (typeof id !== 'string' || !id) return false;
+    return biometricCredentialIds(cfg).includes(id);
+}
+
+/** Tambah kredensial perangkat baru (idempoten per id). Mengembalikan cfg BARU. */
+export function addBiometricCredential(cfg, entry) {
+    const base = normalizeLockConfig(cfg);
+    const c = normalizeCredential(entry);
+    if (!c) return base;
+    if (base.credentials.some((x) => x.id === c.id)) return base;
+    // Perangkat terbaru di depan supaya cermin credential_id (untuk app versi
+    // lama) menunjuk perangkat yang paling mungkin sedang dipakai.
+    const credentials = [c, ...base.credentials].slice(0, MAX_BIOMETRIC_CREDENTIALS);
+    return { ...base, credentials, biometric_enabled: true, credential_id: credentials[0].id };
+}
+
+/** Cabut SATU perangkat (dipakai tombol "Matikan di perangkat ini"). */
+export function removeBiometricCredential(cfg, id) {
+    const base = normalizeLockConfig(cfg);
+    const credentials = base.credentials.filter((c) => c.id !== id);
+    return {
+        ...base,
+        credentials,
+        biometric_enabled: credentials.length > 0,
+        credential_id: credentials.length > 0 ? credentials[0].id : null,
+    };
+}
+
+/** Cabut SEMUA perangkat sekaligus. */
+export function clearBiometricCredentials(cfg) {
+    return { ...normalizeLockConfig(cfg), credentials: [], biometric_enabled: false, credential_id: null };
+}
+
+/**
+ * Nama biometrik yang benar menurut perangkat. Menyebut "sidik jari" di iPhone
+ * itu salah sekaligus membingungkan -- pengguna mencari Face ID.
+ */
+export function biometricLabel(userAgent) {
+    const ua = String(userAgent || '');
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'Face ID / Touch ID';
+    if (/Macintosh/i.test(ua)) return 'Touch ID';
+    if (/Android/i.test(ua)) return 'sidik jari / face unlock';
+    if (/Windows/i.test(ua)) return 'Windows Hello';
+    return 'biometrik';
+}
+
+/** Label perangkat yang manusiawi untuk daftar kredensial. */
+export function deviceLabelFromUserAgent(userAgent) {
+    const ua = String(userAgent || '');
+    if (/iPad/i.test(ua)) return 'iPad';
+    if (/iPhone/i.test(ua)) return 'iPhone';
+    if (/Android/i.test(ua)) return 'Android';
+    if (/Macintosh/i.test(ua)) return 'Mac';
+    if (/Windows/i.test(ua)) return 'Windows';
+    if (/Linux/i.test(ua)) return 'Linux';
+    return 'Perangkat';
+}
+
+/**
+ * Ringkasan status untuk UI Pengaturan. Dipisah jadi fungsi murni supaya
+ * kombinasi "aktif di sini / aktif di tempat lain / belum sama sekali" bisa
+ * diuji tanpa DOM -- inilah kombinasi yang salah dibaca sampai v98.
+ */
+export function describeBiometricState(cfg, thisDeviceCredentialId) {
+    const c = normalizeLockConfig(cfg);
+    const enrolledHere = hasBiometricCredential(c, thisDeviceCredentialId);
+    const otherDevices = c.credentials.filter((x) => x.id !== thisDeviceCredentialId).length;
+    return {
+        enrolledHere,
+        otherDevices,
+        total: c.credentials.length,
+        // Tombol "Aktifkan" WAJIB tetap muncul selama perangkat ini belum
+        // terdaftar, walau perangkat lain sudah -- ini inti bug v92-v98.
+        canEnrollHere: !enrolledHere && c.credentials.length < MAX_BIOMETRIC_CREDENTIALS,
     };
 }
 

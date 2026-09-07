@@ -5,7 +5,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { APP_LOCK_DEFAULTS, LOCKOUT_MAX_FAILS, LOCKOUT_COOLDOWN_MS, normalizeLockConfig, isLockEnabled, isValidPinFormat, sha256Hex, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec, shouldLockNow } from '../../src/domain/app-lock.js';
+import { APP_LOCK_DEFAULTS, LOCKOUT_MAX_FAILS, LOCKOUT_COOLDOWN_MS, MAX_BIOMETRIC_CREDENTIALS, normalizeLockConfig, isLockEnabled, isValidPinFormat, sha256Hex, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec, shouldLockNow,
+    normalizeCredentialList, biometricCredentialIds, hasBiometricCredential, addBiometricCredential, removeBiometricCredential, clearBiometricCredentials, biometricLabel, deviceLabelFromUserAgent, describeBiometricState } from '../../src/domain/app-lock.js';
 
 // ---------------------------------------------------------------------------
 // SHA-256 — vektor resmi (FIPS 180-4 / NIST):
@@ -65,7 +66,12 @@ test('normalizeLockConfig: field salah tipe tidak pernah melempar, dijaga aman',
 
 test('normalizeLockConfig: nilai valid dipertahankan', () => {
     const c = normalizeLockConfig({ enabled: true, salt: 's', hash: 'h', auto_lock_minutes: 0, biometric_enabled: true, credential_id: 'abc' });
-    assert.deepEqual(c, { enabled: true, salt: 's', hash: 'h', auto_lock_minutes: 0, biometric_enabled: true, credential_id: 'abc' });
+    assert.deepEqual(c, {
+        enabled: true, salt: 's', hash: 'h', auto_lock_minutes: 0,
+        biometric_enabled: true, credential_id: 'abc',
+        // v99: credential_id lama dimigrasikan jadi satu entri daftar
+        credentials: [{ id: 'abc', label: 'Perangkat pertama', added_at: '' }],
+    });
 });
 
 test('isLockEnabled: butuh enabled + salt + hash lengkap', () => {
@@ -175,4 +181,131 @@ test('shouldLockNow: jejak tidak valid / jam skew masa depan -> fail-closed meng
     assert.equal(shouldLockNow(cfgIdle, NOW + 10 * MIN, NOW), true); // jam mundur -> kunci, sembuh sendiri
     // toleransi kecil (<= 60 dtk) tidak dianggap skew
     assert.equal(shouldLockNow(cfgIdle, NOW + 30 * 1000, NOW), false);
+});
+
+// ---------------------------------------------------------------------------
+// v99 — Biometrik PER PERANGKAT.
+//
+// REGRESI YANG DIJAGA (laporan pengguna nyata, 2026-09-07): "di desktop bisa
+// pakai fingerprint, tapi di mobile tidak bisa pakai Face ID". Penyebabnya
+// bukan Face ID: konfigurasi app_lock ikut roaming lewat tabel settings, tapi
+// kredensial WebAuthn terikat perangkat. Dengan satu slot credential_id, HP
+// melihat biometrik "sudah aktif" milik laptop sehingga tidak pernah menawarkan
+// pendaftaran, dan tombol bukanya memanggil kredensial yang tidak ada di HP.
+// ---------------------------------------------------------------------------
+
+const CRED_LAPTOP = { id: 'kredensial-laptop', label: 'Windows', added_at: '2026-09-01T00:00:00.000Z' };
+const CRED_HP = { id: 'kredensial-hp', label: 'iPhone', added_at: '2026-09-07T00:00:00.000Z' };
+
+test('REGRESI v99: HP tetap ditawari mendaftar walau laptop sudah aktif', () => {
+    // Persis kondisi yang dilaporkan: cfg lama satu-slot hasil pendaftaran laptop.
+    const cfgDariCloud = { enabled: true, salt: 's', hash: 'h', biometric_enabled: true, credential_id: CRED_LAPTOP.id };
+
+    // Di HP: penanda lokal belum ada (HP belum pernah mendaftar).
+    const diHp = describeBiometricState(cfgDariCloud, null);
+    assert.equal(diHp.enrolledHere, false);
+    assert.equal(diHp.otherDevices, 1);
+    assert.equal(diHp.canEnrollHere, true, 'HP WAJIB masih bisa mendaftar -- ini inti bugnya');
+
+    // Di laptop: penanda lokal cocok -> tidak perlu daftar lagi.
+    const diLaptop = describeBiometricState(cfgDariCloud, CRED_LAPTOP.id);
+    assert.equal(diLaptop.enrolledHere, true);
+    assert.equal(diLaptop.canEnrollHere, false);
+    assert.equal(diLaptop.otherDevices, 0);
+});
+
+test('REGRESI v99: mendaftar di HP TIDAK menghapus kredensial laptop', () => {
+    const awal = normalizeLockConfig({ enabled: true, salt: 's', hash: 'h', credential_id: CRED_LAPTOP.id });
+    const sesudah = addBiometricCredential(awal, CRED_HP);
+    assert.deepEqual(biometricCredentialIds(sesudah).sort(), [CRED_HP.id, CRED_LAPTOP.id].sort());
+    assert.equal(sesudah.biometric_enabled, true);
+});
+
+test('REGRESI v99: allowCredentials memuat SEMUA perangkat, bukan satu', () => {
+    let cfg = normalizeLockConfig({ enabled: true, salt: 's', hash: 'h' });
+    cfg = addBiometricCredential(cfg, CRED_LAPTOP);
+    cfg = addBiometricCredential(cfg, CRED_HP);
+    const ids = biometricCredentialIds(cfg);
+    assert.equal(ids.length, 2);
+    assert.ok(ids.includes(CRED_LAPTOP.id) && ids.includes(CRED_HP.id));
+});
+
+test('v99: mematikan di satu perangkat hanya mencabut perangkat itu', () => {
+    let cfg = addBiometricCredential(normalizeLockConfig({}), CRED_LAPTOP);
+    cfg = addBiometricCredential(cfg, CRED_HP);
+    const sisa = removeBiometricCredential(cfg, CRED_HP.id);
+    assert.deepEqual(biometricCredentialIds(sisa), [CRED_LAPTOP.id]);
+    assert.equal(sisa.biometric_enabled, true, 'laptop masih aktif -> flag tetap true');
+
+    const kosong = removeBiometricCredential(sisa, CRED_LAPTOP.id);
+    assert.deepEqual(kosong.credentials, []);
+    assert.equal(kosong.biometric_enabled, false);
+    assert.equal(kosong.credential_id, null);
+});
+
+test('v99: clearBiometricCredentials mencabut semua perangkat', () => {
+    let cfg = addBiometricCredential(normalizeLockConfig({}), CRED_LAPTOP);
+    cfg = addBiometricCredential(cfg, CRED_HP);
+    const kosong = clearBiometricCredentials(cfg);
+    assert.deepEqual(kosong.credentials, []);
+    assert.equal(kosong.biometric_enabled, false);
+    assert.equal(kosong.credential_id, null);
+    assert.equal(kosong.enabled, cfg.enabled, 'PIN tidak ikut dimatikan');
+});
+
+test('v99: biometric_enabled DITURUNKAN dari daftar (state mustahil ditolak)', () => {
+    // Flag true tapi tidak ada kredensial: inilah yang dulu membuat UI HP
+    // hanya menawarkan "Matikan".
+    const c = normalizeLockConfig({ biometric_enabled: true, credential_id: null, credentials: [] });
+    assert.equal(c.biometric_enabled, false);
+    assert.equal(c.credential_id, null);
+});
+
+test('v99: addBiometricCredential idempoten & mempertahankan cfg lain', () => {
+    const awal = normalizeLockConfig({ enabled: true, salt: 'aa', hash: 'bb', auto_lock_minutes: 3 });
+    const sekali = addBiometricCredential(awal, CRED_HP);
+    const dua = addBiometricCredential(sekali, CRED_HP);
+    assert.equal(dua.credentials.length, 1, 'id sama tidak boleh dobel');
+    assert.equal(dua.auto_lock_minutes, 3);
+    assert.equal(dua.salt, 'aa');
+    assert.equal(dua.enabled, true);
+});
+
+test('v99: daftar kredensial dibatasi & tahan data rusak', () => {
+    const rusak = normalizeCredentialList([null, 'bukan objek', { id: '' }, { id: 'ok' }, { id: 'ok' }], null);
+    assert.deepEqual(rusak.map((c) => c.id), ['ok'], 'duplikat & sampah dibuang, tidak melempar');
+
+    const banyak = Array.from({ length: MAX_BIOMETRIC_CREDENTIALS + 5 }, (_, i) => ({ id: 'c' + i }));
+    assert.equal(normalizeCredentialList(banyak, null).length, MAX_BIOMETRIC_CREDENTIALS);
+
+    // label kepanjangan dipotong, bukan ditolak
+    assert.equal(normalizeCredentialList([{ id: 'x', label: 'a'.repeat(200) }], null)[0].label.length, 60);
+});
+
+test('v99: migrasi legacy tidak menggandakan kalau id-nya sudah ada di daftar', () => {
+    const c = normalizeLockConfig({ credential_id: CRED_HP.id, credentials: [CRED_HP] });
+    assert.equal(c.credentials.length, 1);
+});
+
+test('v99: hasBiometricCredential aman terhadap id kosong/null', () => {
+    const cfg = addBiometricCredential(normalizeLockConfig({}), CRED_HP);
+    assert.equal(hasBiometricCredential(cfg, CRED_HP.id), true);
+    assert.equal(hasBiometricCredential(cfg, null), false);
+    assert.equal(hasBiometricCredential(cfg, ''), false);
+    assert.equal(hasBiometricCredential(cfg, 'entah'), false);
+});
+
+test('v99: label biometrik mengikuti perangkat (iPhone bukan "sidik jari")', () => {
+    const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1';
+    const android = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
+    const win = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36';
+    assert.equal(biometricLabel(iphone), 'Face ID / Touch ID');
+    assert.equal(biometricLabel(android), 'sidik jari / face unlock');
+    assert.equal(biometricLabel(win), 'Windows Hello');
+    assert.equal(biometricLabel(undefined), 'biometrik');
+
+    assert.equal(deviceLabelFromUserAgent(iphone), 'iPhone');
+    assert.equal(deviceLabelFromUserAgent(android), 'Android');
+    assert.equal(deviceLabelFromUserAgent(win), 'Windows');
+    assert.equal(deviceLabelFromUserAgent(''), 'Perangkat');
 });

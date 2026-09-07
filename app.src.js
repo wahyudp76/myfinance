@@ -4700,6 +4700,10 @@ async function currentUserId() {
         //   karena bug render).
         const APPLOCK_CFG_KEY = 'myfinance_applock_cfg';
         const APPLOCK_STATE_KEY = 'myfinance_applock_state';
+        // v99: id kredensial WebAuthn milik PERANGKAT INI (per-user). Sengaja
+        // lokal, bukan di cloud: kredensial platform authenticator memang
+        // tidak bisa berpindah perangkat.
+        const APPLOCK_CRED_KEY = 'myfinance_applock_cred';
         const REMINDERS_SENT_KEY = 'myfinance_reminders_sent';
         // v93: jejak aktivitas terakhir per-user (epoch ms) — jam idle yang PERSISTEN
         // lintas reload & lintas tab. Inilah yang membuat mode "5 menit tidak dipakai"
@@ -4997,34 +5001,65 @@ async function currentUserId() {
                 return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
             } catch (e) { return false; }
         }
+        // v99: penanda PER PERANGKAT. Kredensial WebAuthn tidak bisa "ditanya"
+        // ke browser tanpa memanggil get(), jadi perangkat ini mencatat sendiri
+        // id kredensial yang ia buat. Kalau localStorage dibersihkan, penanda
+        // ini hilang -- itu ditangani dengan self-heal di appLockBiometricUnlock().
+        function appLockLocalCredentialId() {
+            const uid = appLockCurrentUserId();
+            const raw = appLockStorageGet(APPLOCK_CRED_KEY);
+            if (!raw || !uid || raw.userId !== uid) return null;
+            return typeof raw.credentialId === 'string' && raw.credentialId ? raw.credentialId : null;
+        }
+        function appLockLocalCredentialSet(id) {
+            const uid = appLockCurrentUserId();
+            if (!uid) return;
+            appLockStorageSet(APPLOCK_CRED_KEY, { userId: uid, credentialId: id });
+        }
+        function appLockBioLabel() { return servicesModule.biometricLabel(navigator.userAgent); }
         function appLockUpdateBioButton() {
             const btn = document.getElementById('appLockBioBtn');
             if (!btn) return;
             const cfg = appLockEffectiveCfg();
-            const show = !!(cfg && cfg.biometric_enabled && cfg.credential_id);
+            // Tampilkan HANYA kalau perangkat INI yang terdaftar. Sampai v98
+            // tombol ini muncul di HP hanya karena laptop pernah mendaftar,
+            // lalu selalu gagal -- terlihat seperti "Face ID rusak".
+            const show = servicesModule.hasBiometricCredential(cfg, appLockLocalCredentialId());
             btn.classList.toggle('hidden', !show);
+            const lbl = btn.querySelector('[data-bio-label]');
+            if (lbl) lbl.textContent = 'Buka dengan ' + appLockBioLabel();
         }
         async function appLockBiometricUnlock() {
             if (!_appLockArmed) return;
             const cfg = appLockEffectiveCfg();
-            if (!cfg.credential_id) return;
+            const ids = servicesModule.biometricCredentialIds(cfg);
+            if (!ids.length) return;
             try {
                 const challenge = new Uint8Array(32);
                 crypto.getRandomValues(challenge);
-                await navigator.credentials.get({
+                // Semua perangkat yang terdaftar ikut dikirim: authenticator akan
+                // memakai yang memang ada di perangkat ini.
+                const assertion = await navigator.credentials.get({
                     publicKey: {
                         challenge: challenge,
-                        allowCredentials: [{ type: 'public-key', id: appLockB64ToBytes(cfg.credential_id) }],
+                        allowCredentials: ids.map((id) => ({ type: 'public-key', id: appLockB64ToBytes(id) })),
                         userVerification: 'required',
                         timeout: 60000,
                     },
                 });
+                // Self-heal penanda lokal (mis. localStorage sempat dibersihkan):
+                // get() memberi tahu kredensial mana yang benar-benar dipakai.
+                if (assertion && assertion.rawId) {
+                    appLockLocalCredentialSet(appLockBytesToB64(new Uint8Array(assertion.rawId)));
+                }
                 // Keberhasilan get() = kehadiran user terverifikasi authenticator platform.
                 appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
                 hideAppLockOverlay();
             } catch (e) {
                 // Dibatalkan / sensor gagal -- PIN tetap jalan; JANGAN dihitung sebagai gagal PIN.
-                _appLockTransientError = 'Biometrik gagal/dibatalkan -- masukkan PIN.';
+                _appLockTransientError = appLockLocalCredentialId()
+                    ? appLockBioLabel() + ' gagal/dibatalkan -- masukkan PIN.'
+                    : 'Perangkat ini belum didaftarkan. Masuk dengan PIN, lalu aktifkan ' + appLockBioLabel() + ' di Pengaturan.';
                 appLockRefreshCooldownUI();
             }
         }
@@ -5041,34 +5076,51 @@ async function currentUserId() {
                         rp: { name: 'MyFinance' },
                         user: { id: userIdBytes, name: email, displayName: email },
                         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+                        // excludeCredentials: jangan biarkan perangkat yang SUDAH
+                        // terdaftar membuat kredensial kedua untuk dirinya sendiri.
+                        excludeCredentials: servicesModule.biometricCredentialIds(appLockCloudCfg())
+                            .map((id) => ({ type: 'public-key', id: appLockB64ToBytes(id) })),
                         authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
                         timeout: 60000,
                     },
                 });
                 if (!cred || !cred.rawId) throw new Error('Kredensial kosong');
-                const cfg = appLockCloudCfg();
-                cfg.biometric_enabled = true;
-                cfg.credential_id = appLockBytesToB64(new Uint8Array(cred.rawId));
-                appSettings.app_lock = cfg;
+                const credentialId = appLockBytesToB64(new Uint8Array(cred.rawId));
+                // v99: DITAMBAHKAN ke daftar, bukan menimpa. Menimpa berarti
+                // mendaftar di HP mematikan biometrik di laptop.
+                appSettings.app_lock = servicesModule.addBiometricCredential(appLockCloudCfg(), {
+                    id: credentialId,
+                    label: servicesModule.deviceLabelFromUserAgent(navigator.userAgent),
+                    added_at: new Date().toISOString(),
+                });
+                appLockLocalCredentialSet(credentialId);
                 persistSettings();
-                appLockCacheWrite(cfg);
+                appLockCacheWrite(appSettings.app_lock);
                 renderAppLockModal();
                 updateAppLockSettingsCard();
-                showSuccessToast('Sidik jari berhasil diaktifkan untuk membuka kunci.');
+                showSuccessToast(appLockBioLabel() + ' aktif di perangkat ini.');
             } catch (e) {
-                showErrorToast('Pendaftaran sidik jari gagal atau dibatalkan.');
+                showErrorToast('Pendaftaran ' + appLockBioLabel() + ' gagal atau dibatalkan.');
             }
         }
-        async function appLockDisableBiometric() {
-            const cfg = appLockCloudCfg();
-            cfg.biometric_enabled = false;
-            cfg.credential_id = null;
-            appSettings.app_lock = cfg;
+        function appLockDisableBiometric() {
+            // Hanya mencabut PERANGKAT INI -- perangkat lain tetap bisa membuka.
+            appSettings.app_lock = servicesModule.removeBiometricCredential(appLockCloudCfg(), appLockLocalCredentialId());
+            appLockLocalCredentialSet('');
             persistSettings();
-            appLockCacheWrite(cfg);
+            appLockCacheWrite(appSettings.app_lock);
             renderAppLockModal();
             updateAppLockSettingsCard();
-            showSuccessToast('Buka kunci dengan sidik jari dimatikan.');
+            showSuccessToast('Buka dengan ' + appLockBioLabel() + ' dimatikan di perangkat ini.');
+        }
+        function appLockDisableBiometricAll() {
+            appSettings.app_lock = servicesModule.clearBiometricCredentials(appLockCloudCfg());
+            appLockLocalCredentialSet('');
+            persistSettings();
+            appLockCacheWrite(appSettings.app_lock);
+            renderAppLockModal();
+            updateAppLockSettingsCard();
+            showSuccessToast('Buka dengan biometrik dimatikan di SEMUA perangkat.');
         }
 
         // ---------- Lupa PIN: verifikasi password akun -> reset ----------
@@ -5180,17 +5232,36 @@ async function currentUserId() {
             const row = document.getElementById('applock-bio-row');
             if (!row) return;
             const cfg = appLockCloudCfg();
-            if (!await appLockBiometricAvailable()) { row.innerHTML = ''; return; }
-            if (cfg.biometric_enabled && cfg.credential_id) {
+            if (!await appLockBiometricAvailable()) {
+                // Perangkat/browser ini memang tidak punya authenticator platform.
+                // Jelaskan, jangan diam -- diam bikin pengguna mengira app-nya rusak.
                 row.innerHTML =
-                    '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
-                    '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-cyan-500 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan sidik jari</p><p class="text-[11px] text-slate-400">PIN tetap bisa dipakai kapan saja</p></div></div>' +
-                    '<button onclick="appLockDisableBiometric()" class="text-xs font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2">Matikan</button>' +
+                    '<div class="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">' +
+                    '<i class="fas fa-circle-info text-slate-400 text-lg"></i>' +
+                    '<p class="text-[11px] text-slate-500 leading-relaxed">Perangkat/browser ini tidak menyediakan kunci biometrik. Perlu HTTPS, dan Face ID / sidik jari sudah aktif di sistem. PIN tetap bisa dipakai.</p>' +
                     '</div>';
-            } else {
+                return;
+            }
+            const st = servicesModule.describeBiometricState(cfg, appLockLocalCredentialId());
+            const nama = appLockBioLabel();
+            const lain = st.otherDevices > 0
+                ? '<p class="text-[11px] text-slate-400 mt-0.5">Juga aktif di ' + st.otherDevices + ' perangkat lain</p>'
+                : '';
+            if (st.enrolledHere) {
                 row.innerHTML =
                     '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
-                    '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-slate-400 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan sidik jari</p><p class="text-[11px] text-slate-400">Opsi cepat, di perangkat ini saja</p></div></div>' +
+                    '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-cyan-500 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan ' + __sanitize.escapeHtml(nama) + '</p><p class="text-[11px] text-slate-400">Aktif di perangkat ini &middot; PIN tetap bisa dipakai</p>' + lain + '</div></div>' +
+                    '<button onclick="appLockDisableBiometric()" class="text-xs font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2">Matikan</button>' +
+                    '</div>' +
+                    (st.otherDevices > 0
+                        ? '<button onclick="appLockDisableBiometricAll()" class="mt-2 text-[11px] font-semibold text-slate-400 hover:text-rose-500 underline underline-offset-2">Matikan di semua perangkat</button>'
+                        : '');
+            } else {
+                // INTI PERBAIKAN v99: walau perangkat lain sudah aktif, perangkat
+                // ini TETAP ditawari mendaftar sendiri.
+                row.innerHTML =
+                    '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
+                    '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-slate-400 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan ' + __sanitize.escapeHtml(nama) + '</p><p class="text-[11px] text-slate-400">Belum aktif di perangkat ini &middot; didaftarkan per perangkat</p>' + lain + '</div></div>' +
                     '<button onclick="appLockEnrollBiometric()" class="text-xs font-bold text-indigo-500 hover:text-indigo-600 underline underline-offset-2">Aktifkan</button>' +
                     '</div>';
             }
@@ -5262,7 +5333,7 @@ async function currentUserId() {
             if (!el) return;
             const cfg = appLockCloudCfg();
             if (servicesModule.isLockEnabled(cfg)) {
-                el.textContent = 'Aktif -- ' + (cfg.auto_lock_minutes > 0 ? 'terkunci setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai' : 'terkunci setiap dibuka') + (cfg.biometric_enabled ? ' + sidik jari' : '');
+                el.textContent = 'Aktif -- ' + (cfg.auto_lock_minutes > 0 ? 'terkunci setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai' : 'terkunci setiap dibuka') + (cfg.biometric_enabled ? ' + ' + appLockBioLabel() : '');
                 el.className = 'text-[10px] text-emerald-500';
             } else {
                 el.textContent = 'Nonaktif';

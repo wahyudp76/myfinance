@@ -2,7 +2,9 @@
 # =============================================================================
 # MENJALANKAN: scripts/verify-hud.mjs (69 cek HUD dashboard + Rekomendasi AI),
 # scripts/verify-asset-logos.mjs (17 cek logo platform aset), dan
-# scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92) di dalam CI.
+# scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92), dan
+# scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99)
+# di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
 # PERMANEN karena fitur paginasi (10 baris + tombol halaman) mendarat tanpa
@@ -111,6 +113,16 @@ jobs:
         env:
           APPLOCK_URL: http://127.0.0.1:8123/
         run: node scripts/verify-applock.mjs
+
+      # v99: biometrik PER PERANGKAT. Memakai virtual authenticator CDP, jadi alur
+      # WebAuthn benar-benar dijalankan browser. Mereproduksi bug yang dilaporkan
+      # pengguna (desktop bisa sidik jari, HP tidak bisa Face ID) dan menjaga agar
+      # tidak kembali. CATATAN: URL-nya localhost, BUKAN 127.0.0.1 -- WebAuthn
+      # menolak origin ber-IP dengan "SecurityError: This is an invalid domain".
+      - name: verify-applock-biometric (14 cek biometrik multi-perangkat, virtual authenticator)
+        env:
+          APPLOCK_URL: http://localhost:8123/
+        run: node scripts/verify-applock-biometric.mjs
 
       # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
       # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug

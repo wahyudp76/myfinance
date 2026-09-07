@@ -122,7 +122,7 @@ test("dokumen: jumlah cek tiap harness E2E cocok dengan skripnya", () => {
   // Tiap harness mendaftarkan cek lewat helper ok(...) -- hitung pemanggilannya.
   // Latar v88: harness manual jadi basi berbulan-bulan tanpa ketahuan karena
   // tidak ada yang mencocokkan angka di dokumen dengan isi skripnya.
-  const harnesses = ["verify-hud", "verify-asset-logos", "verify-applock"];
+  const harnesses = ["verify-hud", "verify-asset-logos", "verify-applock", "verify-applock-biometric"];
   const actual = Object.fromEntries(
     harnesses.map((h) => [h, (read(`scripts/${h}.mjs`).match(/\bok\(/g) || []).length])
   );
@@ -143,16 +143,21 @@ test("dokumen: jumlah cek tiap harness E2E cocok dengan skripnya", () => {
   let checked = 0;
   for (const [name, text] of docs) {
     for (const line of text.split("\n")) {
-      for (const h of harnesses) {
-        if (!line.includes(h)) continue;
-        for (const m of line.matchAll(/(\d+)\s*cek/g)) {
-          assert.equal(
-            Number(m[1]), actual[h],
-            `${name} menyebut "${m[1]} cek" untuk ${h}, padahal skripnya punya ${actual[h]} pemanggilan ok().\n` +
-            `  Baris: ${line.trim()}`
-          );
-          checked += 1;
-        }
+      // "verify-applock" adalah AWALAN dari "verify-applock-biometric" -- kalau
+      // dicocokkan apa adanya, baris tentang harness biometrik (14 cek) akan
+      // dinilai memakai angka harness applock (21) dan guard ini jadi bohong.
+      // Ambil nama TERPANJANG yang cocok pada baris itu saja.
+      const match = harnesses
+        .filter((h) => line.includes(h))
+        .sort((a, b) => b.length - a.length)[0];
+      if (!match) continue;
+      for (const m of line.matchAll(/(\d+)\s*cek/g)) {
+        assert.equal(
+          Number(m[1]), actual[match],
+          `${name} menyebut "${m[1]} cek" untuk ${match}, padahal skripnya punya ${actual[match]} pemanggilan ok().\n` +
+          `  Baris: ${line.trim()}`
+        );
+        checked += 1;
       }
     }
   }

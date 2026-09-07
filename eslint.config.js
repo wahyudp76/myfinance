@@ -172,7 +172,7 @@ export default [
     // --- Tes yang menjalankan kode DI DALAM browser (page.evaluate) ---
     // Callback Playwright dieksekusi di konteks halaman, jadi `document`,
     // `window`, dst. memang ada meski file-nya sendiri file Node.
-    files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
+    files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -190,7 +190,15 @@ export default [
         // alih-alih sebagai tes E2E yang gagal misterius.
         Chart: "readonly",
         ASSET_AUTO_UPDATE_CONFIG: "readonly",
-        appSettings: "readonly",
+        appSettings: "writable",
+        // v99: dipakai scripts/verify-applock-biometric.mjs (alur biometrik
+        // per perangkat). appSettings.app_lock DITULIS oleh harness saat
+        // menanam konfigurasi "sudah didaftarkan di laptop".
+        persistSettings: "readonly",
+        openAppLockModal: "readonly",
+        closeAppLockModal: "readonly",
+        appLockEnrollBiometric: "readonly",
+        appLockDisableBiometric: "readonly",
         charts: "readonly",
         // DITULIS (bukan cuma dibaca) oleh harness saat membersihkan aset
         // sementara "tmp-kripto" -- lihat scripts/verify-hud.mjs.
