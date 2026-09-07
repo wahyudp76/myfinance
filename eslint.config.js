@@ -166,7 +166,7 @@ export default [
     // --- Tes yang menjalankan kode DI DALAM browser (page.evaluate) ---
     // Callback Playwright dieksekusi di konteks halaman, jadi `document`,
     // `window`, dst. memang ada meski file-nya sendiri file Node.
-    files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
+    files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
     languageOptions: {
       globals: {
         ...globals.node,

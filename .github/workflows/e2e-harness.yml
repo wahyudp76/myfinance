@@ -1,7 +1,8 @@
 # E2E HARNESS — pagar regresi UI browser-nyata untuk kedua ritual verifikasi.
 # =============================================================================
-# MENJALANKAN: scripts/verify-hud.mjs (65 cek HUD dashboard) dan
-# scripts/verify-asset-logos.mjs (17 cek logo platform aset) di dalam CI.
+# MENJALANKAN: scripts/verify-hud.mjs (65 cek HUD dashboard),
+# scripts/verify-asset-logos.mjs (17 cek logo platform aset), dan
+# scripts/verify-applock.mjs (19 cek kunci aplikasi + pengingat, v92) di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
 # PERMANEN karena fitur paginasi (10 baris + tombol halaman) mendarat tanpa
@@ -102,6 +103,15 @@ jobs:
           HUD_URL: http://127.0.0.1:8123/
         run: node scripts/verify-asset-logos.mjs
 
+      # v92 (Fase 1A/1B): harness kunci aplikasi + pengingat. Beda dgn dua harness
+      # di atas: stub tabel settings-nya STATEFUL (upsert ditulis ke store di memori)
+      # sehingga konfigurasi kunci bertahan lintas reload -> gerbang kunci saat boot,
+      # lockout, dan recovery-terus-reload benar-benar teruji di CI.
+      - name: verify-applock (19 cek kunci aplikasi + pengingat, stub settings stateful)
+        env:
+          APPLOCK_URL: http://127.0.0.1:8123/
+        run: node scripts/verify-applock.mjs
+
       # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
       # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug
       # "kenapa merah" tanpa harus re-run lokal.
@@ -113,6 +123,7 @@ jobs:
           path: |
             /tmp/hud-shots
             /tmp/asset-logo-shots
+            /tmp/applock-shots
           if-no-files-found: ignore
           retention-days: 7
 

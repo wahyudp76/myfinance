@@ -200,6 +200,21 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
 
 ## 5. Fitur baru
 
+- **Kunci Aplikasi** (menu Pengaturan → kartu "Kunci Aplikasi" → **Atur**):
+  kunci aplikasi dengan PIN 6 digit supaya data keuanganmu tidak kebuka saat
+  HP dipinjam orang. Kunci aktif setiap aplikasi dibuka (atau setelah 5 menit
+  tidak dipakai -- bisa dipilih), 5x PIN salah akan mengunci sementara 30
+  detik, dan lupa PIN bisa diatasi dengan memverifikasi password akun email
+  kamu. PIN tersimpan sebagai hash SHA-256 + salt (bukan teks asli), ikut
+  akunmu di semua perangkat, dan di perangkat yang mendukung, kamu juga bisa
+  membuka dengan sidik jari/wajah (opsional, PIN tetap bisa dipakai).
+- **Notifikasi & Pengingat** (menu Pengaturan → kartu "Notifikasi &
+  Pengingat"): pengingat proaktif saat budget sebuah kategori sudah
+  terpakai >=80% atau jebol, transaksi berulang yang jatuh tempo besok
+  (H-1), dan tenggat tujuan keuangan yang tinggal 7 hari / 1 hari lagi.
+  Tiap jenis bisa dinyalakan/dimatikan sendiri; kalau izin notifikasi
+  browser belum diberikan, pengingat tetap tampil di dalam aplikasi.
+  Pengingat yang sama tidak pernah muncul dua kali di perangkat yang sama.
 - **Maskot kartun di layar login** — ilustrasi dompet ceria (SVG orisinal,
   bukan karakter berlisensi) supaya tampilan login lebih hidup, plus animasi
   mengambang & kerlip halus.

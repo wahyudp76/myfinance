@@ -62,13 +62,15 @@ myfinance/
 │   ├── bootstrap/              # Boot & load pipeline
 │   │   ├── app.js              # createAppBootstrap (orchestrates start/stop, generation guard)
 │   │   └── loader.js           # createBootstrapLoader (de-dup in-flight load + generation counter)
-│   ├── domain/                 # ★ Logika murni (pure functions) — 34 file, teruji unit
+│   ├── domain/                 # ★ Logika murni (pure functions) — 36 file, teruji unit
 │   │   ├── transactions.js     # filter/cari, compute views, insertTransactionRow, dll
 │   │   ├── accounts.js         # total/grafik/agregasi akun
 │   │   ├── budgets.js          # realisasi vs anggaran, deteksi ambang
 │   │   ├── assets.js           # portofolio + net worth
 │   │   ├── asset-flows.js      # arus aset, self-heal akun bayangan
 │   │   ├── recurring.js        # transaksi berulang + catchup
+│   │   ├── app-lock.js         # kunci aplikasi: PIN hash+salt (SHA-256 murni), lockout, normalisasi config (v92)
+│   │   ├── reminders.js        # pengingat proaktif: budget >=80/100%, recurring H-1, tujuan H-7/H-1 (v92)
 │   │   ├── goals-debts.js      # progress goal & utang
 │   │   ├── reports.js          # ringkasan tahunan/bulanan/trend
 │   │   ├── calendar.js         # ringkasan kalender, proyeksi jatuh tempo
@@ -275,9 +277,13 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   node scripts/verify-asset-logos.mjs # 17 cek E2E logo aset (server sama)
   ```
 - Build drift dijaga CI: `build:css` + `build:app` lalu `git diff --exit-code`.
-- Kedua harness E2E di atas juga berjalan otomatis di CI via workflow
-  `E2E Harness` (`.github/workflows/e2e-harness.yml`): push/PR ke main,
-  jadwal mingguan, dan manual — hermetic (stub Supabase, tanpa secrets).
+- Harness E2E juga berjalan otomatis di CI via workflow `E2E Harness`
+  (`.github/workflows/e2e-harness.yml`): push/PR ke main, jadwal mingguan, dan
+  manual — hermetic (stub Supabase, tanpa secrets). Selain dua harness di atas
+  ada `scripts/verify-applock.mjs` (v92, 19 cek): menguji kunci aplikasi +
+  pengingat end-to-end lintas reload — stub tabel settings-nya STATEFUL
+  (upsert ditulis ke store memori) supaya konfigurasi kunci bertahan antar
+  reload, persis cloud asli.
 
 ---
 
@@ -289,6 +295,13 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - **Pull-to-refresh**, tombol kembali ke atas, dark/light/system theme, command palette
   (Ctrl/Cmd+K), wawasan keuangan on-device, rekomendasi AI via Gemini, ekspor CSV
   (salah satunya dari menu Transaksi), profil + foto, maskot login SVG orisinal.
+- **Kunci Aplikasi (v92)**: PIN 6 digit (hash SHA-256 + salt di
+  `appSettings.app_lock` -> ikut roam), gerbang boot via cache localStorage
+  per-user, lockout 5 gagal -> cooldown 30 dtk, biometrik WebAuthn opsional,
+  lupa PIN -> verifikasi password.
+- **Notifikasi & Pengingat (v92)**: budget >=80%/100%, recurring H-1, tenggat
+  tujuan H-7/H-1; toggle per jenis di Pengaturan; dedup log per-perangkat
+  (`myfinance_reminders_sent`, FIFO 200).
 - **Tabel Supabase (7)**: `transactions`, `budgets`, `assets`, `settings`,
   `custom_icons`, `recurring_transactions`, `api_rate_limits`.
 

@@ -806,6 +806,20 @@ async function currentUserId() {
         function ensureSettingsShape() {
             if (!appSettings.financial_goals) appSettings.financial_goals = []; // fitur Tujuan Keuangan -- array murni di appSettings, tanpa tabel/migrasi Supabase baru
             if (!appSettings.debts) appSettings.debts = []; // fitur Utang & Cicilan -- pola yang sama persis dengan financial_goals
+            // v92 (Fase 1A/1B): kunci aplikasi + preferensi notifikasi. Default NONAKTIF /
+            // semua pengingat ON. CATATAN: pemanggilan PERTAMA fungsi ini (inisialisasi
+            // defaultSettings) berjalan SEBELUM boot async mengisi servicesModule, jadi
+            // wajib fallback literal yang identik dgn APP_LOCK_DEFAULTS / REMINDER_PREFS_DEFAULTS.
+            if (!appSettings.app_lock) {
+                appSettings.app_lock = (servicesModule && servicesModule.normalizeLockConfig)
+                    ? servicesModule.normalizeLockConfig(null)
+                    : { enabled: false, salt: '', hash: '', auto_lock_minutes: 5, biometric_enabled: false, credential_id: null };
+            }
+            if (!appSettings.notification_prefs) {
+                appSettings.notification_prefs = (servicesModule && servicesModule.normalizeReminderPrefs)
+                    ? servicesModule.normalizeReminderPrefs(null)
+                    : { budget: true, recurring: true, goals: true };
+            }
             if (!appSettings.custom_categories) appSettings.custom_categories = { pengeluaran: { parents: [], subs: {} }, pemasukan: { parents: [], subs: {} } };
             ['pengeluaran', 'pemasukan'].forEach(type => {
                 if (!appSettings.custom_categories[type]) appSettings.custom_categories[type] = { parents: [], subs: {} };
@@ -1406,6 +1420,8 @@ async function currentUserId() {
             populateParentSelect('pengeluaran');
             updateFormOptions();
             renderWhatsappLinkStatus();
+            updateAppLockSettingsCard(); // v92: status kartu Kunci Aplikasi
+            updateNotifSettingsCard(); // v92: status kartu Notifikasi & Pengingat
             const accEl = document.getElementById('settings-stat-accounts'); if (accEl) accEl.innerText = appSettings.accounts.length;
             const catEl = document.getElementById('settings-stat-categories'); if (catEl) catEl.innerText = Object.keys(categoryDict.pemasukan).length + Object.keys(categoryDict.pengeluaran).length;
             renderThemePicker();
@@ -1822,7 +1838,13 @@ async function currentUserId() {
             delete settingsForCloud.accountIcons;
             delete settingsForCloud.categoryStyles;
             // Pensyahan api.run (slice settings+icons): service langsung, callback persis versi lama.
-            servicesModule.saveSettings(supabaseClient, settingsForCloud).catch((err) => {
+            // v92: promise DIKEMBALIKAN supaya pemanggil yang butuh urutan pasti bisa await --
+            // terutama appLockRecover: reset kunci HARUS sudah ter-commit di cloud SEBELUM
+            // boot-callback menjalankan initApp() -> loadData() yang GET settings (race GET-vs-PUT
+            // tertangkap E2E verify-applock F5: GET basi bisa "menghidupkan" kunci lagi).
+            // Error tetap ditangani di sini (toast) -- promise resolve meski gagal (perilaku lama
+            // bagi pemanggil lama yang mengabaikan return value).
+            return servicesModule.saveSettings(supabaseClient, settingsForCloud).catch((err) => {
                 console.error('api.run.saveSettingsCloud gagal:', err);
                 showErrorToast('Gagal menyimpan pengaturan ke Supabase. Periksa koneksi internet kamu.');
             });
@@ -4125,6 +4147,8 @@ async function currentUserId() {
                 setSyncLoading(false);
                 updateDashboardEmptyState(); // Tier-3 #8: kartu onboarding saat belum ada transaksi
                 processDueRecurring();
+                reconcileAppLockAfterLoad(); // v92: sinkronkan kunci cloud -> cache lokal; kunci jika baru diaktifkan dari perangkat lain
+                maybeShowReminders(); // v92: pengingat budget/recurring/tujuan (dedup per perangkat)
             }).catch((err) => {
                 // v69: kegagalan dari panggilan yang SUDAH BASI (ada loadData lebih baru, atau user
                 // logout saat fetch berjalan) tidak berhak menampilkan toast error -- panggilan
@@ -4658,6 +4682,608 @@ async function currentUserId() {
             const labelIndicesToShow = chartIsNarrow ? servicesModule.selectSparseLabelIndices(chartNet, 5) : null;
 
             charts.txTrend = new Chart(document.getElementById('txTrendChart').getContext('2d'), servicesModule.chartsUi.buildTxTrendConfig({ chartLabels, chartNet, labelIndicesToShow, themeAccentColor, formatShortVal, formatRp, chartGridColor }));
+        }
+
+
+        // ========================== KUNCI APLIKASI (App Lock, v92 / Fase 1A) ==========================
+        // Desain (lihat AGENT-HANDOFF v92 & src/domain/app-lock.js):
+        // - SOURCE OF TRUTH konfigurasi = appSettings.app_lock (tabel settings, ikut
+        //   persistSettings() -> roaming antar perangkat + ikut backup/restore).
+        // - GATE SAAT BOOT memakai CACHE LOKAL per-user (myfinance_applock_cfg) karena
+        //   appSettings baru terisi SETELAH loadData(); kunci harus menghalang SEBELUM
+        //   appShell tampil. Cache disinkronkan ulang tiap loadData (reconcileAppLockAfterLoad).
+        // - State lockout (hitungan gagal & cooldown) per-perangkat (myfinance_applock_state),
+        //   log pengingat terkirim per-perangkat (myfinance_reminders_sent) -- keduanya
+        //   dibingkai userId supaya tidak bocor antar akun di perangkat yang sama.
+        // - Fail-open yang disengaja & terdokumentasi: kalau elemen overlay tidak ada,
+        //   aplikasi TIDAK dikunci (kunci tidak boleh membuat user terkunci keluar
+        //   karena bug render).
+        const APPLOCK_CFG_KEY = 'myfinance_applock_cfg';
+        const APPLOCK_STATE_KEY = 'myfinance_applock_state';
+        const REMINDERS_SENT_KEY = 'myfinance_reminders_sent';
+        let _appLockArmed = false;          // overlay sedang tampil
+        let _appLockUnlockedOnce = false;   // sesi ini sudah pernah terbuka (anti re-lock ganda)
+        let _appLockPendingEnter = null;    // callback setelah unlock sukses (boot: showAppShell+initApp)
+        let _appLockIdleTimer = null;
+        let _appLockCooldownTimer = null;
+        let _appLockInputBound = false;
+        let _appLockTransientError = ''; // pesan error singkat (mis. "Password salah") yang
+        // TIDAK boleh ditimpa hitungan countdown tick tiap 1 detik (bug UX tertangkap E2E)
+
+        function appLockStorageGet(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
+        function appLockStorageSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* mode privat ketat */ } }
+        function appLockCurrentUserId() { return (currentSession && currentSession.user && currentSession.user.id) || null; }
+        function appLockCloudCfg() { return servicesModule.normalizeLockConfig(appSettings.app_lock); }
+        function appLockCachedCfg() {
+            const raw = appLockStorageGet(APPLOCK_CFG_KEY);
+            if (!raw || raw.userId !== appLockCurrentUserId() || !raw.cfg) return null;
+            return servicesModule.normalizeLockConfig(raw.cfg);
+        }
+        function appLockCacheWrite(cfg) {
+            const uid = appLockCurrentUserId();
+            if (!uid) return;
+            appLockStorageSet(APPLOCK_CFG_KEY, { userId: uid, cfg: cfg });
+        }
+        /** Konfigurasi yang dipakai verifikasi: cloud bila sudah termuat, kalau tidak cache lokal. */
+        function appLockEffectiveCfg() {
+            const cloud = appLockCloudCfg();
+            if (servicesModule.isLockEnabled(cloud)) return cloud;
+            const cached = appLockCachedCfg();
+            return servicesModule.isLockEnabled(cached) ? cached : cloud;
+        }
+        function appLockReadLockoutState() {
+            const raw = appLockStorageGet(APPLOCK_STATE_KEY);
+            return (raw && raw.userId === appLockCurrentUserId() && raw.state && typeof raw.state === 'object')
+                ? raw.state : { fail_count: 0, locked_until: 0 };
+        }
+        function appLockWriteLockoutState(state) {
+            const uid = appLockCurrentUserId();
+            if (uid) appLockStorageSet(APPLOCK_STATE_KEY, { userId: uid, state: state });
+        }
+
+        /** Gerbang masuk aplikasi: dipanggil dari boot/login/signup (menggantikan showAppShell()+initApp() langsung). */
+        function enterApp(session) {
+            applySessionToUI(session);
+            const cached = appLockCachedCfg();
+            if (servicesModule && servicesModule.isLockEnabled && servicesModule.isLockEnabled(cached)) {
+                showAppLockOverlay(function () { showAppShell(); initApp(); });
+            } else {
+                showAppShell();
+                initApp();
+            }
+        }
+
+        /**
+         * Sinkronisasi pasca-loadData: cloud menang atas cache lokal (mis. PIN diubah
+         * dari perangkat lain), dan bila lock baru diaktifkan dari perangkat lain
+         * (cache lokal masih basi = boot tadi tidak mengunci), kunci SEKARANG.
+         */
+        function reconcileAppLockAfterLoad() {
+            if (!appLockCurrentUserId()) return;
+            const cloud = appLockCloudCfg();
+            appLockCacheWrite(cloud);
+            if (!_appLockArmed && !_appLockUnlockedOnce && servicesModule.isLockEnabled(cloud)) {
+                showAppLockOverlay(null);
+            }
+        }
+
+        function showAppLockOverlay(onUnlocked) {
+            // BUG FIX (ditemukan E2E verify-applock): authGate (z-9999, layar "Memeriksa
+            // sesi login...") selama ini hanya dibuang oleh showLoginView()/showAppShell()
+            // -- jalur boot yang digerbang kunci TIDAK melewati keduanya, sehingga gate
+            // loading menutupi overlay kunci (z-200) dan tombol di dalamnya tak bisa
+            // diklik. Buang authGate di sini juga: overlay kunci adalah state pasca-auth.
+            if (typeof hideAuthGate === 'function') hideAuthGate();
+            const ov = document.getElementById('appLockOverlay');
+            if (!ov) { // fail-open terdokumentasi: jangan pernah kunci user karena DOM hilang
+                _appLockUnlockedOnce = true;
+                if (typeof onUnlocked === 'function') onUnlocked();
+                return;
+            }
+            _appLockArmed = true;
+            _appLockPendingEnter = onUnlocked || null;
+            ov.classList.remove('hidden');
+            ov.classList.add('flex');
+            appLockBindInputOnce();
+            const input = document.getElementById('appLockPinInput');
+            if (input) { input.value = ''; input.disabled = false; }
+            _appLockTransientError = '';
+            const status = document.getElementById('appLockStatus');
+            if (status) status.textContent = '';
+            const forgot = document.getElementById('appLockForgotBox');
+            if (forgot) forgot.classList.add('hidden');
+            appLockUpdateBioButton();
+            appLockRefreshCooldownUI();
+            setTimeout(function () { try { if (input) input.focus(); } catch (e) { /* elemen bisa hilang */ } }, 60);
+        }
+
+        function hideAppLockOverlay() {
+            _appLockArmed = false;
+            const ov = document.getElementById('appLockOverlay');
+            if (ov) { ov.classList.add('hidden'); ov.classList.remove('flex'); }
+            stopAppLockCooldownTimer();
+            _appLockTransientError = '';
+            const cb = _appLockPendingEnter;
+            _appLockPendingEnter = null;
+            _appLockUnlockedOnce = true;
+            scheduleAppLockIdleTimer();
+            if (typeof cb === 'function') cb();
+        }
+
+        function appLockBindInputOnce() {
+            if (_appLockInputBound) return;
+            _appLockInputBound = true;
+            const input = document.getElementById('appLockPinInput');
+            if (input) {
+                input.addEventListener('keydown', function (e) { if (e.key === 'Enter') appLockSubmit(); });
+                input.addEventListener('input', function () { this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6); });
+            }
+        }
+
+        function appLockSubmit() {
+            if (!_appLockArmed) return;
+            const state = appLockReadLockoutState();
+            if (servicesModule.isLockedOut(state, Date.now())) { appLockRefreshCooldownUI(); return; }
+            const input = document.getElementById('appLockPinInput');
+            const status = document.getElementById('appLockStatus');
+            const pin = (input && input.value ? String(input.value) : '').trim();
+            const ok = servicesModule.verifyPin(pin, appLockEffectiveCfg());
+            const nextState = servicesModule.nextLockoutState(state, ok, Date.now());
+            appLockWriteLockoutState(nextState);
+            if (ok) {
+                if (status) status.textContent = '';
+                hideAppLockOverlay();
+                return;
+            }
+            if (input) { input.value = ''; try { input.focus(); } catch (e) { } }
+            if (servicesModule.isLockedOut(nextState, Date.now())) {
+                appLockRefreshCooldownUI();
+                startAppLockCooldownTimer();
+            } else {
+                _appLockTransientError = 'PIN salah (' + nextState.fail_count + '/5).';
+                if (status) status.textContent = _appLockTransientError;
+            }
+        }
+
+        function appLockRefreshCooldownUI() {
+            const input = document.getElementById('appLockPinInput');
+            const status = document.getElementById('appLockStatus');
+            const btn = document.getElementById('appLockUnlockBtn');
+            if (!input || !status || !_appLockArmed) return;
+            const state = appLockReadLockoutState();
+            if (servicesModule.isLockedOut(state, Date.now())) {
+                const sisa = servicesModule.lockoutRemainingSec(state, Date.now());
+                // Pesan transient (mis. "Password salah") DITEMPEL setelah countdown supaya
+                // feedback tidak hilang ditimpa tick detik (lihat _appLockTransientError).
+                status.textContent = 'Terlalu banyak percobaan. Tunggu ' + sisa + ' detik.' +
+                    (_appLockTransientError ? ' ' + _appLockTransientError : '');
+                input.disabled = true;
+                if (btn) btn.disabled = true;
+            } else {
+                input.disabled = false;
+                if (btn) btn.disabled = false;
+                if (_appLockTransientError) status.textContent = _appLockTransientError;
+            }
+        }
+
+        function startAppLockCooldownTimer() {
+            // HATI-HATI: jangan panggil stopAppLockCooldownTimer() di sini -- ia me-re-enable
+            // tombol Buka, padahal cooldown justru BARU dimulai (bug flicker tertangkap E2E:
+            // tombol sempat bisa diklik ~1 detik di awal cooldown). Bersihkan intervalnya saja.
+            if (_appLockCooldownTimer) { clearInterval(_appLockCooldownTimer); _appLockCooldownTimer = null; }
+            _appLockCooldownTimer = setInterval(function () {
+                if (!_appLockArmed) { stopAppLockCooldownTimer(); return; }
+                const state = appLockReadLockoutState();
+                if (!servicesModule.isLockedOut(state, Date.now())) {
+                    stopAppLockCooldownTimer();
+                    const input = document.getElementById('appLockPinInput');
+                    const status = document.getElementById('appLockStatus');
+                    const btn = document.getElementById('appLockUnlockBtn');
+                    if (input) { input.disabled = false; try { input.focus(); } catch (e) { } }
+                    if (btn) btn.disabled = false;
+                    if (status) status.textContent = '';
+                } else {
+                    appLockRefreshCooldownUI();
+                }
+            }, 1000);
+        }
+        function stopAppLockCooldownTimer() {
+            if (_appLockCooldownTimer) { clearInterval(_appLockCooldownTimer); _appLockCooldownTimer = null; }
+            const btn = document.getElementById('appLockUnlockBtn');
+            if (btn) btn.disabled = false;
+        }
+
+        // ---------- Auto-lock saat idle ----------
+        function scheduleAppLockIdleTimer() {
+            stopAppLockIdleTimer();
+            const cfg = appLockEffectiveCfg();
+            if (!servicesModule.isLockEnabled(cfg) || !(cfg.auto_lock_minutes > 0)) return;
+            _appLockIdleTimer = setTimeout(function () {
+                _appLockIdleTimer = null;
+                if (_appLockArmed || !_appLockUnlockedOnce) return;
+                if (servicesModule.isLockEnabled(appLockEffectiveCfg())) showAppLockOverlay(null);
+            }, cfg.auto_lock_minutes * 60000);
+        }
+        function stopAppLockIdleTimer() {
+            if (_appLockIdleTimer) { clearTimeout(_appLockIdleTimer); _appLockIdleTimer = null; }
+        }
+        (function bindAppLockActivity() {
+            // Reset timer idle pada aktivitas apa pun (capture supaya event yang di-mask komponen juga kehitung).
+            const onActivity = function () {
+                if (_appLockArmed || !_appLockUnlockedOnce) return;
+                const cfg = appLockEffectiveCfg();
+                if (servicesModule.isLockEnabled(cfg) && cfg.auto_lock_minutes > 0) scheduleAppLockIdleTimer();
+            };
+            document.addEventListener('pointerdown', onActivity, { passive: true, capture: true });
+            document.addEventListener('keydown', onActivity, { passive: true, capture: true });
+        })();
+
+        // ---------- Biometrik (WebAuthn platform authenticator, opsional) ----------
+        function appLockB64ToBytes(b64) {
+            const bin = atob(b64);
+            const out = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+            return out;
+        }
+        function appLockBytesToB64(bytes) {
+            let bin = '';
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            return btoa(bin);
+        }
+        async function appLockBiometricAvailable() {
+            try {
+                if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) return false;
+                return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            } catch (e) { return false; }
+        }
+        function appLockUpdateBioButton() {
+            const btn = document.getElementById('appLockBioBtn');
+            if (!btn) return;
+            const cfg = appLockEffectiveCfg();
+            const show = !!(cfg && cfg.biometric_enabled && cfg.credential_id);
+            btn.classList.toggle('hidden', !show);
+        }
+        async function appLockBiometricUnlock() {
+            if (!_appLockArmed) return;
+            const cfg = appLockEffectiveCfg();
+            if (!cfg.credential_id) return;
+            try {
+                const challenge = new Uint8Array(32);
+                crypto.getRandomValues(challenge);
+                await navigator.credentials.get({
+                    publicKey: {
+                        challenge: challenge,
+                        allowCredentials: [{ type: 'public-key', id: appLockB64ToBytes(cfg.credential_id) }],
+                        userVerification: 'required',
+                        timeout: 60000,
+                    },
+                });
+                // Keberhasilan get() = kehadiran user terverifikasi authenticator platform.
+                appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
+                hideAppLockOverlay();
+            } catch (e) {
+                // Dibatalkan / sensor gagal -- PIN tetap jalan; JANGAN dihitung sebagai gagal PIN.
+                _appLockTransientError = 'Biometrik gagal/dibatalkan -- masukkan PIN.';
+                appLockRefreshCooldownUI();
+            }
+        }
+        async function appLockEnrollBiometric() {
+            if (!appLockCurrentUserId()) return;
+            try {
+                const challenge = new Uint8Array(32);
+                crypto.getRandomValues(challenge);
+                const userIdBytes = new TextEncoder().encode(appLockCurrentUserId());
+                const email = (currentSession && currentSession.user && currentSession.user.email) || 'user';
+                const cred = await navigator.credentials.create({
+                    publicKey: {
+                        challenge: challenge,
+                        rp: { name: 'MyFinance' },
+                        user: { id: userIdBytes, name: email, displayName: email },
+                        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+                        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+                        timeout: 60000,
+                    },
+                });
+                if (!cred || !cred.rawId) throw new Error('Kredensial kosong');
+                const cfg = appLockCloudCfg();
+                cfg.biometric_enabled = true;
+                cfg.credential_id = appLockBytesToB64(new Uint8Array(cred.rawId));
+                appSettings.app_lock = cfg;
+                persistSettings();
+                appLockCacheWrite(cfg);
+                renderAppLockModal();
+                updateAppLockSettingsCard();
+                showSuccessToast('Sidik jari berhasil diaktifkan untuk membuka kunci.');
+            } catch (e) {
+                showErrorToast('Pendaftaran sidik jari gagal atau dibatalkan.');
+            }
+        }
+        async function appLockDisableBiometric() {
+            const cfg = appLockCloudCfg();
+            cfg.biometric_enabled = false;
+            cfg.credential_id = null;
+            appSettings.app_lock = cfg;
+            persistSettings();
+            appLockCacheWrite(cfg);
+            renderAppLockModal();
+            updateAppLockSettingsCard();
+            showSuccessToast('Buka kunci dengan sidik jari dimatikan.');
+        }
+
+        // ---------- Lupa PIN: verifikasi password akun -> reset ----------
+        function appLockShowForgot() {
+            const box = document.getElementById('appLockForgotBox');
+            if (box) {
+                box.classList.toggle('hidden');
+                const pw = document.getElementById('appLockForgotPassword');
+                if (pw) { pw.value = ''; try { pw.focus(); } catch (e) { } }
+            }
+        }
+        async function appLockRecover() {
+            const pwEl = document.getElementById('appLockForgotPassword');
+            const pw = pwEl ? pwEl.value : '';
+            if (!pw) { _appLockTransientError = 'Masukkan password akun kamu dulu.'; appLockRefreshCooldownUI(); return; }
+            const email = (currentSession && currentSession.user && currentSession.user.email) || '';
+            try {
+                // Re-autentikasi dengan password = bukti kepemilikan akun (pola standar
+                // re-auth). Sesi baru menggantikan yang lama -- user & data sama.
+                const result = await auth.signIn(email, pw);
+                if (result && result.session) applySessionToUI(result.session);
+                appSettings.app_lock = servicesModule.normalizeLockConfig(null); // reset -> nonaktif
+                // RACE FIX (E2E F5): tunggu PUT selesai SEBELUM membuka kunci -- kalau tidak,
+                // boot-callback initApp()->loadData() bisa GET settings yang MASIH berisi kunci
+                // lama (GET balapan mengalahkan PUT) dan reconcile menghidupkan kunci lagi.
+                await persistSettings();
+                appLockCacheWrite(appSettings.app_lock);
+                appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
+                const box = document.getElementById('appLockForgotBox');
+                if (box) box.classList.add('hidden');
+                if (pwEl) pwEl.value = '';
+                showSuccessToast('PIN berhasil direset. Atur ulang kapan saja di Pengaturan.');
+                hideAppLockOverlay();
+            } catch (e) {
+                _appLockTransientError = 'Password salah -- coba lagi.';
+                appLockRefreshCooldownUI();
+            }
+        }
+
+        // ---------- Modal Atur (Pengaturan) ----------
+        function appLockMakeSalt() {
+            try {
+                const buf = new Uint8Array(16);
+                crypto.getRandomValues(buf);
+                return Array.from(buf).map(function (n) { return n.toString(16).padStart(2, '0'); }).join('');
+            } catch (e) { return String(Date.now()) + '-' + String(Math.random()).slice(2); }
+        }
+        function openAppLockModal() {
+            const modal = document.getElementById('modalAppLock');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            const content = document.getElementById('modalAppLockContent');
+            if (content) setTimeout(function () { content.classList.remove('translate-y-full', 'md:scale-95', 'opacity-0'); }, 10);
+            renderAppLockModal();
+        }
+        function closeAppLockModal() {
+            const modal = document.getElementById('modalAppLock');
+            const content = document.getElementById('modalAppLockContent');
+            if (content) content.classList.add('translate-y-full', 'md:scale-95', 'opacity-0');
+            setTimeout(function () { if (modal) modal.classList.add('hidden'); }, 300);
+        }
+        function renderAppLockModal() {
+            const body = document.getElementById('appLockModalBody');
+            if (!body) return;
+            const cfg = appLockCloudCfg();
+            const active = servicesModule.isLockEnabled(cfg);
+            if (!active) {
+                body.innerHTML =
+                    '<p class="text-xs text-slate-500 leading-relaxed mb-4">Kunci aplikasi dengan PIN 6 digit supaya data keuanganmu tidak kebuka saat HP dipinjam orang. Kunci berlaku untuk akunmu di semua perangkat.</p>' +
+                    '<label class="block text-xs font-bold text-slate-600 mb-1.5">PIN baru (6 digit)</label>' +
+                    '<input id="applock-set-pin" type="password" inputmode="numeric" maxlength="6" placeholder="******" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] text-lg font-bold text-slate-800 focus:outline-none focus:border-indigo-400 mb-3">' +
+                    '<label class="block text-xs font-bold text-slate-600 mb-1.5">Ulangi PIN</label>' +
+                    '<input id="applock-set-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="******" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] text-lg font-bold text-slate-800 focus:outline-none focus:border-indigo-400 mb-4">' +
+                    '<label class="block text-xs font-bold text-slate-600 mb-1.5">Kapan aplikasi dikunci lagi?</label>' +
+                    '<select id="applock-set-idle" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm text-slate-700 mb-4">' +
+                    '<option value="0">Setiap kali aplikasi dibuka (paling aman)</option>' +
+                    '<option value="5" selected>5 menit tidak dipakai</option>' +
+                    '</select>' +
+                    '<p id="applock-set-error" class="text-rose-500 text-xs min-h-[1rem] mb-2"></p>' +
+                    '<button onclick="appLockEnableFromModal()" class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-indigo-300/50">Aktifkan Kunci</button>';
+            } else {
+                body.innerHTML =
+                    '<div class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">' +
+                    '<i class="fas fa-shield-halved text-emerald-500"></i>' +
+                    '<div><p class="text-sm font-bold text-emerald-700">Kunci aktif</p>' +
+                    '<p class="text-[11px] text-emerald-600">' + (cfg.auto_lock_minutes > 0 ? 'Terkunci setiap dibuka + setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai' : 'Terkunci setiap kali aplikasi dibuka') + '</p></div>' +
+                    '</div>' +
+                    '<div id="applock-bio-row" class="mb-4"></div>' +
+                    '<label class="block text-xs font-bold text-slate-600 mb-1.5">Ubah PIN -- masukkan PIN lama</label>' +
+                    '<input id="applock-old-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN lama" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] font-bold text-slate-800 focus:outline-none focus:border-indigo-400 mb-3">' +
+                    '<label class="block text-xs font-bold text-slate-600 mb-1.5">PIN baru (6 digit)</label>' +
+                    '<input id="applock-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN baru" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] font-bold text-slate-800 focus:outline-none focus:border-indigo-400 mb-3">' +
+                    '<label class="block text-xs font-bold text-slate-600 mb-1.5">Ulangi PIN baru</label>' +
+                    '<input id="applock-new-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="Ulangi PIN baru" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] font-bold text-slate-800 focus:outline-none focus:border-indigo-400 mb-2">' +
+                    '<p id="applock-change-error" class="text-rose-500 text-xs min-h-[1rem] mb-2"></p>' +
+                    '<button onclick="appLockChangePin()" class="w-full bg-[#151928] hover:bg-black text-white font-bold py-3.5 rounded-2xl transition mb-6">Simpan PIN Baru</button>' +
+                    '<hr class="border-slate-200 mb-4">' +
+                    '<p class="text-xs text-slate-500 leading-relaxed mb-3">Kalau PIN dinonaktifkan, aplikasi terbuka langsung tanpa kunci di semua perangkat.</p>' +
+                    '<button onclick="appLockDisableFromModal()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-3 rounded-2xl transition">Nonaktifkan Kunci</button>' +
+                    '<div id="applock-disable-box" class="hidden mt-3">' +
+                    '<input id="applock-disable-pin" type="password" inputmode="numeric" maxlength="6" placeholder="Masukkan PIN untuk konfirmasi" class="w-full bg-white border border-rose-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] font-bold text-slate-800 focus:outline-none focus:border-rose-400 mb-2">' +
+                    '<p id="applock-disable-error" class="text-rose-500 text-xs min-h-[1rem] mb-2"></p>' +
+                    '<button onclick="appLockDisableConfirm()" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-2xl transition">Ya, Nonaktifkan</button>' +
+                    '</div>';
+                appLockRenderBioRow();
+            }
+        }
+        async function appLockRenderBioRow() {
+            const row = document.getElementById('applock-bio-row');
+            if (!row) return;
+            const cfg = appLockCloudCfg();
+            if (!await appLockBiometricAvailable()) { row.innerHTML = ''; return; }
+            if (cfg.biometric_enabled && cfg.credential_id) {
+                row.innerHTML =
+                    '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
+                    '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-cyan-500 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan sidik jari</p><p class="text-[11px] text-slate-400">PIN tetap bisa dipakai kapan saja</p></div></div>' +
+                    '<button onclick="appLockDisableBiometric()" class="text-xs font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2">Matikan</button>' +
+                    '</div>';
+            } else {
+                row.innerHTML =
+                    '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
+                    '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-slate-400 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan sidik jari</p><p class="text-[11px] text-slate-400">Opsi cepat, di perangkat ini saja</p></div></div>' +
+                    '<button onclick="appLockEnrollBiometric()" class="text-xs font-bold text-indigo-500 hover:text-indigo-600 underline underline-offset-2">Aktifkan</button>' +
+                    '</div>';
+            }
+        }
+        function appLockEnableFromModal() {
+            const pin = ((document.getElementById('applock-set-pin') || {}).value || '').trim();
+            const pin2 = ((document.getElementById('applock-set-pin2') || {}).value || '').trim();
+            const idleSel = document.getElementById('applock-set-idle');
+            const err = document.getElementById('applock-set-error');
+            if (!servicesModule.isValidPinFormat(pin)) { if (err) err.textContent = 'PIN harus tepat 6 digit angka.'; return; }
+            if (pin !== pin2) { if (err) err.textContent = 'Ulangi PIN belum sama.'; return; }
+            const salt = appLockMakeSalt();
+            const cfg = servicesModule.normalizeLockConfig({
+                enabled: true,
+                salt: salt,
+                hash: servicesModule.pinHashHex(pin, salt),
+                auto_lock_minutes: idleSel ? Number(idleSel.value) : 5,
+            });
+            appSettings.app_lock = cfg;
+            persistSettings();
+            appLockCacheWrite(cfg);
+            appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
+            renderAppLockModal();
+            updateAppLockSettingsCard();
+            showSuccessToast('Kunci aplikasi aktif. Aplikasi akan terkunci saat dibuka berikutnya.');
+        }
+        function appLockChangePin() {
+            const oldPin = ((document.getElementById('applock-old-pin') || {}).value || '').trim();
+            const newPin = ((document.getElementById('applock-new-pin') || {}).value || '').trim();
+            const newPin2 = ((document.getElementById('applock-new-pin2') || {}).value || '').trim();
+            const err = document.getElementById('applock-change-error');
+            if (!servicesModule.verifyPin(oldPin, appLockCloudCfg())) { if (err) err.textContent = 'PIN lama salah.'; return; }
+            if (!servicesModule.isValidPinFormat(newPin)) { if (err) err.textContent = 'PIN baru harus tepat 6 digit angka.'; return; }
+            if (newPin !== newPin2) { if (err) err.textContent = 'Ulangi PIN baru belum sama.'; return; }
+            const salt = appLockMakeSalt();
+            const cfg = appLockCloudCfg();
+            cfg.salt = salt;
+            cfg.hash = servicesModule.pinHashHex(newPin, salt);
+            appSettings.app_lock = cfg;
+            persistSettings();
+            appLockCacheWrite(cfg);
+            appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
+            ['applock-old-pin', 'applock-new-pin', 'applock-new-pin2'].forEach(function (id) { const el = document.getElementById(id); if (el) el.value = ''; });
+            if (err) err.textContent = '';
+            updateAppLockSettingsCard();
+            showSuccessToast('PIN berhasil diganti.');
+        }
+        function appLockDisableFromModal() {
+            const box = document.getElementById('applock-disable-box');
+            if (box) box.classList.toggle('hidden');
+        }
+        function appLockDisableConfirm() {
+            const pin = ((document.getElementById('applock-disable-pin') || {}).value || '').trim();
+            const err = document.getElementById('applock-disable-error');
+            if (!servicesModule.verifyPin(pin, appLockCloudCfg())) { if (err) err.textContent = 'PIN salah -- kunci tetap aktif.'; return; }
+            const cfg = servicesModule.normalizeLockConfig(null);
+            appSettings.app_lock = cfg;
+            persistSettings();
+            appLockCacheWrite(cfg);
+            appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
+            closeAppLockModal();
+            updateAppLockSettingsCard();
+            showSuccessToast('Kunci aplikasi dinonaktifkan.');
+        }
+        function updateAppLockSettingsCard() {
+            const el = document.getElementById('applock-summary-text');
+            if (!el) return;
+            const cfg = appLockCloudCfg();
+            if (servicesModule.isLockEnabled(cfg)) {
+                el.textContent = 'Aktif -- ' + (cfg.auto_lock_minutes > 0 ? 'terkunci setiap dibuka & setelah ' + cfg.auto_lock_minutes + ' menit idle' : 'terkunci setiap dibuka') + (cfg.biometric_enabled ? ' + sidik jari' : '');
+                el.className = 'text-[10px] text-emerald-500';
+            } else {
+                el.textContent = 'Nonaktif';
+                el.className = 'text-[10px] text-slate-400';
+            }
+        }
+        function appLockOnSignedOut() {
+            stopAppLockIdleTimer();
+            stopAppLockCooldownTimer();
+            _appLockArmed = false;
+            _appLockUnlockedOnce = false;
+            _appLockPendingEnter = null;
+            const ov = document.getElementById('appLockOverlay');
+            if (ov) { ov.classList.add('hidden'); ov.classList.remove('flex'); }
+        }
+
+        // ========================== NOTIFIKASI & PENGINGAT (v92 / Fase 1B) ==========================
+        // Kalkulasi murni di src/domain/reminders.js (ter-unit-test); di sini hanya
+        // orkestrasi: baca preferensi dari appSettings, hitung pengingat jatuh tempo,
+        // tampilkan Notification (atau toast sbg fallback) & catat yang sudah terkirim
+        // (log per-perangkat, per-user) supaya tidak pernah dobel.
+        function updateNotifSettingsCard() {
+            const prefs = servicesModule.normalizeReminderPrefs(appSettings.notification_prefs);
+            const ids = { budget: 'notif-pref-budget', recurring: 'notif-pref-recurring', goals: 'notif-pref-goals' };
+            Object.keys(ids).forEach(function (k) { const el = document.getElementById(ids[k]); if (el) el.checked = !!prefs[k]; });
+            const btn = document.getElementById('notif-permission-btn');
+            if (btn) {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    btn.innerHTML = '<i class="fas fa-check mr-2 text-xs"></i> Notifikasi Diizinkan';
+                    btn.classList.add('text-emerald-600');
+                } else if ('Notification' in window && Notification.permission === 'denied') {
+                    btn.innerHTML = '<i class="fas fa-ban mr-2 text-xs"></i> Diblokir -- ubah di pengaturan browser';
+                    btn.classList.add('text-rose-500');
+                }
+            }
+        }
+        function saveNotifPrefs() {
+            appSettings.notification_prefs = {
+                budget: !!(document.getElementById('notif-pref-budget') || {}).checked,
+                recurring: !!(document.getElementById('notif-pref-recurring') || {}).checked,
+                goals: !!(document.getElementById('notif-pref-goals') || {}).checked,
+            };
+            persistSettings();
+        }
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) { showErrorToast('Browser ini tidak mendukung notifikasi.'); return; }
+            if (Notification.permission === 'granted') { showSuccessToast('Notifikasi sudah diizinkan.'); return; }
+            if (Notification.permission === 'denied') { showErrorToast('Notifikasi diblokir -- aktifkan dari pengaturan situs di browser.'); return; }
+            Notification.requestPermission().then(function (p) {
+                updateNotifSettingsCard();
+                if (p === 'granted') showSuccessToast('Notifikasi diizinkan -- pengingat siap jalan.');
+                else showSuccessToast('Notifikasi tidak diizinkan -- pengingat tetap tampil di dalam aplikasi.');
+            }).catch(function () { showErrorToast('Gagal meminta izin notifikasi.'); });
+        }
+        function maybeShowReminders() {
+            try {
+                if (!appLockCurrentUserId() || !servicesModule || !servicesModule.computeDueReminders) return;
+                const prefs = servicesModule.normalizeReminderPrefs(appSettings.notification_prefs);
+                const reminders = servicesModule.computeDueReminders({
+                    transactions: globalData,
+                    budgets: cloudBudgets,
+                    goals: appSettings.financial_goals || [],
+                    recurring: globalRecurring,
+                    todayStr: todayDateStr(),
+                    formatRp: __fmt.formatRp,
+                }, prefs);
+                if (!reminders.length) return;
+                const raw = appLockStorageGet(REMINDERS_SENT_KEY);
+                const log = (raw && raw.userId === appLockCurrentUserId() && raw.log && typeof raw.log === 'object') ? raw.log : {};
+                const fresh = servicesModule.filterUnsent(reminders, log);
+                if (!fresh.length) return;
+                const canNotify = ('Notification' in window) && Notification.permission === 'granted';
+                // Batas 4 per sesi agar tidak banjir saat pertama kali aktif.
+                fresh.slice(0, 4).forEach(function (r) {
+                    if (canNotify) {
+                        try { new Notification(r.title, { body: r.body, tag: r.id, icon: 'icons/icon-192.png' }); return; } catch (e) { /* jatuh ke toast */ }
+                    }
+                    showSuccessToast(r.title + ' -- ' + r.body);
+                });
+                const newLog = servicesModule.mergeSentLog(log, fresh.map(function (r) { return r.id; }));
+                appLockStorageSet(REMINDERS_SENT_KEY, { userId: appLockCurrentUserId(), log: newLog });
+            } catch (e) {
+                console.error('reminders: gagal memproses pengingat:', e); // pengingat tidak boleh mematahkan app
+            }
         }
 
         // ========================== DASHBOARD ==========================
@@ -7049,15 +7675,16 @@ async function currentUserId() {
             // perubahan perilaku nyata yang tidak dilakukan diam-diam di langkah Auth ini.
             authModule.onAuthStateChange(({ event }) => {
                 if (event === 'SIGNED_OUT') {
+                    appLockOnSignedOut(); // v92: bersihkan timer/overlay kunci & state sesi
                     showLoginView();
                 }
             });
 
             const session = await auth.getSession();
             if (session) {
-                applySessionToUI(session);
-                showAppShell();
-                initApp();
+                // v92: gerbang kunci aplikasi -- kalau lock aktif (cache lokal per-user),
+                // tampilkan overlay SEBELUM appShell/data dimuat (privasi saat boot).
+                enterApp(session);
             } else {
                 showLoginView();
             }
@@ -7161,16 +7788,12 @@ async function currentUserId() {
                 try {
                     if (mode === 'login') {
                         const result = await auth.signIn(email, password);
-                        applySessionToUI(result.session);
-                        showAppShell();
-                        initApp();
+                        enterApp(result.session); // v92: gerbang kunci aplikasi
                     } else {
                         const result = await auth.signUp(email, password);
                         if (result.session) {
                             // Konfirmasi email dimatikan di project Supabase -> langsung masuk.
-                            applySessionToUI(result.session);
-                            showAppShell();
-                            initApp();
+                            enterApp(result.session); // v92: gerbang kunci aplikasi
                         } else {
                             showSuccess('Pendaftaran berhasil! Cek email kamu untuk link konfirmasi sebelum masuk.');
                             setMode('login');

@@ -77,6 +77,9 @@
         import { getCustomIcons, saveCustomIcon, deleteCustomIcon } from './src/services/supabase/custom-icons.js';
         import { listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice } from './src/services/supabase/assets.js';
         import { advanceDueDate, planRecurringCatchup, summarizeRecurringStatus, classifyRecurringDueBadge } from './src/domain/recurring.js';
+        // v92 (Fase 1A/1B): kunci aplikasi + pengingat proaktif — domain murni.
+        import { normalizeLockConfig, isLockEnabled, isValidPinFormat, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec } from './src/domain/app-lock.js';
+        import { normalizeReminderPrefs, computeDueReminders, filterUnsent, mergeSentLog } from './src/domain/reminders.js';
         import { buildBackupPayload, validateBackupFile, summarizeBackupCounts, mapRestoreRows } from './src/domain/backup.js';
         import { buildDemoTransactions, isDemoTransaction, DEMO_MARKER } from './src/domain/demo-data.js';
         import { buildCommandIndex, searchCommands } from './src/domain/command-palette.js';
@@ -170,6 +173,10 @@
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
             // loader ES module baru cuma utk beberapa fungsi kecil.
             planRecurringCatchup, advanceDueDate, summarizeRecurringStatus, classifyRecurringDueBadge, pruneAccountKeyedMaps,
+            // v92 (Fase 1A/1B): kunci aplikasi + pengingat proaktif (domain murni,
+            // src/domain/app-lock.js & src/domain/reminders.js).
+            normalizeLockConfig, isLockEnabled, isValidPinFormat, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec,
+            normalizeReminderPrefs, computeDueReminders, filterUnsent, mergeSentLog,
             // Validasi bentuk override ikon/gaya (settings.js) -- dipakai blok classic sebagai
             // lapisan keamanan render & restore backup (lihat categoryIconHtml/renderAccountIconObj).
             sanitizeIconOverride, isSafeClassToken, isSafeFaIconToken, isSafeIconImageUrl, sanitizeSettingsIconOverrides,
@@ -1309,6 +1316,48 @@
                     </button>
                 </div>
 
+                <!-- v92 (Fase 1A): Kunci Aplikasi (App Lock) -->
+                <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-lock text-sm"></i></div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-slate-800 text-sm leading-tight">Kunci Aplikasi</h4>
+                            <p id="applock-summary-text" class="text-[10px] text-slate-400">Nonaktif</p>
+                        </div>
+                    </div>
+                    <button onclick="openAppLockModal()" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
+                        <i class="fas fa-shield-halved mr-2 text-xs"></i> Atur
+                    </button>
+                </div>
+
+                <!-- v92 (Fase 1B): Notifikasi & Pengingat -->
+                <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                    <div class="flex items-center mb-3">
+                        <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mr-3 flex-shrink-0"><i class="fas fa-bell text-sm"></i></div>
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-slate-800 text-sm leading-tight">Notifikasi &amp; Pengingat</h4>
+                            <p id="notif-summary-text" class="text-[10px] text-slate-400">Pengingat budget, jatuh tempo &amp; tujuan</p>
+                        </div>
+                    </div>
+                    <div class="text-left mb-3">
+                        <label class="flex items-center justify-between py-1.5 cursor-pointer">
+                            <span class="text-xs text-slate-600">Budget hampir habis / jebol</span>
+                            <input type="checkbox" id="notif-pref-budget" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
+                        </label>
+                        <label class="flex items-center justify-between py-1.5 cursor-pointer">
+                            <span class="text-xs text-slate-600">Transaksi berulang besok (H-1)</span>
+                            <input type="checkbox" id="notif-pref-recurring" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
+                        </label>
+                        <label class="flex items-center justify-between py-1.5 cursor-pointer">
+                            <span class="text-xs text-slate-600">Tenggat tujuan keuangan (H-7 / H-1)</span>
+                            <input type="checkbox" id="notif-pref-goals" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
+                        </label>
+                    </div>
+                    <button id="notif-permission-btn" onclick="requestNotificationPermission()" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
+                        <i class="fas fa-bell mr-2 text-xs"></i> Izinkan Notifikasi
+                    </button>
+                </div>
+
                 
                 <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col h-[480px]">
                     <div class="flex items-center mb-4">
@@ -2410,6 +2459,41 @@
 
 
     
+    <!-- v92 (Fase 1A): LAYAR KUNCI APLIKASI — selalu tampil di atas semuanya (z-200,
+         di atas modal z-97 & nav z-40). Gaya gelap HUD konsisten dgn layar login. -->
+    <div id="appLockOverlay" class="fixed inset-0 z-[200] hidden flex-col items-center justify-center px-6" style="background: radial-gradient(900px 500px at 80% 0%, rgba(167,139,250,0.14), transparent 60%), radial-gradient(800px 500px at 10% 100%, rgba(34,211,238,0.12), transparent 55%), #04060e;">
+        <div class="w-full max-w-xs text-center">
+            <div class="w-16 h-16 rounded-2xl bg-slate-800/80 border border-cyan-400/30 flex items-center justify-center mx-auto mb-4 shadow-[0_0_28px_-8px_rgba(34,211,238,0.55)]">
+                <i class="fas fa-lock text-2xl text-cyan-300"></i>
+            </div>
+            <h2 class="text-white font-bold text-lg tracking-wide">Aplikasi Terkunci</h2>
+            <p id="appLockSub" class="text-slate-400 text-xs mt-1 mb-5">Masukkan PIN 6 digit untuk membuka</p>
+            <input id="appLockPinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="PIN 6 digit" class="w-full text-center tracking-[0.5em] text-2xl font-bold bg-slate-900/70 border border-cyan-400/30 rounded-2xl py-3.5 text-cyan-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/70 mb-3">
+            <p id="appLockStatus" class="text-rose-400 text-xs min-h-[1.1rem] mb-3"></p>
+            <button id="appLockUnlockBtn" onclick="appLockSubmit()" class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-cyan-500/25">Buka</button>
+            <button id="appLockBioBtn" onclick="appLockBiometricUnlock()" class="hidden w-full mt-2.5 bg-slate-800/80 border border-cyan-400/30 text-cyan-200 font-semibold py-3 rounded-2xl active:scale-[0.98] transition"><i class="fas fa-fingerprint mr-2"></i>Buka dengan Sidik Jari</button>
+            <button onclick="appLockShowForgot()" class="text-slate-500 hover:text-slate-300 text-xs mt-5 underline underline-offset-4 transition-colors">Lupa PIN?</button>
+            <div id="appLockForgotBox" class="hidden mt-4 text-left">
+                <p class="text-slate-400 text-[11px] mb-2 leading-relaxed">Masukkan <b class="text-slate-300">password akun (email)</b> kamu untuk memverifikasi identitas dan mereset PIN.</p>
+                <input id="appLockForgotPassword" type="password" autocomplete="current-password" placeholder="Password akun" aria-label="Password akun" class="w-full bg-slate-900/70 border border-slate-600 rounded-xl py-2.5 px-3.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/60 mb-2">
+                <button onclick="appLockRecover()" class="w-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold py-2.5 rounded-xl transition">Verifikasi &amp; Reset PIN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- v92 (Fase 1A): modal Atur Kunci Aplikasi — isi dirender dinamis oleh
+         renderAppLockModal() (app.src.js) sesuai state aktif/nonaktif. -->
+    <div id="modalAppLock" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[97] hidden flex justify-center items-end md:items-center">
+        <div class="bg-slate-50 w-full md:max-w-md mx-auto h-[92vh] md:h-auto md:max-h-[90vh] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-transform duration-300 translate-y-full md:translate-y-0 md:scale-95 opacity-0" id="modalAppLockContent">
+            <div class="w-full flex justify-center pt-3 pb-1 md:hidden"><div class="w-12 h-1.5 bg-slate-300 rounded-full"></div></div>
+            <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl">
+                <h3 class="text-base md:text-lg font-bold text-slate-800">Kunci Aplikasi</h3>
+                <button type="button" onclick="closeAppLockModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="appLockModalBody" class="p-5 overflow-y-auto flex-1"></div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 
     <script>

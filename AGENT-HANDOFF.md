@@ -1543,3 +1543,96 @@ dan perapihan sebelum mulai proyek improve (roadmap Fase 1-4).
 byte-identik (nol drift), grep sisa path lama = nol (di luar AGENT-HANDOFF
 historis), precache SW tidak menyentuh file yang dipindah. Laporan user:
 /home/user/laporan-audit-perapihan-repo.md.
+
+## v92 — FASE 1 ROADMAP: Kunci Aplikasi (F1A) + Notifikasi & Pengingat (F1B)
+
+**KONTEKS:** implementasi Fase 1 roadmap pengembangan
+(/home/user/roadmap-pengembangan-myfinance.md). Batasan user: "hati-hati
+supaya tidak menimbulkan bug baru" -> domain murni + unit test DULU, wiring
+belakangan, E2E stub settings harus STATEFUL supaya lock teruji lintas reload.
+Ringkasan mingguan sengaja DITUNDA demi scope (keputusan roadmap).
+
+**ARSITEKTUR (domain murni, ter-unit-test):**
+- `src/domain/app-lock.js`: SHA-256 murni-FIPS-180-4 SINKRON (encoder UTF-8
+  manual, dukung surrogate — vektor NIST diuji) supaya hash PIN konsisten tanpa
+  async crypto.subtle; pinHashHex=sha256(salt|pin); verifyPin compare
+  panjang-tetap; nextLockoutState/isLockedOut/lockoutRemainingSec (5 gagal ->
+  cooldown 30 dtk; fail_count TIDAK reset saat cooldown habis, hanya sukses
+  yang reset penuh; gagal pasca-cooldown = langsung cooldown baru);
+  normalizeLockConfig/APP_LOCK_DEFAULTS (enabled/salt/hash/auto_lock_minutes/
+  biometric_enabled/credential_id). Threat model jujur di header file: kunci =
+  proteksi UI dari mata sekitar, BUKAN dari devtools/inspeksi.
+- `src/domain/reminders.js`: computeDueReminders(ctx, prefs) — budget bulan
+  berjalan >=100% (budget-over) / >=80% (budget-warning, DUA id berbeda per
+  bulan), tujuan daysLeft tepat {7,1} & belum tercapai, recurring aktif
+  next_due_date === besok (overdue TIDAK — processDueRecurring sudah pilih,
+  dobel = noise). ID format kolon: `budget:<YYYY-MM>:80|100:<cat>`,
+  `goal:<id>:<deadline>:H7|H1`, `recurring:<id>:<besok>`. filterUnsent +
+  mergeSentLog (log plain-object + `__order` array paralel, FIFO cap 200).
+  Sort kind budget-over > goal-deadline > budget-warning > recurring-due.
+  GOTCHA tertangkap test: `KIND_ORDER[k] || 9` SALAH karena rank 0 (budget-over)
+  falsy — pakai cek `!== undefined` eksplisit.
+
+**WIRING (app.src.js + index.html):**
+- Source of truth lock = `appSettings.app_lock` (ikut persistSettings -> roam
+  antar perangkat); GATE BOOT pakai cache localStorage per-user
+  (`myfinance_applock_cfg` {userId, cfg}) karena appSettings baru terisi
+  SETELAH loadData; reconcileAppLockAfterLoad() tiap loadData: cloud menang,
+  dan kalau lock baru diaktifkan dari perangkat lain (cache basi = boot tadi
+  tidak mengunci) -> kunci SEKARANG.
+- `enterApp(session)` menggantikan `applySessionToUI+showAppShell+initApp`
+  di 3 call site (boot ~7639, login-success, signup-success); overlay kunci
+  tampil SEBELUM showAppShell/initApp (data tidak termuat sebelum unlock).
+  Overlay z-[200] di atas modal z-97; authGate z-9999 dibuang showAppLockOverlay.
+- Lockout state per-perangkat (`myfinance_applock_state` {userId, state});
+  log pengingat terkirim per-perangkat (`myfinance_reminders_sent` {userId,
+  log}); semua dibingkai userId supaya tidak bocor antar akun se-device.
+- Auto-lock idle: timer + listener pointerdown/keydown capture; opsi
+  "setiap dibuka" (0) atau "5 menit idle" (default saat aktifasi).
+- Biometrik WebAuthn opsional: feature-detect
+  isUserVerifyingPlatformAuthenticatorAvailable; enroll = navigator.credentials
+  create (platform, userVerification required) -> credential_id base64 di
+  cfg; unlock = credentials.get -> sukses = reset lockout; gagal/dibatalkan
+  TIDAK dihitung gagal PIN. PIN selalu tersedia sebagai fallback.
+- Lupa PIN: appLockRecover = re-auth password (auth.signIn) -> sukses ->
+  app_lock direset nonaktif + await persistSettings() + cache write +
+  lockout reset + hideAppLockOverlay (boot-callback jalan).
+- Notifikasi: `notification_prefs` di appSettings (default semua ON),
+  maybeShowReminders() dipanggil di loadData sukses SETELAH processDueRecurring;
+  Notification API bila permission granted (tag=id anti dobel), fallback toast
+  in-app; max 4 toast/sesi; log sent -> localStorage FIFO 200.
+- ensureSettingsShape: default app_lock/notification_prefs — HATI-HATI:
+  pemanggilan PERTAMA berjalan SEBELUM servicesModule diisi boot async ->
+  wajib fallback literal identik dgn APP_LOCK_DEFAULTS/REMINDER_PREFS_DEFAULTS
+  (bug boot "Cannot read properties of undefined" tertangkap E2E).
+- Ikon baru fa-bell/fa-fingerprint/fa-ban -> regen subset fontawesome
+  (pip install brotli dulu di sandbox/runner bila belum).
+- sw.js v128 -> v129 (+2 file domain), snapshot regen.
+
+**E2E BARU `scripts/verify-applock.mjs` (19 cek, wired ke e2e-harness.yml):**
+F0 boot bebas kunci + 3 pengingat tercatat (budget-over/goal H-7/recurring
+H-1); F1 aktifkan via modal -> PUT settings bawa app_lock hash+salt, PIN
+TIDAK pernah plaintext di payload; F2 reload -> overlay SEBELUM appShell,
+PIN salah (1/5), PIN benar -> app terbuka, pengingat tidak dobel; F3 lockout
+(pesan tunggu + input/tombol disabled); F4 lupa PIN (password salah ditolak,
+benar -> kunci reset di cloud + reload bebas kunci). Stub settings STATEFUL:
+GET = store maybeSingle-object, POST upsert = tulis store (bertahan lintas
+reload); stub /auth/v1/token menerima hanya password benar (400 selain itu);
+console "Failed to load resource 400" dari negatif-test difilter via counter.
+
+**3 BUG NYATA TERTANGKAP E2E (bukti "hati-hati" membayar):**
+1. authGate z-9999 tidak pernah dibuang di jalur boot terkunci (hanya
+   showLoginView/showAppShell yang membuangnya) -> layar "Memeriksa sesi
+   login..." menutupi overlay kunci selamanya. Fix: showAppLockOverlay
+   memanggil hideAuthGate().
+2. Race GET-vs-PUT di recovery: persistSettings() fire-and-forget ->
+   boot-callback initApp()->loadData() GET settings bisa balapan mengalahkan
+   PUT reset -> kunci "hidup lagi" dari GET basi -> reload berikut terkunci.
+   Fix: persistSettings() kini MENGEMBALIKAN promise (error tetap internal),
+   appLockRecover await-nya sebelum membuka. (Dua bug UX kecil sekalian:
+   tombol Buka sempat re-enable ~1 dtk di awal cooldown; pesan "Password
+   salah" tertimpa tick countdown -> mekanisme _appLockTransientError.)
+
+**VERIFIKASI:** lint 0; unit 780/780 (+27 baru); parity 1/1; E2E lokal 3/3
+hijau: verify-hud 65/65, verify-asset-logos 17/17, verify-applock 19/19;
+rebuild app.js/styles.css zero-drift via build; SW v129 snapshot regen.

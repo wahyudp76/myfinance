@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v128';
+const CACHE_VERSION = 'myfinance-v129'; // v92: tambah src/domain/app-lock.js + reminders.js (Fase 1A/1B)
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';
@@ -93,6 +93,7 @@ const PRECACHE_URLS = [
   // Semua modul runtime app (domain/ui/services) -- precache LENGKAP sejak install
   // supaya app utuh walau kunjungan pertama langsung offline (audit 2026-09).
   './src/domain/ai-summary.js',
+  './src/domain/app-lock.js',
   './src/domain/accounts.js',
   './src/domain/asset-flows.js',
   './src/domain/assets.js',
@@ -114,6 +115,7 @@ const PRECACHE_URLS = [
   './src/domain/goals-debts.js',
   './src/domain/insights.js',
   './src/domain/recurring.js',
+  './src/domain/reminders.js',
   './src/domain/reports.js',
   './src/domain/settings.js',
   './src/domain/sparkline.js',
