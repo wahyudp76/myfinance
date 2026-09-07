@@ -165,8 +165,9 @@ test("WIRING: app.src.js punya __bankIcon + adoptBankIconModule + delegasi ke mo
 
 test("WIRING: servicesModule mengekspos bankIconCtx (index.html import + bag)", () => {
   assert.match(MONOLITH_SRC, /adoptBankIconModule\(\)/);
-  // index.html harus meng-import bankIconCtx & memasukkannya ke __myfinanceServices
-  const INDEX = readFileSync(resolve(ROOT, "index.html"), "utf8");
+  // v98: boot.js (dulu blok inline index.html) harus meng-import bankIconCtx
+  // & memasukkannya ke __myfinanceServices
+  const INDEX = readFileSync(resolve(ROOT, "boot.js"), "utf8");
   assert.match(INDEX, /import \{ bankIconCtx \} from ['"].*bank-icons\.js/);
   assert.match(INDEX, /bankIconCtx\s*,/);
 });

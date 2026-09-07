@@ -14,7 +14,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 const MONOLITH_SRC = readFileSync(resolve(ROOT, "app.src.js"), "utf8");
-const INDEX_SRC = readFileSync(resolve(ROOT, "index.html"), "utf8");
+const INDEX_SRC = readFileSync(resolve(ROOT, "boot.js"), "utf8");
 
 // Katalog contoh meniru bentuk nyata platformLogoByKey setelah load dari tabel
 // platform_logos: key = platform_key + display_name.lowercase.
@@ -136,7 +136,7 @@ test("WIRING: app.src.js punya __platformLogos + adopt + getAccountLogo mendeleg
   assert.doesNotMatch(MONOLITH_SRC, /compactKey\.includes\(compactName\)/, "logika fuzzy lama masih ada -- harus sudah dipindah ke modul");
 });
 
-test("WIRING: index.html meng-import platformLogoCtx & memasukkannya ke servicesModule", () => {
+test("WIRING: boot.js meng-import platformLogoCtx & memasukkannya ke servicesModule", () => {
   assert.match(INDEX_SRC, /import \{ platformLogoCtx \} from ['"]\.\/src\/domain\/platform-logos\.js['"]/);
   assert.match(INDEX_SRC, /platformLogoCtx\s*,/);
 });

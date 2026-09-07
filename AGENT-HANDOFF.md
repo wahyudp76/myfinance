@@ -1895,3 +1895,49 @@ gerbangnya diam-diam berhenti menjaga.
 **VERIFIKASI:** lint 0 masalah; unit 808/808 (802 + 6 baru); ketiga workflow
 lolos parse YAML. Tidak ada aset precache SW yang berubah -> `CACHE_VERSION`
 sengaja TIDAK di-bump.
+
+## v98 — `boot.js`: blok wiring `<script type="module">` keluar dari index.html
+**MASALAH:** service worker memakai **network-first untuk dokumen** navigasi tapi
+stale-while-revalidate untuk aset. Selama 17,1 KB blok wiring itu inline di
+`index.html`, ia ikut diunduh ulang SETIAP kunjungan online — padahal isinya
+nyaris tidak pernah berubah.
+
+**PERBAIKAN:** blok dipindah **byte-exact** ke `boot.js` (diverifikasi
+`isi boot.js tanpa header === git show HEAD:index.html blok lama` → true), lalu
+dipanggil `<script type="module" src="./boot.js">` + `<link rel="modulepreload">`.
+Dokumen: **33,8 → 29,8 KB gzip per navigasi**; 4,6 KB gzip boot.js pindah ke
+jalur cache-first (dibayar sekali). Pola ini sama persis dengan v54 yang
+mengekstrak blok classic monolit ke `app.js`.
+
+**KOPLING YANG WAJIB IKUT (semua sudah dikerjakan):**
+1. `sw.js` `PRECACHE_URLS` += `'./boot.js'` — kalau lupa, mode offline patah.
+2. `tests/unit/sw-cache-hash-helper.mjs` `TOP_FILES` += `boot.js`. **Ini yang
+   paling mudah terlewat**: tanpa itu, mengubah boot.js saja tidak pernah
+   mewajibkan bump `CACHE_VERSION` dan pengguna lama terus dilayani wiring basi
+   — persis alasan v55 dulu menambahkan `app.js` ke daftar yang sama. Sudah
+   diuji-negatif (sentuh boot.js → snapshot merah).
+3. `CACHE_VERSION` v131 → **v132** + regen snapshot.
+4. `tailwind.config.js` `content` += `./boot.js`.
+5. Tujuh tes `WIRING:` diarahkan ke `boot.js` (dulu membaca `index.html`).
+
+**KEUNTUNGAN TAK TERDUGA:** selagi inline, 199 baris itu **tidak pernah di-lint**
+(lihat "CAKUPAN" di `eslint.config.js`: blok inline hanya dicek sintaksnya oleh
+`tests/unit/index-inline-scripts.test.js`). Sebagai berkas `.js` sungguhan ia
+kini tunduk pada `no-undef`/`eqeqeq`/`no-unused-vars` — dan lolos bersih setelah
+diberi global browser di eslint.config.js.
+
+**KOREKSI ANGKA (penting untuk keputusan berikutnya):** rencana awal roadmap
+adalah *minify* `index.html`, dengan klaim "hemat puluhan KB". Klaim itu SALAH:
+GitHub Pages sudah gzip (`content-encoding: gzip`, transfer nyata 35,1 KB bukan
+216 KB), sehingga minify markup hanya menghemat **2,2 KB** — 0,7% bobot halaman
+— dengan ongkos mengubah `index.html` jadi `index.src.html`. Ekstraksi ini
+menghemat **4,1 KB** dengan risiko jauh lebih kecil (pemindahan byte-exact, nol
+semantik whitespake tersentuh). Minify markup DITUNDA. Sasaran ukuran yang jauh
+lebih gemuk: FullCalendar 79,5 KB + Chart.js 69,1 KB gzip — pastikan keduanya
+benar-benar lazy sebelum mengejar sisa markup.
+
+**VERIFIKASI:** lint 0; unit 808/808; build drift css+app bersih; **E2E browser
+sungguhan dijalankan LOKAL sebelum push** — verify-hud 69/69, verify-asset-logos
+17/17, verify-applock 21/21, nol error halaman, screenshot dashboard normal.
+Alasan diverifikasi lokal: GitHub Pages men-deploy langsung dari root repo tiap
+push, jadi `index.html` rusak = situs hidup langsung rusak.

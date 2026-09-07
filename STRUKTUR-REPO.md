@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v97`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v98`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -40,9 +40,10 @@ myfinance/
 ├── index.html              # Markup + konfigurasi Supabase + modul ES + jembatan bootstrap
 ├── app.src.js              # SUMBER logika "monolit" (editor di sini)
 ├── app.js                  # OUTPUT build terser dari app.src.js (~223KB) — jangan diedit
+├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v131)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v132)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -230,8 +231,12 @@ myfinance/
 ## 3. Alur Muat (Loader / Bootstrap)
 
 1. **`index.html`** berisi konfigurasi Supabase (URL + anon key) di komentar "KONEKSI SUPABASE".
-2. Ada `<script type="module">` besar yang meng-import ratusan fungsi dari `src/**`
-   (auth → services/domain/ui). Module dieksekusi *deferred* (setelah seluruh dokumen).
+2. **`boot.js`** (`<script type="module" src>`) meng-import ratusan fungsi dari `src/**`
+   (auth → services/domain/ui) dan memaparkannya lewat `__myfinanceServices`. Module
+   dieksekusi *deferred* (setelah seluruh dokumen). Sampai v97 blok ini INLINE di
+   `index.html`; v98 memindahkannya byte-exact ke berkas terpisah karena SW memakai
+   network-first untuk dokumen (jadi 17 KB itu diunduh ulang tiap kunjungan online)
+   tapi stale-while-revalidate untuk aset — dokumen turun 33,8 → 29,8 KB gzip.
 3. Blok `<script>` **classic** di body (logika monolit dari `app.js`) dipakai karena ada
    **200+ atribut `onclick=`** di markup — itu kontrak fungsi global yang wajib dipertahankan
    namanya oleh terser (`mangle.toplevel=false`, `keep_fnames=true`).

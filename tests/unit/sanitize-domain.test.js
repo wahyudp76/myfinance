@@ -122,8 +122,8 @@ test("WIRING: app.src.js punya __sanitize + adoptSanitizeModule + delegasi ke mo
   }
 });
 
-test("WIRING: index.html mengimpor sanitizeCtx & memaparkannya di __myfinanceServices", () => {
-  const HTML_SRC = readFileSync(resolve(ROOT, "index.html"), "utf8");
+test("WIRING: boot.js mengimpor sanitizeCtx & memaparkannya di __myfinanceServices", () => {
+  const HTML_SRC = readFileSync(resolve(ROOT, "boot.js"), "utf8");
   assert.match(HTML_SRC, /import\s+\{[^}]*sanitizeCtx[^}]*\}\s+from\s+['"].*\bsrc\/domain\/sanitize\.js/);
   assert.match(HTML_SRC, /sanitizeCtx,/);
   // servicesModule.sanitizeCtx harus dipanggil oleh adopt (dicek di atas), dan

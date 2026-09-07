@@ -91,8 +91,8 @@ test("WIRING: app.src.js punya __slugify + adoptSlugifyModule + delegasi slugify
   assert.match(fnSrc, /__slugify\.slugify/, "slugify harus delegasi ke __slugify.slugify");
 });
 
-test("WIRING: index.html mengimpor slugifyCtx & memaparkannya di __myfinanceServices", () => {
-  const HTML_SRC = readFileSync(resolve(ROOT, "index.html"), "utf8");
+test("WIRING: boot.js mengimpor slugifyCtx & memaparkannya di __myfinanceServices", () => {
+  const HTML_SRC = readFileSync(resolve(ROOT, "boot.js"), "utf8");
   assert.match(HTML_SRC, /import\s+\{[^}]*\bslugifyCtx\b[^}]*\}\s+from\s+['"].*\bsrc\/domain\/slugify\.js/);
   assert.match(HTML_SRC, /\bslugifyCtx\b\s*,/);
   assert.equal(typeof slugify, "function");

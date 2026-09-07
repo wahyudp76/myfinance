@@ -104,8 +104,8 @@ test("WIRING: app.src.js punya __assetIcon + adoptAssetIconModule + delegasi det
   assert.match(fnSrc, /__assetIcon\.detectAssetCategoryIcon/, "detectAssetCategoryIcon harus delegasi ke __assetIcon");
 });
 
-test("WIRING: index.html mengimpor assetIconCtx & memaparkannya di __myfinanceServices", () => {
-  const HTML_SRC = readFileSync(resolve(ROOT, "index.html"), "utf8");
+test("WIRING: boot.js mengimpor assetIconCtx & memaparkannya di __myfinanceServices", () => {
+  const HTML_SRC = readFileSync(resolve(ROOT, "boot.js"), "utf8");
   assert.match(HTML_SRC, /import\s+\{[^}]*\bassetIconCtx\b[^}]*\}\s+from\s+['"].*\bsrc\/domain\/asset-icons\.js/);
   assert.match(HTML_SRC, /\bassetIconCtx\b\s*,/);
   assert.equal(typeof detectAssetCategoryIcon, "function");

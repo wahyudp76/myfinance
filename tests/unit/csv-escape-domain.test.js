@@ -102,8 +102,8 @@ test("WIRING: app.src.js punya __csv + adoptCsvModule + delegasi csvField -> __c
   assert.match(fnSrc, /__csv\.csvEscape/, "csvField harus delegasi ke __csv.csvEscape");
 });
 
-test("WIRING: index.html mengimpor csvEscape & memaparkannya di __myfinanceServices", () => {
-  const HTML_SRC = readFileSync(resolve(ROOT, "index.html"), "utf8");
+test("WIRING: boot.js mengimpor csvEscape & memaparkannya di __myfinanceServices", () => {
+  const HTML_SRC = readFileSync(resolve(ROOT, "boot.js"), "utf8");
   assert.match(HTML_SRC, /import\s+\{[^}]*\bcsvEscape\b[^}]*\}\s+from\s+['"].*\bsrc\/domain\/export-csv\.js/);
   assert.match(HTML_SRC, /\bcsvEscape\b\s*,/);
   assert.equal(typeof csvEscape, "function");

@@ -90,7 +90,13 @@ export default [
 
   {
     // --- Modul aplikasi: berjalan DI BROWSER ---
-    files: ["src/**/*.js", "supabase/functions/_shared/*.js"],
+    // v98: boot.js masuk ke sini. Sampai v97 isinya adalah blok
+    // <script type="module"> INLINE di index.html, yang -- seperti dicatat di
+    // "CAKUPAN" di atas -- TIDAK pernah di-lint sama sekali; penjagaannya cuma
+    // cek sintaks di tests/unit/index-inline-scripts.test.js. Begitu ia jadi
+    // berkas .js sungguhan, no-undef & kawan-kawan akhirnya berlaku untuk 199
+    // baris wiring itu juga.
+    files: ["src/**/*.js", "supabase/functions/_shared/*.js", "boot.js"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",

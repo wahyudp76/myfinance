@@ -8,7 +8,7 @@
 // jadi tidak perlu safelist.
 module.exports = {
   darkMode: 'class',
-  content: ['./index.html', './app.js', './src/**/*.js'],
+  content: ['./index.html', './app.js', './boot.js', './src/**/*.js'],
   theme: { extend: {} },
   plugins: [],
 };

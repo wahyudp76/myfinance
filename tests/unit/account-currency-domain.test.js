@@ -99,8 +99,8 @@ test("WIRING: app.src.js punya __accountCurrency + adoptAccountCurrencyModule + 
   assert.match(fnSrc, /appSettings\.account_currencies/, "delegator getAccountCurrency harus meneruskan appSettings.account_currencies");
 });
 
-test("WIRING: servicesModule mengekspos accountCurrencyCtx (index.html import + bag)", () => {
-  const INDEX = readFileSync(resolve(ROOT, "index.html"), "utf8");
+test("WIRING: servicesModule mengekspos accountCurrencyCtx (boot.js import + bag)", () => {
+  const INDEX = readFileSync(resolve(ROOT, "boot.js"), "utf8");
   assert.match(INDEX, /import \{ accountCurrencyCtx \} from ['"].*account-currency\.js/);
   assert.match(INDEX, /accountCurrencyCtx\s*,/);
 });

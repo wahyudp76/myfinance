@@ -9,7 +9,11 @@ import { join } from "node:path";
 // pernah memicu kewajiban bump CACHE_VERSION.
 // v59: vendor/ ditambahkan ke DIRS -- seluruh pustaka pihak ketiga kini
 // lokal + di-precache; perubahan file vendor WAJIB memicu bump CACHE_VERSION.
-const TOP_FILES = ["index.html", "app.js", "styles.css", "manifest.json"];
+// v98: boot.js ditambahkan dengan alasan yang PERSIS sama dengan app.js di v55 --
+// ia kini precache asset (blok wiring module yang diekstrak dari index.html).
+// Tanpa baris ini, mengubah boot.js saja tidak pernah mewajibkan bump
+// CACHE_VERSION, dan pengguna lama akan terus dilayani wiring versi basi.
+const TOP_FILES = ["index.html", "app.js", "boot.js", "styles.css", "manifest.json"];
 const DIRS = ["src", "vendor", "icons", "css", "fonts", "webfonts"];
 
 function walk(dir) {
