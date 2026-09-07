@@ -1677,3 +1677,53 @@ di-RESTrukturisasi: F2 baru = F2a (idle-mode + aktivitas baru -> reload TIDAK
 terkunci — assert bug fix) + F2b (jejak di-stale-kan 6 menit -> reload
 terkunci, alur PIN salah/benar + dedup) — 21 cek 21 PASS; verify-hud 65/65 &
 verify-asset-logos 17/17 tetap hijau (regresi bersih).
+
+## v94 — REKOMENDASI AI (Gemini): list vertikal + modal detail, pola Wawasan Keuangan
+
+**PERMINTAAN USER:** tampilan Rekomendasi AI by Gemini di tab dashboard dibuat
+seperti Wawasan Keuangan — penjelasan singkat tersusun list ke bawah, klik
+baris -> pop-up penjelasan detail.
+
+**ARSITEKTUR (pola domain-murni + UI-modul, sama seperti insights):**
+- `src/domain/ai-recommendations.js` (BARU): normalizeAiRecommendations(raw)
+  -> {title, short, detail, severity, icon, bg, color} + AI_REC_SEVERITY_STYLES
+  + AI_REC_MAX_ITEMS=5. KOMPATIBILITAS DUA ARAH (deploy tak harus serentak):
+  cache/function LAMA tanpa `detail` -> fallback detail=message (modal tetap
+  terisi); client lama mengabaikan `detail` dari function baru. Item rusak
+  dibuang, teks di-clamp (120/600/4000), severity tak dikenal -> info.
+- `src/ui/ai-recommendations.js` (BARU): renderAiRecommendationRow (baris
+  tombol full-width dgn data-ai-rec-idx + aria-haspopup) & renderAiRecommendations
+  (list vertikal ke #ai-insights-container + delegasi klik -> openInsightDetail
+  dari src/ui/insights.js — modal, Escape/backdrop/X, SERAGAM dgn wawasan).
+  ANTI-STALE: daftar terbaru disimpan di container.__aiRecs (bukan closure)
+  supaya refresh-analisis-baru lalu klik tidak menampilkan detail basi.
+- app.src.js renderAiInsights: render kartu inline lama -> normalisasi domain
+  + renderAiRecommendationsUI (pemanggil tetap menang state kosong).
+- index.html: import+attach normalizeAiRecommendations & renderAiRecommendationsUI.
+
+**EDGE FUNCTION analyze-finance ( TER-DEPLOY ke project, 2026-09-07):**
+prompt kini minta DUA lapis teks per rekomendasi — "message" (ringkasan 1
+kalimat, tampil di baris list) & "detail" (3-6 kalimat: angka pendukung,
+dampak, langkah konkret — tampil di modal). Sanitasi meneruskan `detail`
+(opsional, slice 4000); fallback JSON-parse rusak juga mengisi detail.
+Terpasang lewat: SUPABASE_ACCESS_TOKEN=... npx supabase functions deploy
+analyze-finance --project-ref uxfngmxghupdlwoeoxgh (inline saja, tidak
+disimpan). Verifikasi live: POST tanpa auth -> 401 (deploy aktif + auth utuh).
+
+**E2E verify-hud diperluas 65 -> 69 cek:** stub spesifik **/functions/v1/
+analyze-finance (3 rekomendasi dgn detail; route spesifik diregistrasi
+SETELAH catch-all supaya menang) -> klik #ai-insight-refresh-btn -> assert
+3 baris list klik-able (button + aria-haspopup) -> klik baris -> modal
+#insight-detail-modal muncul dgn teks detail -> tutup via tombol X (selector
+HARUS `button[data-close-insight]` — backdrop juga match attr itu tapi
+tertutup kartu -> Playwright click-intercepted).
+
+**BUG WIRING TERTANGKAP E2E:** app.src.js sempat memanggil
+servicesModule.renderAiRecommendations (tanpa akhiran UI) padahal di-attach
+sebagai renderAiRecommendationsUI -> TypeError tertelan catch requestAiInsight
+sehingga tampil "belum aktif" palsu. Konvensi: fungsi UI di-attach dgn alias
+*UI dan dipanggil servicesModule.*UI. (Ingat pola ini!)
+
+**VERIFIKASI:** lint 0; unit 797/797 (+12: domain 7 + ui 5); parity 1/1;
+E2E 3/3: verify-hud 69/69 (+4 baru), verify-applock 21/21, verify-asset-logos
+17/17. sw.js v130 -> v131 (+2 file precache) + snapshot regen.

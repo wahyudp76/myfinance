@@ -342,8 +342,9 @@ Deno.serve(async (req: Request) => {
       `secara kasar dari angka lain; ` +
       `(f) kalau datanya terlalu sedikit/kosong untuk disimpulkan, akui keterbatasannya dan beri 1 saran umum yang ` +
       `mendorong pencatatan rutin. ` +
+      `Setiap rekomendasi punya DUA lapis teks: "message" = ringkasan SINGKAT (1 kalimat, maks ~140 karakter -- ini yang tampil di baris list dashboard) dan "detail" = penjelasan LENGKAP (3-6 kalimat: angka pendukung, dampaknya apa, dan langkah konkret yang bisa langsung dilakukan -- ini yang tampil saat baris diklik). ` +
       `Balas HANYA dalam bentuk JSON array valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar array), formatnya:\n` +
-      `[{"title": "judul singkat (maks 6 kata)", "message": "penjelasan 1-2 kalimat dengan angka persis", "severity": "info" | "warning" | "success"}]`;
+      `[{"title": "judul singkat (maks 6 kata)", "message": "ringkasan 1 kalimat dengan angka persis", "detail": "penjelasan lengkap 3-6 kalimat dengan langkah konkret", "severity": "info" | "warning" | "success"}]`;
 
     let rawText: string;
     try {
@@ -363,21 +364,26 @@ Deno.serve(async (req: Request) => {
       // teksnya apa adanya sebagai satu insight, daripada gagal total.
       insights = [{
         title: "Analisis Gemini",
-        message: rawText || "Tidak ada respons dari Gemini.",
+        message: (rawText || "Tidak ada respons dari Gemini.").slice(0, 200),
+        detail: rawText || "Tidak ada respons dari Gemini.",
         severity: "info",
       }];
     }
 
-    // Sanitasi output (v65): jaga kontrak {title, message, severity} tetap valid --
-    // buang item yang tidak punya title/message teks, paksa severity ke daftar yang
-    // dikenal UI (info/warning/success), batasi panjang pesan, dan potong maks 5 kartu
-    // supaya section dashboard tidak kebanjiran.
+    // Sanitasi output (v65; v94 menambah field `detail`): jaga kontrak
+    // {title, message, detail?, severity} tetap valid -- buang item yang tidak punya
+    // title/message teks, paksa severity ke daftar yang dikenal UI (info/warning/
+    // success), batasi panjang teks, dan potong maks 5 kartu supaya section dashboard
+    // tidak kebanjiran. `detail` OPSIONAL: client lama mengabaikannya, client baru
+    // (v94) memakainya utk modal detail dengan fallback ke `message` bila kosong --
+    // jadi function & client aman di-deploy tidak serentak.
     const knownSeverity = new Set(["info", "warning", "success"]);
     insights = (Array.isArray(insights) ? insights : [])
       .filter((it) => it && typeof it === "object" && typeof it.title === "string" && it.title.trim() && typeof it.message === "string" && it.message.trim())
       .map((it) => ({
         title: it.title.trim().slice(0, 80),
         message: it.message.trim().slice(0, 500),
+        detail: typeof it.detail === "string" ? it.detail.trim().slice(0, 4000) : "",
         severity: knownSeverity.has(it.severity) ? it.severity : "info",
       }))
       .slice(0, 5);

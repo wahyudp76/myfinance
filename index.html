@@ -106,6 +106,10 @@
         import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr } from './src/domain/budgets.js';
         import { renderRecurringSummary as renderRecurringSummaryUI, renderRecurringListModal as renderRecurringListModalUI } from './src/ui/recurring.js';
         import { renderHealthScore as renderHealthScoreUI, renderInsights as renderInsightsUI } from './src/ui/insights.js';
+        // v94: Rekomendasi AI (Gemini) -- list vertikal + modal detail (domain normalisasi
+        // di src/domain/ai-recommendations.js; render di src/ui/ai-recommendations.js).
+        import { normalizeAiRecommendations } from './src/domain/ai-recommendations.js';
+        import { renderAiRecommendations as renderAiRecommendationsUI } from './src/ui/ai-recommendations.js';
         import { renderGoalIconColorPalette as renderGoalIconColorPaletteUI, renderGoalsList as renderGoalsListUI, renderDebtIconColorPalette as renderDebtIconColorPaletteUI, renderDebtsList as renderDebtsListUI } from './src/ui/goals-debts.js';
         import { renderAssetView as renderAssetViewUI } from './src/ui/assets.js';
         import { renderBudgetView as renderBudgetViewUI, renderBudgetModalList as renderBudgetModalListUI } from './src/ui/budgets.js';
@@ -213,6 +217,8 @@
             // renderHealthScoreUI/renderInsightsUI: idem, fungsi UI/render Skor Kesehatan &
             // Wawasan Keuangan (src/ui/insights.js).
             renderHealthScoreUI, renderInsightsUI,
+            // v94: Rekomendasi AI (Gemini) -- domain normalisasi + UI list/modal detail.
+            normalizeAiRecommendations, renderAiRecommendationsUI,
             // renderGoal*/renderDebt*UI: idem, fungsi UI/render Tujuan Keuangan & Utang
             // (src/ui/goals-debts.js).
             renderGoalIconColorPaletteUI, renderGoalsListUI, renderDebtIconColorPaletteUI, renderDebtsListUI,

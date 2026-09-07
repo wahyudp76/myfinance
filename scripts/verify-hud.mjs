@@ -130,6 +130,17 @@ await context.route("**/rest/v1/assets**", (r) => {
   return r.fulfill(json({}));
 });
 
+// v94: stub Edge Function analyze-finance -- Gemini "menjawab" 3 rekomendasi
+// dengan field `detail` (format baru). Diregistrasi SETELAH catch-all
+// **/functions/v1/** supaya route ini yang menang utk path spesifik.
+await context.route("**/functions/v1/analyze-finance", (r) => r.fulfill(json({
+  insights: [
+    { title: "Kurangi belanja Makanan", message: "Makanan sudah Rp 99.000 dari budget Rp 100.000 bulan ini.", detail: "Terpakai 99% dari budget Makanan bulan ini. Langkah konkret: (1) tetapkan batas harian Rp 20.000; (2) pindahkan sisa budget ke Tujuan Dana Darurat supaya tidak terpakai.", severity: "warning" },
+    { title: "Pertahankan disiplin catat", message: "Rata-rata pengeluaran harianmu Rp 35.428.", detail: "Konsistensi pencatatan 14 hari terakhir sudah bagus. Lanjutkan, dan cek ulang kategori Hiburan minggu depan.", severity: "success" },
+    { title: "Coba target menabung", message: "Sisa 12 hari bulan ini dengan sisa dana Rp 1.500.000.", detail: "Kalau pengeluaran ditahan di rata-rata harian, bulan ini bisa ditutup surplus. Langkah: pindahkan Rp 300.000 ke rekening terpisah sekarang.", severity: "info" },
+  ],
+})));
+
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console: ${m.text().slice(0, 200)}`); });
@@ -175,6 +186,31 @@ ok("radar donat aset tampil + persen di tengah", await page.evaluate(() => {
 }));
 ok("kontrak tooltip #000 utuh", await page.evaluate(() =>
   typeof Chart !== "undefined" && Chart.defaults.plugins.tooltip.backgroundColor === "#000000"));
+
+// ---------- v94: Rekomendasi AI — list vertikal + modal detail (pola Wawasan) ----------
+{
+  await page.click("#ai-insight-refresh-btn"); // analisis ulang -> panggil stub analyze-finance
+  await page.waitForFunction(() => document.querySelectorAll("#ai-insights-container [data-ai-rec-idx]").length === 3, null, { timeout: 15000 });
+  ok("rekomendasi AI: list vertikal 3 baris klik-able ter-render", await page.evaluate(() =>
+    document.querySelectorAll("#ai-insights-container button[data-ai-rec-idx]").length === 3 &&
+    [...document.querySelectorAll("#ai-insights-container [data-ai-rec-idx]")].every((el) => el.tagName === "BUTTON" && el.getAttribute("aria-haspopup") === "dialog")));
+  ok("rekomendasi AI: baris memuat judul kecil + ringkasan singkat", await page.evaluate(() => {
+    const first = document.querySelector("#ai-insights-container [data-ai-rec-idx='0']");
+    return !!(first && /Kurangi belanja Makanan/.test(first.textContent) && /99\.000/.test(first.textContent));
+  }));
+  await page.click("#ai-insights-container [data-ai-rec-idx='0']");
+  await page.waitForSelector("#insight-detail-modal:not(.hidden)", { timeout: 5000 });
+  ok("rekomendasi AI: klik baris -> modal detail dgn penjelasan lengkap", await page.evaluate(() => {
+    const m = document.getElementById("insight-detail-modal");
+    return !!(m && !m.classList.contains("hidden") && /tetapkan batas harian/.test(m.textContent) && /Kurangi belanja Makanan/.test(m.textContent));
+  }));
+  await page.screenshot({ path: `${SHOTS}/10-ai-rekomendasi-detail.png` });
+  await page.click("#insight-detail-modal button[data-close-insight]"); // tombol X (backdrop juga match attr ini, tapi tertutup kartu)
+  await page.waitForTimeout(250);
+  ok("rekomendasi AI: modal tertutup via tombol tutup (baris tetap ada)", await page.evaluate(() =>
+    document.getElementById("insight-detail-modal").classList.contains("hidden") &&
+    document.querySelectorAll("#ai-insights-container [data-ai-rec-idx]").length === 3));
+}
 
 // ---------- view transaksi: terminal log ----------
 await page.click("#nav-dashboard");

@@ -5680,25 +5680,22 @@ async function currentUserId() {
         }
 
         function renderAiInsights(insights) {
+            // v94: tampilan "Rekomendasi AI" dibuat SEPERSIS pola Wawasan Keuangan --
+            // list vertikal baris-baris singkat, klik baris -> modal penjelasan DETAIL.
+            // Normalisasi (termasuk fallback detail utk cache lama tanpa field `detail`)
+            // di src/domain/ai-recommendations.js; render + delegasi klik + modal di
+            // src/ui/ai-recommendations.js (modal detail share dgn wawasan: Escape/
+            // backdrop/tombol X seragam). Cache format LAMA tetap tampil wajar.
             const container = document.getElementById('ai-insights-container'); if (!container) return;
-            if (!insights || insights.length === 0) {
+            const recs = servicesModule.normalizeAiRecommendations(insights);
+            if (recs.length === 0) {
                 container.innerHTML = `<div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center flex-shrink-0"><i class="fas fa-comment-dots text-sm"></i></div>
                     <p class="text-xs md:text-sm text-slate-500">Gemini belum menemukan rekomendasi khusus untuk saat ini.</p>
                 </div>`;
                 return;
             }
-            const severityStyle = { warning: { bg: 'bg-amber-100', color: 'text-amber-600', icon: 'fa-triangle-exclamation' }, success: { bg: 'bg-emerald-100', color: 'text-emerald-600', icon: 'fa-thumbs-up' }, info: { bg: 'bg-indigo-100', color: 'text-indigo-600', icon: 'fa-lightbulb' } };
-            container.innerHTML = insights.map(ins => {
-                const s = severityStyle[ins.severity] || severityStyle.info;
-                return `<div class="bg-white rounded-2xl p-3.5 md:p-4 border border-slate-100 shadow-sm flex items-start gap-3">
-                    <div class="w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas ${s.icon} text-sm"></i></div>
-                    <div class="min-w-0">
-                        <p class="text-xs md:text-sm font-bold text-slate-800">${escapeHtml(ins.title || 'Rekomendasi')}</p>
-                        <p class="text-[11px] md:text-xs text-slate-500 mt-0.5 leading-relaxed">${escapeHtml(ins.message || '')}</p>
-                    </div>
-                </div>`;
-            }).join('');
+            servicesModule.renderAiRecommendationsUI({ document: document, recommendations: recs });
         }
 
         async function requestAiInsight(force) {

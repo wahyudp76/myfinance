@@ -284,10 +284,12 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
   instan & gratis, dihitung langsung di browser tanpa panggilan API apa pun.
 - **Rekomendasi AI** (Dashboard, tepat di bawah Wawasan Keuangan): analisis
   lebih dalam dari Gemini (Google AI) berdasarkan ringkasan keuangan bulan
-  berjalan, otomatis diperbarui setiap ada transaksi baru (dengan jeda
-  minimal 3 menit antar panggilan otomatis, plus tombol refresh manual
-  kapan saja). **Opsional** -- butuh setup tambahan sekali saja, lihat
-  bagian 11 di bawah.
+  berjalan. Tampilannya kini seperti Wawasan Keuangan: daftar ke bawah berisi
+  rekomendasi singkat, dan setiap baris bisa diklik untuk membuka pop-up
+  penjelasan detailnya (analisis angka + langkah konkret). Hasil analisis
+  tersimpan di akunmu dan dipakai ulang saat dashboard dibuka (tombol refresh
+  manual kapan saja untuk analisis ulang). **Opsional** -- butuh setup
+  tambahan sekali saja, lihat bagian 11 di bawah.
 - **Tren Kategori Pengeluaran** (tab Analisis, di bawah grafik Tren
   Transaksi): grafik garis 5 kategori pengeluaran terbesar, 6 bulan
   terakhir -- selalu menunjukkan 6 bulan terakhir dari hari ini, tidak

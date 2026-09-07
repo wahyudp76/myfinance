@@ -62,7 +62,7 @@ myfinance/
 │   ├── bootstrap/              # Boot & load pipeline
 │   │   ├── app.js              # createAppBootstrap (orchestrates start/stop, generation guard)
 │   │   └── loader.js           # createBootstrapLoader (de-dup in-flight load + generation counter)
-│   ├── domain/                 # ★ Logika murni (pure functions) — 36 file, teruji unit
+│   ├── domain/                 # ★ Logika murni (pure functions) — 37 file, teruji unit
 │   │   ├── transactions.js     # filter/cari, compute views, insertTransactionRow, dll
 │   │   ├── accounts.js         # total/grafik/agregasi akun
 │   │   ├── budgets.js          # realisasi vs anggaran, deteksi ambang
@@ -70,6 +70,7 @@ myfinance/
 │   │   ├── asset-flows.js      # arus aset, self-heal akun bayangan
 │   │   ├── recurring.js        # transaksi berulang + catchup
 │   │   ├── app-lock.js         # kunci aplikasi: PIN hash+salt (SHA-256 murni), lockout, mode idle lintas reload (v92-93)
+│   │   ├── ai-recommendations.js # normalisasi rekomendasi Gemini utk list+modal detail, kompatibel cache lama (v94)
 │   │   ├── reminders.js        # pengingat proaktif: budget >=80/100%, recurring H-1, tujuan H-7/H-1 (v92)
 │   │   ├── goals-debts.js      # progress goal & utang
 │   │   ├── reports.js          # ringkasan tahunan/bulanan/trend
@@ -113,7 +114,7 @@ myfinance/
 │   │       └── edge.js          # suggestCategory, getExchangeRate, scanReceipt
 │   └── ui/                      # ★ Render/DRY pengganti fungsi render duplikat
 │       ├── accounts.js / assets.js / budgets.js / calendar.js / categories.js
-│       ├── charts.js / goals-debts.js / insights.js / recurring.js  # insights: kartu compact + modal detail
+│       ├── charts.js / goals-debts.js / insights.js / recurring.js / ai-recommendations.js  # insights & rekomendasi AI: kartu compact + modal detail (v94)
 │       ├── skeletons.js         # placeholder saat loading
 │       └── modal-a11y.js        # aksesibilitas modal (focus trap, label)
 │
