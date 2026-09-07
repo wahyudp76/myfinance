@@ -143,6 +143,66 @@ jobs:
           npm run build:app
           git diff --exit-code -- app.js
 
+  # Gerbang "instalasi baru": membuktikan sql/schema.sql benar-benar bisa
+  # memasang project dari NOL di PostgreSQL sungguhan -- bukan cuma
+  # kelihatan lengkap saat dibaca.
+  #
+  # LATAR (v95, 2026-09-07): schema.sql dipakai README sebagai satu-satunya
+  # langkah setup, tapi di database kosong hasilnya 6 tabel & NOL function --
+  # padahal app memanggil 4 RPC. Instalasi baru "hidup tapi rusak": Transfer,
+  # simpan Budget, Transaksi Berulang & rate limit semuanya gagal saat dipakai.
+  # Tidak ada satu pun test yang bisa menangkap itu, karena unit test hanya
+  # membaca TEKS file SQL, tidak pernah mengeksekusinya.
+  #
+  # KENAPA AMAN DI CI (beda dgn job `parity`): hermetic sepenuhnya -- container
+  # Postgres sekali pakai + shim auth.uid()/auth.users/role Supabase. TANPA
+  # secrets, TANPA menyentuh database produksi, jadi boleh jalan di
+  # pull_request termasuk PR Dependabot.
+  #
+  # Yang diuji: install sekali (harus bersih), install kedua kali (idempoten),
+  # jumlah objek terpasang, isolasi RLS lintas user, keempat RPC (termasuk
+  # idempotensi recurring & batas rate limit), serta hak eksekusi RPC
+  # (anon ditolak, authenticated tetap diizinkan).
+  schema-install:
+    name: Schema install check (Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        # Job baru mulai setelah server benar-benar siap menerima koneksi.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Pastikan psql tersedia
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+      - name: Instalasi schema.sql dari nol + uji fungsional
+        run: node scripts/schema-verify/run.mjs
+
   lighthouse:
     name: Lighthouse (pagar performa)
     runs-on: ubuntu-latest

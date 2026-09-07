@@ -193,8 +193,9 @@ myfinance/
 │   ├── verify-hud.mjs      # E2E Playwright (65 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
 │   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
 │   ├── lighthouse/run.mjs
-│   ├── schema-verify/      # v95: harness manual uji sql/schema.sql di Postgres nyata
-│   │                       #   (shim Supabase + uji RLS/RPC + README) — tidak di CI
+│   ├── schema-verify/      # v95/v96: uji sql/schema.sql di Postgres NYATA — run.mjs
+│   │                       #   (install dari nol + idempotensi + 10 cek RLS/RPC/grant).
+│   │                       #   Jalan otomatis di CI: job "Schema install check (Postgres)"
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
@@ -220,6 +221,7 @@ myfinance/
 └── .github/
     └── workflows/
         ├── parity.yml            # CI: lint + unit + parity + build drift guard (CSS + app)
+        │                         #     + schema-install (Postgres, v96)
         └── dependabot-auto-merge.yml
 ```
 
@@ -283,10 +285,18 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   ```bash
   npm run lint          # ESLint (0 masalah)
   npm test              # lint + unit + parity
-  node scripts/verify-hud.mjs   # 65 cek E2E (butuh: npx http-server . -p 8123 -c-1)
+  node scripts/verify-hud.mjs   # 69 cek E2E (butuh: npx http-server . -p 8123 -c-1)
   node scripts/verify-asset-logos.mjs # 17 cek E2E logo aset (server sama)
+  node scripts/verify-applock.mjs     # 21 cek E2E kunci aplikasi (server sama)
+  node scripts/schema-verify/run.mjs  # v96: install sql/schema.sql dari nol di
+                                      # Postgres nyata + 10 cek RLS/RPC/grant
+                                      # (butuh psql; lihat README di folder itu)
   ```
 - Build drift dijaga CI: `build:css` + `build:app` lalu `git diff --exit-code`.
+- Instalasi baru dijaga CI: job `Schema install check (Postgres)` menjalankan
+  `sql/schema.sql` di container Postgres kosong tiap push/PR (v96) — hermetic,
+  tanpa secrets. Ini pagar untuk kelas bug v95 ("schema.sql kelihatan lengkap
+  tapi di database kosong menghasilkan 0 function").
 - Harness E2E juga berjalan otomatis di CI via workflow `E2E Harness`
   (`.github/workflows/e2e-harness.yml`): push/PR ke main, jadwal mingguan, dan
   manual — hermetic (stub Supabase, tanpa secrets). Selain dua harness di atas

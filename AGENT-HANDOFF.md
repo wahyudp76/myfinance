@@ -1804,3 +1804,52 @@ bukan klaim sekali jalan.
 **VERIFIKASI REPO:** unit 802/802 hijau (797 + 5 baru); lint 0 masalah. Tidak
 ada file yang di-precache SW yang berubah (SQL & dokumen tidak masuk
 PRECACHE_URLS) → `CACHE_VERSION` sengaja TIDAK di-bump.
+
+## v96 — Harness instalasi schema jadi job CI (`Schema install check (Postgres)`)
+
+**KENAPA:** v95 menutup lubangnya, tapi verifikasinya masih ritual manual —
+persis pola yang di v88 sudah terbukti gagal (harness manual jadi basi
+berbulan-bulan tanpa ketahuan). Unit test hanya membaca TEKS file SQL; tidak
+ada satu pun gerbang yang benar-benar MENGEKSEKUSI `sql/schema.sql`.
+
+**YANG DITAMBAHKAN:**
+- Job `schema-install` di `.github/workflows/parity.yml` (workflow "CI"):
+  service container `postgres:17-alpine`, hermetic (tanpa secrets, tidak
+  menyentuh DB produksi) sehingga boleh jalan di pull_request termasuk PR
+  Dependabot. ~1 menit, jauh lebih murah dari job lighthouse/parity.
+- `scripts/schema-verify/run.mjs` — runner tanpa dependensi npm (cuma butuh
+  biner `psql`): database sekali-pakai -> shim -> `schema.sql` **2x**
+  (install + idempotensi) -> cek jumlah objek (11 tabel / 4 function /
+  15 policy) -> `functional-check.sql`. Exit code non-nol kalau ada yang gagal.
+  Lokal: `PGHOST=... node scripts/schema-verify/run.mjs`.
+- `functional-check.sql` ditulis ulang jadi **self-asserting**: tiap cek
+  `raise exception` kalau meleset (sebelumnya cuma mencetak tabel untuk dibaca
+  manusia — tidak layak jadi gerbang CI). Kini 10 cek, +3 dari v95: CEK 2b
+  (`replace_month_budgets` harus MENGGANTI, bukan menumpuk), CEK 5c (user tidak
+  bisa menghabiskan jatah rate limit user lain), CEK 9 (`authenticated` HARUS
+  tetap punya EXECUTE — pagar terhadap "kebablasan mencabut grant").
+
+**BUG DI HARNESS SENDIRI, TERTANGKAP LEWAT UJI NEGATIF — CATAT INI:**
+CEK 8 versi pertama ("coba panggil RPC sebagai anon") memberi **FALSE PASS**.
+Saat `grant execute ... to anon` sengaja disuntikkan, harness tetap HIJAU.
+Sebabnya: keempat RPC `SECURITY INVOKER`, jadi anon yang berhasil lolos ke
+dalam body-nya tetap kena `permission denied` di tabel — kode error yang
+PERSIS SAMA (`insufficient_privilege`) dengan penolakan hak eksekusi function,
+sehingga handler "ditolak = lulus" menelan keduanya. Diperbaiki: CEK 8/9
+sekarang membaca `has_function_privilege('anon'/'authenticated', oid,
+'EXECUTE')` langsung dari katalog (ikut memperhitungkan grant lewat PUBLIC).
+**Pelajaran umum: setiap cek keamanan baru WAJIB diuji-negatif dulu** — cek
+yang tidak pernah bisa merah cuma stempel hijau palsu.
+
+**UJI NEGATIF (semua terbukti merah):** (a) satu RPC dihapus dari schema.sql;
+(b) policy dibocorkan jadi `using (true)` -> CEK 1b "user B melihat 1 baris
+milik user A"; (c) `grant execute ... to anon` -> CEK 8; (d) `revoke execute
+... from authenticated` -> CEK 9. Kondisi benar: 10/10 cek lulus.
+
+**CATATAN TEKNIS:** step "Pastikan psql tersedia" memakai blok `if ! command -v
+psql` — bentuk satu baris `psql --version || apt-get update && apt-get install`
+SALAH karena `(A || B) && C` membuat apt tetap jalan walau psql sudah ada.
+
+**VERIFIKASI:** lint 0; unit 802/802; `node scripts/schema-verify/run.mjs`
+10/10 lulus di Postgres 17 lokal. Tidak ada aset precache SW yang berubah ->
+`CACHE_VERSION` sengaja TIDAK di-bump.
