@@ -202,8 +202,9 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
 
 - **Kunci Aplikasi** (menu Pengaturan → kartu "Kunci Aplikasi" → **Atur**):
   kunci aplikasi dengan PIN 6 digit supaya data keuanganmu tidak kebuka saat
-  HP dipinjam orang. Kunci aktif setiap aplikasi dibuka (atau setelah 5 menit
-  tidak dipakai -- bisa dipilih), 5x PIN salah akan mengunci sementara 30
+  HP dipinjam orang. Pilih kunci setiap aplikasi dibuka, atau hanya setelah
+  5 menit tidak dipakai (memuat ulang di tengah pemakaian tidak langsung
+  mengunci). 5x PIN salah akan mengunci sementara 30
   detik, dan lupa PIN bisa diatasi dengan memverifikasi password akun email
   kamu. PIN tersimpan sebagai hash SHA-256 + salt (bukan teks asli), ikut
   akunmu di semua perangkat, dan di perangkat yang mendukung, kamu juga bisa

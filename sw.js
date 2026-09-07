@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v129'; // v92: tambah src/domain/app-lock.js + reminders.js (Fase 1A/1B)
+const CACHE_VERSION = 'myfinance-v130'; // v93: app-lock sadar-mode-idle (jejak aktivitas lintas reload)
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 const DATA_CACHE = 'myfinance-data-v1';

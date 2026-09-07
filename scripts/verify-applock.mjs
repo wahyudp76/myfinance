@@ -12,7 +12,9 @@
 //  F0  boot tanpa kunci      -> appShell langsung; 3 pengingat (budget jebol / goal H-7 /
 //                               recurring H-1) tercatat di log per-perangkat (dedup contract)
 //  F1  aktifkan kunci        -> PUT settings membawa app_lock (hash+salt, PIN TIDAK plaintext)
-//  F2  reload -> GERBANG     -> overlay kunci tampil SEBELUM appShell; PIN salah 1x -> hitungan;
+//  F2a reload di periode aktif -> TIDAK terkunci (v93 bug fix: mode idle 5 menit
+//                               menghormati jejak aktivitas lintas reload)
+//  F2b idle >= ambang -> GERBANG -> overlay SEBELUM appShell; PIN salah 1x -> hitungan;
 //                               PIN benar -> app terbuka; pengingat TIDAK dobel (dedup)
 //  F3  lockout               -> 5x PIN salah -> cooldown aktif (input disabled + hitungan detik)
 //  F4  lupa PIN              -> password salah ditolak; password benar -> kunci ter-reset di
@@ -193,32 +195,54 @@ await waitUntil(() => settingsPuts.length > putsBaseline, 10000, "PUT settings s
 }
 ok("F1: kartu Pengaturan menampilkan status Aktif", await waitUntil(async () =>
   (await page.textContent("#applock-summary-text")).includes("Aktif"), 5000, "kartu status Aktif"));
+ok("F1: mengatur PIN mencatat jejak kehadiran (dasar jam idle lintas reload)", await page.evaluate((uid) => {
+  const raw = JSON.parse(localStorage.getItem("myfinance_applock_activity") || "null");
+  return raw && raw.userId === uid && typeof raw.ts === "number" && raw.ts > 0;
+}, USER_ID));
 await page.screenshot({ path: `${SHOTS}/02-f1-kunci-aktif.png` });
 
-// ================= F2: reload -> gerbang kunci saat boot =================
+// ================= F2a (v93 BUG FIX): mode idle + reload di tengah periode aktif -> TIDAK terkunci =================
+// User memilih "5 menit tidak dipakai" lalu reload < 5 menit setelah aktivitas:
+// dulunya boot TETAP mengunci (bug), sekarang gerbang menghormati jejak aktivitas.
+await page.reload({ waitUntil: "domcontentloaded" });
+await page.waitForSelector("#appShell:not(.hidden)", { timeout: 30000 });
+await page.waitForTimeout(700);
+ok("F2a: idle-mode + aktivitas baru saja -> reload TIDAK langsung terkunci (bug fix)", await page.evaluate(() =>
+  document.getElementById("appLockOverlay").classList.contains("hidden") &&
+  !document.getElementById("appShell").classList.contains("hidden")));
+await page.screenshot({ path: `${SHOTS}/03-f2a-reload-tanpa-kunci.png` });
+
+// ================= F2b: sudah idle >= ambang -> reload TERKUNCI =================
+await page.evaluate((uid) => {
+  localStorage.setItem("myfinance_applock_activity", JSON.stringify({ userId: uid, ts: Date.now() - 6 * 60 * 1000 }));
+}, USER_ID);
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForSelector("#appLockOverlay:not(.hidden)", { timeout: 30000 });
 await page.waitForTimeout(600);
-ok("F2: reload -> overlay kunci tampil SEBELUM appShell (data tak termuat)", await page.evaluate(() =>
+ok("F2b: idle > 5 menit -> overlay kunci tampil SEBELUM appShell (data tak termuat)", await page.evaluate(() =>
   document.getElementById("appShell").classList.contains("hidden") && !document.getElementById("appLockOverlay").classList.contains("hidden")));
-ok("F2: input PIN ter-focus otomatis", await page.evaluate(() => document.activeElement === document.getElementById("appLockPinInput")));
+ok("F2b: input PIN ter-focus otomatis", await page.evaluate(() => document.activeElement === document.getElementById("appLockPinInput")));
 await page.fill("#appLockPinInput", "111111");
 await page.press("#appLockPinInput", "Enter");
 await page.waitForTimeout(400);
-ok("F2: PIN salah -> hitungan percobaan (1/5), overlay tetap", await page.evaluate(() =>
+ok("F2b: PIN salah -> hitungan percobaan (1/5), overlay tetap", await page.evaluate(() =>
   /PIN salah \(1\/5\)/.test(document.getElementById("appLockStatus").textContent) &&
   !document.getElementById("appLockOverlay").classList.contains("hidden")));
 await page.fill("#appLockPinInput", PIN);
 await page.press("#appLockPinInput", "Enter");
 await page.waitForSelector("#appShell:not(.hidden)", { timeout: 30000 });
 await page.waitForFunction(() => document.querySelectorAll("#recent-transactions-list > div").length > 0, null, { timeout: 45000 });
-ok("F2: PIN benar -> overlay hilang, appShell + dashboard termuat", await page.evaluate(() =>
+ok("F2b: PIN benar -> overlay hilang, appShell + dashboard termuat", await page.evaluate(() =>
   document.getElementById("appLockOverlay").classList.contains("hidden") && !document.getElementById("appShell").classList.contains("hidden")));
-ok("F2: pengingat TIDAK dobel setelah unlock (dedup lintas reload)", await page.evaluate((before) =>
+ok("F2b: pengingat TIDAK dobel setelah unlock (dedup lintas reload)", await page.evaluate((before) =>
   localStorage.getItem("myfinance_reminders_sent") === before, sentLogAfterF0));
-await page.screenshot({ path: `${SHOTS}/03-f2-terbuka.png` });
+await page.screenshot({ path: `${SHOTS}/04-f2b-terbuka.png` });
 
 // ================= F3: lockout 5x gagal -> cooldown =================
+// (stale-kan lagi jejak aktivitas: unlock F2b barus saja men-touch-nya)
+await page.evaluate((uid) => {
+  localStorage.setItem("myfinance_applock_activity", JSON.stringify({ userId: uid, ts: Date.now() - 6 * 60 * 1000 }));
+}, USER_ID);
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForSelector("#appLockOverlay:not(.hidden)", { timeout: 30000 });
 await page.waitForTimeout(500);

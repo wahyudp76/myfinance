@@ -196,3 +196,30 @@ export function lockoutRemainingSec(state, nowMs) {
     if (until <= nowMs) return 0;
     return Math.max(1, Math.ceil((until - nowMs) / 1000));
 }
+
+/**
+ * Apakah kunci WAJIB dipasang SEKARANG, dilihat dari konfigurasi + jejak
+ * aktivitas terakhir (epoch ms; sumbernya localStorage per-user sehingga jam
+ * idle BERLAKU LINTAS RELOAD dan lintas tab). Aturan:
+ * - lock nonaktif                    -> false (tidak pernah mengunci);
+ * - mode "setiap dibuka" (menit <= 0) -> SELALU true;
+ * - mode idle (menit > 0)            -> true hanya kalau waktu sejak aktivitas
+ *   terakhir sudah >= ambang menit. Reload di tengah periode aktif = false
+ *   (bug fix v93: dulu boot selalu mengunci apa pun modenya).
+ * - jejak tidak ada / tidak valid / melenceng jauh ke MASA DEPAN (jam sistem
+ *   berubah) -> true (fail-closed: kunci sekali; setelah dibuka, jejak tertulis
+ *   ulang dengan jam yang benar -> sembuh sendiri).
+ *
+ * Dipakai di: gerbang boot (enterApp), reconcile pasca-loadData, dan re-check
+ * saat timer idle menyala (tab lain bisa memperbarui jejak yang sama).
+ */
+export function shouldLockNow(cfg, lastActivityMs, nowMs) {
+    if (!isLockEnabled(cfg)) return false;
+    const minutes = Number(cfg.auto_lock_minutes) || 0;
+    if (minutes <= 0) return true; // mode "setiap kali aplikasi dibuka"
+    const last = Number(lastActivityMs);
+    const now = Number(nowMs);
+    if (!Number.isFinite(last) || last <= 0 || last > now + 60000) return true; // jejak tak valid / jam skew
+    return (now - last) >= minutes * 60000;
+}
+

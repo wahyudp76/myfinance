@@ -107,7 +107,7 @@ jobs:
       # di atas: stub tabel settings-nya STATEFUL (upsert ditulis ke store di memori)
       # sehingga konfigurasi kunci bertahan lintas reload -> gerbang kunci saat boot,
       # lockout, dan recovery-terus-reload benar-benar teruji di CI.
-      - name: verify-applock (19 cek kunci aplikasi + pengingat, stub settings stateful)
+      - name: verify-applock (21 cek kunci aplikasi + pengingat, stub settings stateful)
         env:
           APPLOCK_URL: http://127.0.0.1:8123/
         run: node scripts/verify-applock.mjs

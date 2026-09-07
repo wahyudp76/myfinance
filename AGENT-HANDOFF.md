@@ -1636,3 +1636,44 @@ console "Failed to load resource 400" dari negatif-test difilter via counter.
 **VERIFIKASI:** lint 0; unit 780/780 (+27 baru); parity 1/1; E2E lokal 3/3
 hijau: verify-hud 65/65, verify-asset-logos 17/17, verify-applock 19/19;
 rebuild app.js/styles.css zero-drift via build; SW v129 snapshot regen.
+
+## v93 — APP LOCK: mode idle 5 menit kini benar-benar lintas reload (bug fix user)
+
+**BUG (dilaporkan user):** di Pengaturan dipilih "5 menit tidak dipakai" ->
+saat reload aplikasi LANGSUNG terkunci padahal belum 5 menit. Akar masalah:
+gerbang boot (enterApp) dan reconcile hanya melihat isLockEnabled — aktif =
+kunci, TANPA memedulikan auto_lock_minutes. Mode idle hanya dihormati oleh
+timer dalam-sesi, bukan oleh gerbang boot.
+
+**FIX — jam idle persisten (jejak aktivitas per-user):**
+- Baru `src/domain/app-lock.js#shouldLockNow(cfg, lastActivityMs, nowMs)`
+  (murni, +5 unit test -> 19 di file itu): nonaktif=false; mode "setiap
+  dibuka" (menit<=0)=SELALU true; mode idle=true hanya kalau sejak aktivitas
+  terakhir >= ambang menit; jejak tidak ada/tidak valid/jam-skew masa depan
+  (toleransi 60 dtk) = true (fail-closed, sembuh sendiri setelah 1 unlock).
+- app.src.js: `myfinance_applock_activity` {userId, ts} di localStorage =
+  SATU jam idle yang dibagi lintas reload & lintas tab.
+  - appLockTouchActivity (throttle tulis 5 dtk) dipanggil dari: listener
+    pointerdown/keydown (saat app aktif), enterApp jalur tanpa gerbang,
+    hideAppLockOverlay (unlock = bukti kehadiran), enable/ganti PIN.
+  - enterApp & reconcileAppLockAfterLoad kini memakai shouldLockNow.
+  - scheduleAppLockIdleTimer: delay = SISA waktu dari jejak (bukan window
+    penuh) + RE-CHECK jejak saat timer menyala -> tab yang sedang tidak
+    dilihat tidak ikut terkunci selama user aktif di tab lain app yang sama.
+  - Sign-out membuang jejak (batas sesi eksplisit, boot berikutnya
+    fail-closed).
+- Teks status modal & kartu Pengaturan disesuaikan ("Otomatis terkunci
+  setelah N menit tidak dipakai — memuat ulang di tengah pemakaian tidak
+  langsung mengunci").
+- sw.js v129 -> v130 + snapshot regen.
+
+**PERILAKU SETELAH UPDATE (dokumentasi):** user lama mode idle tanpa jejak
+(kunci baru) akan terkunci SEKALI saat reload pertama pasca-v93, lalu jejak
+terisi dan perilaku baru berlaku. Konsisten threat model file: proteksi UI
+dari mata sekitar, bukan dari devtools (jejak memang di localStorage).
+
+**VERIFIKASI:** lint 0; unit 785/785 (+5); parity 1/1; E2E verify-applock
+di-RESTrukturisasi: F2 baru = F2a (idle-mode + aktivitas baru -> reload TIDAK
+terkunci — assert bug fix) + F2b (jejak di-stale-kan 6 menit -> reload
+terkunci, alur PIN salah/benar + dedup) — 21 cek 21 PASS; verify-hud 65/65 &
+verify-asset-logos 17/17 tetap hijau (regresi bersih).

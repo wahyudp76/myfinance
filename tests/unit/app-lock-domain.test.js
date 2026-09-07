@@ -5,12 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-    APP_LOCK_DEFAULTS, LOCKOUT_MAX_FAILS, LOCKOUT_COOLDOWN_MS,
-    normalizeLockConfig, isLockEnabled, isValidPinFormat,
-    sha256Hex, pinHashHex, verifyPin,
-    nextLockoutState, isLockedOut, lockoutRemainingSec,
-} from '../../src/domain/app-lock.js';
+import { APP_LOCK_DEFAULTS, LOCKOUT_MAX_FAILS, LOCKOUT_COOLDOWN_MS, normalizeLockConfig, isLockEnabled, isValidPinFormat, sha256Hex, pinHashHex, verifyPin, nextLockoutState, isLockedOut, lockoutRemainingSec, shouldLockNow } from '../../src/domain/app-lock.js';
 
 // ---------------------------------------------------------------------------
 // SHA-256 — vektor resmi (FIPS 180-4 / NIST):
@@ -144,4 +139,40 @@ test('isLockedOut & lockoutRemainingSec', () => {
     assert.equal(lockoutRemainingSec({ locked_until: 5300 }, 5000), 1); // 300ms -> ceil 1
     assert.equal(lockoutRemainingSec({ locked_until: 6800 }, 5000), 2); // 1.8s -> 2
     assert.equal(lockoutRemainingSec({ locked_until: 5000 }, 6000), 0);
+});
+
+// ---------- shouldLockNow (v93: idle lintas reload) ----------
+const NOW = 1_700_000_000_000;
+const MIN = 60_000;
+const cfgIdle = { enabled: true, salt: 'ab', hash: 'cd', auto_lock_minutes: 5, biometric_enabled: false, credential_id: null };
+const cfgEveryOpen = { enabled: true, salt: 'ab', hash: 'cd', auto_lock_minutes: 0, biometric_enabled: false, credential_id: null };
+
+test('shouldLockNow: lock nonaktif tidak pernah mengunci', () => {
+    assert.equal(shouldLockNow({ enabled: false }, NOW - 99 * MIN, NOW), false);
+    assert.equal(shouldLockNow(null, 0, NOW), false);
+});
+
+test('shouldLockNow: mode "setiap dibuka" selalu mengunci (apa pun jejak)', () => {
+    assert.equal(shouldLockNow(cfgEveryOpen, NOW, NOW), true); // baru saja aktif pun tetap
+    assert.equal(shouldLockNow(cfgEveryOpen, 0, NOW), true);
+});
+
+test('shouldLockNow: mode idle + aktivitas BARU SAJA -> TIDAK mengunci (bug fix v93)', () => {
+    assert.equal(shouldLockNow(cfgIdle, NOW - 10 * 1000, NOW), false); // 10 detik lalu
+    assert.equal(shouldLockNow(cfgIdle, NOW - 4 * MIN - 59 * 1000, NOW), false); // sebelum ambang
+    assert.equal(shouldLockNow(cfgIdle, NOW - 5 * MIN + 1000, NOW), false); // kurang 1 detik
+});
+
+test('shouldLockNow: mode idle + sudah lewat ambang -> mengunci', () => {
+    assert.equal(shouldLockNow(cfgIdle, NOW - 5 * MIN, NOW), true); // tepat ambang
+    assert.equal(shouldLockNow(cfgIdle, NOW - 6 * MIN, NOW), true);
+});
+
+test('shouldLockNow: jejak tidak valid / jam skew masa depan -> fail-closed mengunci', () => {
+    assert.equal(shouldLockNow(cfgIdle, 0, NOW), true); // belum pernah ada jejak
+    assert.equal(shouldLockNow(cfgIdle, null, NOW), true);
+    assert.equal(shouldLockNow(cfgIdle, NaN, NOW), true);
+    assert.equal(shouldLockNow(cfgIdle, NOW + 10 * MIN, NOW), true); // jam mundur -> kunci, sembuh sendiri
+    // toleransi kecil (<= 60 dtk) tidak dianggap skew
+    assert.equal(shouldLockNow(cfgIdle, NOW + 30 * 1000, NOW), false);
 });

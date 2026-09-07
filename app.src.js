@@ -4701,6 +4701,11 @@ async function currentUserId() {
         const APPLOCK_CFG_KEY = 'myfinance_applock_cfg';
         const APPLOCK_STATE_KEY = 'myfinance_applock_state';
         const REMINDERS_SENT_KEY = 'myfinance_reminders_sent';
+        // v93: jejak aktivitas terakhir per-user (epoch ms) — jam idle yang PERSISTEN
+        // lintas reload & lintas tab. Inilah yang membuat mode "5 menit tidak dipakai"
+        // tidak mengunci saat reload di tengah periode aktif (bug fix user).
+        const APPLOCK_ACTIVITY_KEY = 'myfinance_applock_activity';
+        let _appLockLastActivityWrite = 0;
         let _appLockArmed = false;          // overlay sedang tampil
         let _appLockUnlockedOnce = false;   // sesi ini sudah pernah terbuka (anti re-lock ganda)
         let _appLockPendingEnter = null;    // callback setelah unlock sukses (boot: showAppShell+initApp)
@@ -4740,16 +4745,49 @@ async function currentUserId() {
             const uid = appLockCurrentUserId();
             if (uid) appLockStorageSet(APPLOCK_STATE_KEY, { userId: uid, state: state });
         }
+        /** Jejak aktivitas terakhir user ini (epoch ms); 0 = belum pernah tercatat. */
+        function appLockReadActivity() {
+            const raw = appLockStorageGet(APPLOCK_ACTIVITY_KEY);
+            return (raw && raw.userId === appLockCurrentUserId() && Number.isFinite(raw.ts)) ? raw.ts : 0;
+        }
+        /**
+         * Catat "user aktif sekarang" (throttle 5 dtk supaya ketikan deras tidak
+         * menulis localStorage tiap keydown; force=true untuk momen kehadiran pasti:
+         * unlock, buka aplikasi, aktifasi kunci).
+         */
+        function appLockTouchActivity(force) {
+            const now = Date.now();
+            if (!force && now - _appLockLastActivityWrite < 5000) return;
+            _appLockLastActivityWrite = now;
+            const uid = appLockCurrentUserId();
+            if (uid) appLockStorageSet(APPLOCK_ACTIVITY_KEY, { userId: uid, ts: now });
+        }
 
-        /** Gerbang masuk aplikasi: dipanggil dari boot/login/signup (menggantikan showAppShell()+initApp() langsung). */
+        /**
+         * Gerbang masuk aplikasi: dipanggil dari boot/login/signup (menggantikan
+         * showAppShell()+initApp() langsung).
+         * v93 BUG FIX: gerbang kini menghormati mode idle — kalau user memilih "5
+         * menit tidak dipakai", reload di tengah periode aktif TIDAK langsung
+         * mengunci (dulu boot selalu mengunci apa pun modenya, padahal belum 5
+         * menit). Mode "setiap kali dibuka" (auto_lock_minutes 0) tetap selalu
+         * mengunci. Jejak aktivitas belum pernah ada (mode idle) -> fail-closed:
+         * kunci sekali, lalu jejak terisi & sembuh sendiri.
+         */
         function enterApp(session) {
             applySessionToUI(session);
             const cached = appLockCachedCfg();
-            if (servicesModule && servicesModule.isLockEnabled && servicesModule.isLockEnabled(cached)) {
+            const last = appLockReadActivity();
+            const gate = (servicesModule && servicesModule.shouldLockNow)
+                ? servicesModule.shouldLockNow(cached, last, Date.now())
+                : (servicesModule && servicesModule.isLockEnabled && servicesModule.isLockEnabled(cached)); // fallback perilaku lama
+            if (gate) {
                 showAppLockOverlay(function () { showAppShell(); initApp(); });
             } else {
+                _appLockUnlockedOnce = true; // sesi aktif tanpa lewat gerbang
+                appLockTouchActivity(true); // membuka aplikasi = momen memakai -> reset jam idle
                 showAppShell();
                 initApp();
+                scheduleAppLockIdleTimer(); // mode idle: hitung mundur dimulai sekarang
             }
         }
 
@@ -4762,9 +4800,13 @@ async function currentUserId() {
             if (!appLockCurrentUserId()) return;
             const cloud = appLockCloudCfg();
             appLockCacheWrite(cloud);
-            if (!_appLockArmed && !_appLockUnlockedOnce && servicesModule.isLockEnabled(cloud)) {
-                showAppLockOverlay(null);
-            }
+            if (_appLockArmed || _appLockUnlockedOnce) return;
+            // v93: kondisi kunci sama persis dgn gerbang boot (hormati mode idle);
+            // mode "setiap dibuka" / sudah lewat ambang idle -> kunci sekarang.
+            const gate = servicesModule.shouldLockNow
+                ? servicesModule.shouldLockNow(cloud, appLockReadActivity(), Date.now())
+                : servicesModule.isLockEnabled(cloud);
+            if (gate) showAppLockOverlay(null);
         }
 
         function showAppLockOverlay(onUnlocked) {
@@ -4806,6 +4848,7 @@ async function currentUserId() {
             const cb = _appLockPendingEnter;
             _appLockPendingEnter = null;
             _appLockUnlockedOnce = true;
+            appLockTouchActivity(true); // v93: unlock = bukti kehadiran -> reset jam idle lintas reload
             scheduleAppLockIdleTimer();
             if (typeof cb === 'function') cb();
         }
@@ -4893,16 +4936,31 @@ async function currentUserId() {
             if (btn) btn.disabled = false;
         }
 
-        // ---------- Auto-lock saat idle ----------
+        // ---------- Auto-lock saat idle (v93: satu jam idle bersama lintas reload/tab) ----------
         function scheduleAppLockIdleTimer() {
             stopAppLockIdleTimer();
             const cfg = appLockEffectiveCfg();
             if (!servicesModule.isLockEnabled(cfg) || !(cfg.auto_lock_minutes > 0)) return;
+            const windowMs = cfg.auto_lock_minutes * 60000;
+            const last = appLockReadActivity();
+            // Delay = SISA waktu idle (bukan selalu window penuh) — mis. baru reload
+            // 2 menit setelah aktivitas terakhir -> tinggal 3 menit lagi.
+            let delay = windowMs;
+            if (last > 0) delay = Math.min(windowMs, Math.max(1000, windowMs - (Date.now() - last)));
             _appLockIdleTimer = setTimeout(function () {
                 _appLockIdleTimer = null;
                 if (_appLockArmed || !_appLockUnlockedOnce) return;
-                if (servicesModule.isLockEnabled(appLockEffectiveCfg())) showAppLockOverlay(null);
-            }, cfg.auto_lock_minutes * 60000);
+                const cfgNow = appLockEffectiveCfg();
+                if (!servicesModule.isLockEnabled(cfgNow)) return; // lock dimatikan di tengah jalan
+                // v93 RE-CHECK jejak TERBARU: tab lain di app yang sama bisa saja baru
+                // saja aktif (localStorage dibagi antar tab) -> jangan kunci tab yang
+                // sedang tidak dilihat, jadwalkan ulang sisa waktunya.
+                if (!servicesModule.shouldLockNow(cfgNow, appLockReadActivity(), Date.now())) {
+                    scheduleAppLockIdleTimer();
+                    return;
+                }
+                showAppLockOverlay(null);
+            }, delay);
         }
         function stopAppLockIdleTimer() {
             if (_appLockIdleTimer) { clearTimeout(_appLockIdleTimer); _appLockIdleTimer = null; }
@@ -4912,7 +4970,10 @@ async function currentUserId() {
             const onActivity = function () {
                 if (_appLockArmed || !_appLockUnlockedOnce) return;
                 const cfg = appLockEffectiveCfg();
-                if (servicesModule.isLockEnabled(cfg) && cfg.auto_lock_minutes > 0) scheduleAppLockIdleTimer();
+                if (servicesModule.isLockEnabled(cfg) && cfg.auto_lock_minutes > 0) {
+                    appLockTouchActivity(); // v93: jejak per-user lintas reload & tab
+                    scheduleAppLockIdleTimer();
+                }
             };
             document.addEventListener('pointerdown', onActivity, { passive: true, capture: true });
             document.addEventListener('keydown', onActivity, { passive: true, capture: true });
@@ -5093,7 +5154,7 @@ async function currentUserId() {
                     '<div class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">' +
                     '<i class="fas fa-shield-halved text-emerald-500"></i>' +
                     '<div><p class="text-sm font-bold text-emerald-700">Kunci aktif</p>' +
-                    '<p class="text-[11px] text-emerald-600">' + (cfg.auto_lock_minutes > 0 ? 'Terkunci setiap dibuka + setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai' : 'Terkunci setiap kali aplikasi dibuka') + '</p></div>' +
+                    '<p class="text-[11px] text-emerald-600">' + (cfg.auto_lock_minutes > 0 ? 'Otomatis terkunci setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai — memuat ulang di tengah pemakaian tidak langsung mengunci' : 'Terkunci setiap kali aplikasi dibuka/dimuat ulang') + '</p></div>' +
                     '</div>' +
                     '<div id="applock-bio-row" class="mb-4"></div>' +
                     '<label class="block text-xs font-bold text-slate-600 mb-1.5">Ubah PIN -- masukkan PIN lama</label>' +
@@ -5152,9 +5213,10 @@ async function currentUserId() {
             persistSettings();
             appLockCacheWrite(cfg);
             appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
+            appLockTouchActivity(true); // v93: mengatur PIN = kehadiran -> reload berikut tidak langsung mengunci
             renderAppLockModal();
             updateAppLockSettingsCard();
-            showSuccessToast('Kunci aplikasi aktif. Aplikasi akan terkunci saat dibuka berikutnya.');
+            showSuccessToast('Kunci aplikasi aktif — akan terkunci otomatis ' + (cfg.auto_lock_minutes > 0 ? 'setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai' : 'setiap kali aplikasi dibuka') + '.');
         }
         function appLockChangePin() {
             const oldPin = ((document.getElementById('applock-old-pin') || {}).value || '').trim();
@@ -5174,6 +5236,7 @@ async function currentUserId() {
             appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
             ['applock-old-pin', 'applock-new-pin', 'applock-new-pin2'].forEach(function (id) { const el = document.getElementById(id); if (el) el.value = ''; });
             if (err) err.textContent = '';
+            appLockTouchActivity(true); // v93: ganti PIN = kehadiran -> reset jam idle
             updateAppLockSettingsCard();
             showSuccessToast('PIN berhasil diganti.');
         }
@@ -5199,7 +5262,7 @@ async function currentUserId() {
             if (!el) return;
             const cfg = appLockCloudCfg();
             if (servicesModule.isLockEnabled(cfg)) {
-                el.textContent = 'Aktif -- ' + (cfg.auto_lock_minutes > 0 ? 'terkunci setiap dibuka & setelah ' + cfg.auto_lock_minutes + ' menit idle' : 'terkunci setiap dibuka') + (cfg.biometric_enabled ? ' + sidik jari' : '');
+                el.textContent = 'Aktif -- ' + (cfg.auto_lock_minutes > 0 ? 'terkunci setelah ' + cfg.auto_lock_minutes + ' menit tidak dipakai' : 'terkunci setiap dibuka') + (cfg.biometric_enabled ? ' + sidik jari' : '');
                 el.className = 'text-[10px] text-emerald-500';
             } else {
                 el.textContent = 'Nonaktif';
@@ -5212,6 +5275,10 @@ async function currentUserId() {
             _appLockArmed = false;
             _appLockUnlockedOnce = false;
             _appLockPendingEnter = null;
+            _appLockLastActivityWrite = 0;
+            // v93: sign-out = akhir sesi eksplisit -> jejak aktivitas dibuang,
+            // boot berikutnya fail-closed (kunci) daripada mewarisi jam user lama.
+            try { localStorage.removeItem(APPLOCK_ACTIVITY_KEY); } catch (e) { }
             const ov = document.getElementById('appLockOverlay');
             if (ov) { ov.classList.add('hidden'); ov.classList.remove('flex'); }
         }

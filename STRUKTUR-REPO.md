@@ -69,7 +69,7 @@ myfinance/
 │   │   ├── assets.js           # portofolio + net worth
 │   │   ├── asset-flows.js      # arus aset, self-heal akun bayangan
 │   │   ├── recurring.js        # transaksi berulang + catchup
-│   │   ├── app-lock.js         # kunci aplikasi: PIN hash+salt (SHA-256 murni), lockout, normalisasi config (v92)
+│   │   ├── app-lock.js         # kunci aplikasi: PIN hash+salt (SHA-256 murni), lockout, mode idle lintas reload (v92-93)
 │   │   ├── reminders.js        # pengingat proaktif: budget >=80/100%, recurring H-1, tujuan H-7/H-1 (v92)
 │   │   ├── goals-debts.js      # progress goal & utang
 │   │   ├── reports.js          # ringkasan tahunan/bulanan/trend
