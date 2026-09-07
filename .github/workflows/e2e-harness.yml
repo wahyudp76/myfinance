@@ -2,7 +2,7 @@
 # =============================================================================
 # MENJALANKAN: scripts/verify-hud.mjs (69 cek HUD dashboard + Rekomendasi AI),
 # scripts/verify-asset-logos.mjs (17 cek logo platform aset), dan
-# scripts/verify-applock.mjs (19 cek kunci aplikasi + pengingat, v92) di dalam CI.
+# scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92) di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
 # PERMANEN karena fitur paginasi (10 baris + tombol halaman) mendarat tanpa

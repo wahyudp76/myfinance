@@ -6,7 +6,7 @@
 
 ## Peta cepat
 - App: SPA statis `index.html` + `src/**` (domain services, modul ES) + Tailwind build (`npm run build:css`) + service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build:css setiap kali aset berubah).
-- Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (49 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
+- Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (69 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; Edge Functions `analyze-finance`, `refresh-asset-price` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, 7 view (ringkasan/transaksi/akun/aset/budget/laporan/pengaturan), Ctrl/Cmd+K command palette.
 
@@ -1853,3 +1853,45 @@ SALAH karena `(A || B) && C` membuat apt tetap jalan walau psql sudah ada.
 **VERIFIKASI:** lint 0; unit 802/802; `node scripts/schema-verify/run.mjs`
 10/10 lulus di Postgres 17 lokal. Tidak ada aset precache SW yang berubah ->
 `CACHE_VERSION` sengaja TIDAK di-bump.
+
+## v97 — Angka di dokumen berhenti jadi soal kedisiplinan: dijaga unit test
+**MASALAH:** audit menemukan sederet klaim basi yang menyesatkan pembaca baru
+(termasuk agen berikutnya, yang membaca dokumen ini sebagai sumber kebenaran):
+`STRUKTUR-REPO` menulis `CACHE_VERSION=v70` (nyatanya v131), "37 file" domain
+(38), "65 cek" verify-hud (69), "19 cek" applock (21, juga di `e2e-harness.yml`),
+"Tabel Supabase (7)" (11 — `rate_limits`, `platform_logos`,
+`whatsapp_link_codes`, `whatsapp_links` tidak pernah didaftarkan), dan header
+masih v95. `Peta cepat` di berkas INI masih menulis "49 cek". Komentar
+`dependabot-auto-merge.yml` masih mengklaim supabase-js dimuat dari esm.sh &
+Chart.js/FullCalendar dari jsdelivr — padahal sudah di-vendor sejak v59 — dan
+"500 unit test" saat nyatanya 800-an.
+
+**PERBAIKAN:** semua diperbarui, DAN dipasangi gerbang mekanis
+`tests/unit/docs-consistency.test.js` (6 test): CACHE_VERSION vs `sw.js`; header
+STRUKTUR-REPO vs entri `## vNN` tertinggi di sini; jumlah file `src/domain/`;
+jumlah tabel & RPC vs `sql/schema.sql`; jumlah cek tiap harness E2E vs jumlah
+pemanggilan `ok(` di skripnya; versi `vendor/supabase-js-*` vs `package.json`.
+Terbukti merah dulu pada kondisi pra-perbaikan (5/5 gagal) sebelum dihijaukan.
+
+**TEMUAN SAMPINGAN (kopling tak terlihat):** `@supabase/supabase-js` ada di
+devDependencies, tapi browser memuat `vendor/supabase-js-2.113.0.bundle.min.mjs`
+yang di-pin di NAMA BERKAS. PR Dependabot menaikkan yang npm saja, jadi keduanya
+bisa berpisah jalan berbulan-bulan tanpa satu pun test merah — dan parity "live"
+diam-diam menguji versi klien yang tidak dipakai pengguna. Sekarang dijaga; uji
+negatif (bump npm ke 2.120.0 tanpa vendor ulang) terbukti merah dengan pesan
+yang menunjuk prosedur `vendor/README.md`.
+
+**KEPUTUSAN SADAR:** (1) log versi `## vNN` di berkas ini DIKECUALIKAN dari
+gerbang — entri v45 memang harus tetap menulis angka saat itu; yang dijaga hanya
+blok `Peta cepat`. (2) Jumlah unit test sengaja TIDAK ditulis sebagai angka di
+komentar dependabot — angka begitu selalu jadi basi. (3) Klaim jumlah cek E2E
+dijaga lewat hitungan `ok(`, bukan menjalankan harness-nya.
+
+**KALAU TEST INI MERAH:** dokumennya yang basi, bukan test-nya yang rewel. Kalau
+sebuah kalimat ditulis ulang sampai pola jangkarnya hilang, test juga merah —
+itu disengaja: perbarui jangkarnya di test bersama kalimatnya, jangan biarkan
+gerbangnya diam-diam berhenti menjaga.
+
+**VERIFIKASI:** lint 0 masalah; unit 808/808 (802 + 6 baru); ketiga workflow
+lolos parse YAML. Tidak ada aset precache SW yang berubah -> `CACHE_VERSION`
+sengaja TIDAK di-bump.

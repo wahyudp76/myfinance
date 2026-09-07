@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v95`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v97`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -42,7 +42,7 @@ myfinance/
 ├── app.js                  # OUTPUT build terser dari app.src.js (~223KB) — jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v70)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v131)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -62,7 +62,7 @@ myfinance/
 │   ├── bootstrap/              # Boot & load pipeline
 │   │   ├── app.js              # createAppBootstrap (orchestrates start/stop, generation guard)
 │   │   └── loader.js           # createBootstrapLoader (de-dup in-flight load + generation counter)
-│   ├── domain/                 # ★ Logika murni (pure functions) — 37 file, teruji unit
+│   ├── domain/                 # ★ Logika murni (pure functions) — 38 file, teruji unit
 │   │   ├── transactions.js     # filter/cari, compute views, insertTransactionRow, dll
 │   │   ├── accounts.js         # total/grafik/agregasi akun
 │   │   ├── budgets.js          # realisasi vs anggaran, deteksi ambang
@@ -190,7 +190,7 @@ myfinance/
 │   ├── build-styles.mjs    # clean-css styles.src.css → styles.css
 │   ├── subset-fontawesome.py
 │   ├── bench-save-latency.mjs
-│   ├── verify-hud.mjs      # E2E Playwright (65 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
+│   ├── verify-hud.mjs      # E2E Playwright (69 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
 │   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
 │   ├── lighthouse/run.mjs
 │   ├── schema-verify/      # v95/v96: uji sql/schema.sql di Postgres NYATA — run.mjs
@@ -300,7 +300,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - Harness E2E juga berjalan otomatis di CI via workflow `E2E Harness`
   (`.github/workflows/e2e-harness.yml`): push/PR ke main, jadwal mingguan, dan
   manual — hermetic (stub Supabase, tanpa secrets). Selain dua harness di atas
-  ada `scripts/verify-applock.mjs` (v92, 19 cek): menguji kunci aplikasi +
+  ada `scripts/verify-applock.mjs` (v92, 21 cek): menguji kunci aplikasi +
   pengingat end-to-end lintas reload — stub tabel settings-nya STATEFUL
   (upsert ditulis ke store memori) supaya konfigurasi kunci bertahan antar
   reload, persis cloud asli.
@@ -322,8 +322,9 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - **Notifikasi & Pengingat (v92)**: budget >=80%/100%, recurring H-1, tenggat
   tujuan H-7/H-1; toggle per jenis di Pengaturan; dedup log per-perangkat
   (`myfinance_reminders_sent`, FIFO 200).
-- **Tabel Supabase (7)**: `transactions`, `budgets`, `assets`, `settings`,
-  `custom_icons`, `recurring_transactions`, `api_rate_limits`.
+- **Tabel Supabase (11)**: `transactions`, `budgets`, `assets`, `settings`,
+  `custom_icons`, `recurring_transactions`, `api_rate_limits`, `rate_limits`,
+  `platform_logos`, `whatsapp_link_codes`, `whatsapp_links`.
 
 ---
 
@@ -339,3 +340,10 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
    `css/tailwind.src.css` → `npm run build:css`.
 6. Setelah aset berubah → bump `CACHE_VERSION` di `sw.js` + regen snapshot.
 7. Kalau menambah CDN/domain → tambahan di CSP `_headers` **dan** meta `index.html`.
+8. **Angka di dokumen dijaga mesin (v97)**: `tests/unit/docs-consistency.test.js`
+   mencocokkan `CACHE_VERSION`, versi terbaru di header berkas ini vs entri terakhir
+   `AGENT-HANDOFF.md`, jumlah file `src/domain/`, jumlah tabel/RPC di `sql/schema.sql`,
+   jumlah cek tiap harness E2E, dan versi bundel `vendor/supabase-js-*` vs `package.json`.
+   Kalau test itu merah, dokumennya yang basi — bukan test-nya yang rewel. Kalau sebuah
+   kalimat ditulis ulang sampai pola jangkarnya hilang, test juga merah: perbarui
+   jangkarnya di test itu bersama kalimatnya.

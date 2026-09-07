@@ -17,12 +17,28 @@
 #
 # PENILAIAN RISIKO (kenapa auto-merge masuk akal DI SINI, tidak di semua repo):
 #   - Tidak ada satu pun paket npm yang sampai ke browser pengguna. `dependencies`
-#     sengaja dikosongkan sejak v45; supabase-js dimuat dari esm.sh, Chart.js &
-#     FullCalendar dari jsdelivr. Semua paket npm murni perkakas dev/CI, jadi
+#     sengaja dikosongkan sejak v45, dan sejak v59 pustaka pihak ketiga TIDAK
+#     lagi diambil dari CDN saat runtime: supabase-js, Chart.js (+datalabels) &
+#     FullCalendar disalin ke `vendor/` sebagai file ter-pin di nama berkasnya
+#     lalu di-precache sw.js. Isi `devDependencies` murni perkakas dev/CI
+#     (eslint, playwright, lighthouse, tailwindcss, terser, clean-css), jadi
 #     bump yang buruk membuat CI merah -- bukan membuat aplikasi keuangan
 #     pengguna rusak.
-#   - Gerbang CI-nya tidak main-main: ESLint, 500 unit test, secret-scan,
-#     Tailwind drift, dan ambang Lighthouse.
+#   - Gerbang CI-nya tidak main-main: ESLint, seluruh unit test
+#     (`npm run test:unit`), secret-scan gitleaks, Tailwind + app.js drift,
+#     ambang Lighthouse, dan sejak v96 `Schema install check (Postgres)` yang
+#     memasang sql/schema.sql dari nol di Postgres sungguhan. (Sengaja tanpa
+#     menyebut jumlah test di sini: angka begitu selalu jadi basi.)
+#
+# SATU KOPLING YANG MUDAH DISALAHPAHAMI: `@supabase/supabase-js` ADA di
+# devDependencies, tapi yang dimuat browser BUKAN paket npm itu -- melainkan
+# `vendor/supabase-js-<versi>.bundle.min.mjs`. Paket npm-nya hanya dipakai skrip
+# parity sisi Node. Jadi PR Dependabot yang menaikkannya TIDAK memperbarui
+# bundel browser; me-vendor ulang adalah prosedur manual (vendor/README.md).
+# Supaya kedua versi itu tidak diam-diam berpisah jalan, sejak v96 unit test
+# `tests/unit/docs-consistency.test.js` mencocokkannya -- PR seperti itu akan
+# MERAH sampai ada keputusan sadar (ikut vendor ulang, atau longgarkan guard-nya
+# dengan alasan tertulis). Itu memang gesekan yang disengaja.
 #
 # SATU CELAH YANG DIKETAHUI, ditulis terbuka supaya tidak jadi kejutan:
 # job `parity` (uji terhadap Supabase live) SENGAJA di-skip pada event

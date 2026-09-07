@@ -477,7 +477,7 @@ miliknya sendiri, walau key-nya identik.
 ## 10. Kalau ada error saat login/memuat data
 
 - **"Gagal memuat data dari cloud"** → cek koneksi internet, dan pastikan
-  `sql/schema.sql` sudah dijalankan lengkap (kesebelas tabelnya) di project
+  `sql/schema.sql` sudah dijalankan lengkap (semua 11 tabelnya) di project
   Supabase kamu.
 - **"Email atau password salah"** → pastikan sudah mendaftar dulu lewat tab
   **Daftar**.
