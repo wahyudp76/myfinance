@@ -41,7 +41,6 @@
     <link rel="preload" href="webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossorigin>
     
     <link rel="preload" href="app.js" as="script">
-    <link rel="modulepreload" href="boot.js">
     <link rel="modulepreload" href="vendor/supabase-js-2.113.0.bundle.min.mjs">
     <link rel="modulepreload" href="vendor/esm-node-async_hooks.mjs">
     <link rel="modulepreload" href="vendor/esm-node-buffer.mjs">
@@ -65,7 +64,7 @@
             window.addEventListener('myfinance:services-ready', () => resolve(window.__myfinanceServices), { once: true });
         });
     </script>
-    <script type="module" src="./boot.js"></script>
+    <script type="module" src="./boot.bundle.js"></script>
     
     <link rel="stylesheet" href="styles.css">
 </head>

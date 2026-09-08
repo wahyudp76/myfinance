@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v136'; // v102: Fase 4 tahap B -- onclick= di HTML dinamis (app.js + src/ui/* berubah)
+const CACHE_VERSION = 'myfinance-v137'; // v103: boot.bundle.js -- 71 modul ESM jadi 1 bundel
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 // v100: dinaikkan v1 -> v2 SEKALI supaya sampah yang sudah terlanjur menumpuk di
@@ -119,7 +119,10 @@ const PRECACHE_URLS = [
   './',
   './index.html',
   './app.js', // blok classic monolit yang diekstrak dari index.html (v54)
-  './boot.js', // blok <script type="module"> wiring yang diekstrak dari index.html (v98)
+  // v103: satu bundel ESM menggantikan boot.js + 71 modul src/ yang dulu
+  // masing-masing jadi satu entri di sini. Selain memangkas 71 request saat
+  // kunjungan pertama, ini juga memangkas 71 fetch saat INSTALL service worker.
+  './boot.bundle.js',
   './manifest.json',
   './styles.css',
   './fonts/plus-jakarta-sans-latin.woff2',
@@ -145,57 +148,12 @@ const PRECACHE_URLS = [
   './vendor/esm-node-events.mjs',
   './vendor/esm-node-tty.mjs',
   './vendor/esm-node-async_hooks.mjs',
-  './src/auth/index.js',
-  './src/auth/client.js',
-  './src/auth/session.js',
-  './src/auth/guards.js',
-  './src/auth/lifecycle.js',
-  './src/services/supabase/client.js',
   // Semua modul runtime app (domain/ui/services) -- precache LENGKAP sejak install
   // supaya app utuh walau kunjungan pertama langsung offline (audit 2026-09).
-  './src/domain/ai-summary.js',
-  './src/domain/ai-recommendations.js',
-  './src/domain/app-lock.js',
-  './src/domain/accounts.js',
-  './src/domain/asset-flows.js',
-  './src/domain/assets.js',
-  './src/domain/backup.js',
-  './src/domain/app-info.js',
-  './src/domain/export-csv.js',
-  './src/domain/market-sync.js',
-  './supabase/functions/_shared/price-sources.js',
-  './src/domain/budgets.js',
-  './src/domain/calendar.js',
-  './src/domain/categories.js',
-  './src/domain/chart-hud.js',
-  './src/domain/chart-labels.js',
-  './src/domain/chart-palette.js',
-  './src/domain/command-palette.js',
-  './src/domain/dashboard.js',
-  './src/domain/demo-data.js',
-  './src/domain/finance.js',
-  './src/domain/goals-debts.js',
-  './src/domain/insights.js',
-  './src/domain/recurring.js',
-  './src/domain/reminders.js',
-  './src/domain/reports.js',
-  './src/domain/settings.js',
-  './src/domain/sparkline.js',
-  './src/domain/theme.js',
-  './src/domain/transactions.js',
   // v86: modul keluarga helper/ikon yang sebelumnya TERLEWAT dari precache --
   // semuanya di-import index.html di jalur kritis (adopsi __fmt/__dates/__sanitize/
   // __slugify/__catstyle/__assetIcon/__bankIcon/__accountCurrency/__platformLogos),
   // jadi tanpa ini "kunjungan pertama lalu offline" gagal boot di tengah jalan.
-  './src/domain/account-currency.js',
-  './src/domain/asset-icons.js',
-  './src/domain/bank-icons.js',
-  './src/domain/category-style.js',
-  './src/domain/dates.js',
-  './src/domain/format.js',
-  './src/domain/platform-logos.js',
-  './src/domain/sanitize.js',
-  './src/domain/slugify.js',
   // v86: logo platform aset self-hosted (lihat src/domain/bank-icons.js) --
   // sama statusnya dengan icons/banks/*: aset statis jalur kritis tab Aset.
   './icons/platforms/ajaib.ico',
@@ -209,28 +167,6 @@ const PRECACHE_URLS = [
   './icons/platforms/pluang.png',
   './icons/platforms/stockbit.svg',
   './icons/platforms/tokocrypto.svg',
-  './src/services/supabase/assets.js',
-  './src/services/supabase/budgets.js',
-  './src/services/supabase/custom-icons.js',
-  './src/services/supabase/edge.js',
-  './src/services/supabase/paging.js', // paging paralel bersama utk transaksi/aset/recurring (v56)
-  './src/services/supabase/platform-logos.js', // katalog logo platform dari DB (v86)
-  './src/services/supabase/recurring.js',
-  './src/services/supabase/settings.js',
-  './src/services/supabase/transfers.js',
-  './src/services/transactions.js',
-  './src/services/user-id.js', // resolver user_id bersama (v52) -- dipakai 5 service
-  './src/ui/accounts.js',
-  './src/ui/assets.js',
-  './src/ui/budgets.js',
-  './src/ui/calendar.js',
-  './src/ui/categories.js',
-  './src/ui/goals-debts.js',
-  './src/ui/insights.js',
-  './src/ui/ai-recommendations.js',
-  './src/ui/modal-a11y.js',
-  './src/ui/recurring.js',
-  './src/ui/skeletons.js',
 ];
 
 self.addEventListener('install', (event) => {

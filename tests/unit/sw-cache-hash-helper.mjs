@@ -13,7 +13,10 @@ import { join } from "node:path";
 // ia kini precache asset (blok wiring module yang diekstrak dari index.html).
 // Tanpa baris ini, mengubah boot.js saja tidak pernah mewajibkan bump
 // CACHE_VERSION, dan pengguna lama akan terus dilayani wiring versi basi.
-const TOP_FILES = ["index.html", "app.js", "boot.js", "styles.css", "manifest.json"];
+// v103: boot.bundle.js -- alasan PERSIS sama dengan app.js (v55) & boot.js (v98).
+// Dialah yang benar-benar di-precache & dieksekusi browser sekarang; boot.js
+// tetap diawasi karena ia sumbernya (drift-nya dijaga tes terpisah).
+const TOP_FILES = ["index.html", "app.js", "boot.js", "boot.bundle.js", "styles.css", "manifest.json"];
 const DIRS = ["src", "vendor", "icons", "css", "fonts", "webfonts"];
 
 function walk(dir) {

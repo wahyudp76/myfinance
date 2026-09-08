@@ -137,7 +137,7 @@ jobs:
         run: npm run lint
 
   css-drift:
-    name: Build drift guard (CSS + app)
+    name: Build drift guard (CSS + app + bundel boot)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -150,12 +150,17 @@ jobs:
           check-latest: true
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Build & pastikan CSS + app.js hasil commit tidak kadaluarsa
+      - name: Build & pastikan CSS + app.js + boot.bundle.js hasil commit tidak kadaluarsa
         run: |
           npm run build:css
           git diff --exit-code -- css/tailwind.css styles.css
           npm run build:app
           git diff --exit-code -- app.js
+          # v103: boot.bundle.js = satu-satunya wiring yang dieksekusi browser.
+          # Tanpa gerbang ini, mengedit boot.js/src tanpa rebuild akan lolos
+          # semua tes (unit mengimpor SUMBERNYA) tapi yang tayang versi lama.
+          npm run build:boot
+          git diff --exit-code -- boot.bundle.js
 
   # Gerbang "instalasi baru": membuktikan sql/schema.sql benar-benar bisa
   # memasang project dari NOL di PostgreSQL sungguhan -- bukan cuma

@@ -2183,3 +2183,64 @@ delegasi yang ber-scope ketat (`closest("[data-insight-idx]")` /
 **CSP:** `'unsafe-inline'` pada `script-src` BELUM bisa dilepas -- index.html
 masih memuat 6 blok `<script>` inline. Itu langkah terpisah berikutnya, dan
 sekarang jalannya sudah bersih karena tidak ada lagi atribut handler inline.
+
+## v103 — 71 modul ESM jadi satu bundel (temuan performa audit v100)
+**MASALAH:** kunjungan PERTAMA menembak 101 request karena `boot.js` mengimpor
+71 modul `src/` yang masing-masing jadi satu request (rata-rata cuma ~2,2 KB
+gzip). Setelah service worker aktif tidak terasa, tapi pengunjung pertama
+membayar 71 round-trip BERURUTAN mengikuti rantai impor -- biaya latensi, bukan
+biaya byte. Service worker juga mem-precache 98 URL, 67 di antaranya modul itu.
+
+**SOLUSI:** `scripts/build-boot.mjs` (esbuild) membundel `boot.js` + seluruh
+modul `src/` yang diimpornya jadi `boot.bundle.js` (ESM, minified, DI-COMMIT --
+pola yang sama dengan app.src.js->app.js dan styles.src.css->styles.css).
+`vendor/` sengaja dibiarkan EXTERNAL: supabase-js sudah bundel ter-pin sendiri,
+polyfill esm-node-* diimpor oleh bundel itu, dan menariknya masuk hanya
+mempersulit audit provenance.
+
+**KENAPA AMAN DIBUNDEL:** diperiksa DULU sebelum diputuskan -- nol `import()`
+dinamis dan nol `import.meta` di boot.js maupun src/, jadi tidak ada modul yang
+identitas/URL-nya dipakai saat runtime. Format ESM + `<script type="module">`
+dipertahankan, jadi semantik eksekusi (defer, strict, scope) sama persis.
+
+**HASIL TERUKUR (median 3-5 kali muat, cache kosong tiap kali):**
+| | v102 | v103 |
+|---|---|---|
+| request kunjungan pertama | 100 | **33** |
+| modul /src/ diunduh | 71 | **0** |
+| entri precache SW | 98 | **31** |
+| ukuran wiring (gzip) | ~158 KB (71 berkas) | **47,4 KB** (1 berkas) |
+| localhost: DOMContentLoaded | 492 ms | **190 ms** |
+| localhost: boot->siap pakai | 1354 ms | **1056 ms** |
+| 4G RTT 150ms: FCP | 1824 ms | **1740 ms** |
+| 4G RTT 150ms: DOMContentLoaded | 3804 ms | **2266 ms** |
+| 4G RTT 150ms: boot->siap pakai | 3890 ms | **2365 ms** |
+
+**KEPUTUSAN modulepreload (diukur, jangan diubah tanpa mengukur ulang):**
+- `<link rel="modulepreload" href="boot.bundle.js">` DIHAPUS. Sempat dipasang
+  meniru pola boot.js lama, dan di 4G itu memperburuk FCP 1740 -> 2032 ms
+  (bundel 152 KB berebut bandwidth dengan CSS render-kritis) TANPA memperbaiki
+  waktu boot sama sekali. Script module sudah ditemukan di <head>, jadi hint-nya
+  memang tidak menambah apa-apa.
+- 6 preload `vendor/` DIPERTAHANKAN. Melepasnya mempercepat FCP (1740 -> 1316)
+  tapi memperlambat boot 570 ms (2365 -> 2935), karena supabase-js baru
+  ditemukan setelah bundel selesai diunduh & diparse. FCP di sini cuma
+  memunculkan layar loading; yang berarti bagi pengguna adalah kapan aplikasi
+  SIAP DIPAKAI. Jadi trade-off diambil ke arah boot.
+
+**GERBANG BARU:** `tests/unit/boot-bundle.test.js` (8 tes) -- drift bundel
+(di-skip kalau esbuild tidak terpasang, seperti pola app-minify), index.html
+memuat bundel bukan boot.js, bundel ada di precache, modul src/ TIDAK lagi di
+precache, vendor tetap external, tidak ada impor lokal tersisa. Job CI
+`css-drift` kini juga menjalankan `npm run build:boot` + `git diff --exit-code`.
+`boot.bundle.js` ditambahkan ke TOP_FILES hash SW (alasan sama dgn app.js v55)
+dan ke ignores eslint (artefak minified).
+
+**JEBAKAN YANG TERCATAT:**
+- Path impor vendor ditulis relatif terhadap berkas SUMBER
+  (`../../../vendor/...`) sedangkan bundel ada di root -- plugin esbuild harus
+  menulis ulang jadi `./vendor/...`, kalau tidak bundel meminta berkas di ATAS
+  root situs. Dijaga tes eksplisit.
+- Saat menguji-negatif drift guard, menambah KOMENTAR ke boot.js tidak membuat
+  guard merah (minifier membuangnya -- keluaran memang identik). Uji negatif
+  yang sahih harus mengubah kode yang benar-benar masuk keluaran.

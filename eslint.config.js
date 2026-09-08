@@ -82,6 +82,9 @@ export default [
       // bukan kode milik kita (provenance & prosedur upgrade: vendor/README.md).
       "vendor/**",
       "supabase/functions/**/*.ts", // Deno + TypeScript: butuh parser terpisah
+      // v103: artefak build (esbuild, minified) dari boot.js + modul src/.
+      // Sumbernya sudah di-lint; me-lint hasil minify hanya menghasilkan derau.
+      "boot.bundle.js",
       "package-lock.json",
     ],
   },
