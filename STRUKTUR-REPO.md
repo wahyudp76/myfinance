@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v99`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v100`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -43,7 +43,7 @@ myfinance/
 ├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v133)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v134)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -295,6 +295,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   node scripts/verify-applock.mjs     # 21 cek E2E kunci aplikasi (server sama)
   node scripts/verify-applock-biometric.mjs # 14 cek biometrik multi-perangkat (WAJIB lewat
                                       # http://localhost — WebAuthn menolak origin ber-IP)
+  node scripts/verify-offline-cache.mjs # 13 cek cache data offline/PWA
   node scripts/schema-verify/run.mjs  # v96: install sql/schema.sql dari nol di
                                       # Postgres nyata + 10 cek RLS/RPC/grant
                                       # (butuh psql; lihat README di folder itu)

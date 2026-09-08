@@ -42,10 +42,70 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v133'; // v94: Rekomendasi AI list + modal detail (2 file baru)
+const CACHE_VERSION = 'myfinance-v134'; // v100: perbaikan scope cache data offline (sw.js berubah)
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
-const DATA_CACHE = 'myfinance-data-v1';
+// v100: dinaikkan v1 -> v2 SEKALI supaya sampah yang sudah terlanjur menumpuk di
+// perangkat pengguna (akibat bug scope di bawah) ikut terhapus oleh pembersih di
+// handler activate -- 'myfinance-data-v1' tidak lagi sama dengan CACHE_VERSION
+// maupun DATA_CACHE, jadi otomatis kena caches.delete().
+const DATA_CACHE = 'myfinance-data-v2';
+
+// Batas atas jumlah entri cache data. Pertahanan berlapis: scope yang benar sudah
+// menghentikan pertumbuhan liar, tapi query yang mengandung parameter berubah
+// (mis. budgets?bulan=eq.2026-09) tetap menambah entri pelan-pelan seumur pakai.
+// Dengan batas ini pertumbuhannya TERBUKTI berhingga, bukan cuma "harusnya kecil".
+const DATA_CACHE_MAX = 60;
+
+// ---------------------------------------------------------------------------
+// SCOPE CACHE DATA = IDENTITAS USER, BUKAN POTONGAN TOKEN
+// ---------------------------------------------------------------------------
+// BUG v99 (ditemukan audit perawatan 2026-09-08): scope dulu dihitung dari
+// `auth.slice(-24)` -- 24 karakter TERAKHIR header Authorization. Pada JWT
+// Supabase itu ekor TANDA TANGAN, yang BERUBAH setiap kali token di-refresh
+// (default tiap 1 jam). Akibat nyata yang sudah dibuktikan lewat E2E:
+//   1. tiap refresh token melahirkan namespace cache BARU -> entri lama jadi
+//      sampah abadi (DATA_CACHE sengaja tidak ikut dihapus tiap deploy), jumlah
+//      entri tumbuh tanpa batas sampai berisiko kena kuota penyimpanan browser;
+//   2. begitu token baru terbit, cache lama tak pernah kena lagi -> offline
+//      tepat setelah refresh = MISS = "Gagal memuat data dari cloud", padahal
+//      datanya baru saja disimpan beberapa menit sebelumnya.
+// Perbaikan: pakai klaim `sub` (user id) yang STABIL sepanjang akun sama.
+// Tujuan keamanan aslinya tetap terpenuhi: dua akun berbeda punya `sub` berbeda,
+// jadi tidak pernah berbagi entri cache.
+// Catatan: tanda tangan JWT sengaja TIDAK diverifikasi di sini -- ini cuma kunci
+// partisi cache lokal, bukan gerbang otorisasi (otorisasi tetap di server lewat
+// RLS). Siapa pun yang bisa memalsukan isi localStorage sudah menguasai origin
+// ini sepenuhnya dan bisa membaca Cache Storage langsung.
+function dataCacheScope(authHeader) {
+  const auth = String(authHeader || '');
+  const token = auth.replace(/^Bearer\s+/i, '').trim();
+  const parts = token.split('.');
+  if (parts.length === 3 && parts[1]) {
+    try {
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+      const bin = atob(padded);
+      const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      if (payload && typeof payload.sub === 'string' && payload.sub) return payload.sub;
+    } catch (_e) {
+      // token bukan JWT yang bisa dibaca -> jatuh ke cadangan di bawah
+    }
+  }
+  // Cadangan untuk token non-JWT (mis. stub di harness E2E): perilaku lama.
+  return token.slice(-24);
+}
+
+// Simpan ke cache data sambil menjaga jumlah entri tetap di bawah DATA_CACHE_MAX.
+// cache.keys() mengembalikan entri sesuai urutan penyisipan, jadi yang dibuang
+// adalah yang paling lama masuk (FIFO).
+async function putDataCacheBounded(cache, key, res) {
+  await cache.put(key, res);
+  const keys = await cache.keys();
+  const lebih = keys.length - DATA_CACHE_MAX;
+  for (let i = 0; i < lebih; i += 1) await cache.delete(keys[i]);
+}
 
 // App shell + file vendor CDN yang dipakai index.html -- disimpan ke cache saat
 // service worker pertama kali terpasang, supaya kunjungan berikutnya (termasuk saat
@@ -216,19 +276,21 @@ self.addEventListener('fetch', (event) => {
 
   // ============ DATA OFFLINE (Tier-3 #10): GET /rest/v1/* Supabase ============
   // NETWORK-FIRST + fallback cache saat offline (bukan SWR buta: angka keuangan
-  // TIDAK boleh basi saat online). Cache key di-scope PER-TOKEN (segmen akhir header
-  // Authorization = sub user) supaya 2 akun di perangkat sama TIDAK pernah berbagi
-  // data; logout membuang seluruh cache data (pesan MYFINANCE_CLEAR_DATA_CACHE).
+  // TIDAK boleh basi saat online). Cache key di-scope PER-USER lewat dataCacheScope()
+  // -- klaim `sub` JWT, BUKAN potongan token (lihat catatan bug di atas) -- supaya
+  // 2 akun di perangkat sama TIDAK pernah berbagi data, sekaligus supaya refresh
+  // token tidak melahirkan namespace cache baru;
+  // logout membuang seluruh cache data (pesan MYFINANCE_CLEAR_DATA_CACHE).
   if (url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/rest/v1/') && req.method === 'GET') {
     const auth = req.headers.get('authorization') || '';
     if (auth) {
-      const scope = encodeURIComponent(auth.slice(-24));
+      const scope = encodeURIComponent(dataCacheScope(auth));
       const key = new Request(url.pathname + url.search + (url.search ? '&' : '?') + 'u=' + scope, { method: 'GET' });
       event.respondWith(
         fetch(req).then((res) => {
           if (res && res.ok) {
             const copy = res.clone();
-            caches.open(DATA_CACHE).then((cache) => cache.put(key, copy));
+            caches.open(DATA_CACHE).then((cache) => putDataCacheBounded(cache, key, copy));
           }
           return res;
         }).catch(() => caches.match(key).then((cached) => cached || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' } })))

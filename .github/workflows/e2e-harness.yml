@@ -3,7 +3,8 @@
 # MENJALANKAN: scripts/verify-hud.mjs (69 cek HUD dashboard + Rekomendasi AI),
 # scripts/verify-asset-logos.mjs (17 cek logo platform aset), dan
 # scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92), dan
-# scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99)
+# scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99),
+# dan scripts/verify-offline-cache.mjs (13 cek cache data offline, v100)
 # di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
@@ -123,6 +124,15 @@ jobs:
         env:
           APPLOCK_URL: http://localhost:8123/
         run: node scripts/verify-applock-biometric.mjs
+
+      # v100: cerita OFFLINE/PWA -- sebelumnya nol cakupan otomatis. Menguji
+      # Cache Storage sungguhan: DATA_CACHE terisi, refresh token TIDAK melahirkan
+      # namespace baru (bug v100), dua akun tetap terpisah, offline menyajikan
+      # data cache, dan logout membersihkannya.
+      - name: verify-offline-cache (13 cek cache data offline + PWA)
+        env:
+          OFFLINE_URL: http://localhost:8123/
+        run: node scripts/verify-offline-cache.mjs
 
       # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
       # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug

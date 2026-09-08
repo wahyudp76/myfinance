@@ -1997,3 +1997,63 @@ dikecualikan. Harness menormalkan URL-nya sendiri, dan step CI-nya memakai
 **VERIFIKASI:** lint 0; unit 819/819 (+11 tes domain, termasuk 3 tes REGRESI yang
 menamai skenario laptop-lalu-HP); E2E lokal hud 69/69, asset-logos 17/17,
 applock 21/21, applock-biometric 14/14; `CACHE_VERSION` v132 -> v133 + snapshot.
+
+## v100 — Perawatan menyeluruh: bug scope cache data offline
+**KONTEKS:** audit perawatan 2026-09-08 (stabilitas + performa + perburuan bug)
+sebelum lanjut Fase 4. Hampir semua sehat: 0 error konsol di 7 view, 0 kebocoran
+memori (heap datar, 12 instance chart stabil setelah 12 kali ganti view), 0
+kerentanan npm, 451 id HTML semuanya unik, 98 entri precache semuanya menunjuk
+berkas nyata, 113 handler onclick semuanya terdefinisi (0 tombol mati), 0 modul
+src/ yatim, dan XSS TIDAK tembus (payload disuntik ke keterangan/kategori/akun/
+aset lalu handler onclick-nya dipicu paksa -- tidak ada yang tereksekusi).
+
+**SATU BUG NYATA DITEMUKAN (dan diperbaiki):** namespace cache data offline
+dihitung dari `auth.slice(-24)` -- 24 karakter TERAKHIR header Authorization.
+Pada JWT Supabase itu ekor TANDA TANGAN, yang berubah SETIAP refresh token
+(default tiap jam). Dibuktikan lewat E2E terhadap kode v99: entri cache untuk
+user yang SAMA melonjak **8 -> 16** hanya karena satu kali refresh. Akibatnya:
+  1. sampah menumpuk selamanya (DATA_CACHE sengaja TIDAK ikut dihapus saat
+     CACHE_VERSION naik, dan hanya dibuang saat logout) -> berisiko kena kuota
+     penyimpanan browser, yang kalau kena bisa membuang SELURUH storage origin
+     termasuk shell PWA;
+  2. offline tepat setelah refresh token = cache MISS = "Gagal memuat data dari
+     cloud", padahal datanya baru disimpan beberapa menit sebelumnya.
+
+**PERBAIKAN (sw.js):**
+- `dataCacheScope(authHeader)`: baca klaim `sub` (user id) dari payload JWT
+  (base64url -> TextDecoder, aman UTF-8), cadangan ke perilaku lama untuk token
+  non-JWT. Tanda tangan sengaja tidak diverifikasi -- ini kunci partisi cache
+  lokal, bukan gerbang otorisasi (otorisasi tetap RLS di server).
+- `DATA_CACHE_MAX = 60` + `putDataCacheBounded()`: pertumbuhan jadi TERBUKTI
+  berhingga, bukan cuma "harusnya kecil" (query seperti budgets?bulan=eq.YYYY-MM
+  tetap menambah entri pelan-pelan seumur pakai).
+- `DATA_CACHE` v1 -> v2 sekali, supaya sampah yang sudah menumpuk di perangkat
+  pengguna ikut terhapus oleh pembersih di handler activate.
+
+**VERIFIKASI:**
+- `tests/unit/sw-data-cache-scope.test.js` (11 tes): fungsi DIEKSTRAK dari sw.js
+  lalu diuji perilakunya (sw.js classic worker, tak bisa di-import). Uji negatif:
+  terhadap sw.js v99 seluruh berkas tes MERAH ("dataCacheScope harus ada").
+- `scripts/verify-offline-cache.mjs` (BARU, 13 cek): Cache Storage sungguhan.
+  Uji negatif terhadap v99 -> 5 cek MERAH, termasuk "8 -> 16 entri". Didaftarkan
+  ke workflow e2e-harness + guard docs-consistency.
+- Regresi lain tidak turun: hud 69/69, asset-logos 17/17, applock 21/21,
+  applock-biometric 14/14. Unit 830/830, eslint 0. CACHE_VERSION v133 -> v134.
+
+**TEMUAN PERFORMA (belum dikerjakan, bukan bug):** kunjungan pertama menembak
+**101 request** karena 71 modul ESM di src/ dimuat satu per satu (rata-rata cuma
+2,2 KB gzip per berkas, total 153 KB). Setelah service worker aktif ini tidak
+terasa lagi, tapi kunjungan PERTAMA di jaringan seluler membayar 71 round-trip.
+Kandidat perbaikan berikutnya: bundling modul src/ untuk jalur boot.
+
+**JEBAKAN METODOLOGI YANG TERCATAT (mahal ditemukan):**
+- Service worker baru meng-cache SETELAH mengendalikan halaman; menilai isi
+  DATA_CACHE di kunjungan pertama menghasilkan kesimpulan palsu "cache kosong".
+- `context.addInitScript()` jalan di SETIAP navigasi -- kalau menyemai sesi tanpa
+  penjaga "kalau belum ada", ia menimpa token baru tiap reload dan simulasi
+  refresh token tidak pernah benar-benar terjadi (sempat bikin hipotesis bug ini
+  keliru dinyatakan salah).
+- `context.setOffline()` tidak selalu mengubah `navigator.onLine` setelah
+  navigasi; banner offline SEBENARNYA benar (terbukti dengan memaksa
+  navigator.onLine=false). Jangan simpulkan bug UI dari emulasi yang belum
+  divalidasi.
