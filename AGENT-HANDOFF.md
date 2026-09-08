@@ -2244,3 +2244,61 @@ dan ke ignores eslint (artefak minified).
 - Saat menguji-negatif drift guard, menambah KOMENTAR ke boot.js tidak membuat
   guard merah (minifier membuangnya -- keluaran memang identik). Uji negatif
   yang sahih harus mengubah kode yang benar-benar masuk keluaran.
+
+## v104 — CSP script-src tanpa 'unsafe-inline' (butir roadmap terakhir)
+**SASARAN:** `script-src 'self' 'unsafe-inline'` membuat gerbang skrip CSP
+praktis tidak berarti -- browser menjalankan SETIAP skrip inline yang berhasil
+disisipkan. Sekarang: `script-src 'self'` + 4 hash sha256 blok inline.
+
+**KENAPA HASH, BUKAN DIEKSTRAK JADI BERKAS:** blok pertama menetapkan tema
+SEBELUM render. Sebagai berkas eksternal ia jadi request PEMBLOKIR sebelum
+paint -- satu round-trip penuh di seluler, persis biaya yang baru dihapus v103.
+Hash membiarkannya inline tanpa membuka pintu bagi skrip inline lain.
+
+**DUA TEMUAN BESAR SELAMA PENGERJAAN (keduanya dari uji negatif, bukan dugaan):**
+
+1. **meta CSP berada SETELAH skrip pertama.** `<meta>` CSP hanya mengatur konten
+   SESUDAHNYA. Blok tema di baris 6 sementara meta di baris 24 -> blok itu sama
+   sekali TIDAK terjaga. Ketahuan karena uji negatif "rusakkan hash blok tema"
+   TIDAK merah: browser tetap menjalankannya tanpa keluhan. Meta CSP dipindah ke
+   posisi paling awal `<head>` (hanya `<meta charset>` yang boleh mendahului).
+   Setelah dipindah, uji negatif yang sama langsung merah dengan benar.
+
+2. **CSP tanpa 'unsafe-inline' memblokir SEMUA atribut handler inline, bukan
+   cuma onclick.** Fase 4 (v101-v102) hanya menghabiskan onclick; masih ada 67
+   atribut `onchange`/`oninput`/`onsubmit`/`onkeydown`/`onfocus`/`onblur`.
+   Dibuktikan di browser: `typeof el.oninput === "object"` (null) + pelanggaran
+   `script-src-attr`. Merilis CSP tanpa mengonversinya akan mematikan filter
+   transaksi, toggle setelan, submit form, dan tombol Enter -- SEMUANYA DIAM,
+   tanpa error. Jadi konversi 67 handler itu dikerjakan lebih dulu di rilis ini.
+
+**KONVERSI 67 HANDLER NON-KLIK:** dispatcher diperluas ke 6 jenis event lewat
+`data-on-change|input|submit|keydown|focus|blur` (+ `-args`). Hal yang dulu
+ditulis langsung di atribut kini jadi placeholder yang diselesaikan saat event:
+`$event`, `$el`, `$value`, `$checked`. 13 handler yang berisi LOGIKA (cek
+event.key, banyak pernyataan, setTimeout) jadi fungsi pembungkus bernama.
+`focus`/`blur` didengarkan sebagai `focusin`/`focusout` -- versi yang
+menggelembung; mendengarkan `focus` langsung di document TIDAK akan pernah
+jalan (dijaga tes eksplisit).
+
+**VERIFIKASI:**
+- `scripts/verify-csp.mjs` (BARU, 15 cek) menguji DUA arah: keempat blok inline
+  benar-benar TEREKSEKUSI (tema, jembatan auth, pemuat grafik, registrasi SW --
+  diperiksa lewat efek nyatanya, karena hash meleset = gagal senyap), dan skrip
+  inline yang disuntikkan benar-benar DITOLAK (+ pelanggaran terlapor).
+- `scripts/verify-ui-actions.mjs` 26 -> 31 cek. U11: 67/67 elemen non-klik
+  memicu aksinya, dan `$event` terbukti jadi objek Event sungguhan.
+- `tests/unit/csp-hash.test.js` (9 tes) + `ui-actions.test.js` 17 -> 23 tes.
+- Job CI `css-drift` kini menjalankan `npm run build:csp` + `git diff`.
+
+**CATATAN eval():** tidak bisa diuji dari Playwright. Kode `page.evaluate()`
+masuk lewat protokol DevTools, dan konteks itu DIKECUALIKAN dari CSP oleh
+Chrome -- eval di situ selalu berhasil sekalipun 'unsafe-eval' tidak ada.
+Percobaan pertama harness sempat melaporkannya sebagai KEGAGALAN padahal
+kebijakannya benar. Yang dijamin: 'unsafe-eval' memang tidak ada di kebijakan.
+
+**BELUM: `style-src` masih 'unsafe-inline'** -- 37 atribut `style=""` dipakai
+untuk nilai dinamis (lebar bar progres, warna dari data). Atribut style tidak
+bisa di-hash seperti blok skrip, jadi melepasnya menuntut refactor tersendiri
+(pindah ke CSS custom property). Fakta ini DIKUNCI unit test supaya tidak ada
+yang mengira script-src dan style-src sudah sama ketatnya.

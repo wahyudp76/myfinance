@@ -59,16 +59,27 @@ function declaredFunctionRe(name) {
   );
 }
 
+// v104: atribut handler inline sudah HABIS (Fase 4 + pengetatan CSP), jadi
+// sumber nama handler bukan lagi onclick="fn()" melainkan atribut deklaratif
+// data-action / data-on-* di index.html dan uiActionAttrs('fn', ...) di HTML
+// dinamis. Kontraknya tetap sama: nama itu harus selamat dari minifikasi.
 function appHandlerNames() {
   const srcText = readFileSync(resolve(ROOT, "app.src.js"), "utf8");
   const names = new Set();
-  const re =
-    /(?:onclick|onchange|oninput|onsubmit|onblur|onfocus|onkeydown|onkeyup)="\s*([A-Za-z_$][\w$]*)\s*\(/g;
-  for (const file of ["index.html", "app.src.js"]) {
+  const pola = [
+    /data-action="([A-Za-z_$][\w$]*)"/g,
+    /data-on-[a-z]+="([A-Za-z_$][\w$]*)"/g,
+    /uiActionAttrs\(\s*['"]([A-Za-z_$][\w$]*)['"]/g,
+  ];
+  const berkas = ["index.html", "app.src.js", "src/ui/accounts.js", "src/ui/assets.js",
+    "src/ui/budgets.js", "src/ui/goals-debts.js", "src/ui/recurring.js"];
+  for (const file of berkas) {
     const text = readFileSync(resolve(ROOT, file), "utf8");
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      if (declaredFunctionRe(m[1]).test(srcText)) names.add(m[1]);
+    for (const re of pola) {
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        if (declaredFunctionRe(m[1]).test(srcText)) names.add(m[1]);
+      }
     }
   }
   return [...names];

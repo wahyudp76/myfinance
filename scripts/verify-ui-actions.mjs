@@ -349,9 +349,79 @@ ok(u10.ada && u10.anakJalan === 1, "U10: aksi ANAK jalan tepat sekali", `${u10.a
 ok(u10.ada && u10.indukJalan === 0,
   "U10: aksi INDUK TIDAK ikut jalan (pengganti event.stopPropagation)", `${u10.indukJalan}x`);
 
+// ============ U11: handler NON-KLIK (v104) ============
+// change/input/submit/keydown/focus/blur dulu ditulis sebagai atribut inline.
+// Semuanya MATI di bawah CSP tanpa 'unsafe-inline' (terbukti di browser:
+// el.oninput jadi null + pelanggaran script-src-attr), jadi konversinya
+// prasyarat mutlak untuk pengetatan CSP. Pola pembuktiannya sama dengan U7:
+// registry disulih jadi mata-mata, SETIAP elemen dipicu, nol efek samping.
+console.log("\n-- U11: handler non-klik benar-benar terpicu --");
+const u11 = await page.evaluate(async () => {
+  const PETA = {
+    "data-on-change": "change",
+    "data-on-input": "input",
+    "data-on-submit": "submit",
+    "data-on-keydown": "keydown",
+    "data-on-focus": "focusin",
+    "data-on-blur": "focusout",
+  };
+  const reg = uiActionRegistry();
+  const asli = { ...reg };
+  const tercatat = [];
+  for (const k of Object.keys(reg)) reg[k] = (...args) => { tercatat.push({ k, args }); };
+
+  const rencana = [];
+  for (const [atr, namaEvent] of Object.entries(PETA)) {
+    for (const el of document.querySelectorAll(`[${atr}]`)) {
+      rencana.push({ el, atr, namaEvent, aksi: el.getAttribute(atr) });
+    }
+  }
+  const takTerpetakan = [...new Set(rencana.map((r) => r.aksi))].filter((n) => typeof asli[n] !== "function");
+
+  for (const r of rencana) {
+    const ev = r.namaEvent === "keydown"
+      ? new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+      : new Event(r.namaEvent, { bubbles: true, cancelable: true });
+    r.el.dispatchEvent(ev);
+  }
+  await new Promise((r) => setTimeout(r, 300));
+  Object.keys(reg).forEach((k) => { reg[k] = asli[k]; });
+
+  const bisu = rencana.filter((r, i) => !tercatat[i] || tercatat[i].k !== r.aksi)
+    .slice(0, 5).map((r) => `${r.atr}=${r.aksi}`);
+  const perAtribut = {};
+  for (const r of rencana) perAtribut[r.atr] = (perAtribut[r.atr] || 0) + 1;
+  return { total: rencana.length, terpanggil: tercatat.length, takTerpetakan, bisu, perAtribut };
+});
+ok(u11.total >= 60, "U11: elemen handler non-klik hadir di DOM",
+  `${u11.total} elemen — ${JSON.stringify(u11.perAtribut)}`);
+ok(u11.takTerpetakan.length === 0, "U11: semua aksi non-klik terpetakan ke fungsi",
+  u11.takTerpetakan.join(", ") || "semua terpetakan");
+ok(u11.terpanggil === u11.total, "U11: SETIAP elemen memicu aksinya saat event-nya terjadi",
+  `${u11.terpanggil}/${u11.total}`);
+ok(u11.bisu.length === 0, "U11: aksi yang terpanggil sesuai atributnya", u11.bisu.join(" | ") || "cocok");
+
+// Placeholder $event/$el/$value harus benar-benar diselesaikan, bukan lewat apa adanya
+const u11b = await page.evaluate(async () => {
+  const reg = uiActionRegistry();
+  const el = document.querySelector('[data-on-submit="submitForm"]');
+  if (!el) return { ada: false };
+  const asli = reg.submitForm;
+  let diterima = null;
+  reg.submitForm = (...args) => { diterima = args; };
+  el.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  await new Promise((r) => setTimeout(r, 150));
+  reg.submitForm = asli;
+  return { ada: true, jenis: diterima ? typeof diterima[0] : null,
+           adalahEvent: !!(diterima && diterima[0] && typeof diterima[0].preventDefault === "function") };
+});
+ok(u11b.ada && u11b.adalahEvent,
+  "U11: placeholder $event diselesaikan jadi objek Event sungguhan (bukan string)",
+  `tipe=${u11b.jenis}`);
+
 // ===================== ringkasan =====================
 const errorTakTerduga = konsolError.filter((t) => !t.includes("[ui-action]"));
-console.log("\n== HASIL VERIFY UI ACTIONS (26 cek) ==");
+console.log("\n== HASIL VERIFY UI ACTIONS (31 cek) ==");
 console.log(`Error halaman (${errorHalaman.length})`);
 [...new Set(errorHalaman)].slice(0, 5).forEach((e) => console.log(`   ${e}`));
 console.log(`console.error di luar [ui-action] (${errorTakTerduga.length})`);

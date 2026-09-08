@@ -5,7 +5,8 @@
 # scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92), dan
 # scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99),
 # scripts/verify-offline-cache.mjs (13 cek cache data offline, v100), dan
-# scripts/verify-ui-actions.mjs (26 cek aksi UI deklaratif, v101)
+# scripts/verify-ui-actions.mjs (31 cek aksi UI deklaratif, v101),
+# dan scripts/verify-csp.mjs (15 cek Content-Security-Policy, v104)
 # di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
@@ -139,10 +140,18 @@ jobs:
       # satu dispatcher delegasi. Harness ini menjaga yang TIDAK bisa dibuktikan
       # tes statis: registry runtime, klik pada ikon DI DALAM tombol (closest),
       # tipe argumen data-args, dan ketahanan terhadap aksi/args rusak.
-      - name: verify-ui-actions (26 cek aksi UI deklaratif)
+      - name: verify-ui-actions (31 cek aksi UI deklaratif)
         env:
           UIACT_URL: http://127.0.0.1:8123/
         run: node scripts/verify-ui-actions.mjs
+
+      # v104: pengetatan CSP (script-src berbasis hash, tanpa 'unsafe-inline').
+      # Menguji dua arah: keempat blok inline BENAR-BENAR jalan, dan skrip
+      # inline yang disuntikkan BENAR-BENAR ditolak browser.
+      - name: verify-csp (15 cek Content-Security-Policy)
+        env:
+          CSP_URL: http://127.0.0.1:8123/
+        run: node scripts/verify-csp.mjs
 
       # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
       # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug

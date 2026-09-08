@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v137'; // v103: boot.bundle.js -- 71 modul ESM jadi 1 bundel
+const CACHE_VERSION = 'myfinance-v138'; // v104: CSP script-src berbasis hash + handler non-klik
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 // v100: dinaikkan v1 -> v2 SEKALI supaya sampah yang sudah terlanjur menumpuk di

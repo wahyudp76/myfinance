@@ -161,6 +161,11 @@ jobs:
           # semua tes (unit mengimpor SUMBERNYA) tapi yang tayang versi lama.
           npm run build:boot
           git diff --exit-code -- boot.bundle.js
+          # v104: hash CSP ikut dibangun ulang. Kalau satu blok skrip inline
+          # berubah tanpa hash diperbarui, browser MENOLAK menjalankannya --
+          # tanpa error, cuma fitur yang diam-diam hilang.
+          npm run build:csp
+          git diff --exit-code -- index.html
 
   # Gerbang "instalasi baru": membuktikan sql/schema.sql benar-benar bisa
   # memasang project dari NOL di PostgreSQL sungguhan -- bukan cuma

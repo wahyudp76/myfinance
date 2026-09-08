@@ -1232,10 +1232,77 @@ async function currentUserId() {
                 toggleRecurringActive, toggleSettingsAccordion, unlinkWhatsapp,
                 // Pembungkus untuk bentuk yang dulu ditulis sebagai kode inline.
                 // Sengaja jadi fungsi bernama supaya tetap bisa di-grep & diuji.
+                // --- v104: aksi dari atribut handler NON-KLIK di index.html ---
+                // (change/input/submit/keydown/focus/blur). Dulu dipanggil langsung
+                // dari atribut; CSP tanpa 'unsafe-inline' memblokir semua itu.
+                changeBudgetMonth, debouncedFilterTransactions, filterTransactions, formatInputRibuan,
+                handleAccountChangeForCurrency, handleAccountIconUpload, handleBackupFileSelect,
+                handleCategoryStyleUpload, handleFormTypeChange, handleKeteranganInputForSuggestion,
+                handleProfileAvatarUpload, handleRecurringJenisChange, handleStrukFileSelected,
+                previewManualNav, renderAccountDetailCharts, renderReportTab, saveNotifPrefs,
+                searchAccountModalSuggestions, searchAssetBankSuggestions, setDefaultView, submitAsset,
+                submitDebtForm, submitDebtPay, submitForm, submitGoalContribute, submitGoalForm,
+                toggleAccountCatFilter, toggleAssetAutoUpdateSection, toggleRecurringEndDate,
+                toggleTxTimeFilter,
+                // v104: pembungkus handler non-klik (lihat definisinya di bawah).
+                aiChatKeydown, subKategoriKeydown, indukKategoriKeydown, saranAkunKeydown,
+                sembunyikanSaranPlatformAset, tutupSaranAkunTertunda,
+                formatFilterNominal, formatTotalUtang, cariSaranAkunDanPreview, jadikanHurufBesar,
                 editAsetDariDetail, pilihBerkasBackup,
                 kirimFormTransaksi, kirimFormAset, kirimFormTujuan, kirimFormUtang,
             };
             return __uiActionsCache;
+        }
+
+        // --- v104: pembungkus untuk handler non-klik yang dulu berisi LOGIKA di
+        // dalam atribut (banyak pernyataan, cek event.key, setTimeout). Sengaja
+        // fungsi bernama supaya bisa di-grep, diuji, dan muncul di stack trace.
+        function aiChatKeydown(ev) {
+            if (ev.key === 'Enter') sendAiChatQuestion();
+        }
+        function subKategoriKeydown(ev, jenis) {
+            if (ev.key !== 'Enter') return;
+            ev.preventDefault();
+            addSubCategory(jenis);
+        }
+        function indukKategoriKeydown(ev, jenis) {
+            if (ev.key !== 'Enter') return;
+            ev.preventDefault();
+            addParentCategory(jenis);
+        }
+        function saranAkunKeydown(ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                closeAccountModalSuggestions();
+            }
+            if (ev.key === 'Escape') closeAccountModalSuggestions();
+        }
+        // Jeda 200 ms dipertahankan PERSIS seperti versi inline: tanpa itu,
+        // daftar saran keburu tersembunyi sebelum klik pada salah satu item
+        // sempat terdaftar.
+        function sembunyikanSaranPlatformAset() {
+            setTimeout(function () {
+                const el = document.getElementById('asset-platform-suggestions');
+                if (el) el.classList.add('hidden');
+            }, 200);
+        }
+        function tutupSaranAkunTertunda() {
+            setTimeout(function () { closeAccountModalSuggestions(); }, 200);
+        }
+        function formatFilterNominal(el, targetId) {
+            formatInputRibuan(el, targetId);
+            debouncedFilterTransactions();
+        }
+        function formatTotalUtang(el) {
+            formatInputRibuan(el, 'debt_total');
+            syncDebtRemainingDefault();
+        }
+        function cariSaranAkunDanPreview(nilai) {
+            searchAccountModalSuggestions(nilai);
+            refreshAccountIconPreview();
+        }
+        function jadikanHurufBesar(el) {
+            el.value = el.value.toUpperCase();
         }
 
         // Bekas onclick="closeAssetDetailModal(); openAssetModal(true, currentAssetDetailId)"
@@ -1260,12 +1327,24 @@ async function currentUserId() {
         // seperti dulu: "1" tetap angka, "true" tetap boolean, null tetap null.
         // Isinya selalu literal yang ditulis pengembang di index.html (tidak
         // pernah data pengguna), dan JSON.parse tidak pernah mengeksekusi kode.
-        function parseUiActionArgs(el) {
-            const mentah = el.getAttribute('data-args');
+        // Placeholder di data-args, supaya handler non-klik bisa menerima hal yang
+        // dulu ditulis langsung di atribut: `event`, `this`, `this.value`,
+        // `this.checked`. Nilainya diselesaikan SAAT event terjadi.
+        function nilaiPlaceholder(v, el, ev) {
+            if (v === '$event') return ev;
+            if (v === '$el') return el;
+            if (v === '$value') return el.value;
+            if (v === '$checked') return el.checked;
+            return v;
+        }
+
+        function parseUiActionArgs(el, atr, ev) {
+            const mentah = el.getAttribute(atr || 'data-args');
             if (!mentah) return [];
             try {
                 const nilai = JSON.parse(mentah);
-                return Array.isArray(nilai) ? nilai : [nilai];
+                const daftar = Array.isArray(nilai) ? nilai : [nilai];
+                return daftar.map((v) => nilaiPlaceholder(v, el, ev));
             } catch (err) {
                 console.error('[ui-action] data-args bukan JSON valid:', mentah, el);
                 return null;
@@ -1288,9 +1367,42 @@ async function currentUserId() {
             if (!target || target.nodeType !== 1 || !target.closest) return;
             const el = target.closest('[data-action]');
             if (!el) return;
-            const args = parseUiActionArgs(el);
+            const args = parseUiActionArgs(el, 'data-args', ev);
             if (args === null) return;
             runUiAction(el.getAttribute('data-action'), args, el);
+        });
+
+        // ------------------------------------------------------------------
+        // Event NON-KLIK (v104): change / input / submit / keydown / focus / blur
+        // ------------------------------------------------------------------
+        // Alasannya bukan kerapian: CSP tanpa 'unsafe-inline' memblokir SEMUA
+        // atribut handler inline, bukan cuma onclick. Selama 67 atribut ini
+        // masih ada, kebijakan ketat itu akan mematikan filter transaksi,
+        // toggle setelan, submit form, dan tombol Enter -- tanpa error, cuma
+        // diam. (Dibuktikan di browser: el.oninput jadi null + pelanggaran
+        // script-src-attr.)
+        //
+        // focus/blur TIDAK menggelembung, jadi yang didengarkan focusin/focusout
+        // -- versi menggelembung dari keduanya.
+        const UI_EVENT_ATTR = {
+            change: 'data-on-change',
+            input: 'data-on-input',
+            submit: 'data-on-submit',
+            keydown: 'data-on-keydown',
+            focusin: 'data-on-focus',
+            focusout: 'data-on-blur',
+        };
+        Object.keys(UI_EVENT_ATTR).forEach(function (namaEvent) {
+            const atr = UI_EVENT_ATTR[namaEvent];
+            document.addEventListener(namaEvent, function (ev) {
+                const target = ev.target;
+                if (!target || target.nodeType !== 1 || !target.closest) return;
+                const el = target.closest('[' + atr + ']');
+                if (!el) return;
+                const args = parseUiActionArgs(el, atr + '-args', ev);
+                if (args === null) return;
+                runUiAction(el.getAttribute(atr), args, el);
+            });
         });
 
         function switchView(viewName) {

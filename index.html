@@ -2,6 +2,13 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
+    <!-- CSP HARUS berada SEBELUM skrip apa pun. Sampai v103 ia diletakkan
+         SETELAH blok skrip tema di atas -- padahal meta CSP hanya
+         mengatur konten SESUDAHNYA, jadi blok tema itu sama sekali tidak
+         terjaga kebijakan. Ketahuan saat uji-negatif v104: hash blok tema
+         sengaja dirusak, tapi browser tetap menjalankannya tanpa keluhan.
+         Satu-satunya yang boleh mendahuluinya adalah <meta charset>. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-UfBtRoDm0oV9DlWtpXIT/w867CyJBCIJ/Aks348DbUw=' 'sha256-vSKSYZ/n0jDOh1qhGqFwcMi9jfXyQ+dQ5mV6p/35AZ0=' 'sha256-evGdneGbYbJifaJ+CFY8ChKxlYY1yeC5WEtKiG1ByYM=' 'sha256-ckH6q/TE4G4rBx4rHUBZCoQ+HeVwZfOEYsQZgZkH014='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://bibit.id https://stockbit.com https://images.bareksa.com https://image-cdn.pluang.com https://indodax.com https://pintu.co.id https://ajaib.co.id https://commons.wikimedia.org https://upload.wikimedia.org https://www.indopremier.com https://www.banksinarmas.com https://uxfngmxghupdlwoeoxgh.supabase.co; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     
     <script>
         (function () {
@@ -21,7 +28,6 @@
     <meta name="robots" content="noindex, nofollow, noarchive">
 
     
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://bibit.id https://stockbit.com https://images.bareksa.com https://image-cdn.pluang.com https://indodax.com https://pintu.co.id https://ajaib.co.id https://commons.wikimedia.org https://upload.wikimedia.org https://www.indopremier.com https://www.banksinarmas.com https://uxfngmxghupdlwoeoxgh.supabase.co; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     <meta name="referrer" content="strict-origin-when-cross-origin">
 
     
@@ -495,25 +501,25 @@
                 
                 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center relative focus-within:ring-2 focus-within:ring-indigo-400 transition">
                     <span class="text-slate-400 pl-2 pr-3"><i class="fas fa-search"></i></span>
-                    <input type="text" id="txSearchInput" oninput="debouncedFilterTransactions()" placeholder="Cari kategori, keterangan, atau akun..." class="w-full bg-transparent border-none outline-none text-xs md:text-sm text-slate-700">
+                    <input type="text" id="txSearchInput" data-on-input="debouncedFilterTransactions" placeholder="Cari kategori, keterangan, atau akun..." class="w-full bg-transparent border-none outline-none text-xs md:text-sm text-slate-700">
                 </div>
                 
                 
                 <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 flex-wrap">
                     <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Filter:</div>
                     <div class="flex items-center gap-2 flex-1 justify-end flex-wrap">
-                        <select id="txTimeFilterType" onchange="toggleTxTimeFilter()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
+                        <select id="txTimeFilterType" data-on-change="toggleTxTimeFilter" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
                             <option value="last30" selected>30 Hari Terakhir</option>
                             <option value="custom">Bulan & Tahun</option>
                             <option value="range">Rentang Tanggal</option>
                         </select>
                         <div id="txMonthYearContainer" class="hidden">
-                            <input type="month" id="txFilterMonthYear" onchange="filterTransactions()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                            <input type="month" id="txFilterMonthYear" data-on-change="filterTransactions" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                         </div>
                         <div id="txDateRangeContainer" class="hidden items-center gap-1.5">
-                            <input type="date" id="txFilterDateFrom" onchange="filterTransactions()" aria-label="Dari tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                            <input type="date" id="txFilterDateFrom" data-on-change="filterTransactions" aria-label="Dari tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                             <span class="text-slate-300 text-xs">-</span>
-                            <input type="date" id="txFilterDateTo" onchange="filterTransactions()" aria-label="Sampai tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                            <input type="date" id="txFilterDateTo" data-on-change="filterTransactions" aria-label="Sampai tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                         </div>
                         <button type="button" data-action="toggleTxAmountFilter" aria-label="Filter nominal" id="txAmountFilterToggle" class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition flex-shrink-0"><i class="fas fa-sliders text-xs"></i></button>
                     </div>
@@ -525,13 +531,13 @@
                 <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nominal:</span>
                 <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                     <span class="pl-2 text-slate-400 text-xs">Rp</span>
-                    <input type="text" id="txFilterAmountMinDisplay" placeholder="Dari" oninput="formatInputRibuan(this, 'txFilterAmountMin'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
+                    <input type="text" id="txFilterAmountMinDisplay" placeholder="Dari" data-on-input="formatFilterNominal" data-on-input-args='["$el", "txFilterAmountMin"]' class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
                     <input type="hidden" id="txFilterAmountMin">
                 </div>
                 <span class="text-slate-300 text-xs">-</span>
                 <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                     <span class="pl-2 text-slate-400 text-xs">Rp</span>
-                    <input type="text" id="txFilterAmountMaxDisplay" placeholder="Sampai" oninput="formatInputRibuan(this, 'txFilterAmountMax'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
+                    <input type="text" id="txFilterAmountMaxDisplay" placeholder="Sampai" data-on-input="formatFilterNominal" data-on-input-args='["$el", "txFilterAmountMax"]' class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
                     <input type="hidden" id="txFilterAmountMax">
                 </div>
                 <button type="button" data-action="clearTxAmountFilter" class="text-[11px] font-semibold text-slate-400 hover:text-rose-500 transition ml-auto">Reset</button>
@@ -552,7 +558,7 @@
                 <div class="flex items-center gap-2">
                     <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm flex-1 md:flex-initial focus-within:ring-2 focus-within:ring-indigo-400 transition">
                         <label for="budgetFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
-                        <input type="month" id="budgetFilterMonth" onchange="changeBudgetMonth()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent w-full">
+                        <input type="month" id="budgetFilterMonth" data-on-change="changeBudgetMonth" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent w-full">
                     </div>
                     <button data-action="openBudgetModal" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 flex-shrink-0"><i class="fas fa-sliders"></i> <span>Atur Budget</span></button>
                 </div>
@@ -628,7 +634,7 @@
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-indigo-400 transition">
                     <label for="reportFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
-                    <input type="month" id="reportFilterMonth" onchange="renderReportTab()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent">
+                    <input type="month" id="reportFilterMonth" data-on-change="renderReportTab" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent">
                 </div>
             </header>
             
@@ -747,7 +753,7 @@
                     </div>
                     <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
                     <div class="p-3 border-t border-slate-100 flex items-center gap-2 flex-shrink-0">
-                        <input type="text" id="ai-chat-input" placeholder="mis. berapa pengeluaran transport 3 bulan terakhir?" onkeydown="if(event.key==='Enter'){sendAiChatQuestion();}" class="flex-1 bg-slate-100 rounded-xl px-3.5 py-2.5 text-xs md:text-sm outline-none focus:ring-2 focus:ring-indigo-300 min-w-0">
+                        <input type="text" id="ai-chat-input" placeholder="mis. berapa pengeluaran transport 3 bulan terakhir?" data-on-keydown="aiChatKeydown" data-on-keydown-args='["$event"]' class="flex-1 bg-slate-100 rounded-xl px-3.5 py-2.5 text-xs md:text-sm outline-none focus:ring-2 focus:ring-indigo-300 min-w-0">
                         <button data-action="sendAiChatQuestion" id="ai-chat-send-btn" aria-label="Kirim pertanyaan" class="w-10 h-10 rounded-xl bg-[#151928] hover:bg-black active:scale-95 text-white flex items-center justify-center flex-shrink-0 transition"><i class="fas fa-paper-plane text-xs"></i></button>
                     </div>
                 </div>
@@ -1002,7 +1008,7 @@
                         <button data-action="pilihBerkasBackup" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                             <i class="fas fa-upload"></i> Impor dari File
                         </button>
-                        <input type="file" id="backupFileInput" accept=".json,application/json" class="hidden" onchange="handleBackupFileSelect(event)">
+                        <input type="file" id="backupFileInput" accept=".json,application/json" class="hidden" data-on-change="handleBackupFileSelect" data-on-change-args='["$event"]'>
                         <button data-action="removeDemoData" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                             <i class="fas fa-broom"></i> Hapus Semua Data Contoh <span class="font-mono">[Demo]</span>
                         </button>
@@ -1052,7 +1058,7 @@
                         </div>
                         <div id="theme-accent-swatches" class="flex flex-wrap items-center gap-2"></div>
                         <label class="mt-2.5 flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer select-none">
-                            <input type="color" id="theme-color-custom" oninput="setThemeColor(this.value, true)" onchange="setThemeColor(this.value)" aria-label="Warna kustom" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200 bg-white p-0.5">
+                            <input type="color" id="theme-color-custom" data-on-input="setThemeColor" data-on-input-args='["$value", true]' data-on-change="setThemeColor" data-on-change-args='["$value"]' aria-label="Warna kustom" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200 bg-white p-0.5">
                             <span>Atau pilih warna kustommu sendiri</span>
                         </label>
                     </div>
@@ -1068,12 +1074,12 @@
                         </div>
                     </div>
                     <label class="flex items-start gap-3 p-3 bg-slate-50 rounded-2xl cursor-pointer select-none mb-2">
-                        <input type="checkbox" id="pref-hide-nominal" onchange="toggleNominalVisibility()" class="mt-0.5 w-4 h-4 accent-indigo-500 cursor-pointer flex-shrink-0">
+                        <input type="checkbox" id="pref-hide-nominal" data-on-change="toggleNominalVisibility" class="mt-0.5 w-4 h-4 accent-indigo-500 cursor-pointer flex-shrink-0">
                         <span class="text-xs text-slate-600 leading-relaxed"><b>Sembunyikan nominal</b> — semua saldo & angka uang disamarkan di seluruh aplikasi. Berguna saat membuka aplikasi di tempat umum.</span>
                     </label>
                     <div class="p-3 bg-slate-50 rounded-2xl">
                         <label for="pref-default-view" class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5"><i class="fas fa-rocket text-amber-400 mr-1"></i>Tampilan awal saat membuka aplikasi</label>
-                        <select id="pref-default-view" onchange="setDefaultView(this.value)" class="w-full p-2.5 bg-white rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600">
+                        <select id="pref-default-view" data-on-change="setDefaultView" data-on-change-args='["$value"]' class="w-full p-2.5 bg-white rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600">
                             <option value="dashboard" selected>Dashboard</option>
                             <option value="transaksi">Transaksi</option>
                             <option value="budget">Anggaran</option>
@@ -1150,15 +1156,15 @@
                     <div class="text-left mb-3">
                         <label class="flex items-center justify-between py-1.5 cursor-pointer">
                             <span class="text-xs text-slate-600">Budget hampir habis / jebol</span>
-                            <input type="checkbox" id="notif-pref-budget" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
+                            <input type="checkbox" id="notif-pref-budget" data-on-change="saveNotifPrefs" class="accent-indigo-500 w-4 h-4">
                         </label>
                         <label class="flex items-center justify-between py-1.5 cursor-pointer">
                             <span class="text-xs text-slate-600">Transaksi berulang besok (H-1)</span>
-                            <input type="checkbox" id="notif-pref-recurring" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
+                            <input type="checkbox" id="notif-pref-recurring" data-on-change="saveNotifPrefs" class="accent-indigo-500 w-4 h-4">
                         </label>
                         <label class="flex items-center justify-between py-1.5 cursor-pointer">
                             <span class="text-xs text-slate-600">Tenggat tujuan keuangan (H-7 / H-1)</span>
-                            <input type="checkbox" id="notif-pref-goals" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
+                            <input type="checkbox" id="notif-pref-goals" data-on-change="saveNotifPrefs" class="accent-indigo-500 w-4 h-4">
                         </label>
                     </div>
                     <button id="notif-permission-btn" data-action="requestNotificationPermission" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
@@ -1198,13 +1204,13 @@
                     <div id="catform-pemasukan-sub" class="mb-3 space-y-1.5">
                         <select id="parent-select-pemasukan" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
-                            <input type="text" id="new-sub-pemasukan" placeholder="Nama sub-kategori (cth: Uang Jajan)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pemasukan');}">
+                            <input type="text" id="new-sub-pemasukan" placeholder="Nama sub-kategori (cth: Uang Jajan)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" data-on-keydown="subKategoriKeydown" data-on-keydown-args='["$event", "pemasukan"]'>
                             <button data-action="addSubCategory" data-args='["pemasukan"]' aria-label="Tambah sub-kategori pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
                     <div id="catform-pemasukan-parent" class="mb-3 hidden">
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
-                            <input type="text" id="new-parent-pemasukan" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addParentCategory('pemasukan');}">
+                            <input type="text" id="new-parent-pemasukan" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" data-on-keydown="indukKategoriKeydown" data-on-keydown-args='["$event", "pemasukan"]'>
                             <button data-action="addParentCategory" data-args='["pemasukan"]' aria-label="Tambah kategori utama pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
@@ -1230,13 +1236,13 @@
                     <div id="catform-pengeluaran-sub" class="mb-3 space-y-1.5">
                         <select id="parent-select-pengeluaran" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
-                            <input type="text" id="new-sub-pengeluaran" placeholder="Nama sub-kategori (cth: Parkir)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pengeluaran');}">
+                            <input type="text" id="new-sub-pengeluaran" placeholder="Nama sub-kategori (cth: Parkir)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" data-on-keydown="subKategoriKeydown" data-on-keydown-args='["$event", "pengeluaran"]'>
                             <button data-action="addSubCategory" data-args='["pengeluaran"]' aria-label="Tambah sub-kategori pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
                     <div id="catform-pengeluaran-parent" class="mb-3 hidden">
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
-                            <input type="text" id="new-parent-pengeluaran" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addParentCategory('pengeluaran');}">
+                            <input type="text" id="new-parent-pengeluaran" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" data-on-keydown="indukKategoriKeydown" data-on-keydown-args='["$event", "pengeluaran"]'>
                             <button data-action="addParentCategory" data-args='["pengeluaran"]' aria-label="Tambah kategori utama pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
@@ -1318,7 +1324,7 @@
             
             <div class="bg-white rounded-xl border border-slate-100 shadow-sm p-3.5 flex items-center justify-between gap-3 mb-6 md:mb-8">
                 <div class="flex items-center gap-1.5 text-slate-500 font-bold text-[10px] uppercase tracking-wider pl-1"><i class="fas fa-filter text-slate-400"></i> Rentang Grafik:</div>
-                <select id="accountDetailPeriod" onchange="renderAccountDetailCharts()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
+                <select id="accountDetailPeriod" data-on-change="renderAccountDetailCharts" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 font-bold">
                     <option value="30">30 Hari Terakhir</option>
                     <option value="90">3 Bulan Terakhir</option>
                     <option value="180" selected>6 Bulan Terakhir</option>
@@ -1355,7 +1361,7 @@
                     <span id="accountCatChart-total" class="text-sm md:text-base font-extrabold text-slate-800 flex-shrink-0 pl-3"></span>
                 </div>
                 <div class="px-4 md:px-5 pt-3 flex items-center gap-2 flex-wrap">
-                    <select id="accountCatFilterType" onchange="toggleAccountCatFilter()" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400">
+                    <select id="accountCatFilterType" data-on-change="toggleAccountCatFilter" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400">
                         <option value="sync" selected>Sesuai Rentang Grafik</option>
                         <option value="this_month">Bulan Ini</option>
                         <option value="last_month">Bulan Lalu</option>
@@ -1364,7 +1370,7 @@
                         <option value="custom">Pilih Bulan Tertentu</option>
                         <option value="all">Semua Waktu</option>
                     </select>
-                    <input type="month" id="accountCatFilterMonth" onchange="renderAccountDetailCharts()" class="hidden bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                    <input type="month" id="accountCatFilterMonth" data-on-change="renderAccountDetailCharts" class="hidden bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                 </div>
                 <div class="p-4 md:p-6">
                     <div class="flex items-center gap-4 md:gap-6">
@@ -1440,25 +1446,25 @@
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalTitle">Catat Transaksi</h3>
                 <div class="flex items-center gap-1">
                     <button type="button" id="btnScanStruk" data-action="triggerStrukScan" title="Isi otomatis dari foto struk (AI)" aria-label="Scan Struk" class="text-indigo-500 hover:text-indigo-700 w-8 h-8 rounded-full hover:bg-indigo-50 flex items-center justify-center transition"><i class="fas fa-camera"></i></button>
-                    <input type="file" id="strukFileInput" accept="image/*" capture="environment" class="hidden" onchange="handleStrukFileSelected(event)">
+                    <input type="file" id="strukFileInput" accept="image/*" capture="environment" class="hidden" data-on-change="handleStrukFileSelected" data-on-change-args='["$event"]'>
                     <button type="button" data-action="closeModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
                 </div>
             </div>
             
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
-                <form id="formInput" onsubmit="submitForm(event)">
+                <form id="formInput" data-on-submit="submitForm" data-on-submit-args='["$event"]'>
                     
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-5 md:mb-6 shadow-inner">
                         <label class="flex-1 text-center cursor-pointer relative">
-                            <input type="radio" name="jenis" value="Pengeluaran" class="peer sr-only" checked onchange="handleFormTypeChange()">
+                            <input type="radio" name="jenis" value="Pengeluaran" class="peer sr-only" checked data-on-change="handleFormTypeChange">
                             <div class="py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-rose-600 peer-checked:shadow-sm transition-all">Pengeluaran</div>
                         </label>
                         <label class="flex-1 text-center cursor-pointer relative">
-                            <input type="radio" name="jenis" value="Pemasukan" class="peer sr-only" onchange="handleFormTypeChange()">
+                            <input type="radio" name="jenis" value="Pemasukan" class="peer sr-only" data-on-change="handleFormTypeChange">
                             <div class="py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-emerald-600 peer-checked:shadow-sm transition-all">Pemasukan</div>
                         </label>
                         <label class="flex-1 text-center cursor-pointer relative">
-                            <input type="radio" name="jenis" value="Transfer" class="peer sr-only" onchange="handleFormTypeChange()">
+                            <input type="radio" name="jenis" value="Transfer" class="peer sr-only" data-on-change="handleFormTypeChange">
                             <div class="py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-blue-600 peer-checked:shadow-sm transition-all">Transfer</div>
                         </label>
                     </div>
@@ -1472,13 +1478,13 @@
                             <label for="jumlah_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-[#151928] transition overflow-hidden">
                                 <span id="jumlah-currency-prefix" class="pl-3 md:pl-4 text-slate-400 font-bold text-sm md:text-base">Rp</span>
-                                <input type="text" id="jumlah_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'jumlah')">
+                                <input type="text" id="jumlah_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "jumlah"]'>
                                 <input type="hidden" id="jumlah">
                             </div>
                         </div>
                         <div>
                             <label for="akun" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-akun">Akun Sumber</label>
-                            <select id="akun" required onchange="handleAccountChangeForCurrency()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm font-bold"></select>
+                            <select id="akun" required data-on-change="handleAccountChangeForCurrency" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm font-bold"></select>
                             <p id="akun-currency-hint" class="hidden text-[10px] text-indigo-500 font-semibold mt-1"></p>
                         </div>
                         
@@ -1499,7 +1505,7 @@
 
                         <div>
                             <label for="keterangan" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Keterangan (Opsional)</label>
-                            <input type="text" id="keterangan" placeholder="Contoh: Makan siang, Gaji..." oninput="handleKeteranganInputForSuggestion()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm">
+                            <input type="text" id="keterangan" placeholder="Contoh: Makan siang, Gaji..." data-on-input="handleKeteranganInputForSuggestion" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm">
                             <button type="button" id="category-suggestion-chip" data-action="applyCategorySuggestion" class="hidden mt-1.5 text-[10px] md:text-xs font-bold text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 items-center gap-1.5 transition"><i class="fas fa-wand-magic-sparkles"></i><span id="category-suggestion-text"></span></button>
                         </div>
                     </div>
@@ -1526,7 +1532,7 @@
             </div>
             
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
-                <form id="formAsset" onsubmit="submitAsset(event)">
+                <form id="formAsset" data-on-submit="submitAsset" data-on-submit-args='["$event"]'>
                     <div class="space-y-4">
                         <div>
                             <label for="aset_nama" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Aset / Emisi</label>
@@ -1535,7 +1541,7 @@
                         
                         <div>
                             <label for="aset_kategori" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Kategori Instrumen</label>
-                            <select id="aset_kategori" required onchange="toggleAssetAutoUpdateSection()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
+                            <select id="aset_kategori" required data-on-change="toggleAssetAutoUpdateSection" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold text-slate-700">
                                 <option value="Saham">Saham</option>
                                 <option value="Reksadana">Reksadana</option>
                                 <option value="Kripto">Kripto</option>
@@ -1549,7 +1555,7 @@
                         
                         <div class="relative">
                             <label for="aset_platform" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Platform / Sekuritas</label>
-                            <input type="text" id="aset_platform" required placeholder="Contoh: Bibit, Ajaib, Indodax, dll" autocomplete="off" oninput="searchAssetBankSuggestions(this.value)" onfocus="searchAssetBankSuggestions(this.value)" onblur="setTimeout(()=>document.getElementById('asset-platform-suggestions').classList.add('hidden'), 200)" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
+                            <input type="text" id="aset_platform" required placeholder="Contoh: Bibit, Ajaib, Indodax, dll" autocomplete="off" data-on-input="searchAssetBankSuggestions" data-on-input-args='["$value"]' data-on-focus="searchAssetBankSuggestions" data-on-focus-args='["$value"]' data-on-blur="sembunyikanSaranPlatformAset" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none transition text-xs md:text-sm font-semibold">
                             <div id="asset-platform-suggestions" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl ring-1 ring-slate-100 max-h-48 overflow-y-auto p-1.5"></div>
                         </div>
 
@@ -1570,7 +1576,7 @@
                             <label for="aset_modal_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Modal Diinvestasikan</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="aset_modal_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'aset_modal')">
+                                <input type="text" id="aset_modal_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "aset_modal"]'>
                                 <input type="hidden" id="aset_modal">
                             </div>
                         </div>
@@ -1579,7 +1585,7 @@
                             <label for="aset_nilai_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nilai Saat Ini (Current Value)</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="aset_nilai_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'aset_nilai')">
+                                <input type="text" id="aset_nilai_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "aset_nilai"]'>
                                 <input type="hidden" id="aset_nilai">
                             </div>
                         </div>
@@ -1603,7 +1609,7 @@
                 <button type="button" data-action="closeGoalModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
-                <form id="formGoal" onsubmit="submitGoalForm(event)">
+                <form id="formGoal" data-on-submit="submitGoalForm" data-on-submit-args='["$event"]'>
                     <div class="space-y-4">
                         <div>
                             <label for="goal_nama" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Tujuan</label>
@@ -1613,7 +1619,7 @@
                             <label for="goal_target_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Target Dana</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="goal_target_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_target')">
+                                <input type="text" id="goal_target_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "goal_target"]'>
                                 <input type="hidden" id="goal_target">
                             </div>
                         </div>
@@ -1621,7 +1627,7 @@
                             <label for="goal_terkumpul_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sudah Terkumpul (opsional)</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="goal_terkumpul_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_terkumpul')">
+                                <input type="text" id="goal_terkumpul_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "goal_terkumpul"]'>
                                 <input type="hidden" id="goal_terkumpul">
                             </div>
                         </div>
@@ -1656,11 +1662,11 @@
                 <button type="button" data-action="closeGoalContributeModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5">
-                <form id="formGoalContribute" onsubmit="submitGoalContribute(event)">
+                <form id="formGoalContribute" data-on-submit="submitGoalContribute" data-on-submit-args='["$event"]'>
                     <label for="goal_contribute_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Setoran</label>
                     <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-400 transition overflow-hidden mb-4">
                         <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                        <input type="text" id="goal_contribute_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'goal_contribute_amount')">
+                        <input type="text" id="goal_contribute_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "goal_contribute_amount"]'>
                         <input type="hidden" id="goal_contribute_amount">
                     </div>
                     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm">Setor</button>
@@ -1677,7 +1683,7 @@
                 <button type="button" data-action="closeDebtModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
-                <form id="formDebt" onsubmit="submitDebtForm(event)">
+                <form id="formDebt" data-on-submit="submitDebtForm" data-on-submit-args='["$event"]'>
                     <div class="space-y-4">
                         <div>
                             <label for="debt_nama" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Utang/Cicilan</label>
@@ -1687,7 +1693,7 @@
                             <label for="debt_total_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Total Utang Awal</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="debt_total_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_total'); syncDebtRemainingDefault();">
+                                <input type="text" id="debt_total_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatTotalUtang" data-on-input-args='["$el"]'>
                                 <input type="hidden" id="debt_total">
                             </div>
                         </div>
@@ -1695,7 +1701,7 @@
                             <label for="debt_sisa_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Sisa Utang Sekarang</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="debt_sisa_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_sisa')">
+                                <input type="text" id="debt_sisa_display" required placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "debt_sisa"]'>
                                 <input type="hidden" id="debt_sisa">
                             </div>
                         </div>
@@ -1703,7 +1709,7 @@
                             <label for="debt_cicilan_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Cicilan per Bulan (opsional)</label>
                             <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden">
                                 <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                                <input type="text" id="debt_cicilan_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_cicilan')">
+                                <input type="text" id="debt_cicilan_display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "debt_cicilan"]'>
                                 <input type="hidden" id="debt_cicilan">
                             </div>
                             <p class="text-[10px] text-slate-400 mt-1">Diisi supaya estimasi lama pelunasan bisa dihitung.</p>
@@ -1735,11 +1741,11 @@
                 <button type="button" data-action="closeDebtPayModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5">
-                <form id="formDebtPay" onsubmit="submitDebtPay(event)">
+                <form id="formDebtPay" data-on-submit="submitDebtPay" data-on-submit-args='["$event"]'>
                     <label for="debt_pay_display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah Pembayaran</label>
                     <div class="flex items-center bg-slate-50 rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-rose-400 transition overflow-hidden mb-4">
                         <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm">Rp</span>
-                        <input type="text" id="debt_pay_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'debt_pay_amount')">
+                        <input type="text" id="debt_pay_display" required placeholder="0" autofocus class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "debt_pay_amount"]'>
                         <input type="hidden" id="debt_pay_amount">
                     </div>
                     <button type="submit" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-500/30 text-sm">Bayar</button>
@@ -1824,9 +1830,9 @@
                         <label for="acc-modal-name" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Nama Akun</label>
                         <input type="text" id="acc-modal-name" placeholder="Cari BCA, GoPay, Bibit, Ajaib..." autocomplete="off"
                             class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold"
-                            oninput="searchAccountModalSuggestions(this.value); refreshAccountIconPreview();" onfocus="searchAccountModalSuggestions(this.value)"
-                            onblur="setTimeout(()=>closeAccountModalSuggestions(), 200)"
-                            onkeydown="if(event.key==='Enter'){event.preventDefault(); closeAccountModalSuggestions();} if(event.key==='Escape'){closeAccountModalSuggestions();}">
+                            data-on-input="cariSaranAkunDanPreview" data-on-input-args='["$value"]' data-on-focus="searchAccountModalSuggestions" data-on-focus-args='["$value"]'
+                            data-on-blur="tutupSaranAkunTertunda"
+                            data-on-keydown="saranAkunKeydown" data-on-keydown-args='["$event"]'>
                         <div id="acc-modal-suggestions" class="hidden absolute z-20 left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-xl ring-1 ring-slate-100 max-h-52 overflow-y-auto p-1.5"></div>
                     </div>
                 </div>
@@ -1835,7 +1841,7 @@
                 
                 <div>
                     <label for="acc-modal-currency" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Mata Uang Akun</label>
-                    <input type="text" id="acc-modal-currency" maxlength="3" placeholder="IDR" autocomplete="off" oninput="this.value = this.value.toUpperCase()"
+                    <input type="text" id="acc-modal-currency" maxlength="3" placeholder="IDR" autocomplete="off" data-on-input="jadikanHurufBesar" data-on-input-args='["$el"]'
                         class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-400 outline-none transition text-xs md:text-sm font-bold uppercase">
                     <p class="text-[10px] text-slate-400 mt-1">Kosongkan/isi "IDR" kalau akun ini Rupiah biasa. Isi kode 3 huruf (mis. USD, SGD, EUR) kalau akun/rekening luar negeri -- transaksi di akun ini otomatis dikonversi ke Rupiah pakai kurs terkini untuk total gabungan.</p>
                 </div>
@@ -1859,7 +1865,7 @@
                             <span class="text-[11px] font-bold text-slate-500">Klik untuk upload gambar</span>
                             <span class="text-[10px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
                         </label>
-                        <input type="file" id="acc-modal-upload-input" accept="image/*" class="hidden" onchange="handleAccountIconUpload(event)">
+                        <input type="file" id="acc-modal-upload-input" accept="image/*" class="hidden" data-on-change="handleAccountIconUpload" data-on-change-args='["$event"]'>
                     </div>
                 </div>
 
@@ -1868,7 +1874,7 @@
                     <label for="acc-modal-saldo-display" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Saldo Awal (Opsional)</label>
                     <div class="flex items-center bg-white rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-blue-400 transition overflow-hidden">
                         <span class="pl-3 md:pl-4 text-slate-400 font-bold text-sm md:text-base">Rp</span>
-                        <input type="text" id="acc-modal-saldo-display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" oninput="formatInputRibuan(this, 'acc-modal-saldo')">
+                        <input type="text" id="acc-modal-saldo-display" placeholder="0" class="w-full p-2.5 md:p-3 bg-transparent border-none outline-none text-base md:text-lg font-semibold text-slate-800" data-on-input="formatInputRibuan" data-on-input-args='["$el", "acc-modal-saldo"]'>
                         <input type="hidden" id="acc-modal-saldo">
                     </div>
                     <p class="text-[10px] text-slate-400 mt-1">Otomatis dicatat sebagai transaksi Pemasukan "Saldo Awal" di akun ini, langsung kelihatan di Dashboard.</p>
@@ -1925,7 +1931,7 @@
                             <span class="text-[11px] font-bold text-slate-500">Klik untuk upload gambar</span>
                             <span class="text-[10px] text-slate-400">PNG/JPG, otomatis dikecilkan</span>
                         </label>
-                        <input type="file" id="catstyle-upload-input" accept="image/*" class="hidden" onchange="handleCategoryStyleUpload(event)">
+                        <input type="file" id="catstyle-upload-input" accept="image/*" class="hidden" data-on-change="handleCategoryStyleUpload" data-on-change-args='["$event"]'>
                     </div>
                 </div>
 
@@ -1951,12 +1957,12 @@
             <div class="p-5 space-y-4">
                 <div>
                     <label for="manual-nav-value" id="manual-nav-value-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">NAB/UP terkini (Rp per unit)</label>
-                    <input type="number" step="any" min="0" id="manual-nav-value" placeholder="Contoh: 1465.82" oninput="previewManualNav()"
+                    <input type="number" step="any" min="0" id="manual-nav-value" placeholder="Contoh: 1465.82" data-on-input="previewManualNav"
                         class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
                 </div>
                 <div>
                     <label for="manual-nav-units" id="manual-nav-units-label" class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Jumlah unit dimiliki</label>
-                    <input type="number" step="any" min="0" id="manual-nav-units" placeholder="Contoh: 120.5" oninput="previewManualNav()"
+                    <input type="number" step="any" min="0" id="manual-nav-units" placeholder="Contoh: 120.5" data-on-input="previewManualNav"
                         class="w-full p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-sm font-bold">
                 </div>
                 
@@ -2000,7 +2006,7 @@
                         <div id="profile-modal-preview" class="profile-avatar-frame w-24 h-24 rounded-full bg-white ring-1 ring-slate-200 shadow-sm flex items-center justify-center overflow-hidden"><i class="fas fa-user text-3xl text-slate-300"></i></div>
                         <div class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#151928] text-white flex items-center justify-center shadow-lg ring-2 ring-white group-hover:scale-110 transition-transform"><i class="fas fa-camera text-xs"></i></div>
                     </label>
-                    <input type="file" id="profile-modal-upload-input" accept="image/*" class="hidden" onchange="handleProfileAvatarUpload(event)">
+                    <input type="file" id="profile-modal-upload-input" accept="image/*" class="hidden" data-on-change="handleProfileAvatarUpload" data-on-change-args='["$event"]'>
                     <button type="button" id="profile-modal-remove-photo" data-action="removeProfileAvatarSelection" class="hidden mt-2 text-[11px] font-bold text-rose-500 hover:text-rose-700"><i class="fas fa-trash-alt mr-1"></i>Hapus Foto</button>
                     <p class="text-[10px] text-slate-400 mt-1">PNG/JPG, otomatis dikecilkan</p>
                 </div>
@@ -2081,18 +2087,18 @@
                 <button type="button" data-action="closeRecurringFormModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
 
-            <form id="formRecurring" onsubmit="submitRecurringForm(event)" class="flex-1 overflow-y-auto p-5 space-y-4">
+            <form id="formRecurring" data-on-submit="submitRecurringForm" data-on-submit-args='["$event"]' class="flex-1 overflow-y-auto p-5 space-y-4">
                 <div class="bg-slate-100 p-1 rounded-xl flex shadow-inner">
                     <label class="flex-1 text-center cursor-pointer relative">
-                        <input type="radio" name="recurring-jenis" value="Pengeluaran" class="peer sr-only" checked onchange="handleRecurringJenisChange('Pengeluaran')">
+                        <input type="radio" name="recurring-jenis" value="Pengeluaran" class="peer sr-only" checked data-on-change="handleRecurringJenisChange" data-on-change-args='["Pengeluaran"]'>
                         <div class="py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-rose-600 peer-checked:shadow-sm transition-all">Pengeluaran</div>
                     </label>
                     <label class="flex-1 text-center cursor-pointer relative">
-                        <input type="radio" name="recurring-jenis" value="Pemasukan" class="peer sr-only" onchange="handleRecurringJenisChange('Pemasukan')">
+                        <input type="radio" name="recurring-jenis" value="Pemasukan" class="peer sr-only" data-on-change="handleRecurringJenisChange" data-on-change-args='["Pemasukan"]'>
                         <div class="py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-emerald-600 peer-checked:shadow-sm transition-all">Pemasukan</div>
                     </label>
                     <label class="flex-1 text-center cursor-pointer relative">
-                        <input type="radio" name="recurring-jenis" value="Transfer" class="peer sr-only" onchange="handleRecurringJenisChange('Transfer')">
+                        <input type="radio" name="recurring-jenis" value="Transfer" class="peer sr-only" data-on-change="handleRecurringJenisChange" data-on-change-args='["Transfer"]'>
                         <div class="py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-blue-600 peer-checked:shadow-sm transition-all">Transfer</div>
                     </label>
                 </div>
@@ -2142,7 +2148,7 @@
                 </div>
 
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="recurring-no-end-date" checked onchange="toggleRecurringEndDate(this.checked)" class="w-4 h-4 rounded accent-[#151928]">
+                    <input type="checkbox" id="recurring-no-end-date" checked data-on-change="toggleRecurringEndDate" data-on-change-args='["$checked"]' class="w-4 h-4 rounded accent-[#151928]">
                     <span class="text-xs font-semibold text-slate-600">Tanpa batas waktu (berulang terus)</span>
                 </label>
             </form>

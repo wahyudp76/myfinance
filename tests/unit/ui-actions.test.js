@@ -257,3 +257,73 @@ test("tahap B: data pengguna di-escape sehingga tidak bisa memutus atribut", asy
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   assert.deepEqual(JSON.parse(isi), [jahat], "argumen harus utuh setelah di-unescape");
 });
+
+// ===========================================================================
+// HANDLER NON-KLIK (v104) — prasyarat pengetatan CSP
+// ===========================================================================
+// CSP tanpa 'unsafe-inline' memblokir SEMUA atribut handler inline, bukan cuma
+// onclick. Selama onchange/oninput/onsubmit/onkeydown/onfocus/onblur masih ada,
+// kebijakan ketat itu mematikan filter transaksi, toggle setelan, submit form,
+// dan tombol Enter -- tanpa error, cuma diam.
+const ATRIBUT_EVENT = ["data-on-change", "data-on-input", "data-on-submit",
+  "data-on-keydown", "data-on-focus", "data-on-blur"];
+
+function aksiNonKlik() {
+  const nama = new Set();
+  for (const atr of ATRIBUT_EVENT) {
+    for (const m of html.matchAll(new RegExp(`${atr}="([^"]+)"`, "g"))) nama.add(m[1]);
+  }
+  return [...nama];
+}
+
+test("index.html BEBAS dari SEMUA atribut handler inline (bukan cuma onclick)", () => {
+  const sisa = [...html.matchAll(/\son(?:click|change|input|submit|keyup|keydown|focus|blur)="([^"]*)"/g)]
+    .map((m) => m[0].slice(0, 60));
+  assert.deepEqual(sisa, [], `masih ada atribut handler inline: ${sisa.slice(0, 5).join(" | ")}`);
+});
+
+test("SETIAP aksi non-klik terdaftar di registry", () => {
+  const daftar = new Set(registryEntries());
+  const hilang = aksiNonKlik().filter((n) => !daftar.has(n));
+  assert.deepEqual(hilang, [], `aksi non-klik tidak ada di uiActionRegistry(): ${hilang.join(", ")}`);
+});
+
+test("jumlah handler non-klik masuk akal", () => {
+  const total = ATRIBUT_EVENT.reduce(
+    (n, atr) => n + [...html.matchAll(new RegExp(`${atr}="`, "g"))].length, 0);
+  assert.ok(total >= 60, `cuma ${total} handler non-klik terdeteksi -- curiga konversi hilang`);
+});
+
+test("data-on-*-args berisi JSON array yang valid", () => {
+  const rusak = [];
+  for (const atr of ATRIBUT_EVENT) {
+    for (const m of html.matchAll(new RegExp(`${atr}-args='([^']*)'`, "g"))) {
+      try {
+        if (!Array.isArray(JSON.parse(m[1]))) rusak.push(`${atr}: ${m[1]} (bukan array)`);
+      } catch { rusak.push(`${atr}: ${m[1]} (JSON tidak valid)`); }
+    }
+  }
+  assert.deepEqual(rusak, [], rusak.join(" | "));
+});
+
+test("dispatcher menangani keenam jenis event, dan focus/blur lewat focusin/focusout", () => {
+  // focus & blur TIDAK menggelembung; kalau didengarkan langsung di document,
+  // handler-nya tidak akan pernah jalan. Ini penjaga kekeliruan itu.
+  assert.match(src, /const UI_EVENT_ATTR = \{/);
+  for (const [ev, atr] of [["change", "data-on-change"], ["input", "data-on-input"],
+    ["submit", "data-on-submit"], ["keydown", "data-on-keydown"],
+    ["focusin", "data-on-focus"], ["focusout", "data-on-blur"]]) {
+    assert.match(src, new RegExp(`${ev}: '${atr}'`), `pemetaan ${ev} -> ${atr} harus ada`);
+  }
+  assert.ok(!/document\.addEventListener\('focus'/.test(src), "jangan dengarkan 'focus' di document -- ia tidak menggelembung");
+  assert.ok(!/document\.addEventListener\('blur'/.test(src), "jangan dengarkan 'blur' di document -- ia tidak menggelembung");
+});
+
+test("placeholder argumen ($event/$el/$value/$checked) diselesaikan saat event", () => {
+  const i = src.indexOf("function nilaiPlaceholder(");
+  assert.notEqual(i, -1, "nilaiPlaceholder() harus ada");
+  const fn = src.slice(i, i + 500);
+  for (const ph of ["$event", "$el", "$value", "$checked"]) {
+    assert.ok(fn.includes(`'${ph}'`), `placeholder ${ph} harus ditangani`);
+  }
+});
