@@ -210,7 +210,7 @@ test("renderAccountDetailCharts: doughnut kategori dgn data -> label per entry +
 
 // ===================== legenda donut & elemen opsional =====================
 
-test("renderAccountDetailCharts: renderDonutBreakdown menerima elemen legenda, entries dgn ikon getCategoryStyle, palette, onClickItem openCategoryDetail dgn jsStr, emptyMessage", () => {
+test("renderAccountDetailCharts: renderDonutBreakdown menerima elemen legenda, entries dgn ikon getCategoryStyle, palette, onClickItem openCategoryDetail bentuk {action,args}, emptyMessage", () => {
   const { deps, doc, donutCalls } = makeDeps({ aggregateAccountExpenseByCategory: () => ({ entries: [{ label: "Jus B'uai", val: 75000 }] }) });
   renderAccountDetailCharts(deps);
   const opts = donutCalls[0];
@@ -219,7 +219,13 @@ test("renderAccountDetailCharts: renderDonutBreakdown menerima elemen legenda, e
   assert.equal(opts.totalEl, doc.els["accountCatChart-total"]);
   assert.deepEqual(opts.entries, [{ label: "Jus B'uai", val: 75000, iconHtml: "<i class=\"fa-Jus B'uai\"></i>" }]);
   assert.equal(opts.palette, PALETTE);
-  assert.equal(opts.onClickItem("Jus B'uai"), "openCategoryDetail('Jus B\\'uai','Pengeluaran')"); // kutip di-escape jsStr
+  // v105: kontrak berubah di v102 -- onClickItem mengembalikan {action, args},
+  // bukan lagi STRING kode onclick. Asersi versi lama sempat tertinggal di sini
+  // dan tetap hijau, sehingga justru MENGUNCI bentuk yang sudah salah; itulah
+  // sebabnya "detail akun kosong saat diklik" lolos sampai ke pengguna.
+  // Perhatikan: label berisi kutip tunggal kini TIDAK perlu di-escape sama
+  // sekali, karena ia tidak pernah lagi menjadi bagian dari kode.
+  assert.deepEqual(opts.onClickItem("Jus B'uai"), { action: "openCategoryDetail", args: ["Jus B'uai", "Pengeluaran"] });
   assert.equal(opts.emptyMessage, "Belum ada pengeluaran untuk akun ini pada rentang yang dipilih.");
 });
 

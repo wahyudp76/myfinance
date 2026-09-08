@@ -2758,7 +2758,16 @@ async function currentUserId() {
                     const pct = Math.round(e.val / total * 100);
                     const chartColor = palette[i % palette.length];
                     const clickable = typeof onClickItem === 'function';
-                    const aksiItem = clickable ? onClickItem(e.label) : null;
+                    // Validasi bentuk {action, args}. Sebelum v105, callback yang
+                    // masih memakai kontrak LAMA (mengembalikan string kode)
+                    // melempar di tengah map() dan mengosongkan SELURUH panel --
+                    // satu pemanggil salah menjatuhkan halaman utuh. Sekarang
+                    // barisnya cuma kehilangan aksi klik, dan sebabnya berteriak.
+                    let aksiItem = clickable ? onClickItem(e.label) : null;
+                    if (aksiItem && (typeof aksiItem.action !== 'string' || !Array.isArray(aksiItem.args))) {
+                        console.error('[breakdown] onClickItem harus mengembalikan {action, args}, dapat:', aksiItem);
+                        aksiItem = null;
+                    }
                     return `<div ${aksiItem ? uiActionAttrs(aksiItem.action, ...aksiItem.args) : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hud-breakdown-row transition' : ''}">
                         <span class="text-[10px] md:text-xs font-bold text-white rounded-lg px-2 py-1 flex-shrink-0 w-10 md:w-11 text-center" style="background:${chartColor}">${pct}%</span>
                         ${e.iconHtml}
@@ -6784,7 +6793,10 @@ async function currentUserId() {
             // Kalau history kosong (aset lama dari sebelum fitur ini ada), pakai nilai saat ini
             // sebagai satu-satunya titik, supaya tetap ada sesuatu yang ditampilkan di grafik.
             const rawHistory = (asset.value_history && asset.value_history.length) ? asset.value_history : [{ tanggal: asset.terakhir ? asset.terakhir.slice(0, 10) : todayDateStr(), nilai: asset.nilai }];
-            const history = [...rawHistory].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+            // Defensif seperti pengurutan transaksi di atas: satu entri riwayat tanpa
+            // `tanggal` dulu melempar di tengah sort dan MENGOSONGKAN seluruh modal
+            // detail aset -- kegagalan yang sama bentuknya dengan bug kartu saldo v105.
+            const history = [...rawHistory].sort((a, b) => String(a && a.tanggal || '').localeCompare(String(b && b.tanggal || '')));
 
             const sinceLabel = 'Sejak ' + new Date(history[0].tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
             document.getElementById('asset-detail-since').textContent = sinceLabel;

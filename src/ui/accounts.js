@@ -68,7 +68,6 @@
  *   dari src/domain/accounts.js (via servicesModule).
  * @param {(kategori: string, jenis: string) => object} ctx.getCategoryStyle
  * @param {(style: object, wrapClass?: string, iconSizeClass?: string) => string} ctx.categoryIconHtml
- * @param {(str: string) => string} ctx.jsStr - escape utk atribut onclick="...".
  * @param {(angka: number) => string} ctx.formatRp
  * @param {(angka: number) => string} ctx.formatShortVal
  * @param {() => string} ctx.chartGridColor - warna grid (mode gelap/terang).
@@ -86,7 +85,7 @@ export function renderAccountDetailCharts({
   document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
   buildAccountBalanceSeries, computeAccountChartSeries, isChartNarrow, selectSparseLabelIndices,
   resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory,
-  getCategoryStyle, categoryIconHtml, jsStr, formatRp, formatShortVal,
+  getCategoryStyle, categoryIconHtml, formatRp, formatShortVal,
   chartGridColor, chartLabelColor, chartEmptyColor,
   cutePaletteOut, renderDonutBreakdown, accentColor, Chart, charts,
 }) {
@@ -231,7 +230,10 @@ export function renderAccountDetailCharts({
     totalEl: document.getElementById("accountCatChart-total"),
     entries: catEntries.map(e => { const s = getCategoryStyle(e.label, "Pengeluaran"); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, "w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0", "text-xs md:text-sm") }; }),
     palette: cutePaletteOut,
-    onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
+    // v105: kontrak onClickItem berubah di v102 dari "string kode onclick"
+    // jadi {action, args}. Pemanggil INI terlewat saat itu -- akibatnya membuka
+    // detail akun melempar "args is not iterable" dan halaman detailnya kosong.
+    onClickItem: (label) => ({ action: "openCategoryDetail", args: [label, "Pengeluaran"] }),
     emptyMessage: "Belum ada pengeluaran untuk akun ini pada rentang yang dipilih."
   });
 }

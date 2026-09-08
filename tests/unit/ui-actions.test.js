@@ -327,3 +327,33 @@ test("placeholder argumen ($event/$el/$value/$checked) diselesaikan saat event",
     assert.ok(fn.includes(`'${ph}'`), `placeholder ${ph} harus ditangani`);
   }
 });
+
+test("SEMUA callback onClickItem memakai kontrak {action, args}, bukan string kode", () => {
+  // Kontrak ini berubah di v102. Tiga pemanggil di app.src.js ikut diperbarui,
+  // tapi satu di src/ui/accounts.js TERLEWAT -- akibatnya membuka detail akun
+  // melempar "args is not iterable" dan panelnya kosong. Tidak ada gerbang yang
+  // menangkapnya karena unit test modul itu justru masih mengunci bentuk lama.
+  // Guard ini memeriksa SELURUH berkas render sekaligus.
+  const salah = [];
+  for (const f of BERKAS_RENDER) {
+    for (const baris of readFileSync(resolve(ROOT, f), "utf8").split("\n")) {
+      const polos = baris.trim();
+      if (polos.startsWith("//") || polos.startsWith("*")) continue; // komentar boleh menyebut kontraknya
+      const m = polos.match(/onClickItem:\s*\([^)]*\)\s*=>\s*([^,\n]+)/);
+      if (!m) continue;
+      if (!m[1].trim().startsWith("({")) salah.push(`${f}: onClickItem => ${m[1].trim().slice(0, 60)}`);
+    }
+  }
+  assert.deepEqual(salah, [],
+    `onClickItem harus mengembalikan objek {action, args}:\n${salah.join("\n")}`);
+});
+
+test("renderDonutBreakdown menolak bentuk onClickItem yang salah tanpa menjatuhkan panel", () => {
+  const i = src.indexOf("const aksiItem = clickable ? onClickItem(e.label) : null;");
+  const j = src.indexOf("let aksiItem = clickable ? onClickItem(e.label) : null;");
+  assert.equal(i, -1, "pemakaian tanpa validasi tidak boleh kembali");
+  assert.notEqual(j, -1, "validasi bentuk aksiItem harus ada");
+  const blok = src.slice(j, j + 600);
+  assert.match(blok, /typeof aksiItem\.action !== 'string' \|\| !Array\.isArray\(aksiItem\.args\)/);
+  assert.match(blok, /console\.error\('\[breakdown\]/);
+});

@@ -2302,3 +2302,51 @@ untuk nilai dinamis (lebar bar progres, warna dari data). Atribut style tidak
 bisa di-hash seperti blok skrip, jadi melepasnya menuntut refactor tersendiri
 (pindah ke CSS custom property). Fakta ini DIKUNCI unit test supaya tidak ada
 yang mengira script-src dan style-src sudah sama ketatnya.
+
+## v105 — Perbaikan bug: kartu saldo per akun "tidak bisa diklik"
+**LAPORAN PENGGUNA:** kartu saldo per akun di dashboard tidak bisa diklik.
+
+**AKAR MASALAH (regresi v102, milik kami sendiri):** kontrak `onClickItem`
+diubah di v102 dari "mengembalikan STRING kode onclick" jadi
+"mengembalikan `{action, args}`". Tiga pemanggil di `app.src.js` ikut
+diperbarui; SATU pemanggil di `src/ui/accounts.js:234` TERLEWAT karena
+pencarian waktu itu hanya menyisir `app.src.js`. Akibatnya
+`uiActionAttrs(aksiItem.action, ...aksiItem.args)` menerima `args === undefined`
+-> `TypeError: args is not iterable` di tengah `map()` `renderDonutBreakdown`
+-> `openAccountDetail` melempar SEBELUM view detail sempat tampil. Dari sisi
+pengguna: diklik, tidak terjadi apa-apa.
+
+**KENAPA LOLOS SEMUA GERBANG:**
+1. Tidak ada satu pun harness E2E yang pernah MEMBUKA detail akun.
+2. `tests/unit/ui-accounts.test.js` justru masih MENGUNCI kontrak LAMA
+   (`assert.equal(opts.onClickItem(...), "openCategoryDetail('...')")`) dan
+   tetap hijau sepanjang v102-v104 -- tes yang memaku sisi yang sudah salah.
+
+**PERBAIKAN:**
+- `src/ui/accounts.js` memakai kontrak `{action, args}`. Efek samping: parameter
+  `jsStr`-nya jadi mati dan dihapus (label berisi kutip tunggal tidak perlu
+  di-escape lagi karena tidak pernah lagi menjadi kode).
+- `renderDonutBreakdown` kini MEMVALIDASI bentuk `{action, args}`: kalau salah,
+  barisnya sekadar kehilangan aksi klik dan sebabnya di-`console.error` --
+  satu callback keliru tidak lagi mengosongkan seluruh panel.
+- `sort` riwayat nilai aset dibuat defensif (`String(a && a.tanggal || '')`),
+  menyamai konvensi yang sudah dipakai pengurutan transaksi. Satu entri tanpa
+  `tanggal` dulu bisa mengosongkan modal detail aset -- bentuk kegagalan yang
+  sama persis dengan bug ini.
+
+**GERBANG BARU (semua dibuktikan MERAH terhadap kode v104):**
+- `verify-ui-actions.mjs` 31 -> 39 cek. U12 mengklik kartu saldo sungguhan lalu
+  memastikan view terbuka, TANPA exception, dan panel rincian BENAR-BENAR
+  terisi. Uji negatif memunculkan persis `TypeError: i.args is not iterable`.
+  U13 menutup celah lain: modal detail ASET juga belum pernah diuji E2E.
+- `ui-actions.test.js`: guard lintas-berkas bahwa SEMUA callback `onClickItem`
+  memakai bentuk `{action, args}`, plus guard bahwa validasi di
+  `renderDonutBreakdown` tidak dicopot.
+- `ui-accounts.test.js` diperbarui ke kontrak baru.
+
+**SAPU BUG LEBIH LUAS:** 194 aksi UI "aman" dijalankan otomatis (semua view,
+detail akun, detail kategori, detail aset, seluruh aksi buka/pindah/toggle) di
+atas data ter-seed -> **0 exception, 0 console.error**. Satu temuan awal
+(`localeCompare` pada undefined di detail aset) ternyata DATA SEED HARNESS yang
+salah bentuk (`{t,v}` alih-alih `{tanggal,nilai}`), bukan bug produksi -- tetap
+dipakai sebagai alasan menambah pengurutan defensif di atas.

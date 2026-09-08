@@ -47,7 +47,9 @@ const tx = [
 // Nama yang sengaja "nakal": kalau data pengguna bocor jadi kode, di sinilah pecah.
 const NAMA_NAKAL = `Aset " onmouseover="alert(1)" x="`;
 const aset = [{ id:"a1", nama:NAMA_NAKAL, kategori:"Saham", platform:"Stockbit", modal:1000000,
-  nilai:1250000, jumlah_unit:100, terakhir:hariIni(), user_id:USER_ID, value_history:[] }];
+  nilai:1250000, jumlah_unit:100, terakhir:hariIni(), user_id:USER_ID,
+  // bentuk PERSIS seperti yang ditulis aplikasi: {tanggal, nilai}
+  value_history:[{ tanggal: hariIni(), nilai: 1250000 }] }];
 const budgets = [{ kategori:"Makanan", jumlah:1000000 }];
 const settingsRow = [{ data: { accounts:["BCA","GoPay"], accountIcons:{}, account_currencies:{}, themeColor:null,
   custom_categories:{ pengeluaran:{ parents:["Rumah Tangga"], subs:{ "Rumah Tangga":["Listrik"] } },
@@ -419,9 +421,70 @@ ok(u11b.ada && u11b.adalahEvent,
   "U11: placeholder $event diselesaikan jadi objek Event sungguhan (bukan string)",
   `tipe=${u11b.jenis}`);
 
+// ============ U12: alur yang dilaporkan pengguna — kartu saldo per akun ============
+// Bug v105: mengklik kartu saldo di dashboard memang berpindah view, tapi
+// renderDonutBreakdown melempar "args is not iterable" sehingga panel detailnya
+// KOSONG -- dari sisi pengguna terasa "tidak bisa diklik". Lolos karena tidak
+// ada satu pun harness yang pernah MEMBUKA detail akun.
+console.log("\n-- U12: klik kartu saldo per akun -> detail akun benar-benar terisi --");
+await page.evaluate(() => switchView("dashboard"));
+await page.waitForTimeout(1200);
+const errSebelumU12 = errorHalaman.length;
+const kartu = page.locator('#dashboard-accounts-container [data-action="openAccountDetail"]').first();
+ok(await kartu.count() > 0, "U12: kartu saldo per akun ter-render di dashboard");
+const namaAkun = (await kartu.getAttribute("data-args")) || "";
+await kartu.click();
+await page.waitForTimeout(2000);
+const u12 = await page.evaluate(() => {
+  const v = document.getElementById("view-akun-detail");
+  const legend = document.getElementById("accountCatChart-legend");
+  const list = document.getElementById("accountCatChart-list");
+  return {
+    tampil: !!v && v.classList.contains("block"),
+    isiPanel: ((list && list.innerHTML) || "").length + ((legend && legend.innerHTML) || "").length,
+    judul: (document.getElementById("view-akun-detail")?.innerText || "").replace(/\s+/g, " ").slice(0, 60),
+  };
+});
+ok(u12.tampil, "U12: view detail akun terbuka", `args=${namaAkun}`);
+ok(errorHalaman.length === errSebelumU12,
+  "U12: TIDAK ada exception saat merender detail akun",
+  errorHalaman.slice(errSebelumU12).join(" | ") || "bersih");
+ok(u12.isiPanel > 0, "U12: panel rincian kategori benar-benar terisi (bukan kosong)",
+  `${u12.isiPanel} karakter — ${u12.judul}`);
+await page.evaluate(() => switchView("dashboard"));
+await page.waitForTimeout(600);
+
+// ============ U13: detail ASET — sebelumnya nol cakupan E2E ============
+// Sapu bug v105 menunjukkan modal ini tidak pernah dibuka harness mana pun,
+// padahal ia merender grafik + riwayat dan punya bentuk kegagalan yang sama
+// dengan detail akun (satu exception -> panel kosong, terasa "tidak bisa
+// diklik" bagi pengguna).
+console.log("\n-- U13: detail aset terbuka & terisi --");
+await page.evaluate(() => switchView("aset"));
+await page.waitForTimeout(1500);
+const errSebelumU13 = errorHalaman.length;
+const kartuAset = page.locator('[data-action="openAssetDetailModal"]').first();
+ok(await kartuAset.count() > 0, "U13: kartu aset ter-render");
+await kartuAset.click();
+await page.waitForTimeout(1800);
+const u13 = await page.evaluate(() => {
+  const m = document.getElementById("modalAssetDetail");
+  const sejak = document.getElementById("asset-detail-since");
+  return {
+    terbuka: !!m && !m.classList.contains("hidden"),
+    sejak: (sejak && sejak.textContent || "").trim().slice(0, 40),
+  };
+});
+ok(u13.terbuka, "U13: modal detail aset terbuka");
+ok(errorHalaman.length === errSebelumU13, "U13: TIDAK ada exception saat merender detail aset",
+  errorHalaman.slice(errSebelumU13).join(" | ") || "bersih");
+ok(u13.sejak.length > 0, "U13: ringkasan riwayat terisi", u13.sejak);
+await page.keyboard.press("Escape").catch(() => {});
+await page.waitForTimeout(500);
+
 // ===================== ringkasan =====================
 const errorTakTerduga = konsolError.filter((t) => !t.includes("[ui-action]"));
-console.log("\n== HASIL VERIFY UI ACTIONS (31 cek) ==");
+console.log("\n== HASIL VERIFY UI ACTIONS (39 cek) ==");
 console.log(`Error halaman (${errorHalaman.length})`);
 [...new Set(errorHalaman)].slice(0, 5).forEach((e) => console.log(`   ${e}`));
 console.log(`console.error di luar [ui-action] (${errorTakTerduga.length})`);
