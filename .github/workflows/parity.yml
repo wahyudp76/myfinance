@@ -88,9 +88,23 @@ jobs:
       - name: Pasang gitleaks (versi ter-pin)
         env:
           GITLEAKS_VERSION: 8.28.0
+        # Unduhan sekali-tembak pernah menjatuhkan SELURUH job CI hanya karena
+        # "curl: (35) Recv failure: Connection reset by peer" saat mengambil
+        # rilis dari GitHub (v102, 2026-09-08) -- gerbang keamanan jadi merah
+        # padahal tidak ada rahasia yang bocor. Dicoba ulang dgn jeda menaik.
         run: |
-          curl -sSfL -o /tmp/gitleaks.tar.gz \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          for percobaan in 1 2 3 4 5; do
+            if curl -sSfL --connect-timeout 15 --max-time 120 -o /tmp/gitleaks.tar.gz "$URL"; then
+              echo "gitleaks terunduh pada percobaan ke-$percobaan"
+              break
+            fi
+            if [ "$percobaan" = "5" ]; then
+              echo "gagal mengunduh gitleaks setelah 5 percobaan"; exit 1
+            fi
+            echo "percobaan ke-$percobaan gagal, ulangi dalam $((percobaan * 5)) detik..."
+            sleep $((percobaan * 5))
+          done
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           /tmp/gitleaks version
       - name: Pindai kondisi kerja saat ini
