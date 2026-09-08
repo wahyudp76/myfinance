@@ -130,7 +130,7 @@ test("KONTRAK BUILD: setiap nama aksi tetap ada sebagai fungsi di app.js hasil m
   assert.deepEqual(hilang, [], `nama aksi hilang dari app.js: ${hilang.join(", ")}`);
 });
 
-test("harness E2E tidak memilih elemen index.html lewat selector [onclick=]", () => {
+test("harness E2E tidak memilih elemen ber-data-action lewat selector [onclick=]", () => {
   // Pelajaran dari konversi ini: dua harness memilih tombol dengan
   // `button[onclick="fn()"]`. Begitu atribut itu hilang, harness-nya TIMEOUT
   // 30 detik lalu melempar -- bukan gagal cek yang terbaca. Selector semacam
@@ -138,15 +138,122 @@ test("harness E2E tidak memilih elemen index.html lewat selector [onclick=]", ()
   // onclick= sampai Fase 4 tahap B), tidak boleh menunjuk markup index.html.
   const { readdirSync } = require("node:fs");
   const dir = resolve(ROOT, "scripts");
+  const semuaAksi = new Set([...markupActions(), ...aksiDinamis(), ...registryEntries()]);
   const salah = [];
   for (const f of readdirSync(dir).filter((n) => n.startsWith("verify-") && n.endsWith(".mjs"))) {
     const teks = readFileSync(resolve(dir, f), "utf8");
     for (const m of teks.matchAll(/\[onclick="([A-Za-z_$][\w$]*)\(/g)) {
       const nama = m[1];
-      if (html.includes(`data-action="${nama}"`)) {
-        salah.push(`${f}: [onclick="${nama}(...)"] padahal di index.html sudah data-action="${nama}"`);
+      // v102: dibandingkan ke SELURUH nama aksi (markup statis + HTML dinamis),
+      // bukan cuma index.html. Versi sebelumnya hanya memeriksa index.html dan
+      // karena itu MELEWATKAN selector App Lock & paginasi yang baru dikonversi
+      // di tahap B -- dua harness sempat timeout 30 detik karenanya.
+      if (semuaAksi.has(nama)) {
+        salah.push(`${f}: [onclick="${nama}(...)"] padahal ${nama} kini sebuah data-action`);
       }
     }
   }
   assert.deepEqual(salah, [], salah.join("\n"));
+});
+
+// ===========================================================================
+// FASE 4 TAHAP B (v102): HTML yang DIHASILKAN runtime
+// ===========================================================================
+// Celah baru yang muncul di tahap B: nama aksi ditulis sebagai string di dalam
+// template JS (`uiActionAttrs('hapusData', row.id)`). Salah ketik di situ tidak
+// menghasilkan error apa pun -- tombolnya cuma diam saat diklik, dan itu baru
+// ketahuan kalau ada yang mengkliknya. Guard di bawah menutupnya secara statis.
+
+const BERKAS_RENDER = [
+  "app.src.js",
+  "src/ui/accounts.js", "src/ui/assets.js", "src/ui/budgets.js",
+  "src/ui/goals-debts.js", "src/ui/recurring.js",
+];
+
+function aksiDinamis() {
+  const nama = new Set();
+  for (const f of BERKAS_RENDER) {
+    const teks = readFileSync(resolve(ROOT, f), "utf8");
+    for (const m of teks.matchAll(/uiActionAttrs\(\s*'([A-Za-z_$][\w$]*)'/g)) nama.add(m[1]);
+    for (const m of teks.matchAll(/uiActionAttrs\(\s*"([A-Za-z_$][\w$]*)"/g)) nama.add(m[1]);
+  }
+  return [...nama];
+}
+
+test("tahap B: SETIAP aksi di HTML dinamis terdaftar di registry", () => {
+  const daftar = new Set(registryEntries());
+  const hilang = aksiDinamis().filter((n) => !daftar.has(n));
+  assert.deepEqual(hilang, [], `dipakai uiActionAttrs() tapi tidak ada di registry: ${hilang.join(", ")}`);
+});
+
+test("tahap B: aksi dinamis jumlahnya masuk akal (konversi tidak hilang diam-diam)", () => {
+  assert.ok(aksiDinamis().length >= 40, `aksi dinamis cuma ${aksiDinamis().length}, harusnya >= 40`);
+});
+
+test("tahap B: aksi yang namanya VARIABEL punya nilai yang terdaftar", () => {
+  // Dua tempat memakai nama aksi dinamis: historyPaginationHtml(handler) dan
+  // kontrak onClickItem -> {action, args}. Nilainya tidak bisa dicek regex biasa,
+  // jadi dicek dari SISI PEMANGGIL.
+  const teks = readFileSync(resolve(ROOT, "app.src.js"), "utf8");
+  const daftar = new Set(registryEntries());
+  const nilai = [
+    ...[...teks.matchAll(/historyPaginationHtml\([^,]+,\s*[^,]+,\s*'([^']+)'\)/g)].map((m) => m[1]),
+    ...[...teks.matchAll(/onClickItem:\s*\(label\)\s*=>\s*\(\{\s*action:\s*'([^']+)'/g)].map((m) => m[1]),
+  ];
+  assert.ok(nilai.length >= 5, `pemanggil aksi-variabel terdeteksi cuma ${nilai.length} (regex rusak?)`);
+  const hilang = nilai.filter((n) => !daftar.has(n));
+  assert.deepEqual(hilang, [], `nama aksi variabel tidak terdaftar: ${hilang.join(", ")}`);
+});
+
+test("tahap B: TIDAK ADA lagi onclick= di berkas render mana pun", () => {
+  const sisa = [];
+  for (const f of BERKAS_RENDER) {
+    const teks = readFileSync(resolve(ROOT, f), "utf8");
+    teks.split("\n").forEach((baris, i) => {
+      const polos = baris.trim();
+      if (polos.startsWith("*") || polos.startsWith("//")) return; // komentar boleh menyebut
+      if (/onclick="/.test(baris)) sisa.push(`${f}:${i + 1} ${polos.slice(0, 70)}`);
+    });
+  }
+  assert.deepEqual(sisa, [], `masih ada onclick= di HTML yang dihasilkan:\n${sisa.join("\n")}`);
+});
+
+test("tahap B: fallback __sanitize.uiActionAttrs identik dengan modul sumber", async () => {
+  // Monolit punya salinan cadangan yang dipakai SEBELUM modul ter-adopsi.
+  // Kalau keduanya menyimpang, hasil escape bisa beda di detik-detik awal boot.
+  const modul = await import(resolve(ROOT, "src/domain/sanitize.js"));
+  const i = src.indexOf("uiActionAttrs: function (action, ...args) {");
+  assert.notEqual(i, -1, "fallback uiActionAttrs harus ada di app.src.js");
+  const akhir = src.indexOf("},", i);
+  const badan = src.slice(i, akhir);
+  const fallback = new Function(
+    "escapeHtml",
+    `const o = { escapeHtml, ${badan}} }; return o.uiActionAttrs.bind(o);`
+  )(modul.escapeHtml);
+  const kasus = [
+    ["hapusData"],
+    ["hapusData", "tx-1"],
+    // Nama aksi yang butuh escape. Tanpa kasus ini, melepas escapeHtml() dari
+    // NAMA aksi di fallback lolos tanpa ketahuan -- terbukti saat guard ini
+    // diuji-negatif, jadi kasusnya sengaja dipertahankan di sini.
+    ['<x&"aneh', "arg"],
+    ['" data-action="lain', "arg"],
+    ["f", 'a" onmouseover=alert(1) x="', "<img>", 3, true, null],
+    ["g", "kutip ' tunggal & ampersand"],
+  ];
+  for (const k of kasus) {
+    assert.equal(fallback(...k), modul.uiActionAttrs(...k), `fallback menyimpang untuk ${JSON.stringify(k)}`);
+  }
+});
+
+test("tahap B: data pengguna di-escape sehingga tidak bisa memutus atribut", async () => {
+  const { uiActionAttrs } = await import(resolve(ROOT, "src/domain/sanitize.js"));
+  const jahat = '" onmouseover="alert(1)';
+  const hasil = uiActionAttrs("hapusData", jahat);
+  assert.ok(!hasil.includes('" onmouseover="alert(1)'), "kutip ganda mentah bocor ke atribut");
+  assert.ok(hasil.includes("&quot;"), "kutip ganda harus jadi &quot;");
+  // dan tetap bisa dibaca balik utuh setelah browser meng-unescape entitas
+  const isi = hasil.match(/data-args="([^"]*)"/)[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  assert.deepEqual(JSON.parse(isi), [jahat], "argumen harus utuh setelah di-unescape");
 });

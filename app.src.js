@@ -26,8 +26,16 @@ function showFallbackError(detail) {
             '<p style="color:#334155;font-weight:700;font-size:14px;margin-top:12px;">Gagal memuat aplikasi</p>' +
             '<p style="color:#94a3b8;font-size:12px;margin-top:6px;">Coba muat ulang (kalau perlu, hard refresh: Ctrl/Cmd+Shift+R). Kalau masih terjadi, buka tab Console di DevTools browser untuk detail lengkapnya.</p>' +
             '<p style="color:#cbd5e1;font-size:10px;margin-top:10px;word-break:break-word;">' + detailText.replace(/</g, '&lt;') + '</p>' +
-            '<button onclick="window.location.reload(true)" style="margin-top:16px;background:#151928;color:#fff;border:none;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Muat Ulang</button>' +
+            '<button id="fallbackReloadBtn" type="button" style="margin-top:16px;background:#151928;color:#fff;border:none;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Muat Ulang</button>' +
         '</div>';
+    // SENGAJA listener langsung, BUKAN data-action + dispatcher delegasi.
+    // Ini layar darurat saat aplikasi GAGAL BOOT. Dispatcher aksi UI dipasang
+    // ~1200 baris di bawah sini; kalau app.js sendiri melempar di tengah jalan,
+    // handler error ini sudah terpasang tapi dispatcher-nya BELUM -- dan justru
+    // saat itulah tombol "Muat Ulang" paling dibutuhkan. Jadi tombol pelarian
+    // terakhir tidak boleh bergantung pada infrastruktur yang mungkin belum ada.
+    var reloadBtn = document.getElementById('fallbackReloadBtn');
+    if (reloadBtn) reloadBtn.addEventListener('click', function () { window.location.reload(true); });
 }
 window.addEventListener('error', function (e) { showFallbackError(e.error || e.message); });
 window.addEventListener('unhandledrejection', function (e) { showFallbackError(e.reason); });
@@ -191,6 +199,14 @@ let __sanitize = (function () {
         },
         jsStr: function (str) {
             return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        },
+        // v102 (Fase 4 tahap B): pembangun atribut aksi utk HTML DINAMIS. WAJIB
+        // identik perilakunya dengan src/domain/sanitize.js -- kesamaan itu dijaga
+        // tests/unit/sanitize-domain.test.js supaya fallback ini tidak menyimpang.
+        uiActionAttrs: function (action, ...args) {
+            const dasar = ' data-action="' + this.escapeHtml(action) + '"';
+            if (args.length === 0) return dasar;
+            return dasar + ' data-args="' + this.escapeHtml(JSON.stringify(args)) + '"';
         },
     };
 })();
@@ -742,7 +758,7 @@ async function currentUserId() {
             const buttons = Array.from({ length: totalPages }, (_, i) => {
                 const n = i + 1;
                 const active = n === page;
-                return `<button type="button" onclick="${handler}(${n})" aria-label="Halaman ${n}" aria-current="${active ? 'page' : 'false'}" class="min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}">${n}</button>`;
+                return `<button type="button"${uiActionAttrs(handler, n)} aria-label="Halaman ${n}" aria-current="${active ? 'page' : 'false'}" class="min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}">${n}</button>`;
             }).join('');
             return `<div class="flex flex-wrap items-center justify-center gap-1.5 p-4 border-t border-slate-100 bg-slate-50/50"><span class="text-[10px] font-semibold text-slate-400 mr-1">Halaman</span>${buttons}</div>`;
         }
@@ -1199,6 +1215,21 @@ async function currentUserId() {
                 shiftReportYear, submitAccountModal, submitCategoryStyleModal, submitFormNewAndRepeat,
                 submitManualNav, submitPasswordChange, submitProfileModal, submitRecurringForm, switchView,
                 toggleNominalVisibility, toggleTxAmountFilter, triggerStrukScan,
+                // --- Fase 4 tahap B (v102): aksi dari HTML yang DIHASILKAN runtime ---
+                // Dulu dipanggil lewat onclick= di dalam template string, dengan data
+                // pengguna disisipkan ke dalam kode lewat jsStr(). Sekarang lewat
+                // data-action + data-args JSON, jadi data pengguna tidak pernah jadi kode.
+                appLockChangePin, appLockDisableBiometric, appLockDisableBiometricAll,
+                appLockDisableConfirm, appLockDisableFromModal, appLockEnableFromModal,
+                appLockEnrollBiometric, deleteAssetData, deleteRecurringTemplate, editDataForm,
+                generateWhatsappLinkCode, hapusData, loadMoreTransactions, openAccountDetail,
+                openAssetDetailModal, openCategoryDetail, openCategoryStyleModal, openDebtPayModal,
+                openGoalContributeModal, palettePick, pickAccountIconPalette, pickCategoryStyleIconOnly,
+                pickCategoryStylePalette, pickDebtColor, pickDebtIcon, pickGoalColor, pickGoalIcon,
+                removeDebt, removeGoal, removeParentCategory, removeSetting, removeSub,
+                renderWhatsappLinkStatus, saveEditSub, selectCategoryItem, setAccountHistoryPage,
+                setCategoryHistoryPage, setRecentTransactionsPage, startEditSub, toggleAccordion,
+                toggleRecurringActive, toggleSettingsAccordion, unlinkWhatsapp,
                 // Pembungkus untuk bentuk yang dulu ditulis sebagai kode inline.
                 // Sengaja jadi fungsi bernama supaya tetap bisa di-grep & diuji.
                 editAsetDariDetail, pilihBerkasBackup,
@@ -1484,6 +1515,10 @@ async function currentUserId() {
         // dari satu sumber kebenaran __sanitize (default = implementasi monolit asli).
         function escapeHtml(str) { return __sanitize.escapeHtml(str); }
         function jsStr(str) { return __sanitize.jsStr(str); }
+        // v102 (Fase 4 tahap B): pembangun atribut aksi untuk HTML DINAMIS.
+        // Menggantikan onclick="fn('${jsStr(x)}')" -- data pengguna tidak lagi
+        // pernah menjadi bagian dari string kode, melainkan JSON di dalam atribut.
+        function uiActionAttrs(action, ...args) { return __sanitize.uiActionAttrs(action, ...args); }
 
         // Delegator tipis ke modul ter-tes (src/domain/slugify.js, v79) -- pola yg sama
         // dgn helper lain: nama global dipertahankan (kontrak onclick= & DI ke modul UI),
@@ -1621,7 +1656,7 @@ async function currentUserId() {
             const current = servicesModule.normalizeThemeColor(appSettings && appSettings.themeColor);
             wrap.innerHTML = servicesModule.PRESET_THEMES.map((t) => {
                 const active = current === t.color;
-                return `<button type="button" onclick="setThemeColor('${t.color}')" title="Tema ${t.label}" aria-label="Tema ${t.label}" aria-pressed="${active}"`
+                return `<button type="button"${uiActionAttrs('setThemeColor', t.color)} title="Tema ${t.label}" aria-label="Tema ${t.label}" aria-pressed="${active}"`
                     + ` class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${active ? 'border-slate-700 scale-110 ring-2 ring-slate-300 ring-offset-1' : 'border-slate-200'}"`
                     + ` style="background:${t.color}"></button>`;
             }).join('');
@@ -1656,10 +1691,10 @@ async function currentUserId() {
                                 <p class="text-xs font-bold text-emerald-700">Terhubung</p>
                                 <p class="text-[11px] text-emerald-600 truncate">+${escapeHtml(data.whatsapp_number)}</p>
                             </div>
-                            <button onclick="unlinkWhatsapp()" class="text-[11px] font-semibold text-rose-500 hover:text-rose-600 flex-shrink-0">Putuskan</button>
+                            <button${uiActionAttrs('unlinkWhatsapp')} class="text-[11px] font-semibold text-rose-500 hover:text-rose-600 flex-shrink-0">Putuskan</button>
                         </div>`;
                 } else {
-                    container.innerHTML = `<button onclick="generateWhatsappLinkCode()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs md:text-sm font-bold py-2.5 rounded-xl transition">Hubungkan WhatsApp</button>`;
+                    container.innerHTML = `<button${uiActionAttrs('generateWhatsappLinkCode')} class="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs md:text-sm font-bold py-2.5 rounded-xl transition">Hubungkan WhatsApp</button>`;
                 }
             } catch (e) {
                 container.innerHTML = `<p class="text-[11px] text-slate-400 text-center">Gagal memuat status.</p>`;
@@ -1696,7 +1731,7 @@ async function currentUserId() {
                         <p class="text-base font-mono font-extrabold text-slate-800 mb-1 tracking-wide">LINK ${code}</p>
                         <p class="text-[10px] text-slate-400 mb-2">Kode berlaku 10 menit.</p>
                         <a href="${waLink}" target="_blank" rel="noopener" class="inline-block w-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold py-2 rounded-lg transition mb-2"><i class="fab fa-whatsapp mr-1.5"></i>Buka WhatsApp & Kirim Otomatis</a>
-                        <button onclick="renderWhatsappLinkStatus()" class="text-[11px] font-semibold text-indigo-500 hover:text-indigo-600">Sudah kirim? Cek status</button>
+                        <button${uiActionAttrs('renderWhatsappLinkStatus')} class="text-[11px] font-semibold text-indigo-500 hover:text-indigo-600">Sudah kirim? Cek status</button>
                     </div>`;
             } catch (e) {
                 showErrorToast('Gagal membuat kode. Coba lagi.');
@@ -1986,7 +2021,7 @@ async function currentUserId() {
                 return;
             }
             box.innerHTML = _paletteResults.map((c, i) => `
-                <button type="button" role="option" aria-selected="${i === _paletteSel}" onclick="palettePick(${i})" onmousemove="paletteHover(${i})" class="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${i === _paletteSel ? 'bg-indigo-50' : 'hover:bg-slate-50'}">
+                <button type="button" role="option" aria-selected="${i === _paletteSel}"${uiActionAttrs('palettePick', i)} onmousemove="paletteHover(${i})" class="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${i === _paletteSel ? 'bg-indigo-50' : 'hover:bg-slate-50'}">
                     <span class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0"><i class="fas ${PALETTE_ICON[c.type] || 'fa-circle'} text-slate-500 text-xs"></i></span>
                     <span class="min-w-0 flex-1">
                         <span class="block text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(c.label)}</span>
@@ -2123,8 +2158,8 @@ async function currentUserId() {
                             <span class="truncate">${escapeHtml(item)}</span>
                         </span>
                         <span class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="openAccountModal(${i})" aria-label="Ubah akun" class="w-9 h-9 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-xs"></i></button>
-                            <button onclick="removeSetting('accounts', ${i})" aria-label="Hapus akun" class="w-9 h-9 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-xs"></i></button>
+                            <button${uiActionAttrs('openAccountModal', i)} aria-label="Ubah akun" class="w-9 h-9 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-xs"></i></button>
+                            <button${uiActionAttrs('removeSetting', 'accounts', i)} aria-label="Hapus akun" class="w-9 h-9 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-xs"></i></button>
                         </span>
                     </li>`).join('');
         }
@@ -2178,7 +2213,7 @@ async function currentUserId() {
             const wrap = document.getElementById('acc-icon-panel-palette'); if (!wrap) return;
             wrap.innerHTML = accountIconPalette.map(p => {
                 const isSelected = accountIconOverride && accountIconOverride.type === 'icon' && accountIconOverride.value === p.icon && accountIconOverride.bg === p.bg;
-                return `<button type="button" onmousedown="event.preventDefault();" onclick="pickAccountIconPalette('${p.icon}','${p.bg}','${p.color}')" aria-label="Pilih ikon dan warna ini" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                return `<button type="button" onmousedown="event.preventDefault();"${uiActionAttrs('pickAccountIconPalette', p.icon, p.bg, p.color)} aria-label="Pilih ikon dan warna ini" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
             }).join('');
         }
 
@@ -2290,12 +2325,12 @@ async function currentUserId() {
                 const bg = categoryStyleContext.lockedBg, color = categoryStyleContext.lockedColor;
                 wrap.innerHTML = categoryIconPalette.map(p => {
                     const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon;
-                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStyleIconOnly('${p.icon}')" aria-label="Pilih ikon ini" class="aspect-square rounded-xl ${bg} ${color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                    return `<button type="button" onmousedown="event.preventDefault();"${uiActionAttrs('pickCategoryStyleIconOnly', p.icon)} aria-label="Pilih ikon ini" class="aspect-square rounded-xl ${bg} ${color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
                 }).join('');
             } else {
                 wrap.innerHTML = categoryIconPalette.map(p => {
                     const isSelected = categoryStyleOverride && categoryStyleOverride.type === 'icon' && categoryStyleOverride.value === p.icon && categoryStyleOverride.bg === p.bg;
-                    return `<button type="button" onmousedown="event.preventDefault();" onclick="pickCategoryStylePalette('${p.icon}','${p.bg}','${p.color}')" aria-label="Pilih ikon dan warna ini" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
+                    return `<button type="button" onmousedown="event.preventDefault();"${uiActionAttrs('pickCategoryStylePalette', p.icon, p.bg, p.color)} aria-label="Pilih ikon dan warna ini" class="aspect-square rounded-xl ${p.bg} ${p.color} flex items-center justify-center transition ${isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:scale-105'}"><i class="fas ${p.icon} text-sm"></i></button>`;
                 }).join('');
             }
         }
@@ -2584,7 +2619,9 @@ async function currentUserId() {
         // di tab Laporan, dan Distribusi Pengeluaran per Kategori di detail akun) -- supaya kelimanya
         // konsisten & tidak menduplikasi markup yang sama 5 kali.
         // opts: { legendEl, listEl, totalEl, entries:[{label,val,iconHtml}], palette:[warna hex...],
-        //         onClickItem: (label)=>string-onclick (opsional), emptyMessage }
+        //         onClickItem: (label)=>{action,args} (opsional), emptyMessage }
+//         CATATAN v102: dulu mengembalikan STRING kode onclick. Sekarang objek
+//         {action, args} supaya data label tidak pernah jadi bagian dari kode.
         function renderDonutBreakdown(opts) {
             const { legendEl, listEl, totalEl, entries, palette, onClickItem, emptyMessage } = opts;
             const total = entries.reduce((s, e) => s + e.val, 0);
@@ -2609,7 +2646,8 @@ async function currentUserId() {
                     const pct = Math.round(e.val / total * 100);
                     const chartColor = palette[i % palette.length];
                     const clickable = typeof onClickItem === 'function';
-                    return `<div ${clickable ? `onclick="${onClickItem(e.label)}"` : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hud-breakdown-row transition' : ''}">
+                    const aksiItem = clickable ? onClickItem(e.label) : null;
+                    return `<div ${aksiItem ? uiActionAttrs(aksiItem.action, ...aksiItem.args) : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hud-breakdown-row transition' : ''}">
                         <span class="text-[10px] md:text-xs font-bold text-white rounded-lg px-2 py-1 flex-shrink-0 w-10 md:w-11 text-center" style="background:${chartColor}">${pct}%</span>
                         ${e.iconHtml}
                         <span class="text-xs md:text-sm font-bold text-slate-700 flex-1 min-w-0 truncate">${escapeHtml(e.label)}</span>
@@ -2935,36 +2973,36 @@ async function currentUserId() {
                     const isCustomSub = subIdx !== -1;
                     const subStyle = getCategoryStyle(sub.name, jenisProper);
                     const subIconHtml = categoryIconHtml(subStyle, 'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0', 'text-[10px]');
-                    const styleBtnHtml = `<button onclick="openCategoryStyleModal('${type}','${jsStr(sub.name)}','${jsStr(parentName)}')" aria-label="Ubah ikon sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[10px]"></i></button>`;
+                    const styleBtnHtml = `<button${uiActionAttrs('openCategoryStyleModal', type, sub.name, parentName)} aria-label="Ubah ikon sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-500" title="Ubah bentuk ikon"><i class="fas fa-palette text-[10px]"></i></button>`;
                     if (isCustomSub) {
                         return `<span class="inline-flex items-center gap-1 bg-white ring-1 ring-slate-200 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-600 m-0.5" id="sub-${type}-${slug}-${subIdx}">
                             ${subIconHtml}
                             ${escapeHtml(sub.name)}
                             ${styleBtnHtml}
-                            <button onclick="startEditSub('${type}','${jsStr(parentName)}',${subIdx})" aria-label="Ubah nama sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[10px]"></i></button>
-                            <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[10px]"></i></button>
+                            <button${uiActionAttrs('startEditSub', type, parentName, subIdx)} aria-label="Ubah nama sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-500"><i class="fas fa-pencil text-[10px]"></i></button>
+                            <button${uiActionAttrs('removeSub', type, parentName, sub.name)} aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[10px]"></i></button>
                         </span>`;
                     }
                     return `<span class="inline-flex items-center gap-1 bg-slate-50 ring-1 ring-slate-100 rounded-full pl-1 pr-1 py-1 text-[10px] font-semibold text-slate-500 m-0.5">
                         ${subIconHtml}
                         ${escapeHtml(sub.name)}
                         ${styleBtnHtml}
-                        <button onclick="removeSub('${type}','${jsStr(parentName)}','${jsStr(sub.name)}')" aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[10px]"></i></button>
+                        <button${uiActionAttrs('removeSub', type, parentName, sub.name)} aria-label="Hapus sub-kategori" class="w-4 h-4 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500"><i class="fas fa-xmark text-[10px]"></i></button>
                     </span>`;
                 }).join('');
                 if (!subsHtml) subsHtml = `<span class="text-[10px] text-slate-300 italic px-1">Belum ada sub-kategori</span>`;
 
                 return `
                     <div class="bg-slate-50/70 rounded-2xl overflow-hidden ring-1 ring-slate-100">
-                        <div class="flex items-center justify-between p-2.5 cursor-pointer select-none" onclick="toggleSettingsAccordion('tree-${type}-${idx}')">
+                        <div class="flex items-center justify-between p-2.5 cursor-pointer select-none"${uiActionAttrs('toggleSettingsAccordion', `tree-${type}-${idx}`)}>
                             <div class="flex items-center min-w-0">
                                 ${categoryIconHtml(parentStyle, 'w-7 h-7 rounded-lg flex items-center justify-center mr-2 flex-shrink-0', 'text-[11px]')}
                                 <span class="text-xs font-bold text-slate-700 truncate">${escapeHtml(parentName)}</span>
                                 ${isCustomParent ? `<span class="ml-1.5 text-[10px] bg-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">custom</span>` : ''}
                             </div>
                             <div class="flex items-center gap-1 flex-shrink-0">
-                                <button onclick="event.stopPropagation(); openCategoryStyleModal('${type}','${jsStr(parentName)}')" aria-label="Ubah ikon kategori" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
-                                ${parentName !== 'Lain-lain' ? `<button onclick="event.stopPropagation(); removeParentCategory('${type}','${jsStr(parentName)}')" aria-label="Hapus kategori utama" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center" title="Hapus kategori"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
+                                <button${uiActionAttrs('openCategoryStyleModal', type, parentName)} aria-label="Ubah ikon kategori" class="w-6 h-6 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 flex items-center justify-center" title="Ubah ikon/warna/gambar"><i class="fas fa-palette text-[10px]"></i></button>
+                                ${parentName !== 'Lain-lain' ? `<button${uiActionAttrs('removeParentCategory', type, parentName)} aria-label="Hapus kategori utama" class="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center" title="Hapus kategori"><i class="fas fa-trash text-[10px]"></i></button>` : ''}
                                 <i id="icon-tree-${type}-${idx}" class="fas fa-chevron-down text-slate-400 text-[10px] accordion-icon"></i>
                             </div>
                         </div>
@@ -3002,7 +3040,7 @@ async function currentUserId() {
                 <span class="inline-flex items-center gap-1 bg-white ring-2 ${theme.focusRing} rounded-full pl-2 pr-1 py-0.5 text-[10px] font-semibold m-0.5" id="sub-${type}-${slug}-${idx}">
                     <input type="text" id="sub-edit-input-${type}-${slug}-${idx}" value="${escapeHtml(oldVal)}" class="w-20 outline-none bg-transparent text-[10px]"
                         onkeydown="if(event.key==='Enter'){saveEditSub('${type}','${jsStr(parentName)}',${idx});} if(event.key==='Escape'){renderCategoryTree('${type}');}">
-                    <button onclick="saveEditSub('${type}','${jsStr(parentName)}',${idx})" aria-label="Simpan nama sub-kategori" class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-check text-[10px]"></i></button>
+                    <button${uiActionAttrs('saveEditSub', type, parentName, idx)} aria-label="Simpan nama sub-kategori" class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-check text-[10px]"></i></button>
                 </span>`;
             const inp = document.getElementById(`sub-edit-input-${type}-${slug}-${idx}`); inp.focus(); inp.select();
         }
@@ -3277,13 +3315,13 @@ async function currentUserId() {
 
             if (activeCategoryTab === 'Transfer') {
                 const rows = appSettings.accounts.filter(acc => document.getElementById('akun').value !== acc).map(acc => `
-                        <div onclick="selectCategoryItem('${jsStr(acc)}', 'Transfer', 'Transfer')" class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-slate-300">
+                        <div${uiActionAttrs('selectCategoryItem', acc, 'Transfer', 'Transfer')} class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-slate-300">
                             <div class="flex items-center"><div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center mr-3">${getAccountLogo(acc)}</div><span class="font-bold text-sm text-slate-700">${escapeHtml(acc)}</span></div>
                         </div>`).join('');
                 // Seksi "ASET (SETOR DANA)": setor dari rekening sumber ke aset (mis. Bibit) --
                 // dicatat sbg Transfer dgn kategori = nama aset (lihat src/domain/asset-flows.js).
                 const assetRows = (globalAssets || []).map(a => `
-                        <div onclick="selectCategoryItem('${jsStr(a.nama)}', 'Aset', 'Aset')" class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-cyan-300">
+                        <div${uiActionAttrs('selectCategoryItem', a.nama, 'Aset', 'Aset')} class="bg-white border border-slate-100 shadow-sm rounded-xl p-3 md:p-4 flex items-center justify-between cursor-pointer hover:border-cyan-300">
                             <div class="flex items-center"><div class="w-8 h-8 rounded-full bg-cyan-50 flex items-center justify-center mr-3"><i class="fas fa-chart-line text-cyan-500"></i></div><span class="font-bold text-sm text-slate-700">${escapeHtml(a.nama)}</span></div>
                             <span class="text-[9px] font-black uppercase tracking-wider text-cyan-500 bg-cyan-50 px-2 py-1 rounded">Setor</span>
                         </div>`).join('');
@@ -3303,7 +3341,7 @@ async function currentUserId() {
                     // nama+tipe-nya saja, style-nya dihitung ulang di dalam fungsi itu sendiri.
                     let parentStyle = getCategoryStyle(parentName, activeCategoryTab);
 
-                    let parentSelectButton = `<div onclick="selectCategoryItem('${jsStr(parentName)}', '${jsStr(parentName)}', '${activeCategoryTab}')" class="flex items-center justify-between bg-indigo-50/50 hover:bg-indigo-100/50 text-[#151928] p-2.5 rounded-xl text-xs font-bold cursor-pointer transition mb-2">
+                    let parentSelectButton = `<div${uiActionAttrs('selectCategoryItem', parentName, parentName, activeCategoryTab)} class="flex items-center justify-between bg-indigo-50/50 hover:bg-indigo-100/50 text-[#151928] p-2.5 rounded-xl text-xs font-bold cursor-pointer transition mb-2">
                         <span>Pilih Utama: ${escapeHtml(parentName)}</span>
                         <i class="fas fa-check-double text-[10px]"></i>
                     </div>`;
@@ -3311,7 +3349,7 @@ async function currentUserId() {
                     let subHtml = parent.subs.map(sub => {
                         let subStyle = getCategoryStyle(sub.name, activeCategoryTab);
                         return `
-                        <div onclick="selectCategoryItem('${jsStr(sub.name)}', '${jsStr(parentName)}', '${activeCategoryTab}')" class="flex flex-col items-center justify-center cursor-pointer hover:bg-white p-2 rounded-xl transition border border-transparent hover:border-slate-100">
+                        <div${uiActionAttrs('selectCategoryItem', sub.name, parentName, activeCategoryTab)} class="flex flex-col items-center justify-center cursor-pointer hover:bg-white p-2 rounded-xl transition border border-transparent hover:border-slate-100">
                             ${categoryIconHtml(subStyle, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-base mb-1 shadow-sm border border-white', 'text-sm md:text-base')}
                             <span class="text-[10px] md:text-[10px] font-bold text-slate-600 text-center leading-tight tracking-tight">${escapeHtml(sub.name)}</span>
                         </div>
@@ -3322,7 +3360,7 @@ async function currentUserId() {
 
                     return `
                         <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
-                            <div onclick="toggleAccordion('acc-${index}')" class="p-3 md:p-4 flex items-center justify-between cursor-pointer select-none">
+                            <div${uiActionAttrs('toggleAccordion', `acc-${index}`)} class="p-3 md:p-4 flex items-center justify-between cursor-pointer select-none">
                                 <div class="flex items-center">
                                     ${categoryIconHtml(parentStyle, 'w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center mr-3 md:mr-4', '')}
                                     <span class="font-bold text-sm text-slate-700 tracking-tight">${escapeHtml(parentName)}</span>
@@ -4738,8 +4776,8 @@ async function currentUserId() {
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
                                     <span class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(row.jumlah)}</span>
-                                    <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
-                                    <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                                    <button${uiActionAttrs('editDataForm', row.id)} aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
+                                    <button${uiActionAttrs('hapusData', row.id)} aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
                                 <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / grpMaxAmt * 100))}%"></div></div>
                             </div>`;
@@ -4762,7 +4800,7 @@ async function currentUserId() {
                 if (sisaTransaksi > 0) {
                     tbody.innerHTML += `
                         <div class="p-4 text-center">
-                            <button onclick="loadMoreTransactions()" class="text-xs md:text-sm font-bold text-indigo-500 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition px-4 py-2 rounded-xl">
+                            <button${uiActionAttrs('loadMoreTransactions')} class="text-xs md:text-sm font-bold text-indigo-500 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition px-4 py-2 rounded-xl">
                                 Muat ${Math.min(sisaTransaksi, TX_LIST_PAGE_SIZE)} transaksi lainnya (${sisaTransaksi} tersisa)
                             </button>
                         </div>`;
@@ -5312,7 +5350,7 @@ async function currentUserId() {
                     '<option value="5" selected>5 menit tidak dipakai</option>' +
                     '</select>' +
                     '<p id="applock-set-error" class="text-rose-500 text-xs min-h-[1rem] mb-2"></p>' +
-                    '<button onclick="appLockEnableFromModal()" class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-indigo-300/50">Aktifkan Kunci</button>';
+                    '<button' + uiActionAttrs('appLockEnableFromModal') + ' class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-indigo-300/50">Aktifkan Kunci</button>';
             } else {
                 body.innerHTML =
                     '<div class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">' +
@@ -5328,14 +5366,14 @@ async function currentUserId() {
                     '<label class="block text-xs font-bold text-slate-600 mb-1.5">Ulangi PIN baru</label>' +
                     '<input id="applock-new-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="Ulangi PIN baru" class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] font-bold text-slate-800 focus:outline-none focus:border-indigo-400 mb-2">' +
                     '<p id="applock-change-error" class="text-rose-500 text-xs min-h-[1rem] mb-2"></p>' +
-                    '<button onclick="appLockChangePin()" class="w-full bg-[#151928] hover:bg-black text-white font-bold py-3.5 rounded-2xl transition mb-6">Simpan PIN Baru</button>' +
+                    '<button' + uiActionAttrs('appLockChangePin') + ' class="w-full bg-[#151928] hover:bg-black text-white font-bold py-3.5 rounded-2xl transition mb-6">Simpan PIN Baru</button>' +
                     '<hr class="border-slate-200 mb-4">' +
                     '<p class="text-xs text-slate-500 leading-relaxed mb-3">Kalau PIN dinonaktifkan, aplikasi terbuka langsung tanpa kunci di semua perangkat.</p>' +
-                    '<button onclick="appLockDisableFromModal()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-3 rounded-2xl transition">Nonaktifkan Kunci</button>' +
+                    '<button' + uiActionAttrs('appLockDisableFromModal') + ' class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-3 rounded-2xl transition">Nonaktifkan Kunci</button>' +
                     '<div id="applock-disable-box" class="hidden mt-3">' +
                     '<input id="applock-disable-pin" type="password" inputmode="numeric" maxlength="6" placeholder="Masukkan PIN untuk konfirmasi" class="w-full bg-white border border-rose-200 rounded-xl py-3 px-4 text-center tracking-[0.4em] font-bold text-slate-800 focus:outline-none focus:border-rose-400 mb-2">' +
                     '<p id="applock-disable-error" class="text-rose-500 text-xs min-h-[1rem] mb-2"></p>' +
-                    '<button onclick="appLockDisableConfirm()" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-2xl transition">Ya, Nonaktifkan</button>' +
+                    '<button' + uiActionAttrs('appLockDisableConfirm') + ' class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-2xl transition">Ya, Nonaktifkan</button>' +
                     '</div>';
                 appLockRenderBioRow();
             }
@@ -5363,10 +5401,10 @@ async function currentUserId() {
                 row.innerHTML =
                     '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
                     '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-cyan-500 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan ' + __sanitize.escapeHtml(nama) + '</p><p class="text-[11px] text-slate-400">Aktif di perangkat ini &middot; PIN tetap bisa dipakai</p>' + lain + '</div></div>' +
-                    '<button onclick="appLockDisableBiometric()" class="text-xs font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2">Matikan</button>' +
+                    '<button' + uiActionAttrs('appLockDisableBiometric') + ' class="text-xs font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2">Matikan</button>' +
                     '</div>' +
                     (st.otherDevices > 0
-                        ? '<button onclick="appLockDisableBiometricAll()" class="mt-2 text-[11px] font-semibold text-slate-400 hover:text-rose-500 underline underline-offset-2">Matikan di semua perangkat</button>'
+                        ? '<button' + uiActionAttrs('appLockDisableBiometricAll') + ' class="mt-2 text-[11px] font-semibold text-slate-400 hover:text-rose-500 underline underline-offset-2">Matikan di semua perangkat</button>'
                         : '');
             } else {
                 // INTI PERBAIKAN v99: walau perangkat lain sudah aktif, perangkat
@@ -5374,7 +5412,7 @@ async function currentUserId() {
                 row.innerHTML =
                     '<div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">' +
                     '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-slate-400 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan ' + __sanitize.escapeHtml(nama) + '</p><p class="text-[11px] text-slate-400">Belum aktif di perangkat ini &middot; didaftarkan per perangkat</p>' + lain + '</div></div>' +
-                    '<button onclick="appLockEnrollBiometric()" class="text-xs font-bold text-indigo-500 hover:text-indigo-600 underline underline-offset-2">Aktifkan</button>' +
+                    '<button' + uiActionAttrs('appLockEnrollBiometric') + ' class="text-xs font-bold text-indigo-500 hover:text-indigo-600 underline underline-offset-2">Aktifkan</button>' +
                     '</div>';
             }
         }
@@ -5638,7 +5676,7 @@ async function currentUserId() {
             
             appSettings.accounts.forEach(acc => {
                 let bal = accBalances[acc] || 0; if(bal > 0) assetEntries.push({label: acc, val: bal});
-                accHtml += `<div onclick="openAccountDetail('${jsStr(acc)}')" class="bg-white p-3 md:p-5 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border border-slate-100 shadow-sm account-card">
+                accHtml += `<div${uiActionAttrs('openAccountDetail', acc)} class="bg-white p-3 md:p-5 rounded-xl md:rounded-2xl flex flex-col items-center justify-center border border-slate-100 shadow-sm account-card">
                     <div class="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-slate-50 flex items-center justify-center mb-2 md:mb-3 p-2">${getAccountLogo(acc)}</div>
                     <p class="text-[10px] md:text-xs text-slate-400 font-bold mb-0.5 md:mb-1 truncate w-full text-center">${escapeHtml(acc)}</p>
                     <p class="text-[11px] md:text-sm font-extrabold text-slate-800 text-center whitespace-nowrap">Rp ${nominalHidden ? '••••••' : formatRp(bal)}</p>
@@ -5660,7 +5698,7 @@ async function currentUserId() {
                 totalEl: document.getElementById('assetChart-total'),
                 entries: assetEntries.map(e => ({ label: e.label, val: e.val, iconHtml: `<div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0 text-xs md:text-sm border border-slate-100">${getAccountLogo(e.label)}</div>` })),
                 palette: modernPalette,
-                onClickItem: (label) => `openAccountDetail('${jsStr(label)}')`,
+                onClickItem: (label) => ({ action: 'openAccountDetail', args: [label] }),
                 emptyMessage: 'Belum ada saldo di akun manapun.'
             });
 
@@ -6093,7 +6131,7 @@ async function currentUserId() {
             const buttons = Array.from({ length: totalPages }, (_, i) => {
                 const n = i + 1;
                 const active = n === page;
-                return `<button type="button" onclick="setRecentTransactionsPage(${n})" aria-label="Halaman ${n}" aria-current="${active ? 'page' : 'false'}" class="min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}">${n}</button>`;
+                return `<button type="button"${uiActionAttrs('setRecentTransactionsPage', n)} aria-label="Halaman ${n}" aria-current="${active ? 'page' : 'false'}" class="min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'}">${n}</button>`;
             }).join('');
             return `<div class="flex flex-wrap items-center justify-center gap-1.5 pt-2"><span class="text-[10px] font-semibold text-slate-400 mr-1">Halaman</span>${buttons}</div>`;
         }
@@ -6115,7 +6153,7 @@ async function currentUserId() {
                 const hudBarPct = Math.max(4, Math.round(Math.abs(Number(row.jumlah) || 0) / hudMaxAmt * 100));
 
                 return `
-                    <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms" onclick="switchView('transaksi')">
+                    <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms"${uiActionAttrs('switchView', 'transaksi')}>
                         ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
                             <p class="text-xs md:text-sm font-bold text-slate-800 truncate"><span class="hud-mono hud-tx-id" aria-hidden="true">TX-${String(pageStart + idx + 1).padStart(2, '0')}</span> ${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
@@ -6963,7 +7001,7 @@ async function currentUserId() {
                 totalEl: document.getElementById('expenseCategoryChart-total'),
                 entries: outEntries.map(e => { const s = getCategoryStyle(e.label, 'Pengeluaran'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
                 palette: cutePaletteOut,
-                onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pengeluaran')`,
+                onClickItem: (label) => ({ action: 'openCategoryDetail', args: [label, 'Pengeluaran'] }),
                 emptyMessage: 'Belum ada pengeluaran bulan ini.'
             });
 
@@ -6987,7 +7025,7 @@ async function currentUserId() {
                 totalEl: document.getElementById('incomeCategoryChart-total'),
                 entries: inEntries.map(e => { const s = getCategoryStyle(e.label, 'Pemasukan'); return { label: e.label, val: e.val, iconHtml: categoryIconHtml(s, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0', 'text-xs md:text-sm') }; }),
                 palette: getCutePaletteIn(),
-                onClickItem: (label) => `openCategoryDetail('${jsStr(label)}','Pemasukan')`,
+                onClickItem: (label) => ({ action: 'openCategoryDetail', args: [label, 'Pemasukan'] }),
                 emptyMessage: 'Belum ada pemasukan bulan ini.'
             });
 
@@ -7201,8 +7239,8 @@ async function currentUserId() {
                                 </div>
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
                                     <span class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap mr-1">${prefix}Rp ${formatRp(isTransferIn ? transferTargetAmount(row) : row.jumlah)}</span>
-                                    <button onclick="editDataForm('${row.id}')" aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
-                                    <button onclick="hapusData('${row.id}')" aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                                    <button${uiActionAttrs('editDataForm', row.id)} aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
+                                    <button${uiActionAttrs('hapusData', row.id)} aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
                                 <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(isTransferIn ? transferTargetAmount(row) : row.jumlah) || 0) / accGrpMaxAmt * 100))}%"></div></div>
                             </div>`;

@@ -5,7 +5,7 @@
 # scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92), dan
 # scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99),
 # scripts/verify-offline-cache.mjs (13 cek cache data offline, v100), dan
-# scripts/verify-ui-actions.mjs (18 cek aksi UI deklaratif, v101)
+# scripts/verify-ui-actions.mjs (26 cek aksi UI deklaratif, v101)
 # di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
@@ -139,7 +139,7 @@ jobs:
       # satu dispatcher delegasi. Harness ini menjaga yang TIDAK bisa dibuktikan
       # tes statis: registry runtime, klik pada ikon DI DALAM tombol (closest),
       # tipe argumen data-args, dan ketahanan terhadap aksi/args rusak.
-      - name: verify-ui-actions (18 cek aksi UI deklaratif)
+      - name: verify-ui-actions (26 cek aksi UI deklaratif)
         env:
           UIACT_URL: http://127.0.0.1:8123/
         run: node scripts/verify-ui-actions.mjs

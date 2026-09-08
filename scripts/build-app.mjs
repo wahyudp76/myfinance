@@ -7,7 +7,8 @@
  * KENAPA AMAN (aturan terser yang dipilih):
  * - `mangle.toplevel: false` + `keep_fnames: true` -> seluruh fungsi GLOBAL
  *   dipertahankan namanya. Nama-nama itu adalah KONTRAK: dipanggil dari
- *   onclick=/onchange= di index.html dan langsung oleh harness E2E
+ *   registry aksi data-action, atribut onchange= di index.html, dan langsung
+ *   oleh harness E2E
  *   (scripts/verify-hud.mjs via page.evaluate). Guard di
  *   tests/unit/app-minify.test.js memverifikasi setiap handler HTML masih ada
  *   sebagai `function <nama>(` di output.
@@ -32,7 +33,7 @@ const BANNER =
   "/*! MyFinance -- app.js (BUILD OUTPUT, jangan edit manual)\n" +
   " * SUMBER: app.src.js (satu-satunya file yang diedit manual).\n" +
   " * Build : npm run build:app (terser -- mangle toplevel OFF, semua nama\n" +
-  " *         fungsi global dipertahankan utk onclick= & harness E2E).\n" +
+  " *         fungsi global dipertahankan utk registry data-action & harness E2E).\n" +
   " * Drift : tests/unit/app-minify.test.js + job CI css-drift.\n" +
   " */\n";
 

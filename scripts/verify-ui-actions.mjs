@@ -39,10 +39,20 @@ const hariIni = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const tx = [{
-  id: "t1", created_at: `${hariIni()}T09:00:00Z`, tanggal: hariIni(), jenis: "Pengeluaran",
-  kategori: "Makanan", akun: "BCA", jumlah: "25000", keterangan: "[Demo] makan", mata_uang: "IDR", user_id: USER_ID,
-}];
+const tx = [
+  ["Makanan","BCA","Pengeluaran","25000"],["Transportasi","GoPay","Pengeluaran","15000"],
+  ["Gaji","BCA","Pemasukan","5000000"],["Belanja","BCA","Pengeluaran","300000"],
+].map(([k,a,j,n],i)=>({ id:`t${i}`, created_at:`${hariIni()}T09:0${i}:00Z`, tanggal:hariIni(), jenis:j,
+  kategori:k, akun:a, jumlah:n, keterangan:`[Demo] ${k}`, mata_uang:"IDR", user_id:USER_ID }));
+// Nama yang sengaja "nakal": kalau data pengguna bocor jadi kode, di sinilah pecah.
+const NAMA_NAKAL = `Aset " onmouseover="alert(1)" x="`;
+const aset = [{ id:"a1", nama:NAMA_NAKAL, kategori:"Saham", platform:"Stockbit", modal:1000000,
+  nilai:1250000, jumlah_unit:100, terakhir:hariIni(), user_id:USER_ID, value_history:[] }];
+const budgets = [{ kategori:"Makanan", jumlah:1000000 }];
+const settingsRow = [{ data: { accounts:["BCA","GoPay"], accountIcons:{}, account_currencies:{}, themeColor:null,
+  custom_categories:{ pengeluaran:{ parents:["Rumah Tangga"], subs:{ "Rumah Tangga":["Listrik"] } },
+                      pemasukan:{ parents:[], subs:{} } },
+  hidden_categories:{ pengeluaran:[], pemasukan:[] } } }];
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -54,6 +64,9 @@ await context.route("**/functions/v1/**", (r) => r.fulfill(json({ ok: true })));
 await context.route("**/rest/v1/**", (r) => r.fulfill(json([])));
 await context.route("**/auth/v1/**", (r) => r.fulfill(json(session)));
 await context.route("**/rest/v1/transactions**", (r) => r.fulfill(json(tx)));
+await context.route("**/rest/v1/assets**", (r) => r.fulfill(json(aset)));
+await context.route("**/rest/v1/budgets**", (r) => r.fulfill(json(budgets)));
+await context.route("**/rest/v1/settings**", (r) => (r.request().method() === "GET" ? r.fulfill(json(settingsRow)) : r.fulfill(json({}), 201)));
 
 const page = await context.newPage();
 const errorHalaman = [];
@@ -238,9 +251,107 @@ await page.waitForTimeout(1000);
 ok(await page.evaluate(() => document.getElementById("view-budget").classList.contains("block")),
   "U7: registry pulih utuh setelah disulih (aksi asli jalan lagi)");
 
+// ===================== U8: HTML DINAMIS (Fase 4 tahap B) =====================
+// Elemen di bawah ini TIDAK ada di index.html -- semuanya dirender runtime dari
+// template JS. Dulu mereka memakai onclick= dengan data pengguna disisipkan ke
+// dalam string kode lewat jsStr().
+console.log("\n-- U8: aksi pada HTML yang dirender runtime --");
+await page.evaluate(() => switchView("transaksi"));
+await page.waitForTimeout(1800);
+const u8 = await page.evaluate(() => {
+  const reg = uiActionRegistry();
+  const el = [...document.querySelectorAll("[data-action]")].filter((e) => !e.closest("#appShell > nav"));
+  const dinamis = [...document.querySelectorAll('[data-action="hapusData"], [data-action="editDataForm"]')];
+  return {
+    totalDom: el.length,
+    dinamis: dinamis.length,
+    argsContoh: dinamis[0] ? dinamis[0].getAttribute("data-args") : null,
+    takTerpetakan: [...new Set([...document.querySelectorAll("[data-action]")]
+      .map((e) => e.getAttribute("data-action")))].filter((n) => typeof reg[n] !== "function"),
+  };
+});
+ok(u8.dinamis > 0, "U8: tombol dari HTML dinamis hadir (edit/hapus transaksi)", `${u8.dinamis} tombol`);
+ok(u8.takTerpetakan.length === 0, "U8: seluruh aksi di DOM (statis + dinamis) terpetakan ke fungsi",
+  u8.takTerpetakan.join(", ") || "semua terpetakan");
+
+// argumen dari data dinamis sampai utuh ke fungsi
+const u8b = await page.evaluate(async () => {
+  const reg = uiActionRegistry();
+  const asli = reg.hapusData;
+  let diterima = null;
+  reg.hapusData = (...args) => { diterima = args; };
+  const btn = document.querySelector('[data-action="hapusData"]');
+  const diharapkan = JSON.parse(btn.getAttribute("data-args"));
+  btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 200));
+  reg.hapusData = asli;
+  return { diterima, diharapkan };
+});
+ok(JSON.stringify(u8b.diterima) === JSON.stringify(u8b.diharapkan),
+  "U8: argumen dari data dinamis sampai utuh ke fungsi",
+  `${JSON.stringify(u8b.diterima)} vs ${JSON.stringify(u8b.diharapkan)}`);
+
+// ---- U9: data pengguna "nakal" tidak bisa memutus atribut / jadi kode ----
+console.log("\n-- U9: data pengguna nakal pada HTML dinamis --");
+await page.evaluate(() => switchView("aset"));
+await page.waitForTimeout(1800);
+const u9 = await page.evaluate(() => {
+  const kartu = document.querySelector('[data-action="openAssetDetailModal"]');
+  if (!kartu) return { ada: false };
+  return {
+    ada: true,
+    punyaOnmouseover: kartu.hasAttribute("onmouseover"),
+    args: JSON.parse(kartu.getAttribute("data-args")),
+    adaAtributLiar: [...document.querySelectorAll("[onmouseover]")].length,
+  };
+});
+ok(u9.ada, "U9: kartu aset (HTML dinamis) ter-render");
+ok(u9.ada && !u9.punyaOnmouseover && u9.adaAtributLiar === 0,
+  "U9: nama aset berisi kutip+onmouseover TIDAK menjadi atribut baru",
+  `atribut liar=${u9.adaAtributLiar}`);
+
+// ---- U10: yang dulu dijaga stopPropagation ----
+// Tombol ubah/hapus di dalam baris yang juga bisa diklik. Dulu memakai
+// event.stopPropagation() agar aksi induk tidak ikut jalan; sekarang closest()
+// yang menjaminnya. Ini cek langsung bahwa induknya BENAR-BENAR tidak terpanggil.
+console.log("\n-- U10: aksi anak tidak ikut memicu aksi induk --");
+const u10 = await page.evaluate(async () => {
+  // Cari pasangan bersarang APA PUN di DOM saat ini: elemen ber-data-action yang
+  // punya leluhur ber-data-action. Jangan mematok nama tertentu -- querySelector
+  // bisa menangkap tombol STATIS berNAMA sama yang tidak bersarang.
+  // WAJIB pasangan dengan nama aksi BERBEDA. Kalau anak & induk kebetulan
+  // memanggil aksi yang sama (ada satu pasangan begitu di nav), cek "induk tidak
+  // ikut jalan" jadi hampa -- tidak ada yang bisa dibedakan. Ini pernah terjadi
+  // saat harness ini pertama ditulis dan menghasilkan PASS palsu.
+  let anak = null, induk = null;
+  for (const kandidat of document.querySelectorAll("[data-action]")) {
+    const atas = kandidat.parentElement && kandidat.parentElement.closest("[data-action]");
+    if (atas && atas.getAttribute("data-action") !== kandidat.getAttribute("data-action")) {
+      anak = kandidat; induk = atas; break;
+    }
+  }
+  if (!anak) return { ada: false, alasan: "tidak ada pasangan bersarang bernama beda di DOM ini" };
+  const reg = uiActionRegistry();
+  const namaAnak = anak.getAttribute("data-action");
+  const namaInduk = induk.getAttribute("data-action");
+  const asliAnak = reg[namaAnak], asliInduk = reg[namaInduk];
+  let anakJalan = 0, indukJalan = 0;
+  reg[namaAnak] = () => { anakJalan += 1; };
+  reg[namaInduk] = () => { indukJalan += 1; };
+  anak.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 200));
+  reg[namaAnak] = asliAnak; reg[namaInduk] = asliInduk;
+  return { ada: true, namaAnak, namaInduk, anakJalan, indukJalan };
+});
+ok(u10.ada, "U10: menemukan tombol anak yang bersarang di baris yang bisa diklik",
+  u10.ada ? `${u10.namaAnak} di dalam ${u10.namaInduk}` : (u10.alasan || ""));
+ok(u10.ada && u10.anakJalan === 1, "U10: aksi ANAK jalan tepat sekali", `${u10.anakJalan}x`);
+ok(u10.ada && u10.indukJalan === 0,
+  "U10: aksi INDUK TIDAK ikut jalan (pengganti event.stopPropagation)", `${u10.indukJalan}x`);
+
 // ===================== ringkasan =====================
 const errorTakTerduga = konsolError.filter((t) => !t.includes("[ui-action]"));
-console.log("\n== HASIL VERIFY UI ACTIONS (18 cek) ==");
+console.log("\n== HASIL VERIFY UI ACTIONS (26 cek) ==");
 console.log(`Error halaman (${errorHalaman.length})`);
 [...new Set(errorHalaman)].slice(0, 5).forEach((e) => console.log(`   ${e}`));
 console.log(`console.error di luar [ui-action] (${errorTakTerduga.length})`);

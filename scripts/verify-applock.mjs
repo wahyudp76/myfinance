@@ -182,10 +182,9 @@ await page.waitForTimeout(400);
 await page.fill("#applock-set-pin", PIN);
 await page.fill("#applock-set-pin2", PIN);
 const putsBaseline = settingsPuts.length;
-// CATATAN: tombol ini masih onclick= karena DIRENDER app.src.js (HTML dinamis).
-// Fase 4 tahap A cuma mengonversi markup statis index.html; jangan ikut diubah
-// ke data-action sebelum tahap B benar-benar mengonversi HTML dinamis itu.
-await page.click('button[onclick="appLockEnableFromModal()"]');
+// v102: HTML dinamis App Lock ikut dikonversi di Fase 4 tahap B, jadi selector
+// ini sekarang data-action (dulu onclick=).
+await page.click('button[data-action="appLockEnableFromModal"]');
 await waitUntil(() => settingsPuts.length > putsBaseline, 10000, "PUT settings setelah aktifkan kunci");
 {
   const delta = settingsPuts[settingsPuts.length - 1];

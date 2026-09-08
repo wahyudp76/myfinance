@@ -166,7 +166,7 @@ ok("sparkline hero (in/out/net) ter-render", await page.evaluate(() =>
 {
   const recentRows = await page.locator("#recent-transactions-list > div.stagger-item").count();
   const recentBars = await page.locator("#recent-transactions-list .hud-bar-fill").count();
-  const pageBtns = await page.locator("#recent-transactions-list button[onclick^='setRecentTransactionsPage']").count();
+  const pageBtns = await page.locator("#recent-transactions-list button[data-action='setRecentTransactionsPage']").count();
   ok("10 baris log transaksi (paginasi) + bar nominal + tombol halaman",
     recentRows === 10 && recentBars === 10 && pageBtns >= 2,
     `rows=${recentRows} bars=${recentBars} pageBtns=${pageBtns}`);

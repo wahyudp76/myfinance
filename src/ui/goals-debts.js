@@ -37,6 +37,8 @@
  * computeDebtProgress, commit a9311c8).
  */
 
+import { uiActionAttrs } from "../domain/sanitize.js";
+
 const goalIconPalette = ["fa-plane", "fa-house", "fa-car", "fa-graduation-cap", "fa-ring", "fa-piggy-bank", "fa-laptop", "fa-umbrella-beach", "fa-gift", "fa-heart-pulse"];
 const goalColorPalette = [
   { bg: "bg-indigo-100", color: "text-indigo-500" }, { bg: "bg-rose-100", color: "text-rose-500" },
@@ -64,12 +66,12 @@ const debtColorPalette = [
 export function renderGoalIconColorPalette({ document, formState }) {
   const iconWrap = document.getElementById("goal-icon-palette");
   iconWrap.innerHTML = goalIconPalette.map(ic => `
-        <button type="button" onclick="pickGoalIcon('${ic}')" class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === formState.icon ? formState.bg + " " + formState.color + " ring-2 ring-offset-1 ring-indigo-400" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}">
+        <button type="button"${uiActionAttrs('pickGoalIcon', ic)} class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === formState.icon ? formState.bg + " " + formState.color + " ring-2 ring-offset-1 ring-indigo-400" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}">
             <i class="fas ${ic} text-sm"></i>
         </button>`).join("");
   const colorWrap = document.getElementById("goal-color-palette");
   colorWrap.innerHTML = goalColorPalette.map(c => `
-        <button type="button" onclick="pickGoalColor('${c.bg}','${c.color}')" class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === formState.bg ? "ring-2 ring-offset-1 ring-indigo-400" : ""}">
+        <button type="button"${uiActionAttrs('pickGoalColor', c.bg, c.color)} class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === formState.bg ? "ring-2 ring-offset-1 ring-indigo-400" : ""}">
             ${c.bg === formState.bg ? `<i class="fas fa-check text-[10px] ${c.color}"></i>` : ""}
         </button>`).join("");
 }
@@ -118,8 +120,8 @@ export function renderGoalsList({ document, appSettings, computeGoalProgress, es
                 </div>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
-                <button onclick="openGoalModal(true,'${g.id}')" aria-label="Ubah tujuan" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
-                <button onclick="removeGoal('${g.id}')" aria-label="Hapus tujuan" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
+                <button${uiActionAttrs('openGoalModal', true, g.id)} aria-label="Ubah tujuan" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
+                <button${uiActionAttrs('removeGoal', g.id)} aria-label="Hapus tujuan" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
             </div>
         </div>
         <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
@@ -131,7 +133,7 @@ export function renderGoalsList({ document, appSettings, computeGoalProgress, es
         </div>
         ${isDone
             ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Tercapai!</div>`
-            : `<button onclick="openGoalContributeModal('${g.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Setor Dana <span class="text-slate-400 font-normal">(sisa Rp ${new Intl.NumberFormat("id-ID").format(sisa)})</span></button>`}
+            : `<button${uiActionAttrs('openGoalContributeModal', g.id)} class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Setor Dana <span class="text-slate-400 font-normal">(sisa Rp ${new Intl.NumberFormat("id-ID").format(sisa)})</span></button>`}
     </div>`;
   }).join("");
 }
@@ -148,12 +150,12 @@ export function renderGoalsList({ document, appSettings, computeGoalProgress, es
 export function renderDebtIconColorPalette({ document, formState }) {
   const iconWrap = document.getElementById("debt-icon-palette");
   iconWrap.innerHTML = debtIconPalette.map(ic => `
-        <button type="button" onclick="pickDebtIcon('${ic}')" class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === formState.icon ? formState.bg + " " + formState.color + " ring-2 ring-offset-1 ring-rose-400" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}">
+        <button type="button"${uiActionAttrs('pickDebtIcon', ic)} class="w-full aspect-square rounded-xl flex items-center justify-center transition ${ic === formState.icon ? formState.bg + " " + formState.color + " ring-2 ring-offset-1 ring-rose-400" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}">
             <i class="fas ${ic} text-sm"></i>
         </button>`).join("");
   const colorWrap = document.getElementById("debt-color-palette");
   colorWrap.innerHTML = debtColorPalette.map(c => `
-        <button type="button" onclick="pickDebtColor('${c.bg}','${c.color}')" class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === formState.bg ? "ring-2 ring-offset-1 ring-rose-400" : ""}">
+        <button type="button"${uiActionAttrs('pickDebtColor', c.bg, c.color)} class="w-8 h-8 rounded-full ${c.bg} flex items-center justify-center transition ${c.bg === formState.bg ? "ring-2 ring-offset-1 ring-rose-400" : ""}">
             ${c.bg === formState.bg ? `<i class="fas fa-check text-[10px] ${c.color}"></i>` : ""}
         </button>`).join("");
 }
@@ -202,8 +204,8 @@ export function renderDebtsList({ document, appSettings, computeDebtProgress, es
                 </div>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
-                <button onclick="openDebtModal(true,'${d.id}')" aria-label="Ubah utang" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
-                <button onclick="removeDebt('${d.id}')" aria-label="Hapus utang" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
+                <button${uiActionAttrs('openDebtModal', true, d.id)} aria-label="Ubah utang" class="w-7 h-7 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-pencil text-[10px]"></i></button>
+                <button${uiActionAttrs('removeDebt', d.id)} aria-label="Hapus utang" class="w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition flex items-center justify-center"><i class="fas fa-trash text-[10px]"></i></button>
             </div>
         </div>
         <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
@@ -215,7 +217,7 @@ export function renderDebtsList({ document, appSettings, computeDebtProgress, es
         </div>
         ${isLunas
             ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Lunas!</div>`
-            : `<button onclick="openDebtPayModal('${d.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Bayar Cicilan</button>`}
+            : `<button${uiActionAttrs('openDebtPayModal', d.id)} class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Bayar Cicilan</button>`}
     </div>`;
   }).join("");
 }

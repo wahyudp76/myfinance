@@ -38,6 +38,7 @@
  */
 
 import { hudBarDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud.js";
+import { uiActionAttrs } from "../domain/sanitize.js";
 // CELAH LEGEND <-> PLOT (fix v63): tidak ada opsi Chart.js utk jarak VERTIKAL
 // antara kotak legend (atas) dan area plot -- layout selalu menempatkan
 // chartArea.top TEPAT di tepi bawah legend. Menggesernya via plugin
@@ -297,7 +298,7 @@ export function renderBudgetView({
         <p class="text-3xl mb-2">🎯</p>
         <p class="text-sm font-extrabold text-slate-600 mb-1">Belum ada budget untuk bulan ini</p>
         <p class="text-xs text-slate-400 mb-4">Yuk buat budget pengeluaranmu secara digital agar pengeluaran terkendali!</p>
-        <button onclick="openBudgetModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs font-bold transition-colors shadow-sm inline-flex items-center gap-2"><i class="fas fa-plus"></i> Buat Anggaran Pertama</button>
+        <button${uiActionAttrs('openBudgetModal')} class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs font-bold transition-colors shadow-sm inline-flex items-center gap-2"><i class="fas fa-plus"></i> Buat Anggaran Pertama</button>
     </div>`;
   } else {
     listEl.innerHTML = entries.map((e, idx) => {
@@ -332,7 +333,7 @@ export function renderBudgetView({
       }).join("") : "";
 
       return `<div class="stagger-item bg-white rounded-2xl border border-slate-100 shadow-sm transition hover:shadow-md overflow-hidden" style="animation-delay: ${idx * 45}ms">
-        <div class="p-4 ${canExpand ? "cursor-pointer select-none" : ""}" ${canExpand ? `onclick="toggleAccordion('${accId}')"` : ""}>
+        <div class="p-4 ${canExpand ? "cursor-pointer select-none" : ""}" ${canExpand ? uiActionAttrs("toggleAccordion", accId) : ""}>
             <div class="flex items-center justify-between mb-2.5 gap-2">
                 <div class="flex items-center min-w-0">
                     ${categoryIconHtml(e, "w-9 h-9 rounded-xl flex items-center justify-center mr-3 flex-shrink-0", "text-xs")}

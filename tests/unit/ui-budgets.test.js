@@ -170,7 +170,7 @@ test("renderBudgetView: daftar kategori -- badge & bar per level, width di-clamp
   // parent 1 (120% -> over, clamp 100)
   assert.match(html, /Over Budget/);
   assert.match(html, /bg-rose-400 transition-all duration-700 ease-out" style="width:100%;"/);
-  assert.match(html, /onclick="toggleAccordion\('budget-acc-0'\)"/);
+  assert.match(html, /data-action="toggleAccordion" data-args="\[&quot;budget-acc-0&quot;\]"/);
   assert.match(html, /Rincian Sub-kategori/);
   assert.match(html, /Rp 120\.000 <span class="text-slate-300">\/ Rp 100\.000<\/span>/);
   // sub (50% -> safe/Aman)
@@ -192,7 +192,7 @@ test("renderBudgetView: entries kosong -> tanpa chart, overlay muncul, CTA 'Buat
   assert.match(els["budget-status-msg"].innerText, /Yuk mulai atur budget kamu di cloud!/);
   const html = els["budget-category-list"].innerHTML;
   assert.match(html, /Belum ada budget untuk bulan ini/);
-  assert.match(html, /onclick="openBudgetModal\(\)"/);
+  assert.match(html, /data-action="openBudgetModal"/);
   assert.match(html, /Buat Anggaran Pertama/);
 });
 

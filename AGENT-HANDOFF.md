@@ -2115,3 +2115,71 @@ aksi induk, karena dispatcher berjalan di `document` setelah bubbling selesai.
 Perlu penanganan eksplisit (mis. atribut `data-stop` yang dicek dispatcher).
 CSP `'unsafe-inline'` baru bisa dilepas setelah tahap B selesai DAN blok
 `<script>` inline di index.html ikut ditangani.
+
+## v102 — Fase 4 tahap B: onclick= di HTML DINAMIS dihapus (tuntas)
+**HASIL:** seluruh repo kini **0 atribut onclick=** -- index.html (tahap A, v101)
+maupun HTML yang dirender runtime dari `app.src.js` + 5 modul `src/ui/*`.
+59 lokasi dikonversi di tahap ini.
+
+**KENAPA TAHAP INI LEBIH BERHARGA DARI TAHAP A:** pola lama menyisipkan DATA
+PENGGUNA ke dalam STRING KODE -- `onclick="hapusData('${jsStr(row.id)}')"`.
+Keamanannya bergantung pada `jsStr()` meloloskan setiap karakter yang bisa
+memutus literal. Sekarang data pengguna tidak pernah jadi kode: ia jadi JSON di
+dalam atribut (`data-args`), dibaca balik dengan `JSON.parse`. Efek sampingnya
+dua modul kehilangan parameter `jsStr` karena benar-benar tidak terpakai lagi.
+
+**HELPER BARU:** `uiActionAttrs(action, ...args)` di `src/domain/sanitize.js`
+(satu sumber kebenaran, ter-uji), dengan salinan cadangan di `__sanitize`
+app.src.js untuk masa sebelum modul ter-adopsi. Kesamaan keduanya dijaga tes
+paritas -- dan tes itu SENDIRI sempat bocor: kasus ujinya cuma memakai nama aksi
+"normal", sehingga melepas escapeHtml() dari NAMA aksi lolos tanpa ketahuan.
+Ditemukan saat uji negatif, lalu kasus nama-aksi-aneh ditambahkan.
+
+**KEPUTUSAN stopPropagation (diukur, bukan diasumsikan):** dua handler lama
+memanggil `event.stopPropagation()` supaya aksi baris induk tidak ikut jalan.
+Sebelum memutuskan, DOM sungguhan diukur dengan data ter-seed di 7 view + 5
+modal: dari **2275 elemen ber-onclick dinamis, 410 bersarang di dalam elemen
+ber-onclick lain, dan 100% di antaranya memakai stopPropagation** -- tidak ada
+satu pun yang tidak. Artinya `closest()` (hanya menjalankan aksi TERDEKAT)
+menghasilkan perilaku identik, dan `stopPropagation` tidak lagi diperlukan.
+Juga diperiksa: satu-satunya listener klik lain di leluhur adalah dua container
+delegasi yang ber-scope ketat (`closest("[data-insight-idx]")` /
+`[data-ai-rec-idx]`), jadi tidak ada listener yang jadi ikut terpicu.
+
+**JEBAKAN KONVERSI (semua ditemukan lewat gerbang, bukan lewat tebakan):**
+1. Argumen berkutip yang memuat interpolasi -- `'tree-${type}-${idx}'` -- BERHENTI
+   diinterpolasi begitu dipindah ke dalam `${...}`. Harus jadi template literal.
+2. Tujuh potongan HTML App Lock dibangun dengan STRING BERKUTIP TUNGGAL, bukan
+   template literal; `${uiActionAttrs(...)}` di situ hanya jadi teks. Diubah ke
+   konkatenasi.
+3. Tombol darurat "Muat Ulang" di `showFallbackError` SENGAJA tidak memakai
+   data-action, melainkan addEventListener langsung: itu layar saat aplikasi
+   GAGAL BOOT, sedangkan dispatcher dipasang ~1200 baris di bawahnya. Kalau
+   app.js melempar di tengah, handler error sudah ada tapi dispatcher belum --
+   justru saat itulah tombol pelarian paling dibutuhkan.
+4. Kontrak `onClickItem` diubah dari "mengembalikan STRING kode onclick" jadi
+   "mengembalikan {action, args}".
+
+**VERIFIKASI (semua dibuktikan MERAH dulu):**
+- `tests/unit/ui-actions.test.js` kini 17 tes. Lima sabotase tahap B diuji:
+  salah ketik aksi dinamis, onclick= diselundupkan kembali ke app.src.js, nama
+  aksi variabel salah, fallback menyimpang dari modul, dan escape data pengguna
+  dilepas.
+- `scripts/verify-ui-actions.mjs` naik 18 -> 26 cek. Tambahan penting:
+  U8 argumen dari data dinamis sampai utuh ke fungsi; U9 nama aset berisi
+  `" onmouseover="alert(1)` TIDAK menjadi atribut baru (0 atribut liar);
+  U10 aksi anak jalan 1x sementara aksi INDUK 0x -- pengganti stopPropagation,
+  diuji pada pasangan dinamis nyata `openAssetModal` di dalam
+  `openAssetDetailModal`.
+  U10 sempat PASS PALSU karena memilih pasangan bersarang yang nama aksinya
+  sama (`switchView` di dalam `switchView`) sehingga tidak ada yang bisa
+  dibedakan; sekarang harness WAJIB memilih pasangan bernama beda.
+- 9 unit test lama yang menuntut `onclick=` di HTML hasil render diperbarui ke
+  kontrak `data-action` + `data-args` ber-escape.
+- Gerbang: unit 847/847, eslint 0, build idempoten. E2E hud 69/69,
+  asset-logos 17/17, applock 21/21, applock-biometric 14/14, offline-cache
+  13/13, ui-actions 26/26. CACHE_VERSION v135 -> v136.
+
+**CSP:** `'unsafe-inline'` pada `script-src` BELUM bisa dilepas -- index.html
+masih memuat 6 blok `<script>` inline. Itu langkah terpisah berikutnya, dan
+sekarang jalannya sudah bersih karena tidak ada lagi atribut handler inline.

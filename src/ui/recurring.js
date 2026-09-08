@@ -21,6 +21,8 @@
  * 100% sama seperti kode lama -- ini pemindahan, bukan penulisan ulang.
  */
 
+import { uiActionAttrs } from "../domain/sanitize.js";
+
 /**
  * Update badge ringkasan Transaksi Berulang di Dashboard (elemen
  * `#recurring-summary-text`).
@@ -61,13 +63,12 @@ export function renderRecurringSummary({ document, globalRecurring, todayDateStr
  * @param {(nextDueDate: string, active: boolean, todayStr: string) => {daysLeft: number, level: string|null}} ctx.classifyRecurringDueBadge -
  *   dari src/domain/recurring.js (via servicesModule).
  * @param {(str: string) => string} ctx.escapeHtml
- * @param {(str: string) => string} ctx.jsStr - escape utk dipakai di dalam atribut onclick="...".
  * @param {(angka: number) => string} ctx.formatRp
  * @param {Record<string, string>} ctx.RECURRING_FREQ_LABEL
  */
 export function renderRecurringListModal({
   document, globalRecurring, todayDateStr, getCategoryStyle, categoryIconHtml,
-  classifyRecurringDueBadge, escapeHtml, jsStr, formatRp, RECURRING_FREQ_LABEL,
+  classifyRecurringDueBadge, escapeHtml, formatRp, RECURRING_FREQ_LABEL,
 }) {
   const container = document.getElementById("recurring-list-container");
   if (!container) return;
@@ -101,9 +102,9 @@ export function renderRecurringListModal({
             <p class="text-xs font-extrabold ${item.jenis === "Pengeluaran" ? "text-rose-500" : (item.jenis === "Pemasukan" ? "text-emerald-500" : "text-blue-500")}">${sign} Rp ${formatRp(item.jumlah)}</p>
         </div>
         <div class="flex items-center gap-1 flex-shrink-0">
-            <button onclick="toggleRecurringActive('${jsStr(item.id)}', ${item.active})" aria-label="${item.active ? "Jeda" : "Aktifkan"}" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center"><i class="fas ${item.active ? "fa-pause" : "fa-play"} text-[11px]"></i></button>
-            <button onclick="openRecurringFormModal('${jsStr(item.id)}')" aria-label="Edit" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center"><i class="fas fa-pencil text-[11px]"></i></button>
-            <button onclick="deleteRecurringTemplate('${jsStr(item.id)}')" aria-label="Hapus" class="w-7 h-7 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center"><i class="fas fa-trash-alt text-[11px]"></i></button>
+            <button${uiActionAttrs('toggleRecurringActive', item.id, item.active)} aria-label="${item.active ? "Jeda" : "Aktifkan"}" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center"><i class="fas ${item.active ? "fa-pause" : "fa-play"} text-[11px]"></i></button>
+            <button${uiActionAttrs('openRecurringFormModal', item.id)} aria-label="Edit" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center"><i class="fas fa-pencil text-[11px]"></i></button>
+            <button${uiActionAttrs('deleteRecurringTemplate', item.id)} aria-label="Hapus" class="w-7 h-7 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center"><i class="fas fa-trash-alt text-[11px]"></i></button>
         </div>
     </div>`;
   }).join("");

@@ -48,7 +48,6 @@
  * @param {(el: object, targetValue: number, maskable?: boolean) => void} ctx.animateRupiah - helper animasi angka di index.html.
  * @param {(str: string) => string} ctx.escapeHtml
  * @param {(angka: number) => string} ctx.formatRp
- * @param {(str: string) => string} ctx.jsStr - escape utk dipakai di dalam atribut onclick="...".
  * @param {(platform: string) => string} ctx.getAccountLogo - logo akun/platform (HTML kecil) dari index.html.
  * @param {(kategori: string) => string} ctx.detectAssetCategoryIcon - nama ikon FontAwesome utk kategori aset.
  * @param {(opts: object) => void} ctx.renderDonutBreakdown - renderer legenda donut bersama di index.html.
@@ -58,11 +57,12 @@
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan karena bisa di-reassign utuh).
  */
 import { hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
+import { uiActionAttrs } from "../domain/sanitize.js";
 
 export function renderAssetView({
   document, globalAssets, appSettings,
   summarizeAssets, computeNetWorth,
-  animateRupiah, escapeHtml, formatRp, jsStr,
+  animateRupiah, escapeHtml, formatRp,
   getAccountLogo, detectAssetCategoryIcon, renderDonutBreakdown,
   chartEmptyColor, Chart, charts,
 }) {
@@ -109,7 +109,7 @@ export function renderAssetView({
       const iconCls = a.isUp ? "fa-arrow-trend-up" : "fa-arrow-trend-down";
 
       html += `
-        <div onclick="openAssetDetailModal('${jsStr(a.id)}')" class="bg-white rounded-xl p-3 md:p-4 mb-3 border border-slate-100 hover:shadow-md hover:border-indigo-100 transition group cursor-pointer">
+        <div${uiActionAttrs('openAssetDetailModal', a.id)} class="bg-white rounded-xl p-3 md:p-4 mb-3 border border-slate-100 hover:shadow-md hover:border-indigo-100 transition group cursor-pointer">
                 <div class="flex justify-between items-start">
                     <div class="flex items-center min-w-0">
                         <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 flex items-center justify-center mr-3 flex-shrink-0 shadow-sm border border-white overflow-hidden">
@@ -124,8 +124,8 @@ export function renderAssetView({
                     </div>
                 </div>
                 <div class="flex items-center opacity-0 group-hover:opacity-100 transition duration-200">
-                    <button onclick="event.stopPropagation(); openAssetModal(true, '${a.id}')" aria-label="Edit" class="w-8 h-8 rounded hover:bg-blue-50 text-slate-300 hover:text-blue-500 transition"><i class="fas fa-pencil-alt text-xs"></i></button>
-                    <button onclick="event.stopPropagation(); deleteAssetData('${a.id}')" aria-label="Hapus" class="w-8 h-8 rounded hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition"><i class="fas fa-trash-alt text-xs"></i></button>
+                    <button${uiActionAttrs('openAssetModal', true, a.id)} aria-label="Edit" class="w-8 h-8 rounded hover:bg-blue-50 text-slate-300 hover:text-blue-500 transition"><i class="fas fa-pencil-alt text-xs"></i></button>
+                    <button${uiActionAttrs('deleteAssetData', a.id)} aria-label="Hapus" class="w-8 h-8 rounded hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition"><i class="fas fa-trash-alt text-xs"></i></button>
                 </div>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-50">

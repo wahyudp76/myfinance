@@ -43,12 +43,34 @@ export function jsStr(str) {
 }
 
 /**
+ * Membangun atribut aksi UI deklaratif untuk HTML yang DIHASILKAN runtime.
+ *
+ * Menggantikan pola lama `onclick="fn('${jsStr(nilai)}')"`. Bedanya bukan sekadar
+ * gaya: pada pola lama, data pengguna disisipkan ke dalam STRING KODE, sehingga
+ * keamanannya bergantung pada jsStr() meloloskan setiap karakter yang bisa
+ * memutus literal itu. Di sini data pengguna tidak pernah menjadi kode -- ia
+ * menjadi JSON di dalam atribut, lalu dibaca kembali dengan JSON.parse.
+ *
+ * Argumen di-JSON-kan supaya TIPE-nya utuh (angka tetap angka, boolean tetap
+ * boolean), lalu di-escape untuk atribut berkutip ganda.
+ *
+ * @param {string} action nama aksi yang terdaftar di registry aksi UI.
+ * @param {...*} args argumen yang diteruskan ke fungsi aksi.
+ * @returns {string} potongan atribut, sudah diawali satu spasi.
+ */
+export function uiActionAttrs(action, ...args) {
+    const dasar = ` data-action="${escapeHtml(action)}"`;
+    if (args.length === 0) return dasar;
+    return `${dasar} data-args="${escapeHtml(JSON.stringify(args))}"`;
+}
+
+/**
  * Konteks helper escape/sanitasi string murni. Dipanggil monolit lewat
  * servicesModule.sanitizeCtx() (pola yang sama dengan formatCtx/dateCtx/
  * categoryStyleCtx) agar blok classic mengadopsi implementasi ter-tes ini
  * sebagai satu sumber kebenaran tanpa menghapus definisi global lama dulu.
- * @returns {{escapeHtml: typeof escapeHtml, jsStr: typeof jsStr}}
+ * @returns {{escapeHtml: typeof escapeHtml, jsStr: typeof jsStr, uiActionAttrs: typeof uiActionAttrs}}
  */
 export function sanitizeCtx() {
-    return { escapeHtml, jsStr };
+    return { escapeHtml, jsStr, uiActionAttrs };
 }

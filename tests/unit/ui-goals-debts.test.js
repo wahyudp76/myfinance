@@ -26,8 +26,8 @@ test("renderGoalIconColorPalette: semua ikon ter-render dgn onclick pickGoalIcon
     document: doc,
     formState: { icon: "fa-house", bg: "bg-indigo-100", color: "text-indigo-500" },
   });
-  assert.match(iconWrap.innerHTML, /onclick="pickGoalIcon\('fa-plane'\)"/);
-  assert.match(iconWrap.innerHTML, /onclick="pickGoalIcon\('fa-house'\)"/);
+  assert.match(iconWrap.innerHTML, /data-action="pickGoalIcon" data-args="\[&quot;fa-plane&quot;\]"/);
+  assert.match(iconWrap.innerHTML, /data-action="pickGoalIcon" data-args="\[&quot;fa-house&quot;\]"/);
   assert.match(iconWrap.innerHTML, /fa-heart-pulse/); // 10 ikon palet lengkap
   // ikon terpilih (fa-house) dapat bg+color formState + ring indigo
   assert.match(iconWrap.innerHTML, /bg-indigo-100 text-indigo-500 ring-2 ring-offset-1 ring-indigo-400/);
@@ -42,8 +42,8 @@ test("renderGoalIconColorPalette: warna terpilih diberi centang + ring, onclick 
     document: doc,
     formState: { icon: "fa-piggy-bank", bg: "bg-rose-100", color: "text-rose-500" },
   });
-  assert.match(colorWrap.innerHTML, /onclick="pickGoalColor\('bg-indigo-100','text-indigo-500'\)"/);
-  assert.match(colorWrap.innerHTML, /onclick="pickGoalColor\('bg-rose-100','text-rose-500'\)"/);
+  assert.match(colorWrap.innerHTML, /data-action="pickGoalColor" data-args="\[&quot;bg-indigo-100&quot;,&quot;text-indigo-500&quot;\]"/);
+  assert.match(colorWrap.innerHTML, /data-action="pickGoalColor" data-args="\[&quot;bg-rose-100&quot;,&quot;text-rose-500&quot;\]"/);
   assert.match(colorWrap.innerHTML, /fa-check text-\[10px\] text-rose-500/); // centang warna terpilih
   assert.match(colorWrap.innerHTML, /ring-2 ring-offset-1 ring-indigo-400/);
 });
@@ -90,11 +90,11 @@ test("renderGoalsList: tujuan berjalan -> bar indigo, persen, sisa dgn format id
   assert.match(html, /40% -- Rp 400\.000/);
   assert.match(html, /dari Rp 1\.000\.000/);
   assert.match(html, /sisa Rp 600\.000/);
-  assert.match(html, /onclick="openGoalContributeModal\('g1'\)"/);
+  assert.match(html, /data-action="openGoalContributeModal" data-args="\[&quot;g1&quot;\]"/);
   assert.match(html, /\+ Setor Dana/);
   assert.match(html, /12 hari lagi/);
-  assert.match(html, /onclick="openGoalModal\(true,'g1'\)"/);
-  assert.match(html, /onclick="removeGoal\('g1'\)"/);
+  assert.match(html, /data-action="openGoalModal" data-args="\[true,&quot;g1&quot;\]"/);
+  assert.match(html, /data-action="removeGoal" data-args="\[&quot;g1&quot;\]"/);
 });
 
 test("renderGoalsList: deadline hari ini & lewat tenggat -> teks 'Hari ini' / 'Lewat tenggat'", () => {
@@ -152,9 +152,9 @@ test("renderDebtIconColorPalette: ikon terpilih diberi highlight ring rose, oncl
     document: doc,
     formState: { icon: "fa-car", bg: "bg-rose-100", color: "text-rose-500" },
   });
-  assert.match(iconWrap.innerHTML, /onclick="pickDebtIcon\('fa-credit-card'\)"/);
+  assert.match(iconWrap.innerHTML, /data-action="pickDebtIcon" data-args="\[&quot;fa-credit-card&quot;\]"/);
   assert.match(iconWrap.innerHTML, /bg-rose-100 text-rose-500 ring-2 ring-offset-1 ring-rose-400/);
-  assert.match(colorWrap.innerHTML, /onclick="pickDebtColor\('bg-orange-100','text-orange-500'\)"/);
+  assert.match(colorWrap.innerHTML, /data-action="pickDebtColor" data-args="\[&quot;bg-orange-100&quot;,&quot;text-orange-500&quot;\]"/);
 });
 
 // ===================== renderDebtsList =====================
@@ -192,10 +192,10 @@ test("renderDebtsList: utang berjalan -> bar rose, '25% terlunasi', sisa format 
   assert.match(html, /25% terlunasi/);
   assert.match(html, /sisa Rp 750\.000/);
   assert.match(html, /~8 bulan lagi \(estimasi\)/);
-  assert.match(html, /onclick="openDebtPayModal\('d1'\)"/);
+  assert.match(html, /data-action="openDebtPayModal" data-args="\[&quot;d1&quot;\]"/);
   assert.match(html, /\+ Bayar Cicilan/);
-  assert.match(html, /onclick="openDebtModal\(true,'d1'\)"/);
-  assert.match(html, /onclick="removeDebt\('d1'\)"/);
+  assert.match(html, /data-action="openDebtModal" data-args="\[true,&quot;d1&quot;\]"/);
+  assert.match(html, /data-action="removeDebt" data-args="\[&quot;d1&quot;\]"/);
 });
 
 test("renderDebtsList: lunas -> bar & teks emerald, badge 'Lunas!', tanpa tombol Bayar Cicilan, tanpa estimasi", () => {

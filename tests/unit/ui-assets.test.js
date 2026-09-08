@@ -124,14 +124,14 @@ test("renderAssetView: belum ada aset -> empty state 'Belum ada aset' + count 0"
   assert.equal(doc.els["asset-count"].innerText, 0);
 });
 
-test("renderAssetView: kartu aset -> nama/platform di-escape, logo platform, onclick detail dgn jsStr, tombol edit/hapus stopPropagation", () => {
+test("renderAssetView: kartu aset -> nama/platform di-escape, logo platform, aksi detail lewat data-action, tombol edit/hapus bersarang (closest yang memilih)", () => {
   const { deps, doc } = makeDeps();
   renderAssetView(deps);
   const html = doc.els["asset-list-container"].innerHTML;
-  assert.match(html, /onclick="openAssetDetailModal\('a1'\)"/);
-  assert.match(html, /onclick="openAssetDetailModal\('a2'\)"/);
-  assert.match(html, /onclick="event\.stopPropagation\(\); openAssetModal\(true, 'a1'\)"/);
-  assert.match(html, /onclick="event\.stopPropagation\(\); deleteAssetData\('a2'\)"/);
+  assert.match(html, /data-action="openAssetDetailModal" data-args="\[&quot;a1&quot;\]"/);
+  assert.match(html, /data-action="openAssetDetailModal" data-args="\[&quot;a2&quot;\]"/);
+  assert.match(html, /data-action="openAssetModal" data-args="\[true,&quot;a1&quot;\]"/);
+  assert.match(html, /data-action="deleteAssetData" data-args="\[&quot;a2&quot;\]"/);
   assert.match(html, /data-p="Antam"/); // getAccountLogo(a.platform)
   assert.match(html, /Sea&lt;b&gt;bank&lt;\/b&gt;/); // escapeHtml nama
   assert.match(html, />Emas<\/span>/); // kategori badge (v70: kini di-escape; teks polos tetap verbatim)
