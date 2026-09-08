@@ -1150,6 +1150,118 @@ async function currentUserId() {
         window.addEventListener('online', () => { updateOfflineBanner(); showSuccessToast('Koneksi internet kembali normal.'); });
         window.addEventListener('offline', () => { updateOfflineBanner(); });
 
+        // ===================================================================
+        // AKSI UI DEKLARATIF (Fase 4) — pengganti atribut onclick= di markup
+        // ===================================================================
+        // KENAPA: atribut onclick= mencampur perilaku ke dalam markup, memaksa
+        // setiap handler jadi GLOBAL selamanya, dan menyeret 'unsafe-inline'
+        // ke CSP. Penggantinya: markup cuma menyatakan NIAT lewat
+        // data-action="namaAksi" (+ data-args JSON opsional), sedangkan
+        // pemetaan niat -> fungsi hidup di satu tempat di sini.
+        //
+        // KENAPA DELEGASI DI document (bukan addEventListener per elemen):
+        //   1. satu listener untuk semua, termasuk elemen yang BELUM ada saat
+        //      boot (dipakai tahap berikutnya untuk daftar yang dirender ulang);
+        //   2. tidak perlu memasang ulang tiap kali sebuah daftar dirender.
+        // Konsekuensi yang SUDAH diperiksa sebelum pola ini dipilih:
+        //   - handler yang memanggil event.stopPropagation() di ANTARA target
+        //     dan document akan membatalkan aksi ini. Saat konversi ini dibuat
+        //     tidak ada satu pun stopPropagation di markup index.html (dua yang
+        //     ada semuanya di HTML dinamis app.src.js dan masih inline).
+        //   - kalau elemen ber-data-action bersarang di dalam elemen
+        //     ber-data-action lain, closest() memilih yang TERDEKAT saja (dulu
+        //     dua-duanya jalan). Saat konversi cuma ada satu sarang begitu dan
+        //     keduanya memanggil switchView('transaksi') -> hasilnya identik.
+        //
+        // Registry dibangun MALAS (saat klik pertama), bukan saat parse: sebagian
+        // handler dideklarasikan jauh di bawah dan sebagian variabel yang
+        // dirujuknya (mis. currentAssetDetailId) baru terisi belakangan.
+        let __uiActionsCache = null;
+        function uiActionRegistry() {
+            if (__uiActionsCache) return __uiActionsCache;
+            __uiActionsCache = {
+                _confirmYes, addParentCategory, addSubCategory, appLockBiometricUnlock, appLockRecover,
+                appLockShowForgot, appLockSubmit, applyCategorySuggestion, categoryDetailShiftMonth,
+                checkForAppUpdate, clearTxAmountFilter, closeAccountModal, closeAppLockModal,
+                closeAssetDetailModal, closeAssetModal, closeBudgetModal, closeCalendarDetail,
+                closeCategorySelector, closeCategoryStyleModal, closeConfirmModal, closeDebtModal,
+                closeDebtPayModal, closeGoalContributeModal, closeGoalModal, closeManualNavModal,
+                closeModal, closeProfileModal, closeRecurringFormModal, closeRecurringListModal,
+                copyPrevMonthBudget, exportAssetsCsv, exportFullBackup, exportTransactionsCsv,
+                exportTransactionsCsvByRange, handleRefreshAssetPrice, hideErrorToast, loadData,
+                openAccountModal, openAppLockModal, openAssetModal, openBudgetModal, openCategorySelector,
+                openCommandPalette, openDebtModal, openGoalModal, openManualNavModal, openModal,
+                openProfileModal, openRecurringFormModal, openRecurringListModal, refreshAllAssetPrices,
+                removeDemoData, removeProfileAvatarSelection, requestAiInsight, requestMonthlySummary,
+                requestNotificationPermission, resetAccountIconToAuto, resetCategoryStyleToDefault,
+                saveBudgets, scrollActiveViewToTop, seedDemoData, sendAiChatQuestion, setAccIconTab,
+                setCatFormMode, setCatStyleTab, setChartPalette, setThemeColor, setThemePref,
+                shiftReportYear, submitAccountModal, submitCategoryStyleModal, submitFormNewAndRepeat,
+                submitManualNav, submitPasswordChange, submitProfileModal, submitRecurringForm, switchView,
+                toggleNominalVisibility, toggleTxAmountFilter, triggerStrukScan,
+                // Pembungkus untuk bentuk yang dulu ditulis sebagai kode inline.
+                // Sengaja jadi fungsi bernama supaya tetap bisa di-grep & diuji.
+                editAsetDariDetail, pilihBerkasBackup,
+                kirimFormTransaksi, kirimFormAset, kirimFormTujuan, kirimFormUtang,
+            };
+            return __uiActionsCache;
+        }
+
+        // Bekas onclick="closeAssetDetailModal(); openAssetModal(true, currentAssetDetailId)"
+        function editAsetDariDetail() {
+            closeAssetDetailModal();
+            openAssetModal(true, currentAssetDetailId);
+        }
+        // Bekas onclick="document.getElementById('backupFileInput').click()"
+        function pilihBerkasBackup() {
+            const input = document.getElementById('backupFileInput');
+            if (input) input.click();
+        }
+        // Bekas onclick="submitX(new Event('submit'))" -- tombol di luar <form>
+        // yang meniru submit; Event sintetis dipertahankan supaya fungsi target
+        // tidak perlu diubah sama sekali di tahap ini.
+        function kirimFormTransaksi() { submitForm(new Event('submit')); }
+        function kirimFormAset() { submitAsset(new Event('submit')); }
+        function kirimFormTujuan() { submitGoalForm(new Event('submit')); }
+        function kirimFormUtang() { submitDebtForm(new Event('submit')); }
+
+        // Argumen ditulis sebagai JSON di data-args supaya TIPE-nya persis
+        // seperti dulu: "1" tetap angka, "true" tetap boolean, null tetap null.
+        // Isinya selalu literal yang ditulis pengembang di index.html (tidak
+        // pernah data pengguna), dan JSON.parse tidak pernah mengeksekusi kode.
+        function parseUiActionArgs(el) {
+            const mentah = el.getAttribute('data-args');
+            if (!mentah) return [];
+            try {
+                const nilai = JSON.parse(mentah);
+                return Array.isArray(nilai) ? nilai : [nilai];
+            } catch (err) {
+                console.error('[ui-action] data-args bukan JSON valid:', mentah, el);
+                return null;
+            }
+        }
+
+        function runUiAction(nama, args, el) {
+            const fn = uiActionRegistry()[nama];
+            if (typeof fn !== 'function') {
+                // Sengaja BERISIK: tombol mati diam-diam adalah persis kegagalan
+                // yang paling sulit dilacak pada pola onclick= yang lama.
+                console.error('[ui-action] aksi tidak dikenal:', nama, el);
+                return;
+            }
+            return fn.apply(null, args);
+        }
+
+        document.addEventListener('click', function (ev) {
+            const target = ev.target;
+            if (!target || target.nodeType !== 1 || !target.closest) return;
+            const el = target.closest('[data-action]');
+            if (!el) return;
+            const args = parseUiActionArgs(el);
+            if (args === null) return;
+            runUiAction(el.getAttribute('data-action'), args, el);
+        });
+
         function switchView(viewName) {
             ['dashboard', 'transaksi', 'budget', 'laporan', 'aset', 'kalender', 'akun-detail', 'kategori-detail', 'pengaturan'].forEach(v => {
                 let el = document.getElementById('view-' + v); if(el) { el.classList.add('hidden'); el.classList.remove('block'); }

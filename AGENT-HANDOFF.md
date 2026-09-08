@@ -2057,3 +2057,61 @@ Kandidat perbaikan berikutnya: bundling modul src/ untuk jalur boot.
   navigasi; banner offline SEBENARNYA benar (terbukti dengan memaksa
   navigator.onLine=false). Jangan simpulkan bug UI dari emulasi yang belum
   divalidasi.
+
+## v101 — Fase 4 tahap A: 119 atribut onclick= di index.html dihapus
+**TUJUAN:** atribut onclick= mencampur perilaku ke markup, memaksa setiap handler
+jadi global selamanya, dan menyeret `'unsafe-inline'` ke CSP. Diganti pola
+deklaratif: markup menyatakan NIAT (`data-action="namaAksi"` + `data-args` JSON
+opsional), pemetaan niat->fungsi hidup di satu tempat (`uiActionRegistry()`),
+dan satu listener delegasi di `document` yang menjalankannya.
+
+**HASIL:** `index.html` kini **0 onclick=** (dari 119). 86 aksi unik, 80 di
+antaranya fungsi yang sudah ada + 6 pembungkus bernama untuk bentuk yang dulu
+ditulis sebagai kode inline (`editAsetDariDetail`, `pilihBerkasBackup`,
+`kirimFormTransaksi`, `kirimFormAset`, `kirimFormTujuan`, `kirimFormUtang`).
+
+**KEPUTUSAN DESAIN & ALASANNYA (jangan diubah tanpa membaca ini):**
+- *Delegasi di document, bukan addEventListener per elemen.* Satu listener
+  melayani semua, termasuk elemen yang belum ada saat boot -- prasyarat untuk
+  tahap B (50 onclick di HTML dinamis app.src.js). Sebelum pola ini dipilih, dua
+  konsekuensinya DIUKUR dulu di markup nyata: (a) tidak ada satu pun
+  `stopPropagation` di index.html (dua yang ada semuanya di HTML dinamis
+  app.src.js, masih inline, jadi belum terpengaruh); (b) hanya ADA SATU elemen
+  ber-onclick yang bersarang di dalam elemen ber-onclick lain, dan keduanya
+  memanggil `switchView('transaksi')` -- idempoten, jadi perubahan `closest()`
+  (yang hanya menjalankan aksi TERDEKAT) tidak mengubah hasil.
+- *Argumen sebagai JSON di `data-args`, bukan atribut terpisah.* TIPE harus
+  terjaga persis: `shiftReportYear` menerima `1`/`-1`, dan kalau argumennya
+  berubah jadi string maka `selectedReportYear += "1"` menghasilkan `"20261"`.
+  Ini bukan teori -- uji negatif harness memang memunculkan `20261`.
+- *Registry dibangun MALAS (saat klik pertama).* Sebagian handler dideklarasikan
+  jauh di bawah dan sebagian variabel yang dirujuknya (mis. `currentAssetDetailId`)
+  baru terisi belakangan.
+- *Aksi tak dikenal & data-args rusak = `console.error`, bukan lempar.* Tombol
+  mati diam-diam adalah kegagalan paling sulit dilacak pada pola lama; sekarang
+  ia berteriak, tapi tidak mematikan dispatcher untuk seluruh halaman.
+
+**VERIFIKASI (semua dibuktikan MERAH dulu):**
+- `tests/unit/ui-actions.test.js` (10 tes statis). Enam sabotase diuji satu per
+  satu -- salah ketik nama aksi, onclick= diselundupkan kembali, data-args JSON
+  rusak, registry menunjuk fungsi hantu, dispatcher dicopot, `console.error`
+  dihapus -- semuanya ditangkap oleh tes yang tepat.
+- `scripts/verify-ui-actions.mjs` (BARU, 18 cek runtime). Uji negatif: mengganti
+  `closest()` dengan `ev.target` -> U2 (klik ikon di dalam tombol) MERAH;
+  membaca `data-args` sebagai string mentah -> U3 MERAH dengan `2026 -> 20261`.
+- Diff `index.html`: 119 baris berubah, dan setelah atribut handler dinormalkan
+  **nol** perbedaan di luar itu -- konversi tidak menyentuh struktur markup.
+- Regresi tidak turun: hud 69/69, asset-logos 17/17, applock 21/21,
+  applock-biometric 14/14, offline-cache 13/13. Unit 840/840, eslint 0.
+- CACHE_VERSION v134 -> v135.
+
+**BELUM DIKERJAKAN (tahap B):** 50 `onclick=` di HTML yang DIHASILKAN app.src.js.
+Itu bagian yang lebih berharga (menghapus permukaan `jsStr()` yang menyisipkan
+data pengguna ke dalam string kode) sekaligus lebih berisiko. Catatan penting
+untuk tahap B: dua handler di sana memanggil `event.stopPropagation()` (baris
+~2854-2855, tombol ubah/hapus kategori di dalam baris yang juga bisa diklik) --
+kalau keduanya dikonversi ke data-action, `stopPropagation` TIDAK lagi mencegah
+aksi induk, karena dispatcher berjalan di `document` setelah bubbling selesai.
+Perlu penanganan eksplisit (mis. atribut `data-stop` yang dicek dispatcher).
+CSP `'unsafe-inline'` baru bisa dilepas setelah tahap B selesai DAN blok
+`<script>` inline di index.html ikut ditangani.

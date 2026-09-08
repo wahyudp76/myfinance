@@ -176,12 +176,15 @@ ok("F1: kartu Kunci Aplikasi & Notifikasi tampil di Pengaturan", await page.eval
 }));
 ok("F1: toggle notifikasi default ON semua (prefs ikut settings)", await page.evaluate(() =>
   document.getElementById("notif-pref-budget").checked && document.getElementById("notif-pref-recurring").checked && document.getElementById("notif-pref-goals").checked));
-await page.click('button[onclick="openAppLockModal()"]');
+await page.click('button[data-action="openAppLockModal"]');
 await page.waitForSelector("#modalAppLock:not(.hidden)", { timeout: 10000 });
 await page.waitForTimeout(400);
 await page.fill("#applock-set-pin", PIN);
 await page.fill("#applock-set-pin2", PIN);
 const putsBaseline = settingsPuts.length;
+// CATATAN: tombol ini masih onclick= karena DIRENDER app.src.js (HTML dinamis).
+// Fase 4 tahap A cuma mengonversi markup statis index.html; jangan ikut diubah
+// ke data-action sebelum tahap B benar-benar mengonversi HTML dinamis itu.
 await page.click('button[onclick="appLockEnableFromModal()"]');
 await waitUntil(() => settingsPuts.length > putsBaseline, 10000, "PUT settings setelah aktifkan kunci");
 {
@@ -261,14 +264,14 @@ await page.screenshot({ path: `${SHOTS}/04-f3-lockout.png` });
 await page.click("text=Lupa PIN?");
 await page.waitForSelector("#appLockForgotBox:not(.hidden)", { timeout: 5000 });
 await page.fill("#appLockForgotPassword", "password-salah-total");
-await page.click('button[onclick="appLockRecover()"]');
+await page.click('button[data-action="appLockRecover"]');
 await page.waitForTimeout(800);
 ok("F4: password salah -> ditolak, kunci TETAP aktif", await page.evaluate(() =>
   /Password salah/.test(document.getElementById("appLockStatus").textContent) &&
   !document.getElementById("appLockOverlay").classList.contains("hidden")));
 const putsBaselineF4 = settingsPuts.length;
 await page.fill("#appLockForgotPassword", PASSWORD_BENAR);
-await page.click('button[onclick="appLockRecover()"]');
+await page.click('button[data-action="appLockRecover"]');
 await page.waitForSelector("#appShell:not(.hidden)", { timeout: 30000 });
 await page.waitForFunction(() => document.querySelectorAll("#recent-transactions-list > div").length > 0, null, { timeout: 45000 });
 {

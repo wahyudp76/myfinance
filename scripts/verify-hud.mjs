@@ -478,7 +478,7 @@ ok("bug-fix: akun asli (BCA) tetap utuh pasca self-heal", await page.evaluate(()
 // ---------- E2E: penyempurnaan refresh kripto/saham (v43) ----------
 ok("aset: tombol Refresh Harga (semua aset auto) ada di header tab Aset", await page.evaluate(() => {
   switchView("aset");
-  return !!document.querySelector('#view-aset button[onclick="refreshAllAssetPrices()"]');
+  return !!document.querySelector('#view-aset button[data-action="refreshAllAssetPrices"]');
 }));
 const kriptoUi = await page.evaluate(async () => {
   globalAssets.push({ id: "tmp-kripto", nama: "BTC Uji", kategori: "Kripto", platform: "Binance", modal: 1000000, nilai: 1380000, terakhir: new Date().toISOString(), value_history: [], simbol: "bitcoin", jumlah_unit: 0.001, sumber_harga: "coingecko" });

@@ -122,7 +122,7 @@ test("dokumen: jumlah cek tiap harness E2E cocok dengan skripnya", () => {
   // Tiap harness mendaftarkan cek lewat helper ok(...) -- hitung pemanggilannya.
   // Latar v88: harness manual jadi basi berbulan-bulan tanpa ketahuan karena
   // tidak ada yang mencocokkan angka di dokumen dengan isi skripnya.
-  const harnesses = ["verify-hud", "verify-asset-logos", "verify-applock", "verify-applock-biometric", "verify-offline-cache"];
+  const harnesses = ["verify-hud", "verify-asset-logos", "verify-applock", "verify-applock-biometric", "verify-offline-cache", "verify-ui-actions"];
   const actual = Object.fromEntries(
     harnesses.map((h) => [h, (read(`scripts/${h}.mjs`).match(/\bok\(/g) || []).length])
   );

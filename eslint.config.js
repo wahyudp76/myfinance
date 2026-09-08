@@ -172,7 +172,7 @@ export default [
     // --- Tes yang menjalankan kode DI DALAM browser (page.evaluate) ---
     // Callback Playwright dieksekusi di konteks halaman, jadi `document`,
     // `window`, dst. memang ada meski file-nya sendiri file Node.
-    files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "scripts/verify-offline-cache.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
+    files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "scripts/verify-offline-cache.mjs", "scripts/verify-ui-actions.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -201,6 +201,10 @@ export default [
         appLockDisableBiometric: "readonly",
         // v100: dipakai scripts/verify-offline-cache.mjs (cerita offline/PWA).
         clearOfflineDataCache: "readonly",
+        // v101 (Fase 4): dipakai scripts/verify-ui-actions.mjs untuk memeriksa
+        // registry aksi deklaratif dan tipe argumen data-args di runtime.
+        uiActionRegistry: "readonly",
+        selectedReportYear: "readonly",
         charts: "readonly",
         // DITULIS (bukan cuma dibaca) oleh harness saat membersihkan aset
         // sementara "tmp-kripto" -- lihat scripts/verify-hud.mjs.

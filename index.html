@@ -199,7 +199,7 @@
     </div>
 
     
-    <button id="scrollToTopBtn" onclick="scrollActiveViewToTop()" aria-label="Kembali ke atas"
+    <button id="scrollToTopBtn" data-action="scrollActiveViewToTop" aria-label="Kembali ke atas"
         class="hidden fixed bottom-28 md:bottom-6 right-4 md:right-6 z-30 w-11 h-11 rounded-full bg-white text-slate-500 shadow-lg border border-slate-100 items-center justify-center hover:bg-slate-50 hover:text-[#151928] transition-all active:scale-90">
         <i class="fas fa-arrow-up text-sm"></i>
     </button>
@@ -209,7 +209,7 @@
         <div id="errorToastCard" class="bg-white rounded-2xl shadow-2xl ring-1 ring-rose-100 px-4 py-3 flex items-center gap-3 max-w-sm mx-auto transition-all duration-300 opacity-0 -translate-y-3 pointer-events-auto">
             <div id="errorToastIconWrap" class="w-8 h-8 rounded-full bg-rose-100 text-rose-500 flex items-center justify-center flex-shrink-0"><i id="errorToastIcon" class="fas fa-triangle-exclamation text-xs"></i></div>
             <p id="errorToastMsg" class="text-xs font-semibold text-slate-700 flex-1 leading-snug">Terjadi kesalahan.</p>
-            <button onclick="hideErrorToast()" aria-label="Tutup notifikasi" class="text-slate-300 hover:text-slate-500 flex-shrink-0"><i class="fas fa-times text-xs"></i></button>
+            <button data-action="hideErrorToast" aria-label="Tutup notifikasi" class="text-slate-300 hover:text-slate-500 flex-shrink-0"><i class="fas fa-times text-xs"></i></button>
         </div>
     </div>
 
@@ -229,8 +229,8 @@
         </div>
         <div class="flex items-center gap-1">
             <div class="hud-status" data-state="live" aria-hidden="true" style="margin-right:4px"><span class="hud-led"></span><span class="hud-status-text">LIVE</span></div>
-            <button onclick="switchView('kalender')" id="mobile-top-kalender" aria-label="Buka Kalender" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-calendar-alt text-xl"></i></button>
-            <button onclick="switchView('pengaturan')" id="mobile-top-settings" aria-label="Buka Pengaturan" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-cog text-xl"></i></button>
+            <button data-action="switchView" data-args='["kalender"]' id="mobile-top-kalender" aria-label="Buka Kalender" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-calendar-alt text-xl"></i></button>
+            <button data-action="switchView" data-args='["pengaturan"]' id="mobile-top-settings" aria-label="Buka Pengaturan" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-cog text-xl"></i></button>
             <button data-logout-btn aria-label="Keluar" class="text-slate-500 hover:text-rose-500 p-2 rounded-xl hover:bg-rose-50 transition-all" title="Keluar"><i class="fas fa-arrow-right-from-bracket text-xl"></i></button>
         </div>
     </div>
@@ -245,12 +245,12 @@
             <div class="px-4">
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">Menu Utama</p>
                 <nav class="space-y-1">
-                    <button onclick="switchView('dashboard')" id="nav-dashboard" class="w-full flex items-center px-3 py-3 rounded-xl menu-active transition-colors"><i class="fas fa-satellite-dish w-6 text-center mr-2"></i><span class="text-sm">Dashboard</span></button>
-                    <button onclick="switchView('budget')" id="nav-budget" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-crosshairs w-6 text-center mr-2"></i><span class="text-sm">Budget</span></button>
-                    <button onclick="switchView('laporan')" id="nav-laporan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-wave-square w-6 text-center mr-2"></i><span class="text-sm">Laporan</span></button>
-                    <button onclick="switchView('aset')" id="nav-aset" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-database w-6 text-center mr-2"></i><span class="text-sm">Aset</span></button>
-                    <button onclick="switchView('kalender')" id="nav-kalender" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-calendar-alt w-6 text-center mr-2"></i><span class="text-sm">Kalender</span></button>
-                    <button onclick="switchView('pengaturan')" id="nav-pengaturan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-sliders w-6 text-center mr-2"></i><span class="text-sm">Pengaturan</span></button>
+                    <button data-action="switchView" data-args='["dashboard"]' id="nav-dashboard" class="w-full flex items-center px-3 py-3 rounded-xl menu-active transition-colors"><i class="fas fa-satellite-dish w-6 text-center mr-2"></i><span class="text-sm">Dashboard</span></button>
+                    <button data-action="switchView" data-args='["budget"]' id="nav-budget" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-crosshairs w-6 text-center mr-2"></i><span class="text-sm">Budget</span></button>
+                    <button data-action="switchView" data-args='["laporan"]' id="nav-laporan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-wave-square w-6 text-center mr-2"></i><span class="text-sm">Laporan</span></button>
+                    <button data-action="switchView" data-args='["aset"]' id="nav-aset" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-database w-6 text-center mr-2"></i><span class="text-sm">Aset</span></button>
+                    <button data-action="switchView" data-args='["kalender"]' id="nav-kalender" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-calendar-alt w-6 text-center mr-2"></i><span class="text-sm">Kalender</span></button>
+                    <button data-action="switchView" data-args='["pengaturan"]' id="nav-pengaturan" class="w-full flex items-center px-3 py-3 rounded-xl menu-inactive transition-colors"><i class="fas fa-sliders w-6 text-center mr-2"></i><span class="text-sm">Pengaturan</span></button>
                 </nav>
                 <div class="mt-5 px-2" aria-hidden="true">
                     <div class="hud-hash"></div>
@@ -270,7 +270,7 @@
                 </div>
                 <button data-logout-btn aria-label="Keluar" class="text-slate-400 hover:text-rose-500 transition-colors flex-shrink-0 ml-2" title="Keluar"><i class="fas fa-arrow-right-from-bracket text-sm"></i></button>
             </div>
-            <button id="fabDesktopCatat" onclick="openModal()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.97] text-white rounded-xl py-3.5 text-sm font-medium transition-all shadow-lg shadow-slate-300/50 hover:shadow-xl hover:shadow-indigo-500/20 flex items-center justify-center">
+            <button id="fabDesktopCatat" data-action="openModal" class="w-full bg-[#151928] hover:bg-black active:scale-[0.97] text-white rounded-xl py-3.5 text-sm font-medium transition-all shadow-lg shadow-slate-300/50 hover:shadow-xl hover:shadow-indigo-500/20 flex items-center justify-center">
                 <i class="fas fa-plus mr-2"></i> Catat Transaksi
             </button>
         </div>
@@ -278,15 +278,15 @@
 
     
     <div class="md:hidden liquid-glass-nav fixed left-4 right-4 flex items-center justify-around py-2 z-40 rounded-[28px]">
-        <button onclick="switchView('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-2 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-satellite-dish text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Beranda</span></button>
-        <button onclick="switchView('budget')" id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-crosshairs text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Budget</span></button>
+        <button data-action="switchView" data-args='["dashboard"]' id="mobile-nav-dashboard" class="flex flex-col items-center justify-center text-[#151928] font-bold py-2 px-3 w-14 rounded-2xl transition-all liquid-glass-nav-active"><i class="fas fa-satellite-dish text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Beranda</span></button>
+        <button data-action="switchView" data-args='["budget"]' id="mobile-nav-budget" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-crosshairs text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Budget</span></button>
         <div class="relative -top-5 flex flex-col items-center justify-center z-50">
-            <button id="fabMobileCatat" onclick="openModal()" aria-label="Catat Transaksi Baru" class="w-14 h-14 bg-gradient-to-tr from-[#151928] to-[#2e3754] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/30 hover:scale-110 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-90 transition-all duration-200 border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
+            <button id="fabMobileCatat" data-action="openModal" aria-label="Catat Transaksi Baru" class="w-14 h-14 bg-gradient-to-tr from-[#151928] to-[#2e3754] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/30 hover:scale-110 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-90 transition-all duration-200 border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
             <span class="text-[10px] mt-1 font-bold text-[#151928] tracking-tight">Catat</span>
         </div>
-        <button onclick="switchView('laporan')" id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-wave-square text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Analisis</span></button>
+        <button data-action="switchView" data-args='["laporan"]' id="mobile-nav-laporan" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-wave-square text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Analisis</span></button>
         
-        <button onclick="switchView('aset')" id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-database text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Aset</span></button>
+        <button data-action="switchView" data-args='["aset"]' id="mobile-nav-aset" class="flex flex-col items-center justify-center text-slate-400 py-2 px-3 w-14 rounded-2xl transition-all"><i class="fas fa-database text-lg"></i><span class="text-[10px] mt-1 tracking-tight">Aset</span></button>
     </div>
 
     
@@ -303,10 +303,10 @@
                     <p class="hud-mono hud-coord mt-1" aria-hidden="true">// GEO -1.6101,103.6131 · NODE-JBI-01 · UPLINK STABLE</p>
                 </div>
                 <div class="hud-status hud-status-desk" data-state="live"><span class="hud-led"></span><span class="hud-status-text">LIVE</span><span class="hud-mono" style="opacity:.55">SEC-LINK</span></div>
-                <button onclick="openCommandPalette()" class="hidden md:flex text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition items-center gap-2 shadow-sm" aria-label="Pencarian cepat (Ctrl K)">
+                <button data-action="openCommandPalette" class="hidden md:flex text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition items-center gap-2 shadow-sm" aria-label="Pencarian cepat (Ctrl K)">
                     <i class="fas fa-magnifying-glass"></i><span>Cari</span><kbd class="text-[10px] font-bold text-slate-400 border border-slate-200 rounded px-1">Ctrl K</kbd>
                 </button>
-                <button onclick="loadData()" class="text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition flex items-center shadow-sm">
+                <button data-action="loadData" class="text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition flex items-center shadow-sm">
                     <i class="fas fa-sync-alt md:mr-1"></i> <span class="hidden md:inline">Sinkronisasi</span>
                 </button>
             </header>
@@ -317,8 +317,8 @@
                 <h3 class="text-lg md:text-xl font-extrabold text-slate-800">Selamat datang di MyFinance! 👋</h3>
                 <p class="text-xs md:text-sm text-slate-500 mt-2 max-w-md mx-auto">Dashboard kamu masih kosong. Catat transaksi pertamamu, atau coba isi dulu dengan data contoh biar bisa menjelajahi semua fitur.</p>
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mt-5">
-                    <button onclick="openModal()" class="w-full sm:w-auto bg-[#151928] hover:bg-black text-white text-xs md:text-sm font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-slate-300/50"><i class="fas fa-plus mr-2"></i>Catat Transaksi Pertama</button>
-                    <button onclick="seedDemoData()" class="w-full sm:w-auto bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs md:text-sm font-bold px-6 py-3 rounded-xl transition border border-indigo-100"><i class="fas fa-wand-magic-sparkles mr-2"></i>Isi Data Contoh</button>
+                    <button data-action="openModal" class="w-full sm:w-auto bg-[#151928] hover:bg-black text-white text-xs md:text-sm font-bold px-6 py-3 rounded-xl transition shadow-lg shadow-slate-300/50"><i class="fas fa-plus mr-2"></i>Catat Transaksi Pertama</button>
+                    <button data-action="seedDemoData" class="w-full sm:w-auto bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs md:text-sm font-bold px-6 py-3 rounded-xl transition border border-indigo-100"><i class="fas fa-wand-magic-sparkles mr-2"></i>Isi Data Contoh</button>
                 </div>
                 <p class="text-[10px] md:text-[11px] text-slate-400 mt-4">Transaksi contoh diberi tanda <span class="font-bold">[Demo]</span> pada keterangannya — bisa dihapus massal kapan saja dari Pengaturan &gt; Data &amp; Backup.</p>
             </div>
@@ -334,13 +334,13 @@
                         <p class="text-slate-400 text-xs md:text-sm font-medium mb-1">Total Kekayaan Tunai & Dompet <span class="hud-mono hud-coord" aria-hidden="true">[BAL.SYS]</span></p>
                         <div class="flex items-center gap-3">
                             <h3 class="text-white text-2xl md:text-5xl font-bold tracking-tight whitespace-nowrap" id="dash-total">Rp 0</h3>
-                            <button onclick="toggleNominalVisibility()" class="nominal-eye-btn w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors flex-shrink-0" title="Sembunyikan saldo" aria-label="Sembunyikan saldo">
+                            <button data-action="toggleNominalVisibility" class="nominal-eye-btn w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors flex-shrink-0" title="Sembunyikan saldo" aria-label="Sembunyikan saldo">
                                 <i class="fas fa-eye nominal-eye-icon text-xs md:text-sm"></i>
                             </button>
                             <span id="dash-saldo-trend" class="hidden text-[10px] font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 mt-1 md:mt-3"></span>
                         </div>
                     </div>
-                    <div onclick="switchView('aset')" class="bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-2xl p-4 cursor-pointer transition text-center md:text-right min-w-[200px]">
+                    <div data-action="switchView" data-args='["aset"]' class="bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-2xl p-4 cursor-pointer transition text-center md:text-right min-w-[200px]">
                         <p class="text-indigo-200 text-[10px] uppercase font-bold tracking-wider mb-1"><i class="fas fa-gem mr-1"></i> Total Investasi Aset</p>
                         <p class="text-indigo-100 text-lg md:text-2xl font-extrabold" id="dash-total-aset">Rp 0</p>
                     </div>
@@ -417,7 +417,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <span id="ai-insight-timestamp" class="text-[10px] text-slate-400"></span>
-                        <button onclick="requestAiInsight(true)" id="ai-insight-refresh-btn" class="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-500 hover:border-indigo-200 flex items-center justify-center transition flex-shrink-0" title="Analisis ulang sekarang" aria-label="Analisis ulang sekarang">
+                        <button data-action="requestAiInsight" data-args='[true]' id="ai-insight-refresh-btn" class="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-500 hover:border-indigo-200 flex items-center justify-center transition flex-shrink-0" title="Analisis ulang sekarang" aria-label="Analisis ulang sekarang">
                             <i class="fas fa-rotate text-[11px]"></i>
                         </button>
                     </div>
@@ -465,9 +465,9 @@
                 </div>
             </div>
 
-            <div onclick="switchView('transaksi')" class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm flex justify-between items-center mb-4 md:mb-8 cursor-pointer hover:shadow-md hover:border-slate-200 transition group">
+            <div data-action="switchView" data-args='["transaksi"]' class="bg-white rounded-2xl p-4 md:p-6 border border-slate-100 shadow-sm flex justify-between items-center mb-4 md:mb-8 cursor-pointer hover:shadow-md hover:border-slate-200 transition group">
                 <h4 class="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition">Transaksi Terakhir</h4>
-                <button onclick="switchView('transaksi')" class="text-[10px] md:text-xs font-medium text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors flex items-center gap-1.5">Lihat Semua <i class="fas fa-arrow-right text-[10px]"></i></button>
+                <button data-action="switchView" data-args='["transaksi"]' class="text-[10px] md:text-xs font-medium text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors flex items-center gap-1.5">Lihat Semua <i class="fas fa-arrow-right text-[10px]"></i></button>
             </div>
             
             <div id="recent-transactions-list" class="space-y-3 pb-8"></div>
@@ -475,13 +475,13 @@
 
         
         <div id="view-transaksi" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
-            <button onclick="switchView('dashboard')" class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Dashboard</button>
+            <button data-action="switchView" data-args='["dashboard"]' class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Dashboard</button>
             <header class="mb-6 md:mb-8 flex flex-row justify-between items-end">
                 <div>
                     <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Riwayat Transaksi</h2>
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Daftar pemasukan & pengeluaran</p>
                 </div>
-                <button onclick="exportTransactionsCsv()" aria-label="Ekspor transaksi yang tampil ke file CSV" class="flex-shrink-0 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
+                <button data-action="exportTransactionsCsv" aria-label="Ekspor transaksi yang tampil ke file CSV" class="flex-shrink-0 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
                     <i class="fas fa-file-csv mr-1.5 md:mr-2 text-emerald-600"></i><span class="hidden sm:inline">Ekspor</span> CSV
                 </button>
             </header>
@@ -516,7 +516,7 @@
                             <span class="text-slate-300 text-xs">-</span>
                             <input type="date" id="txFilterDateTo" onchange="filterTransactions()" aria-label="Sampai tanggal" class="bg-slate-50 rounded-lg p-1.5 text-xs font-semibold outline-none text-slate-700 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-400 cursor-pointer">
                         </div>
-                        <button type="button" onclick="toggleTxAmountFilter()" aria-label="Filter nominal" id="txAmountFilterToggle" class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition flex-shrink-0"><i class="fas fa-sliders text-xs"></i></button>
+                        <button type="button" data-action="toggleTxAmountFilter" aria-label="Filter nominal" id="txAmountFilterToggle" class="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition flex-shrink-0"><i class="fas fa-sliders text-xs"></i></button>
                     </div>
                 </div>
             </div>
@@ -535,7 +535,7 @@
                     <input type="text" id="txFilterAmountMaxDisplay" placeholder="Sampai" oninput="formatInputRibuan(this, 'txFilterAmountMax'); debouncedFilterTransactions();" class="w-24 md:w-28 p-1.5 bg-transparent border-none outline-none text-xs font-semibold text-slate-700">
                     <input type="hidden" id="txFilterAmountMax">
                 </div>
-                <button type="button" onclick="clearTxAmountFilter()" class="text-[11px] font-semibold text-slate-400 hover:text-rose-500 transition ml-auto">Reset</button>
+                <button type="button" data-action="clearTxAmountFilter" class="text-[11px] font-semibold text-slate-400 hover:text-rose-500 transition ml-auto">Reset</button>
             </div>
 
             <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -555,7 +555,7 @@
                         <label for="budgetFilterMonth" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mr-3"><i class="fas fa-filter mr-1"></i> Bulan:</label>
                         <input type="month" id="budgetFilterMonth" onchange="changeBudgetMonth()" class="text-sm font-semibold text-slate-700 outline-none cursor-pointer bg-transparent w-full">
                     </div>
-                    <button onclick="openBudgetModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 flex-shrink-0"><i class="fas fa-sliders"></i> <span>Atur Budget</span></button>
+                    <button data-action="openBudgetModal" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 flex-shrink-0"><i class="fas fa-sliders"></i> <span>Atur Budget</span></button>
                 </div>
             </header>
 
@@ -639,9 +639,9 @@
                     <div class="flex items-center justify-between mb-1">
                         <h4 class="text-xs md:text-sm font-bold text-slate-700">Ringkasan Tahun Ini</h4>
                         <div class="flex items-center gap-1">
-                            <button onclick="shiftReportYear(-1)" aria-label="Tahun sebelumnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                            <button data-action="shiftReportYear" data-args='[-1]' aria-label="Tahun sebelumnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-left text-[10px]"></i></button>
                             <span id="report-year-label" class="text-xs font-bold text-slate-600 w-12 text-center"></span>
-                            <button onclick="shiftReportYear(1)" aria-label="Tahun berikutnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-right text-[10px]"></i></button>
+                            <button data-action="shiftReportYear" data-args='[1]' aria-label="Tahun berikutnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-right text-[10px]"></i></button>
                         </div>
                     </div>
                     <p class="text-xs text-slate-400 mb-4 md:mb-6">Dibanding tahun sebelumnya, dan bentuk arus kas 12 bulan sekaligus</p>
@@ -732,7 +732,7 @@
                                 <p class="text-[10px] text-slate-400">Laporan singkat keuangan bulan lalu, dibuat AI</p>
                             </div>
                         </div>
-                        <button onclick="requestMonthlySummary(true)" id="monthly-summary-refresh-btn" aria-label="Buat ulang ringkasan" title="Buat ulang" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-rotate text-xs"></i></button>
+                        <button data-action="requestMonthlySummary" data-args='[true]' id="monthly-summary-refresh-btn" aria-label="Buat ulang ringkasan" title="Buat ulang" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-rotate text-xs"></i></button>
                     </div>
                     <div id="monthly-summary-container" class="p-4 md:p-5"></div>
                 </div>
@@ -749,7 +749,7 @@
                     <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
                     <div class="p-3 border-t border-slate-100 flex items-center gap-2 flex-shrink-0">
                         <input type="text" id="ai-chat-input" placeholder="mis. berapa pengeluaran transport 3 bulan terakhir?" onkeydown="if(event.key==='Enter'){sendAiChatQuestion();}" class="flex-1 bg-slate-100 rounded-xl px-3.5 py-2.5 text-xs md:text-sm outline-none focus:ring-2 focus:ring-indigo-300 min-w-0">
-                        <button onclick="sendAiChatQuestion()" id="ai-chat-send-btn" aria-label="Kirim pertanyaan" class="w-10 h-10 rounded-xl bg-[#151928] hover:bg-black active:scale-95 text-white flex items-center justify-center flex-shrink-0 transition"><i class="fas fa-paper-plane text-xs"></i></button>
+                        <button data-action="sendAiChatQuestion" id="ai-chat-send-btn" aria-label="Kirim pertanyaan" class="w-10 h-10 rounded-xl bg-[#151928] hover:bg-black active:scale-95 text-white flex items-center justify-center flex-shrink-0 transition"><i class="fas fa-paper-plane text-xs"></i></button>
                     </div>
                 </div>
             </div>
@@ -763,13 +763,13 @@
                     <p class="text-slate-500 text-xs md:text-sm mt-1">Pantau nilai investasi dan pertumbuhan aset kamu secara komprehensif.</p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
-                    <button onclick="refreshAllAssetPrices()" aria-label="Refresh harga semua aset dari pasar" title="Perbarui nilai semua aset yg punya Simbol + Jumlah Unit dari harga pasar terkini" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
+                    <button data-action="refreshAllAssetPrices" aria-label="Refresh harga semua aset dari pasar" title="Perbarui nilai semua aset yg punya Simbol + Jumlah Unit dari harga pasar terkini" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
                         <i class="fas fa-rotate mr-1.5 text-indigo-600"></i><span class="hidden sm:inline">Refresh Harga</span>
                     </button>
-                    <button onclick="exportAssetsCsv()" aria-label="Ekspor aset ke file CSV" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
+                    <button data-action="exportAssetsCsv" aria-label="Ekspor aset ke file CSV" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold flex items-center shadow-sm transition-colors">
                         <i class="fas fa-file-csv mr-1.5 text-emerald-600"></i><span class="hidden sm:inline">Ekspor</span> CSV
                     </button>
-                    <button onclick="openAssetModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-2">
+                    <button data-action="openAssetModal" class="bg-[#151928] hover:bg-black text-white rounded-xl px-4 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-2">
                         <i class="fas fa-plus"></i> <span>Tambah Aset</span>
                     </button>
                 </div>
@@ -870,7 +870,7 @@
                         <h4 class="text-sm font-bold text-slate-800">Tujuan Keuangan</h4>
                         <p class="text-[10px] md:text-xs text-slate-400 mt-0.5">Nabung buat target yang kamu incar</p>
                     </div>
-                    <button onclick="openGoalModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-1.5 flex-shrink-0">
+                    <button data-action="openGoalModal" class="bg-[#151928] hover:bg-black text-white rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-1.5 flex-shrink-0">
                         <i class="fas fa-plus text-[10px]"></i> <span class="hidden sm:inline">Tambah</span> Tujuan
                     </button>
                 </div>
@@ -886,7 +886,7 @@
                         <h4 class="text-sm font-bold text-slate-800">Utang & Cicilan</h4>
                         <p class="text-[10px] md:text-xs text-slate-400 mt-0.5">Pantau pelunasan cicilan/pinjaman kamu</p>
                     </div>
-                    <button onclick="openDebtModal()" class="bg-[#151928] hover:bg-black text-white rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-1.5 flex-shrink-0">
+                    <button data-action="openDebtModal" class="bg-[#151928] hover:bg-black text-white rounded-xl px-3 py-2.5 text-xs md:text-sm font-semibold transition-colors shadow-sm flex items-center gap-1.5 flex-shrink-0">
                         <i class="fas fa-plus text-[10px]"></i> <span class="hidden sm:inline">Tambah</span> Utang
                     </button>
                 </div>
@@ -955,7 +955,7 @@
                             <p data-user-email class="text-[11px] text-slate-400 truncate">-</p>
                         </div>
                     </div>
-                    <button onclick="openProfileModal()" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center mb-2">
+                    <button data-action="openProfileModal" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center mb-2">
                         <i class="fas fa-pencil mr-2 text-xs"></i> Edit Profil
                     </button>
                     <button data-logout-btn class="mt-auto w-full bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
@@ -993,18 +993,18 @@
                                 <option value="3month">3 bulan terakhir</option>
                                 <option value="all">Semua waktu</option>
                             </select>
-                            <button onclick="exportTransactionsCsvByRange()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 rounded-xl transition flex items-center gap-1.5 flex-shrink-0" title="Unduh transaksi sebagai file CSV (Excel/Google Sheets)">
+                            <button data-action="exportTransactionsCsvByRange" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 rounded-xl transition flex items-center gap-1.5 flex-shrink-0" title="Unduh transaksi sebagai file CSV (Excel/Google Sheets)">
                                 <i class="fas fa-file-csv"></i> CSV
                             </button>
                         </div>
-                        <button onclick="exportFullBackup()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                        <button data-action="exportFullBackup" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                             <i class="fas fa-download"></i> Ekspor Semua Data (JSON)
                         </button>
-                        <button onclick="document.getElementById('backupFileInput').click()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                        <button data-action="pilihBerkasBackup" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                             <i class="fas fa-upload"></i> Impor dari File
                         </button>
                         <input type="file" id="backupFileInput" accept=".json,application/json" class="hidden" onchange="handleBackupFileSelect(event)">
-                        <button onclick="removeDemoData()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                        <button data-action="removeDemoData" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                             <i class="fas fa-broom"></i> Hapus Semua Data Contoh <span class="font-mono">[Demo]</span>
                         </button>
                         <p class="text-[10px] text-slate-400 leading-relaxed pt-1">Pengaturan (akun/kategori/tujuan/utang) akan <b>ditimpa</b> saat impor. Transaksi/aset/berulang akan <b>ditambahkan</b>, bukan menimpa.</p>
@@ -1022,25 +1022,25 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-3 gap-2">
-                        <button id="theme-btn-light" onclick="setThemePref('light')" aria-label="Tema Terang" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <button id="theme-btn-light" data-action="setThemePref" data-args='["light"]' aria-label="Tema Terang" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
                             <i class="fas fa-sun text-slate-500"></i>
                             <span class="text-[10px] font-semibold text-slate-600">Terang</span>
                         </button>
-                        <button id="theme-btn-dark" onclick="setThemePref('dark')" aria-label="Tema Gelap" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <button id="theme-btn-dark" data-action="setThemePref" data-args='["dark"]' aria-label="Tema Gelap" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
                             <i class="fas fa-moon text-slate-500"></i>
                             <span class="text-[10px] font-semibold text-slate-600">Gelap</span>
                         </button>
-                        <button id="theme-btn-system" onclick="setThemePref('system')" aria-label="Ikuti Sistem" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <button id="theme-btn-system" data-action="setThemePref" data-args='["system"]' aria-label="Ikuti Sistem" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
                             <i class="fas fa-desktop text-slate-500"></i>
                             <span class="text-[10px] font-semibold text-slate-600">Sistem</span>
                         </button>
                     </div>
                     <div class="grid grid-cols-2 gap-2 mt-2">
-                        <button id="chart-palette-btn-default" onclick="setChartPalette('default')" aria-label="Palet Grafik Standar" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <button id="chart-palette-btn-default" data-action="setChartPalette" data-args='["default"]' aria-label="Palet Grafik Standar" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
                             <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full" style="background:#6366f1"></span><span class="w-2 h-2 rounded-full" style="background:#06b6d4"></span><span class="w-2 h-2 rounded-full" style="background:#10b981"></span><span class="w-2 h-2 rounded-full" style="background:#f59e0b"></span></span>
                             <span class="text-[10px] font-semibold text-slate-600">Standar</span>
                         </button>
-                        <button id="chart-palette-btn-colorblind" onclick="setChartPalette('colorblind')" aria-label="Palet Grafik Ramah Buta Warna" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <button id="chart-palette-btn-colorblind" data-action="setChartPalette" data-args='["colorblind"]' aria-label="Palet Grafik Ramah Buta Warna" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
                             <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full" style="background:#0173B2"></span><span class="w-2 h-2 rounded-full" style="background:#DE8F05"></span><span class="w-2 h-2 rounded-full" style="background:#029E73"></span><span class="w-2 h-2 rounded-full" style="background:#D55E00"></span></span>
                             <span class="text-[10px] font-semibold text-slate-600">Ramah Buta Warna</span>
                         </button>
@@ -1049,7 +1049,7 @@
                     <div class="mt-4 pt-4 border-t border-slate-100">
                         <div class="flex items-center justify-between mb-2">
                             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"><i class="fas fa-palette text-indigo-400 mr-1"></i>Warna Aksen</p>
-                            <button type="button" onclick="setThemeColor(null)" class="text-[10px] text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors">Reset</button>
+                            <button type="button" data-action="setThemeColor" data-args='[null]' class="text-[10px] text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors">Reset</button>
                         </div>
                         <div id="theme-accent-swatches" class="flex flex-wrap items-center gap-2"></div>
                         <label class="mt-2.5 flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer select-none">
@@ -1106,7 +1106,7 @@
                         <span class="text-xs font-semibold text-slate-500">Penyimpanan perangkat</span>
                         <span id="appinfo-storage" class="text-xs font-bold text-slate-700">—</span>
                     </div>
-                    <button onclick="checkForAppUpdate()" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
+                    <button data-action="checkForAppUpdate" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
                         <i class="fas fa-rotate mr-2 text-xs"></i> Periksa Pembaruan
                     </button>
                 </div>
@@ -1120,7 +1120,7 @@
                             <p id="recurring-summary-text" class="text-[10px] text-slate-400">Belum ada transaksi berulang</p>
                         </div>
                     </div>
-                    <button onclick="openRecurringListModal()" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
+                    <button data-action="openRecurringListModal" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
                         <i class="fas fa-list-check mr-2 text-xs"></i> Kelola
                     </button>
                 </div>
@@ -1134,7 +1134,7 @@
                             <p id="applock-summary-text" class="text-[10px] text-slate-400">Nonaktif</p>
                         </div>
                     </div>
-                    <button onclick="openAppLockModal()" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
+                    <button data-action="openAppLockModal" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
                         <i class="fas fa-shield-halved mr-2 text-xs"></i> Atur
                     </button>
                 </div>
@@ -1162,7 +1162,7 @@
                             <input type="checkbox" id="notif-pref-goals" onchange="saveNotifPrefs()" class="accent-indigo-500 w-4 h-4">
                         </label>
                     </div>
-                    <button id="notif-permission-btn" onclick="requestNotificationPermission()" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
+                    <button id="notif-permission-btn" data-action="requestNotificationPermission" class="mt-auto w-full bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center">
                         <i class="fas fa-bell mr-2 text-xs"></i> Izinkan Notifikasi
                     </button>
                 </div>
@@ -1176,7 +1176,7 @@
                             <p class="text-[10px] text-slate-400">Mendukung Bank, E-Wallet, dan Platform Aset (Bibit, Ajaib, dll)</p>
                         </div>
                     </div>
-                    <button type="button" onclick="openAccountModal()" class="w-full flex items-center justify-center gap-2 bg-[#151928] hover:bg-black active:scale-[0.98] text-white text-xs font-bold py-3 rounded-2xl transition shadow-sm mb-4">
+                    <button type="button" data-action="openAccountModal" class="w-full flex items-center justify-center gap-2 bg-[#151928] hover:bg-black active:scale-[0.98] text-white text-xs font-bold py-3 rounded-2xl transition shadow-sm mb-4">
                         <i class="fas fa-plus text-[10px]"></i> Tambah Akun Baru
                     </button>
                     <ul id="list-accounts" class="space-y-1.5 overflow-y-auto flex-1 pr-1 -mr-1"></ul>
@@ -1193,20 +1193,20 @@
                     </div>
 
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-2 text-[11px] font-bold">
-                        <button onclick="setCatFormMode('pemasukan','sub')" id="catmode-pemasukan-sub" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-emerald-600">Sub-Kategori</button>
-                        <button onclick="setCatFormMode('pemasukan','parent')" id="catmode-pemasukan-parent" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Kategori Baru</button>
+                        <button data-action="setCatFormMode" data-args='["pemasukan", "sub"]' id="catmode-pemasukan-sub" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-emerald-600">Sub-Kategori</button>
+                        <button data-action="setCatFormMode" data-args='["pemasukan", "parent"]' id="catmode-pemasukan-parent" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Kategori Baru</button>
                     </div>
                     <div id="catform-pemasukan-sub" class="mb-3 space-y-1.5">
                         <select id="parent-select-pemasukan" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
                             <input type="text" id="new-sub-pemasukan" placeholder="Nama sub-kategori (cth: Uang Jajan)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pemasukan');}">
-                            <button onclick="addSubCategory('pemasukan')" aria-label="Tambah sub-kategori pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button data-action="addSubCategory" data-args='["pemasukan"]' aria-label="Tambah sub-kategori pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
                     <div id="catform-pemasukan-parent" class="mb-3 hidden">
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-emerald-300 transition">
                             <input type="text" id="new-parent-pemasukan" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addParentCategory('pemasukan');}">
-                            <button onclick="addParentCategory('pemasukan')" aria-label="Tambah kategori utama pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button data-action="addParentCategory" data-args='["pemasukan"]' aria-label="Tambah kategori utama pemasukan" class="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
 
@@ -1225,20 +1225,20 @@
                     </div>
 
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-2 text-[11px] font-bold">
-                        <button onclick="setCatFormMode('pengeluaran','sub')" id="catmode-pengeluaran-sub" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-rose-600">Sub-Kategori</button>
-                        <button onclick="setCatFormMode('pengeluaran','parent')" id="catmode-pengeluaran-parent" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Kategori Baru</button>
+                        <button data-action="setCatFormMode" data-args='["pengeluaran", "sub"]' id="catmode-pengeluaran-sub" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-rose-600">Sub-Kategori</button>
+                        <button data-action="setCatFormMode" data-args='["pengeluaran", "parent"]' id="catmode-pengeluaran-parent" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Kategori Baru</button>
                     </div>
                     <div id="catform-pengeluaran-sub" class="mb-3 space-y-1.5">
                         <select id="parent-select-pengeluaran" class="w-full p-2.5 bg-slate-50 rounded-xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-400 text-xs font-semibold outline-none text-slate-600"></select>
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
                             <input type="text" id="new-sub-pengeluaran" placeholder="Nama sub-kategori (cth: Parkir)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSubCategory('pengeluaran');}">
-                            <button onclick="addSubCategory('pengeluaran')" aria-label="Tambah sub-kategori pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button data-action="addSubCategory" data-args='["pengeluaran"]' aria-label="Tambah sub-kategori pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
                     <div id="catform-pengeluaran-parent" class="mb-3 hidden">
                         <div class="flex items-center gap-1.5 bg-slate-50 rounded-2xl p-1.5 ring-1 ring-slate-100 focus-within:ring-2 focus-within:ring-rose-300 transition">
                             <input type="text" id="new-parent-pengeluaran" placeholder="Nama kategori baru (cth: Hobi)" class="flex-1 min-w-0 px-2.5 py-2 bg-transparent text-sm outline-none" onkeydown="if(event.key==='Enter'){event.preventDefault(); addParentCategory('pengeluaran');}">
-                            <button onclick="addParentCategory('pengeluaran')" aria-label="Tambah kategori utama pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                            <button data-action="addParentCategory" data-args='["pengeluaran"]' aria-label="Tambah kategori utama pengeluaran" class="w-9 h-9 flex-shrink-0 rounded-xl bg-rose-500 text-white hover:bg-rose-600 active:scale-90 transition flex items-center justify-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
                         </div>
                     </div>
 
@@ -1252,7 +1252,7 @@
         
         <div id="view-akun-detail" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8">
-                <button onclick="switchView('dashboard')" class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Dashboard</button>
+                <button data-action="switchView" data-args='["dashboard"]' class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Dashboard</button>
                 <div class="flex flex-col md:flex-row md:items-end justify-between">
                     <div class="flex items-center">
                         <div id="detail-account-logo" class="w-12 h-12 md:w-16 md:h-16 bg-white border border-slate-200 rounded-xl p-2 mr-4 flex items-center justify-center shadow-sm overflow-hidden"></div>
@@ -1265,7 +1265,7 @@
                         <p class="text-slate-400 text-xs md:text-sm font-medium">Saldo Saat Ini</p>
                         <div class="flex items-center gap-2 justify-start md:justify-end">
                             <p class="text-2xl md:text-3xl font-bold text-[#151928]" id="detail-account-balance">Rp 0</p>
-                            <button onclick="toggleNominalVisibility()" class="nominal-eye-btn w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors flex-shrink-0" title="Sembunyikan saldo" aria-label="Sembunyikan saldo">
+                            <button data-action="toggleNominalVisibility" class="nominal-eye-btn w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors flex-shrink-0" title="Sembunyikan saldo" aria-label="Sembunyikan saldo">
                                 <i class="fas fa-eye nominal-eye-icon text-xs"></i>
                             </button>
                         </div>
@@ -1388,7 +1388,7 @@
         
         <div id="view-kategori-detail" class="content-area view-enter flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 hidden">
             <header class="mb-6 md:mb-8">
-                <button onclick="switchView('laporan')" class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Laporan</button>
+                <button data-action="switchView" data-args='["laporan"]' class="text-blue-600 font-medium text-xs md:text-sm mb-4 hover:underline flex items-center"><i class="fas fa-arrow-left mr-2"></i> Kembali ke Laporan</button>
                 <div class="flex flex-col md:flex-row md:items-end justify-between">
                     <div class="flex items-center">
                         <div id="detail-category-logo"></div>
@@ -1399,9 +1399,9 @@
                     </div>
                     <div class="mt-4 md:mt-0 text-left md:text-right border-t md:border-t-0 border-slate-200 pt-3 md:pt-0">
                         <div class="flex items-center justify-start md:justify-end gap-2 mb-0.5">
-                            <button type="button" onclick="categoryDetailShiftMonth(-1)" aria-label="Bulan sebelumnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                            <button type="button" data-action="categoryDetailShiftMonth" data-args='[-1]' aria-label="Bulan sebelumnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-left text-[10px]"></i></button>
                             <p class="text-slate-500 text-xs md:text-sm font-bold" id="detail-category-month-label">Juli 2026</p>
-                            <button type="button" onclick="categoryDetailShiftMonth(1)" aria-label="Bulan berikutnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-right text-[10px]"></i></button>
+                            <button type="button" data-action="categoryDetailShiftMonth" data-args='[1]' aria-label="Bulan berikutnya" class="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"><i class="fas fa-chevron-right text-[10px]"></i></button>
                         </div>
                         <p class="text-2xl md:text-3xl font-bold text-[#151928]" id="detail-category-total">Rp 0</p>
                     </div>
@@ -1440,9 +1440,9 @@
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center">
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalTitle">Catat Transaksi</h3>
                 <div class="flex items-center gap-1">
-                    <button type="button" id="btnScanStruk" onclick="triggerStrukScan()" title="Isi otomatis dari foto struk (AI)" aria-label="Scan Struk" class="text-indigo-500 hover:text-indigo-700 w-8 h-8 rounded-full hover:bg-indigo-50 flex items-center justify-center transition"><i class="fas fa-camera"></i></button>
+                    <button type="button" id="btnScanStruk" data-action="triggerStrukScan" title="Isi otomatis dari foto struk (AI)" aria-label="Scan Struk" class="text-indigo-500 hover:text-indigo-700 w-8 h-8 rounded-full hover:bg-indigo-50 flex items-center justify-center transition"><i class="fas fa-camera"></i></button>
                     <input type="file" id="strukFileInput" accept="image/*" capture="environment" class="hidden" onchange="handleStrukFileSelected(event)">
-                    <button type="button" onclick="closeModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                    <button type="button" data-action="closeModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
                 </div>
             </div>
             
@@ -1487,7 +1487,7 @@
                         <div>
                             <label for="kategori" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide" id="label-kategori">Kategori</label>
                             <input type="hidden" id="kategori" required>
-                            <div onclick="openCategorySelector()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl ring-1 ring-slate-200 hover:ring-2 hover:ring-[#151928] transition cursor-pointer flex items-center justify-between">
+                            <div data-action="openCategorySelector" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl ring-1 ring-slate-200 hover:ring-2 hover:ring-[#151928] transition cursor-pointer flex items-center justify-between">
                                 <div id="selected-category-display" class="flex items-center text-xs md:text-sm text-slate-400">
                                     <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>
                                     Pilih Kategori
@@ -1501,17 +1501,17 @@
                         <div>
                             <label for="keterangan" class="block text-[10px] md:text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Keterangan (Opsional)</label>
                             <input type="text" id="keterangan" placeholder="Contoh: Makan siang, Gaji..." oninput="handleKeteranganInputForSuggestion()" class="w-full p-2.5 md:p-3 bg-slate-50 rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#151928] outline-none transition text-xs md:text-sm">
-                            <button type="button" id="category-suggestion-chip" onclick="applyCategorySuggestion()" class="hidden mt-1.5 text-[10px] md:text-xs font-bold text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 items-center gap-1.5 transition"><i class="fas fa-wand-magic-sparkles"></i><span id="category-suggestion-text"></span></button>
+                            <button type="button" id="category-suggestion-chip" data-action="applyCategorySuggestion" class="hidden mt-1.5 text-[10px] md:text-xs font-bold text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 items-center gap-1.5 transition"><i class="fas fa-wand-magic-sparkles"></i><span id="category-suggestion-text"></span></button>
                         </div>
                     </div>
                 </form>
             </div>
             
             <div class="p-5 md:p-6 border-t border-slate-100 bg-slate-50">
-                <button type="button" id="btnSubmitForm" onclick="submitForm(new Event('submit'))" class="w-full bg-[#151928] hover:bg-black text-white font-medium py-3 rounded-xl transition shadow-lg shadow-slate-300 text-sm md:text-base">
+                <button type="button" id="btnSubmitForm" data-action="kirimFormTransaksi" class="w-full bg-[#151928] hover:bg-black text-white font-medium py-3 rounded-xl transition shadow-lg shadow-slate-300 text-sm md:text-base">
                     Simpan Data
                 </button>
-                <button type="button" id="btnSubmitFormRepeat" onclick="submitFormNewAndRepeat()" class="hidden w-full mt-2 bg-white hover:bg-slate-100 text-[#151928] font-medium py-3 rounded-xl transition border border-slate-200 text-sm md:text-base">
+                <button type="button" id="btnSubmitFormRepeat" data-action="submitFormNewAndRepeat" class="hidden w-full mt-2 bg-white hover:bg-slate-100 text-[#151928] font-medium py-3 rounded-xl transition border border-slate-200 text-sm md:text-base">
                     Simpan &amp; Catat Lagi
                 </button>
             </div>
@@ -1523,7 +1523,7 @@
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalAssetContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalAssetTitle">Tambah Aset Baru</h3>
-                <button type="button" onclick="closeAssetModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeAssetModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
@@ -1589,7 +1589,7 @@
             </div>
             
             <div class="p-5 md:p-6 border-t border-slate-100 bg-white">
-                <button type="button" id="btnSubmitAssetForm" onclick="submitAsset(new Event('submit'))" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm md:text-base">
+                <button type="button" id="btnSubmitAssetForm" data-action="kirimFormAset" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm md:text-base">
                     Simpan Aset
                 </button>
             </div>
@@ -1601,7 +1601,7 @@
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalGoalContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalGoalTitle">Tujuan Baru</h3>
-                <button type="button" onclick="closeGoalModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeGoalModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
                 <form id="formGoal" onsubmit="submitGoalForm(event)">
@@ -1639,7 +1639,7 @@
                 </form>
             </div>
             <div class="p-5 md:p-6 border-t border-slate-100 bg-white">
-                <button type="button" id="btnSubmitGoalForm" onclick="submitGoalForm(new Event('submit'))" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm md:text-base">
+                <button type="button" id="btnSubmitGoalForm" data-action="kirimFormTujuan" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/30 text-sm md:text-base">
                     Simpan Tujuan
                 </button>
             </div>
@@ -1654,7 +1654,7 @@
             </div>
             <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100">
                 <h3 class="text-base font-bold text-slate-800">Setor Dana <span id="goal-contribute-name" class="text-indigo-500"></span></h3>
-                <button type="button" onclick="closeGoalContributeModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeGoalContributeModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5">
                 <form id="formGoalContribute" onsubmit="submitGoalContribute(event)">
@@ -1675,7 +1675,7 @@
         <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-full" id="modalDebtContent">
             <div class="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 flex justify-between items-center bg-rose-50/50">
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="modalDebtTitle">Utang Baru</h3>
-                <button type="button" onclick="closeDebtModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeDebtModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 md:p-6 flex-1 overflow-y-auto">
                 <form id="formDebt" onsubmit="submitDebtForm(event)">
@@ -1718,7 +1718,7 @@
                 </form>
             </div>
             <div class="p-5 md:p-6 border-t border-slate-100 bg-white">
-                <button type="button" id="btnSubmitDebtForm" onclick="submitDebtForm(new Event('submit'))" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-rose-500/30 text-sm md:text-base">
+                <button type="button" id="btnSubmitDebtForm" data-action="kirimFormUtang" class="w-full bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-rose-500/30 text-sm md:text-base">
                     Simpan Utang
                 </button>
             </div>
@@ -1733,7 +1733,7 @@
             </div>
             <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100">
                 <h3 class="text-base font-bold text-slate-800">Bayar Cicilan <span id="debt-pay-name" class="text-rose-500"></span></h3>
-                <button type="button" onclick="closeDebtPayModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeDebtPayModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5">
                 <form id="formDebtPay" onsubmit="submitDebtPay(event)">
@@ -1763,7 +1763,7 @@
                         <p id="asset-detail-platform" class="text-[11px] text-slate-400 truncate">-</p>
                     </div>
                 </div>
-                <button type="button" onclick="closeAssetDetailModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeAssetDetailModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
             <div class="flex-1 overflow-y-auto p-5">
                 <div class="grid grid-cols-3 gap-2 mb-5">
@@ -1793,9 +1793,9 @@
                 </div>
             </div>
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl space-y-2">
-                <button type="button" id="asset-detail-refresh-btn" onclick="handleRefreshAssetPrice()" class="hidden w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-indigo-600/30"><i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis</button>
-                <button type="button" id="asset-detail-manualnav-btn" onclick="openManualNavModal()" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-emerald-600/30"><i class="fas fa-satellite-dish mr-2"></i>Sync NAB/UP Pasar (Reksadana)</button>
-                <button type="button" onclick="closeAssetDetailModal(); openAssetModal(true, currentAssetDetailId)" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-pencil mr-2"></i>Perbarui Nilai / Edit</button>
+                <button type="button" id="asset-detail-refresh-btn" data-action="handleRefreshAssetPrice" class="hidden w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-indigo-600/30"><i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis</button>
+                <button type="button" id="asset-detail-manualnav-btn" data-action="openManualNavModal" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-emerald-600/30"><i class="fas fa-satellite-dish mr-2"></i>Sync NAB/UP Pasar (Reksadana)</button>
+                <button type="button" data-action="editAsetDariDetail" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-pencil mr-2"></i>Perbarui Nilai / Edit</button>
             </div>
         </div>
     </div>
@@ -1813,7 +1813,7 @@
                     <h3 class="text-base md:text-lg font-bold text-slate-800" id="accModalTitle">Tambah Akun Baru</h3>
                     <p class="text-[11px] text-slate-400">Bank, e-wallet, tunai, atau platform investasi</p>
                 </div>
-                <button type="button" onclick="closeAccountModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeAccountModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
@@ -1845,11 +1845,11 @@
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide">Ikon Akun</label>
-                        <button type="button" id="acc-modal-reset-auto" onclick="resetAccountIconToAuto()" class="hidden text-[10px] font-bold text-blue-500 hover:text-blue-700"><i class="fas fa-rotate-left mr-1"></i>Pakai logo otomatis</button>
+                        <button type="button" id="acc-modal-reset-auto" data-action="resetAccountIconToAuto" class="hidden text-[10px] font-bold text-blue-500 hover:text-blue-700"><i class="fas fa-rotate-left mr-1"></i>Pakai logo otomatis</button>
                     </div>
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-3 text-[11px] font-bold">
-                        <button type="button" onclick="setAccIconTab('palette')" id="acc-icon-tab-palette" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-blue-600">Pilih Ikon</button>
-                        <button type="button" onclick="setAccIconTab('upload')" id="acc-icon-tab-upload" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Upload Logo</button>
+                        <button type="button" data-action="setAccIconTab" data-args='["palette"]' id="acc-icon-tab-palette" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-blue-600">Pilih Ikon</button>
+                        <button type="button" data-action="setAccIconTab" data-args='["upload"]' id="acc-icon-tab-upload" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Upload Logo</button>
                     </div>
 
                     <div id="acc-icon-panel-palette" class="grid grid-cols-6 gap-2"></div>
@@ -1878,7 +1878,7 @@
             </div>
 
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
-                <button type="button" id="accModalSubmitBtn" onclick="submitAccountModal()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan Akun</button>
+                <button type="button" id="accModalSubmitBtn" data-action="submitAccountModal" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan Akun</button>
             </div>
         </div>
     </div>
@@ -1896,7 +1896,7 @@
                     <h3 class="text-base md:text-lg font-bold text-slate-800">Kustomisasi Kategori</h3>
                     <p class="text-[11px] text-slate-400" id="catstyle-modal-subtitle">Nama kategori</p>
                 </div>
-                <button type="button" onclick="closeCategoryStyleModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeCategoryStyleModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
@@ -1910,12 +1910,12 @@
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wide" id="catstyle-section-label">Ikon & Warna</label>
-                        <button type="button" onclick="resetCategoryStyleToDefault()" class="text-[10px] font-bold text-blue-500 hover:text-blue-700"><i class="fas fa-rotate-left mr-1"></i>Reset ke Bawaan</button>
+                        <button type="button" data-action="resetCategoryStyleToDefault" class="text-[10px] font-bold text-blue-500 hover:text-blue-700"><i class="fas fa-rotate-left mr-1"></i>Reset ke Bawaan</button>
                     </div>
                     <p id="catstyle-color-lock-note" class="hidden text-[10px] text-slate-400 -mt-1 mb-2"><i class="fas fa-lock mr-1"></i>Warna mengikuti kategori utama — sub-kategori cuma bisa ganti bentuk ikonnya</p>
                     <div class="bg-slate-100 p-1 rounded-xl flex mb-3 text-[11px] font-bold">
-                        <button type="button" onclick="setCatStyleTab('palette')" id="catstyle-tab-palette" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-blue-600">Pilih Ikon</button>
-                        <button type="button" onclick="setCatStyleTab('upload')" id="catstyle-tab-upload" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Upload Gambar</button>
+                        <button type="button" data-action="setCatStyleTab" data-args='["palette"]' id="catstyle-tab-palette" class="flex-1 py-1.5 rounded-lg transition-all bg-white shadow-sm text-blue-600">Pilih Ikon</button>
+                        <button type="button" data-action="setCatStyleTab" data-args='["upload"]' id="catstyle-tab-upload" class="flex-1 py-1.5 rounded-lg transition-all text-slate-400">Upload Gambar</button>
                     </div>
 
                     <div id="catstyle-panel-palette" class="grid grid-cols-6 gap-2"></div>
@@ -1933,7 +1933,7 @@
             </div>
 
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
-                <button type="button" onclick="submitCategoryStyleModal()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan</button>
+                <button type="button" data-action="submitCategoryStyleModal" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan</button>
             </div>
         </div>
     </div>
@@ -1947,7 +1947,7 @@
                     <h3 class="text-base font-bold text-slate-800" id="manual-nav-title">Sync NAB/UP Pasar</h3>
                     <p class="text-[11px] text-slate-400" id="manual-nav-sub">Masukkan NAB/UP terkini dari aplikasi Bibit/Bareksa</p>
                 </div>
-                <button type="button" onclick="closeManualNavModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeManualNavModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 space-y-4">
                 <div>
@@ -1973,7 +1973,7 @@
                 </div>
             </div>
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl">
-                <button type="button" onclick="submitManualNav()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-rotate mr-2"></i>Terapkan Nilai Pasar</button>
+                <button type="button" data-action="submitManualNav" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-rotate mr-2"></i>Terapkan Nilai Pasar</button>
             </div>
         </div>
     </div>
@@ -1990,7 +1990,7 @@
                     <h3 class="text-base md:text-lg font-bold text-slate-800">Edit Profil</h3>
                     <p class="text-[11px] text-slate-400">Foto, nama, dan data diri kamu</p>
                 </div>
-                <button type="button" onclick="closeProfileModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeProfileModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
@@ -2002,7 +2002,7 @@
                         <div class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#151928] text-white flex items-center justify-center shadow-lg ring-2 ring-white group-hover:scale-110 transition-transform"><i class="fas fa-camera text-xs"></i></div>
                     </label>
                     <input type="file" id="profile-modal-upload-input" accept="image/*" class="hidden" onchange="handleProfileAvatarUpload(event)">
-                    <button type="button" id="profile-modal-remove-photo" onclick="removeProfileAvatarSelection()" class="hidden mt-2 text-[11px] font-bold text-rose-500 hover:text-rose-700"><i class="fas fa-trash-alt mr-1"></i>Hapus Foto</button>
+                    <button type="button" id="profile-modal-remove-photo" data-action="removeProfileAvatarSelection" class="hidden mt-2 text-[11px] font-bold text-rose-500 hover:text-rose-700"><i class="fas fa-trash-alt mr-1"></i>Hapus Foto</button>
                     <p class="text-[10px] text-slate-400 mt-1">PNG/JPG, otomatis dikecilkan</p>
                 </div>
 
@@ -2039,14 +2039,14 @@
                             class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-xs md:text-sm font-bold">
                         <input type="password" id="profile-modal-password-confirm" placeholder="Ulangi kata sandi baru" autocomplete="new-password"
                             class="w-full p-2.5 md:p-3 bg-white rounded-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-400 outline-none transition text-xs md:text-sm font-bold">
-                        <button type="button" onclick="submitPasswordChange()" class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl py-2.5 text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-key"></i> Ganti Kata Sandi</button>
+                        <button type="button" data-action="submitPasswordChange" class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl py-2.5 text-xs font-bold transition flex items-center justify-center gap-2"><i class="fas fa-key"></i> Ganti Kata Sandi</button>
                     </div>
                 </div>
 
             </div>
 
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
-                <button type="button" onclick="submitProfileModal()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan Profil</button>
+                <button type="button" data-action="submitProfileModal" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan Profil</button>
             </div>
         </div>
     </div>
@@ -2062,11 +2062,11 @@
                     <h3 class="text-base md:text-lg font-bold text-slate-800">Transaksi Berulang</h3>
                     <p class="text-[11px] text-slate-400">Langganan, gaji, cicilan, tagihan rutin</p>
                 </div>
-                <button type="button" onclick="closeRecurringListModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeRecurringListModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
             <div class="flex-1 overflow-y-auto p-4" id="recurring-list-container"></div>
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
-                <button type="button" onclick="openRecurringFormModal(null)" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-plus mr-2"></i>Tambah Transaksi Berulang</button>
+                <button type="button" data-action="openRecurringFormModal" data-args='[null]' class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50"><i class="fas fa-plus mr-2"></i>Tambah Transaksi Berulang</button>
             </div>
         </div>
     </div>
@@ -2079,7 +2079,7 @@
             </div>
             <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl md:rounded-t-3xl">
                 <h3 id="recurring-form-title" class="text-base md:text-lg font-bold text-slate-800">Tambah Transaksi Berulang</h3>
-                <button type="button" onclick="closeRecurringFormModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeRecurringFormModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
 
             <form id="formRecurring" onsubmit="submitRecurringForm(event)" class="flex-1 overflow-y-auto p-5 space-y-4">
@@ -2149,7 +2149,7 @@
             </form>
 
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl md:rounded-b-3xl">
-                <button type="button" onclick="submitRecurringForm()" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan</button>
+                <button type="button" data-action="submitRecurringForm" class="w-full bg-[#151928] hover:bg-black active:scale-[0.98] text-white rounded-xl py-3.5 text-sm font-bold transition shadow-lg shadow-slate-300/50">Simpan</button>
             </div>
         </div>
     </div>
@@ -2164,7 +2164,7 @@
 
             <div class="px-5 py-3 md:py-4 border-b border-slate-200 flex justify-between items-center bg-white rounded-t-3xl md:rounded-t-3xl">
                 <h3 class="text-base md:text-lg font-bold text-slate-800">Kategori Transaksi</h3>
-                <button type="button" onclick="closeCategorySelector()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeCategorySelector" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
 
             <div class="px-5 pt-4 bg-white">
@@ -2186,19 +2186,19 @@
                     <h3 class="font-bold text-slate-800 text-base">Atur Budget Bulanan 🎯</h3>
                     <p class="text-[11px] text-slate-400">Nominal kategori utama terakumulasi otomatis dari sub-kategorinya</p>
                 </div>
-                <button onclick="closeBudgetModal()" aria-label="Tutup" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition flex-shrink-0"><i class="fas fa-xmark"></i></button>
+                <button data-action="closeBudgetModal" aria-label="Tutup" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition flex-shrink-0"><i class="fas fa-xmark"></i></button>
             </div>
 
             
             <div class="px-4 pt-3 bg-white flex gap-2 flex-shrink-0">
-                <button type="button" onclick="copyPrevMonthBudget('budget')" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl py-2.5 text-[11px] font-bold transition flex items-center justify-center gap-1.5"><i class="fas fa-copy"></i> Salin Budget Bulan Lalu</button>
-                <button type="button" onclick="copyPrevMonthBudget('realisasi')" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl py-2.5 text-[11px] font-bold transition flex items-center justify-center gap-1.5"><i class="fas fa-chart-simple"></i> Salin Realisasi Bulan Lalu</button>
+                <button type="button" data-action="copyPrevMonthBudget" data-args='["budget"]' class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl py-2.5 text-[11px] font-bold transition flex items-center justify-center gap-1.5"><i class="fas fa-copy"></i> Salin Budget Bulan Lalu</button>
+                <button type="button" data-action="copyPrevMonthBudget" data-args='["realisasi"]' class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl py-2.5 text-[11px] font-bold transition flex items-center justify-center gap-1.5"><i class="fas fa-chart-simple"></i> Salin Realisasi Bulan Lalu</button>
             </div>
 
             <div id="modalBudgetList" class="flex-1 overflow-y-auto px-4 py-2 max-h-[60vh] pb-8"></div>
             
             <div class="p-4 border-t border-slate-100 flex-shrink-0 bg-white rounded-b-3xl">
-                <button onclick="saveBudgets()" class="w-full bg-[#151928] hover:bg-black text-white rounded-xl py-3.5 text-sm font-bold transition-colors shadow-lg shadow-slate-300/50">Simpan Budget Ke Cloud</button>
+                <button data-action="saveBudgets" class="w-full bg-[#151928] hover:bg-black text-white rounded-xl py-3.5 text-sm font-bold transition-colors shadow-lg shadow-slate-300/50">Simpan Budget Ke Cloud</button>
             </div>
         </div>
     </div>
@@ -2209,8 +2209,8 @@
             <div class="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4"><i class="fas fa-trash text-xl"></i></div>
             <p id="modalConfirmText" class="text-sm font-semibold text-slate-700 mb-6">Yakin mau hapus ini?</p>
             <div class="flex gap-2">
-                <button onclick="closeConfirmModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 rounded-xl py-3 text-sm font-bold transition">Batal</button>
-                <button onclick="_confirmYes()" class="flex-1 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-xl py-3 text-sm font-bold transition">Hapus</button>
+                <button data-action="closeConfirmModal" class="flex-1 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 rounded-xl py-3 text-sm font-bold transition">Batal</button>
+                <button data-action="_confirmYes" class="flex-1 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-xl py-3 text-sm font-bold transition">Hapus</button>
             </div>
         </div>
     </div>
@@ -2220,7 +2220,7 @@
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h3 class="text-base md:text-lg font-bold text-slate-800" id="calendarDetailTitle">Transaksi Hari Ini</h3>
-                <button onclick="closeCalendarDetail()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <button data-action="closeCalendarDetail" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-5 overflow-y-auto flex-1 space-y-2 divide-y divide-slate-100" id="calendarDetailContent"></div>
         </div>
@@ -2279,13 +2279,13 @@
             <p id="appLockSub" class="text-slate-400 text-xs mt-1 mb-5">Masukkan PIN 6 digit untuk membuka</p>
             <input id="appLockPinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" aria-label="PIN 6 digit" class="w-full text-center tracking-[0.5em] text-2xl font-bold bg-slate-900/70 border border-cyan-400/30 rounded-2xl py-3.5 text-cyan-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/70 mb-3">
             <p id="appLockStatus" class="text-rose-400 text-xs min-h-[1.1rem] mb-3"></p>
-            <button id="appLockUnlockBtn" onclick="appLockSubmit()" class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-cyan-500/25">Buka</button>
-            <button id="appLockBioBtn" onclick="appLockBiometricUnlock()" class="hidden w-full mt-2.5 bg-slate-800/80 border border-cyan-400/30 text-cyan-200 font-semibold py-3 rounded-2xl active:scale-[0.98] transition"><i class="fas fa-fingerprint mr-2"></i><span data-bio-label>Buka dengan biometrik</span></button>
-            <button onclick="appLockShowForgot()" class="text-slate-500 hover:text-slate-300 text-xs mt-5 underline underline-offset-4 transition-colors">Lupa PIN?</button>
+            <button id="appLockUnlockBtn" data-action="appLockSubmit" class="w-full bg-gradient-to-tr from-cyan-500 to-indigo-500 text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition shadow-lg shadow-cyan-500/25">Buka</button>
+            <button id="appLockBioBtn" data-action="appLockBiometricUnlock" class="hidden w-full mt-2.5 bg-slate-800/80 border border-cyan-400/30 text-cyan-200 font-semibold py-3 rounded-2xl active:scale-[0.98] transition"><i class="fas fa-fingerprint mr-2"></i><span data-bio-label>Buka dengan biometrik</span></button>
+            <button data-action="appLockShowForgot" class="text-slate-500 hover:text-slate-300 text-xs mt-5 underline underline-offset-4 transition-colors">Lupa PIN?</button>
             <div id="appLockForgotBox" class="hidden mt-4 text-left">
                 <p class="text-slate-400 text-[11px] mb-2 leading-relaxed">Masukkan <b class="text-slate-300">password akun (email)</b> kamu untuk memverifikasi identitas dan mereset PIN.</p>
                 <input id="appLockForgotPassword" type="password" autocomplete="current-password" placeholder="Password akun" aria-label="Password akun" class="w-full bg-slate-900/70 border border-slate-600 rounded-xl py-2.5 px-3.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-400/60 mb-2">
-                <button onclick="appLockRecover()" class="w-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold py-2.5 rounded-xl transition">Verifikasi &amp; Reset PIN</button>
+                <button data-action="appLockRecover" class="w-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold py-2.5 rounded-xl transition">Verifikasi &amp; Reset PIN</button>
             </div>
         </div>
     </div>
@@ -2297,7 +2297,7 @@
             <div class="w-full flex justify-center pt-3 pb-1 md:hidden"><div class="w-12 h-1.5 bg-slate-300 rounded-full"></div></div>
             <div class="flex items-center justify-between px-5 py-3 md:py-4 border-b border-slate-100 flex-shrink-0 bg-white rounded-t-3xl">
                 <h3 class="text-base md:text-lg font-bold text-slate-800">Kunci Aplikasi</h3>
-                <button type="button" onclick="closeAppLockModal()" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeAppLockModal" aria-label="Tutup" class="text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition flex-shrink-0"><i class="fas fa-times"></i></button>
             </div>
             <div id="appLockModalBody" class="p-5 overflow-y-auto flex-1"></div>
         </div>
