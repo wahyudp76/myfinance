@@ -176,7 +176,8 @@ export default [
     // Callback Playwright dieksekusi di konteks halaman, jadi `document`,
     // `window`, dst. memang ada meski file-nya sendiri file Node.
     files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "scripts/verify-offline-cache.mjs", "scripts/verify-ui-actions.mjs",
-      "scripts/verify-csp.mjs", "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
+      "scripts/verify-csp.mjs", "scripts/verify-ui-sweep.mjs",
+      "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -209,6 +210,9 @@ export default [
         // registry aksi deklaratif dan tipe argumen data-args di runtime.
         uiActionRegistry: "readonly",
         selectedReportYear: "readonly",
+        // v106: dipakai scripts/verify-ui-sweep.mjs untuk membuka daftar
+        // transaksi berulang saat menyapu permukaan aksi.
+        openRecurringListModal: "readonly",
         charts: "readonly",
         // DITULIS (bukan cuma dibaca) oleh harness saat membersihkan aset
         // sementara "tmp-kripto" -- lihat scripts/verify-hud.mjs.

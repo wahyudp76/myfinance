@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v105`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v106`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -298,6 +298,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   node scripts/verify-offline-cache.mjs # 13 cek cache data offline/PWA
   node scripts/verify-ui-actions.mjs  # 39 cek aksi UI deklaratif (data-action)
   node scripts/verify-csp.mjs         # 15 cek Content-Security-Policy
+  node scripts/verify-ui-sweep.mjs    # 9 cek sapu seluruh permukaan aksi
   node scripts/schema-verify/run.mjs  # v96: install sql/schema.sql dari nol di
                                       # Postgres nyata + 10 cek RLS/RPC/grant
                                       # (butuh psql; lihat README di folder itu)

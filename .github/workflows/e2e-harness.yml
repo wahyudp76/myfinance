@@ -6,7 +6,8 @@
 # scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99),
 # scripts/verify-offline-cache.mjs (13 cek cache data offline, v100), dan
 # scripts/verify-ui-actions.mjs (39 cek aksi UI deklaratif, v101),
-# dan scripts/verify-csp.mjs (15 cek Content-Security-Policy, v104)
+# scripts/verify-csp.mjs (15 cek Content-Security-Policy, v104), dan
+# scripts/verify-ui-sweep.mjs (9 cek sapu permukaan aksi, v106)
 # di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
@@ -152,6 +153,16 @@ jobs:
         env:
           CSP_URL: http://127.0.0.1:8123/
         run: node scripts/verify-csp.mjs
+
+      # v106: SAPU MENYELURUH. Harness lain menguji alur yang dipilih penulisnya
+      # satu per satu; yang ini menyentuh SEMUANYA -- setiap view, setiap halaman
+      # & modal detail, setiap aksi klik, setiap handler non-klik -- lalu menangkap
+      # exception apa pun. Dibuat setelah bug v105 lolos ke pengguna hanya karena
+      # tidak ada harness yang pernah MEMBUKA halaman detail akun.
+      - name: verify-ui-sweep (9 cek sapu seluruh permukaan aksi)
+        env:
+          SWEEP_URL: http://127.0.0.1:8123/
+        run: node scripts/verify-ui-sweep.mjs
 
       # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
       # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug

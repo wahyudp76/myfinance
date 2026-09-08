@@ -2350,3 +2350,51 @@ atas data ter-seed -> **0 exception, 0 console.error**. Satu temuan awal
 (`localeCompare` pada undefined di detail aset) ternyata DATA SEED HARNESS yang
 salah bentuk (`{t,v}` alih-alih `{tanggal,nilai}`), bukan bug produksi -- tetap
 dipakai sebagai alasan menambah pengurutan defensif di atas.
+
+## v106 — Harness sapu menyeluruh (menutup kelas kegagalan yang meloloskan v105)
+**KENAPA:** bug v105 ("kartu saldo per akun tidak bisa diklik") lolos ke
+pengguna bukan karena kodenya rumit, tapi karena TIDAK ADA satu pun harness
+yang pernah MEMBUKA halaman detail akun. Enam harness yang ada menguji alur
+yang dipilih penulisnya satu per satu; tidak ada yang menjawab pertanyaan
+"apakah ADA yang meledak kalau seluruh aplikasi disentuh?".
+
+**`scripts/verify-ui-sweep.mjs` (BARU, 9 cek):** di atas data seed lengkap
+(transaksi, aset, anggaran, berulang, tujuan, utang, kategori kustom) ia
+menyapu 7 view, 6 halaman/modal detail, **197 aksi klik**, dan **60 handler
+non-klik**, lalu menangkap setiap exception & console.error dan melaporkan
+AKSI MANA yang memicunya.
+
+**BUKTI IA BEKERJA:** dengan bug v105 dikembalikan, harness ini merah di TIGA
+tempat independen (S3 halaman detail, S4 aksi klik, S5 handler non-klik) dengan
+pesan persis `TypeError: i.args is not iterable`. Dijalankan 3x berturut-turut
+pada kode sehat: hasil identik (197 aksi, 0 masalah) -- deterministik, bukan
+harness yang kadang merah sendiri. Durasi ~85 detik.
+
+**KEPUTUSAN DESAIN — daftar-dilewati EKSPLISIT, bukan regex:**
+versi sekali-pakai yang dipakai saat mendiagnosis v105 menyaring aksi berbahaya
+dengan regex nama (`/hapus|delete|logout|.../`). Itu rapuh: aksi baru yang
+namanya kebetulan cocok akan diam-diam luput dari sapuan. Sekarang ada peta
+`DILEWATI` berisi nama aksi -> ALASAN, dan cek **S7** menjaga dua arah:
+  (a) setiap entri di daftar itu harus benar-benar menunjuk aksi yang ada;
+  (b) cakupan sapuan dilaporkan sebagai angka (kini 75/113 aksi unik = 66%).
+Menambah pengecualian jadi keputusan sadar yang terlihat di diff, bukan efek
+samping regex.
+
+**DUA HAL YANG DITANGKAP GERBANGNYA SENDIRI SAAT DIBUAT:**
+1. S7 langsung merah menunjuk **6 nama karangan** di daftar-dilewati (`logout`,
+   `confirmLogout`, `clearOfflineDataCache`, `muatUlangHalaman`, `exportCSV`,
+   `downloadBackup`) yang ternyata tidak ada sebagai aksi -- tombol logout
+   dipasang lewat addEventListener, dan nama ekspor yang benar
+   `exportTransactionsCsv` dkk. Tanpa S7, enam entri itu jadi pengecualian hantu
+   yang tidak mengecualikan apa pun.
+2. S5 sempat merah karena "An invalid form control with name='' is not
+   focusable" -- itu pesan VALIDASI BAWAAN BROWSER akibat men-dispatch `submit`
+   natif pada form kosong, bukan kegagalan aplikasi. `data-on-submit` kini tidak
+   ikut disapu natif; wiring-nya sudah dibuktikan verify-ui-actions U11 memakai
+   mata-mata registry, yang menguji jalur sama tanpa memancing validasi natif.
+
+**CATATAN CAKUPAN (jujur):** 66%, bukan 100%. Yang dikecualikan adalah aksi yang
+merusak keadaan uji (hapus/reset/logout), menulis ke backend (alur simpan sudah
+diuji verify-hud dengan asersi bermakna), memanggil Edge Function, meminta izin
+browser, atau membuka dialog berkas OS. Angka itu sengaja dicetak tiap run
+supaya penurunannya kelihatan.
