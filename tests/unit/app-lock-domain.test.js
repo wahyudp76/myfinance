@@ -70,7 +70,7 @@ test('normalizeLockConfig: nilai valid dipertahankan', () => {
         enabled: true, salt: 's', hash: 'h', auto_lock_minutes: 0,
         biometric_enabled: true, credential_id: 'abc',
         // v99: credential_id lama dimigrasikan jadi satu entri daftar
-        credentials: [{ id: 'abc', label: 'Perangkat pertama', added_at: '' }],
+        credentials: [{ id: 'abc', label: 'Perangkat pertama', added_at: '', rp_id: '' }],
     });
 });
 

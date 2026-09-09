@@ -58,7 +58,12 @@ export const APP_LOCK_DEFAULTS = {
  */
 export const MAX_BIOMETRIC_CREDENTIALS = 10;
 
-/** Satu kredensial = { id (base64 rawId), label (nama perangkat), added_at (ISO) }. */
+/**
+ * Satu kredensial = { id (base64 rawId), label, added_at (ISO), rp_id }.
+ * v107: rp_id adalah metadata hostname saat dibuat, BUKAN konfigurasi API.
+ * String kosong = kredensial lama, domain tidak diketahui. Jangan menebak
+ * domain legacy dari hostname saat restore -- backup bisa dibuka di domain lain.
+ */
 function normalizeCredential(raw) {
     const c = raw && typeof raw === 'object' ? raw : {};
     const id = typeof c.id === 'string' && c.id ? c.id : null;
@@ -67,6 +72,7 @@ function normalizeCredential(raw) {
         id,
         label: typeof c.label === 'string' && c.label ? c.label.slice(0, 60) : 'Perangkat',
         added_at: typeof c.added_at === 'string' ? c.added_at : '',
+        rp_id: typeof c.rp_id === 'string' ? c.rp_id.toLowerCase() : '',
     };
 }
 
@@ -88,7 +94,7 @@ export function normalizeCredentialList(rawList, legacyCredentialId) {
     // Migrasi: konfigurasi lama hanya punya credential_id tunggal.
     const legacy = typeof legacyCredentialId === 'string' && legacyCredentialId ? legacyCredentialId : null;
     if (legacy && !seen.has(legacy) && out.length < MAX_BIOMETRIC_CREDENTIALS) {
-        out.push({ id: legacy, label: 'Perangkat pertama', added_at: '' });
+        out.push({ id: legacy, label: 'Perangkat pertama', added_at: '', rp_id: '' });
     }
     return out;
 }
@@ -121,15 +127,23 @@ export function normalizeLockConfig(raw) {
     };
 }
 
-/** Semua rawId (base64) yang boleh dipakai membuka -- untuk allowCredentials WebAuthn. */
-export function biometricCredentialIds(cfg) {
-    return normalizeLockConfig(cfg).credentials.map((c) => c.id);
+/**
+ * rawId (base64) untuk allowCredentials / excludeCredentials WebAuthn.
+ * v107: bila rpId diberikan, kredensial domain lain yang SUDAH DIKETAHUI tidak
+ * ikut dikirim. Legacy tanpa metadata tetap boleh dicoba: browser/authenticator
+ * memeriksa RP sebenarnya. Tidak memigrasikan/menghapus kredensial asal.
+ * Tanpa argumen rpId, API lama tetap mengembalikan semua id.
+ */
+export function biometricCredentialIds(cfg, rpId) {
+    return normalizeLockConfig(cfg).credentials
+        .filter((c) => rpId === undefined || !c.rp_id || c.rp_id === rpId)
+        .map((c) => c.id);
 }
 
-/** Apakah kredensial milik PERANGKAT INI (id dari penanda lokal) terdaftar di cloud? */
-export function hasBiometricCredential(cfg, id) {
+/** Kredensial PERANGKAT INI ada di cloud dan cocok dengan RP (bila diberikan)? */
+export function hasBiometricCredential(cfg, id, rpId) {
     if (typeof id !== 'string' || !id) return false;
-    return biometricCredentialIds(cfg).includes(id);
+    return biometricCredentialIds(cfg, rpId).includes(id);
 }
 
 /** Tambah kredensial perangkat baru (idempoten per id). Mengembalikan cfg BARU. */
@@ -191,13 +205,15 @@ export function deviceLabelFromUserAgent(userAgent) {
  * kombinasi "aktif di sini / aktif di tempat lain / belum sama sekali" bisa
  * diuji tanpa DOM -- inilah kombinasi yang salah dibaca sampai v98.
  */
-export function describeBiometricState(cfg, thisDeviceCredentialId) {
+export function describeBiometricState(cfg, thisDeviceCredentialId, rpId) {
     const c = normalizeLockConfig(cfg);
-    const enrolledHere = hasBiometricCredential(c, thisDeviceCredentialId);
-    const otherDevices = c.credentials.filter((x) => x.id !== thisDeviceCredentialId).length;
+    const ids = biometricCredentialIds(c, rpId);
+    const enrolledHere = hasBiometricCredential(c, thisDeviceCredentialId, rpId);
+    const otherDevices = ids.filter((id) => id !== thisDeviceCredentialId).length;
     return {
         enrolledHere,
         otherDevices,
+        otherDomains: c.credentials.length - ids.length,
         total: c.credentials.length,
         // Tombol "Aktifkan" WAJIB tetap muncul selama perangkat ini belum
         // terdaftar, walau perangkat lain sudah -- ini inti bug v92-v98.

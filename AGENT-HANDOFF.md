@@ -9,6 +9,7 @@
 - Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (69 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; Edge Functions `analyze-finance`, `refresh-asset-price` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, 7 view (ringkasan/transaksi/akun/aset/budget/laporan/pengaturan), Ctrl/Cmd+K command palette.
+- App Lock RP ID: `docs/applock-webauthn-domain.md`; `node scripts/verify-applock-rpid.mjs` (31 cek, hermetic tiga origin + virtual authenticator). Domain lain perlu login/PIN lalu daftar ulang; tidak ada ROR.
 
 ## v41 — Reksadana: auto-update nilai dari Bibit (Edge Function `refresh-asset-price`)
 - Kolom baru di aset: `simbol`, `jumlah_unit`, `sumber_harga`, `tanggal_nav` (form Tambah/Edit Aset, sumber otomatis per kategori via `ASSET_AUTO_UPDATE_CONFIG` di index.html: Kripto→coingecko, Saham→yahoo_id_stock, Reksadana→reksadana_bibit).
@@ -2398,3 +2399,116 @@ merusak keadaan uji (hapus/reset/logout), menulis ke backend (alur simpan sudah
 diuji verify-hud dengan asersi bermakna), memanggil Edge Function, meminta izin
 browser, atau membuka dialog berkas OS. Angka itu sengaja dicetak tiap run
 supaya penurunannya kelihatan.
+
+
+## v107 — RP ID biometrik eksplisit + antisipasi perpindahan domain (nomor 2)
+**LINGKUP:** hanya butir WebAuthn yang disepakati. `package.json`/`.nvmrc`
+(nomor 3), CSP style-src, dan minifikasi top-level tidak diubah.
+
+**KOREKSI PREMIS PENTING:** tidak adanya `rp.id` BUKAN bug yang membuat
+biometrik sekarang gagal: browser sudah memakai hostname sebagai default.
+Menulis `rp.id` secara eksplisit juga TIDAK menjadikan kredensial portabel ke
+domain tak terkait. Hardcode domain produksi pada semua origin justru merusak
+localhost/preview/domain kustom. Tidak mengimplementasikan Related Origin
+Requests; pindah domain tetap perlu daftar ulang melalui PIN.
+
+**PERUBAHAN:**
+- `appLockRpId()` -> `window.location.hostname`, dipakai **kedua** operasi:
+  `create().publicKey.rp.id` dan `get().publicKey.rpId`. Produksi tetap
+  `wahyudp76.github.io`, bukan `github.io`, origin berskema/ber-port, atau path
+  `/myfinance`. Metadata cloud/backup tidak pernah menjadi sumber RP API.
+- Kredensial baru punya `rp_id`; penanda lokal punya `rpId`. Normalisasi
+  mempertahankan metadata, legacy tanpa domain diberi string kosong (tidak
+  ditebak berasal dari GitHub Pages/domain restore). Cermin `credential_id`
+  dan PIN/lockout/idle tetap kompatibel. Tidak ada migrasi SQL.
+- `biometricCredentialIds(cfg, rpId)`, `hasBiometricCredential(cfg, id, rpId)`,
+  `describeBiometricState(cfg, id, rpId)` kini menerima filter RP opsional.
+  Tanpa argumen baru tetap perilaku lama. Domain lain yang **diketahui** tidak
+  ikut allow/exclude atau dinyatakan aktif di UI; legacy tetap dicoba karena
+  browser memeriksa RP aslinya. `otherDomains` memisahkan hitungan UI.
+- Penanda lokal domain lain ditolak secara independen, termasuk jika klien
+  lama menghapus metadata cloud. Penanda legacy pada domain asal tetap bekerja;
+  setelah assertion valid, penanda diberi `rpId` hostname saat ini.
+- Daftar allow kosong tidak memanggil get (`allowCredentials: []` justru berarti
+  semua discoverable credential). Respons null/ID di luar allow-list tetap
+  terkunci dan tidak merusak penanda; PIN fallback tetap bisa digunakan.
+  Null/ID palsu diuji dengan injeksi respons, bukan klaim eksploitasi pada
+  authenticator fisik. Kunci ini tetap kunci UI, bukan autentikasi server.
+- Pengaturan menampilkan domain aktif + instruksi PIN/daftar ulang. Panduan
+  operasional `docs/applock-webauthn-domain.md` ditautkan README/STRUKTUR.
+- Batas **10 entri TOTAL** dari v99 tetap berlaku: domain baru memakai slot
+  seperti perangkat baru. Jika penuh, entri terlama masih bisa tergeser sesuai
+  perilaku lama. Jangan menjanjikan bahwa entri asal bertahan tanpa batas.
+
+**GERBANG BARU & BUKTI MERAH:**
+- `tests/unit/app-lock-rpid.test.js`: 10 tes; sebelum implementasi, 9 gagal +
+  1 lulus (kompatibilitas API lama). Unit legacy lama tetap dijaga, bukan
+  dibuang; satu expected object ditambah field `rp_id: ''`.
+- `scripts/verify-applock-rpid.mjs`: 31 cek. Pertama diuji pada kode v106
+  SEBELUM implementasi (saat masih 28 cek: 18 gagal); versi 29 cek
+  diuji lagi terhadap `git archive d159c43` -> **19 FAIL, exit 1**, tanpa error
+  halaman/harness. Versi final 31 cek -> **21 FAIL, exit 1** terhadap v106.
+  Dua tambahan R9 di baseline itu ikut dipengaruhi penanda yang dirusak respons
+  palsu R8; pembuktian khusus kondisi tombol memakai mutan terisolasi (2 FAIL).
+  Bukan bukti bahwa semua alur lama rusak: sebagian cek baru memang menagih
+  domain eksplisit/metadata yang belum ada pada versi itu.
+- Origin `http://localhost:8123/`, `https://wahyudp76.github.io/myfinance/`,
+  `https://uang.example.test/finance/` dipenuhi dari berkas checkout lokal
+  lewat intersepsi Playwright. Tidak menghubungi/menulis situs produksi atau
+  Supabase; service worker diblokir supaya tidak lolos dari intersepsi.
+- Sensor virtual CDP benar-benar membuat credential; harness memeriksa
+  parameter API, RP di authenticator, dan signature counter setelah get.
+  Kredensial legacy benar-benar dibuat TANPA rp.id, disimpan dalam bentuk
+  satu-slot/penanda lokal lama, lalu unlock setelah reload tanpa daftar ulang.
+- Mutan terisolasi (checkout salinan, bukan mengubah preview/produksi):
+  (a) hapus guard `raw.rpId` -> tepat **1 FAIL**, R5 saat metadata cloud hilang;
+  (b) hapus hanya `get().rpId` -> **4 FAIL**, walau browser masih default dengan
+  benar; (c) kembalikan kondisi tombol global ke `st.otherDevices > 0` ->
+  **2 FAIL** di R9. Membuktikan guard masing-masing secara independen.
+- Root harness dapat dialihkan melalui `APPLOCK_RPID_ROOT` untuk mengulang
+  pengujian terhadap checkout historis/mutan; default tetap checkout berjalan.
+  Harness didaftarkan di `E2E Harness`, docs-count guard, dan browser-globals
+  ESLint (`showAppLockOverlay`, `appLockBiometricUnlock`).
+
+**REGRESI KITA SENDIRI YANG DITANGKAP SEBELUM COMMIT:** pemisahan hitungan
+`otherDevices` dari `otherDomains` sempat membuat tombol **Matikan di semua
+perangkat** hilang ketika hanya ada pendaftaran dari domain lain. Dua cek R9
+baru lebih dulu membuktikan **2 FAIL** pada implementasi awal v107 (tanpa error
+halaman). Kondisi tombol dibetulkan menjadi `st.total > 1`, bukan
+`st.otherDevices > 0`. R9 mengklik tombol sungguhan, memastikan kedua domain
+tercabut dari cloud, lalu membuktikan PIN lama masih membuka. Harness sekarang
+31 cek, bukan mengabaikan efek samping UI akibat filter domain.
+
+**ASET:** build app + boot + CSS; `CACHE_VERSION` `myfinance-v139` ->
+`myfinance-v140`, snapshot diperbarui. DATA_CACHE tetap `myfinance-data-v2`;
+CSP hash tidak berubah.
+
+**CATATAN UNTUK NOMOR 3 (BELUM DIKERJAKAN):** pemasangan pada Node v20.20.2
+mengeluarkan EBADENGINE: `lighthouse@13.4.1` meminta `node >=22.19` dan
+`puppeteer-core@25.9.0` meminta `node >=22.12.0`. Lulus unit/E2E di Node 20
+BUKAN bukti bahwa seluruh toolchain mendukung Node 20. Jangan menurunkan
+engines hanya dari hasil tes aplikasi; verifikasi final v107 memakai Node 22.
+
+**GOTCHA HARNESS (BUKAN PERUBAHAN PRODUKSI):** `closeAppLockModal()` memasang
+`hidden` setelah animasi 300ms. Setup awal memanggil close bahkan ketika modal
+sudah tertutup; timer yang masih tertunda kemudian menyembunyikan modal R9
+sesaat setelah dibuka, sehingga klik/response POST timeout. Helper `lock()`
+kini hanya menutup modal yang terbuka, menunggu class hidden, baru mengunci.
+Penungguan response + aksi memakai `Promise.all` agar timeout tertangkap
+ringkasan harness, bukan unhandled rejection. Tidak mengubah timer UI aplikasi.
+
+**VERIFIKASI LOKAL FINAL (Node v22.23.2):**
+- `npm ci`: 267 paket, tanpa EBADENGINE pada Node 22.
+- `npm test`: ESLint 0 masalah; unit **882/882**; parity lokal **1/1**.
+  Ini bukan pengujian parity live dengan akun Supabase sungguhan.
+- Sembilan harness, total **228/228**: HUD 69, logo aset 17, App Lock 21,
+  biometrik multi-perangkat 14, RP ID 31, cache offline 13, UI actions 39,
+  CSP 15, UI sweep 9. Nol error halaman/console pada seluruh harness.
+- UI sweep tetap mencatat 197 aksi klik / 60 handler non-klik; cakupan aksi
+  unik tetap 75/113 (66%), bukan klaim bahwa seluruh aksi destruktif diuji.
+- Screenshot modal pada lebar 390px: catatan domain terbaca tanpa overflow.
+- Lighthouse lokal (layar login, emulasi mobile): performance **62**,
+  accessibility **100**, best-practices **100**; ambang 55/85/90 terlewati.
+- Build app/boot/CSS/CSP + snapshot dibangun ulang dan diperiksa idempoten.
+  Status rilis harus dikonfirmasi pada CI SHA commit yang dipush, bukan hanya
+  berdasarkan angka lokal di atas.

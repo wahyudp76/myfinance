@@ -4,6 +4,7 @@
 # scripts/verify-asset-logos.mjs (17 cek logo platform aset), dan
 # scripts/verify-applock.mjs (21 cek kunci aplikasi + pengingat, v92), dan
 # scripts/verify-applock-biometric.mjs (14 cek biometrik multi-perangkat, v99),
+# scripts/verify-applock-rpid.mjs (31 cek RP ID, legacy & perpindahan domain, v107),
 # scripts/verify-offline-cache.mjs (13 cek cache data offline, v100), dan
 # scripts/verify-ui-actions.mjs (39 cek aksi UI deklaratif, v101),
 # scripts/verify-csp.mjs (15 cek Content-Security-Policy, v104), dan
@@ -127,6 +128,13 @@ jobs:
         env:
           APPLOCK_URL: http://localhost:8123/
         run: node scripts/verify-applock-biometric.mjs
+
+      # v107: tiga origin (localhost, HTTPS produksi, HTTPS domain kustom)
+      # dipenuhi dari checkout lokal, bukan dari jaringan produksi. Sensor CDP
+      # membuktikan kredensial tanpa rp.id lama tetap bisa dipakai, domain lain
+      # perlu daftar ulang, dan respons kosong tidak membuka overlay.
+      - name: verify-applock-rpid (31 cek RP ID, legacy & perpindahan domain)
+        run: node scripts/verify-applock-rpid.mjs
 
       # v100: cerita OFFLINE/PWA -- sebelumnya nol cakupan otomatis. Menguji
       # Cache Storage sungguhan: DATA_CACHE terisi, refresh token TIDAK melahirkan

@@ -176,7 +176,7 @@ export default [
     // Callback Playwright dieksekusi di konteks halaman, jadi `document`,
     // `window`, dst. memang ada meski file-nya sendiri file Node.
     files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "scripts/verify-offline-cache.mjs", "scripts/verify-ui-actions.mjs",
-      "scripts/verify-csp.mjs", "scripts/verify-ui-sweep.mjs",
+      "scripts/verify-csp.mjs", "scripts/verify-ui-sweep.mjs", "scripts/verify-applock-rpid.mjs",
       "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
     languageOptions: {
       globals: {
@@ -204,6 +204,9 @@ export default [
         closeAppLockModal: "readonly",
         appLockEnrollBiometric: "readonly",
         appLockDisableBiometric: "readonly",
+        // v107: alur RP ID, legacy, dan pindah domain pada sensor virtual.
+        showAppLockOverlay: "readonly",
+        appLockBiometricUnlock: "readonly",
         // v100: dipakai scripts/verify-offline-cache.mjs (cerita offline/PWA).
         clearOfflineDataCache: "readonly",
         // v101 (Fase 4): dipakai scripts/verify-ui-actions.mjs untuk memeriksa

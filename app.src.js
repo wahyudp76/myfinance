@@ -5266,6 +5266,12 @@ async function currentUserId() {
             for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
             return btoa(bin);
         }
+        // v107: sama persis dengan RP default browser versi sebelumnya. Jangan
+        // pakai location.host (mengandung port), origin (skema), path /myfinance,
+        // atau domain induk github.io. Domain lain WAJIB daftar ulang; hardcode
+        // domain produksi justru merusak localhost, preview, dan domain kustom.
+        // Metadata cloud/backup TIDAK PERNAH dipakai sebagai nilai RP API.
+        function appLockRpId() { return window.location.hostname; }
         async function appLockBiometricAvailable() {
             try {
                 if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) return false;
@@ -5280,12 +5286,15 @@ async function currentUserId() {
             const uid = appLockCurrentUserId();
             const raw = appLockStorageGet(APPLOCK_CRED_KEY);
             if (!raw || !uid || raw.userId !== uid) return null;
+            // Penanda lama tanpa rpId tetap sah pada domain asal. Penanda baru
+            // yang tersalin dari domain lain tidak boleh dianggap aktif di sini.
+            if (raw.rpId && raw.rpId !== appLockRpId()) return null;
             return typeof raw.credentialId === 'string' && raw.credentialId ? raw.credentialId : null;
         }
         function appLockLocalCredentialSet(id) {
             const uid = appLockCurrentUserId();
             if (!uid) return;
-            appLockStorageSet(APPLOCK_CRED_KEY, { userId: uid, credentialId: id });
+            appLockStorageSet(APPLOCK_CRED_KEY, { userId: uid, credentialId: id, rpId: appLockRpId() });
         }
         function appLockBioLabel() { return servicesModule.biometricLabel(navigator.userAgent); }
         function appLockUpdateBioButton() {
@@ -5295,7 +5304,7 @@ async function currentUserId() {
             // Tampilkan HANYA kalau perangkat INI yang terdaftar. Sampai v98
             // tombol ini muncul di HP hanya karena laptop pernah mendaftar,
             // lalu selalu gagal -- terlihat seperti "Face ID rusak".
-            const show = servicesModule.hasBiometricCredential(cfg, appLockLocalCredentialId());
+            const show = servicesModule.hasBiometricCredential(cfg, appLockLocalCredentialId(), appLockRpId());
             btn.classList.toggle('hidden', !show);
             const lbl = btn.querySelector('[data-bio-label]');
             if (lbl) lbl.textContent = 'Buka dengan ' + appLockBioLabel();
@@ -5303,16 +5312,24 @@ async function currentUserId() {
         async function appLockBiometricUnlock() {
             if (!_appLockArmed) return;
             const cfg = appLockEffectiveCfg();
-            const ids = servicesModule.biometricCredentialIds(cfg);
-            if (!ids.length) return;
+            const rpId = appLockRpId();
+            const ids = servicesModule.biometricCredentialIds(cfg, rpId);
+            if (!ids.length) {
+                // allowCredentials: [] berarti SEMUA discoverable credential,
+                // bukan "tak ada yang boleh". Jangan pernah mengirim daftar kosong.
+                _appLockTransientError = 'Biometrik belum terdaftar untuk domain ini. Masukkan PIN, lalu aktifkan kembali di Pengaturan.';
+                appLockRefreshCooldownUI();
+                return;
+            }
             try {
                 const challenge = new Uint8Array(32);
                 crypto.getRandomValues(challenge);
-                // Semua perangkat yang terdaftar ikut dikirim: authenticator akan
-                // memakai yang memang ada di perangkat ini.
+                // Perangkat pada RP ini + legacy tanpa metadata ikut dikirim;
+                // authenticator memilih yang benar-benar ada dan terikat RP ini.
                 const assertion = await navigator.credentials.get({
                     publicKey: {
                         challenge: challenge,
+                        rpId: rpId,
                         allowCredentials: ids.map((id) => ({ type: 'public-key', id: appLockB64ToBytes(id) })),
                         userVerification: 'required',
                         timeout: 60000,
@@ -5320,10 +5337,12 @@ async function currentUserId() {
                 });
                 // Self-heal penanda lokal (mis. localStorage sempat dibersihkan):
                 // get() memberi tahu kredensial mana yang benar-benar dipakai.
-                if (assertion && assertion.rawId) {
-                    appLockLocalCredentialSet(appLockBytesToB64(new Uint8Array(assertion.rawId)));
-                }
+                if (!assertion || !assertion.rawId) throw new Error('Assertion biometrik kosong');
+                const credentialId = appLockBytesToB64(new Uint8Array(assertion.rawId));
+                if (!ids.includes(credentialId)) throw new Error('Kredensial biometrik tidak terdaftar untuk domain ini');
+                appLockLocalCredentialSet(credentialId);
                 // Keberhasilan get() = kehadiran user terverifikasi authenticator platform.
+                // Respons kosong / di luar allow-list BUKAN keberhasilan.
                 appLockWriteLockoutState({ fail_count: 0, locked_until: 0 });
                 hideAppLockOverlay();
             } catch (e) {
@@ -5339,17 +5358,18 @@ async function currentUserId() {
             try {
                 const challenge = new Uint8Array(32);
                 crypto.getRandomValues(challenge);
+                const rpId = appLockRpId();
                 const userIdBytes = new TextEncoder().encode(appLockCurrentUserId());
                 const email = (currentSession && currentSession.user && currentSession.user.email) || 'user';
                 const cred = await navigator.credentials.create({
                     publicKey: {
                         challenge: challenge,
-                        rp: { name: 'MyFinance' },
+                        rp: { id: rpId, name: 'MyFinance' },
                         user: { id: userIdBytes, name: email, displayName: email },
                         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
                         // excludeCredentials: jangan biarkan perangkat yang SUDAH
                         // terdaftar membuat kredensial kedua untuk dirinya sendiri.
-                        excludeCredentials: servicesModule.biometricCredentialIds(appLockCloudCfg())
+                        excludeCredentials: servicesModule.biometricCredentialIds(appLockCloudCfg(), rpId)
                             .map((id) => ({ type: 'public-key', id: appLockB64ToBytes(id) })),
                         authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
                         timeout: 60000,
@@ -5361,6 +5381,7 @@ async function currentUserId() {
                 // mendaftar di HP mematikan biometrik di laptop.
                 appSettings.app_lock = servicesModule.addBiometricCredential(appLockCloudCfg(), {
                     id: credentialId,
+                    rp_id: rpId,
                     label: servicesModule.deviceLabelFromUserAgent(navigator.userAgent),
                     added_at: new Date().toISOString(),
                 });
@@ -5513,7 +5534,7 @@ async function currentUserId() {
                     '</div>';
                 return;
             }
-            const st = servicesModule.describeBiometricState(cfg, appLockLocalCredentialId());
+            const st = servicesModule.describeBiometricState(cfg, appLockLocalCredentialId(), appLockRpId());
             const nama = appLockBioLabel();
             const lain = st.otherDevices > 0
                 ? '<p class="text-[11px] text-slate-400 mt-0.5">Juga aktif di ' + st.otherDevices + ' perangkat lain</p>'
@@ -5524,7 +5545,7 @@ async function currentUserId() {
                     '<div class="flex items-center gap-3"><i class="fas fa-fingerprint text-cyan-500 text-lg"></i><div><p class="text-sm font-bold text-slate-700">Buka dengan ' + __sanitize.escapeHtml(nama) + '</p><p class="text-[11px] text-slate-400">Aktif di perangkat ini &middot; PIN tetap bisa dipakai</p>' + lain + '</div></div>' +
                     '<button' + uiActionAttrs('appLockDisableBiometric') + ' class="text-xs font-bold text-rose-500 hover:text-rose-600 underline underline-offset-2">Matikan</button>' +
                     '</div>' +
-                    (st.otherDevices > 0
+                    (st.total > 1
                         ? '<button' + uiActionAttrs('appLockDisableBiometricAll') + ' class="mt-2 text-[11px] font-semibold text-slate-400 hover:text-rose-500 underline underline-offset-2">Matikan di semua perangkat</button>'
                         : '');
             } else {
@@ -5536,6 +5557,10 @@ async function currentUserId() {
                     '<button' + uiActionAttrs('appLockEnrollBiometric') + ' class="text-xs font-bold text-indigo-500 hover:text-indigo-600 underline underline-offset-2">Aktifkan</button>' +
                     '</div>';
             }
+            row.insertAdjacentHTML('beforeend',
+                '<p class="text-[11px] text-slate-500 leading-relaxed mt-2">Biometrik berlaku di <strong class="break-all">' + __sanitize.escapeHtml(appLockRpId()) +
+                '</strong>. Jika pindah domain, masuk dengan PIN lalu aktifkan kembali di domain baru.' +
+                (st.otherDomains > 0 ? ' Ada ' + st.otherDomains + ' pendaftaran dari domain lain yang tidak berlaku di sini.' : '') + '</p>');
         }
         function appLockEnableFromModal() {
             const pin = ((document.getElementById('applock-set-pin') || {}).value || '').trim();

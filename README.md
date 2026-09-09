@@ -215,6 +215,10 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
   kamu. PIN tersimpan sebagai hash SHA-256 + salt (bukan teks asli), ikut
   akunmu di semua perangkat, dan di perangkat yang mendukung, kamu juga bisa
   membuka dengan sidik jari/wajah (opsional, PIN tetap bisa dipakai).
+  Biometrik terikat ke **domain** tempat mendaftar. Di domain sekarang,
+  kredensial lama tetap kompatibel; bila pindah domain, login akun yang sama,
+  buka dengan PIN jika diminta, lalu aktifkan biometrik kembali di Pengaturan.
+  [Aturan RP ID & panduan perpindahan domain](docs/applock-webauthn-domain.md).
 - **Notifikasi & Pengingat** (menu Pengaturan → kartu "Notifikasi &
   Pengingat"): pengingat proaktif saat budget sebuah kategori sudah
   terpakai >=80% atau jebol, transaksi berulang yang jatuh tempo besok

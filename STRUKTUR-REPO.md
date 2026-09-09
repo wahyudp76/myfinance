@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v106`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v107`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -43,7 +43,7 @@ myfinance/
 ├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v139)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v140)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -70,7 +70,7 @@ myfinance/
 │   │   ├── assets.js           # portofolio + net worth
 │   │   ├── asset-flows.js      # arus aset, self-heal akun bayangan
 │   │   ├── recurring.js        # transaksi berulang + catchup
-│   │   ├── app-lock.js         # kunci aplikasi: PIN hash+salt (SHA-256 murni), lockout, mode idle lintas reload (v92-93)
+│   │   ├── app-lock.js         # PIN/lockout/idle; biometrik per-perangkat + metadata domain RP (v92-107)
 │   │   ├── ai-recommendations.js # normalisasi rekomendasi Gemini utk list+modal detail, kompatibel cache lama (v94)
 │   │   ├── reminders.js        # pengingat proaktif: budget >=80/100%, recurring H-1, tujuan H-7/H-1 (v92)
 │   │   ├── goals-debts.js      # progress goal & utang
@@ -293,6 +293,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   node scripts/verify-hud.mjs   # 69 cek E2E (butuh: npx http-server . -p 8123 -c-1)
   node scripts/verify-asset-logos.mjs # 17 cek E2E logo aset (server sama)
   node scripts/verify-applock.mjs     # 21 cek E2E kunci aplikasi (server sama)
+  node scripts/verify-applock-rpid.mjs # 31 cek RP ID, legacy & perpindahan domain (3 origin simulasi lokal)
   node scripts/verify-applock-biometric.mjs # 14 cek biometrik multi-perangkat (WAJIB lewat
                                       # http://localhost — WebAuthn menolak origin ber-IP)
   node scripts/verify-offline-cache.mjs # 13 cek cache data offline/PWA
@@ -311,6 +312,9 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - Harness E2E juga berjalan otomatis di CI via workflow `E2E Harness`
   (`.github/workflows/e2e-harness.yml`): push/PR ke main, jadwal mingguan, dan
   manual — hermetic (stub Supabase, tanpa secrets). Selain dua harness di atas
+  ada `scripts/verify-applock-rpid.mjs` (v107, 31 cek): kompatibilitas kredensial
+  tanpa rp.id lama, RP eksplisit, daftar ulang lintas domain, respons gagal
+  tetap terkunci; tiga origin disimulasikan dari checkout lokal. Lalu
   ada `scripts/verify-applock-biometric.mjs` (v99, 14 cek): memakai virtual authenticator
   CDP untuk menguji biometrik PER PERANGKAT (bug v92-v98: kredensial roaming satu-slot
   membuat perangkat kedua tak pernah bisa mendaftar). Dan
@@ -332,7 +336,9 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - **Kunci Aplikasi (v92)**: PIN 6 digit (hash SHA-256 + salt di
   `appSettings.app_lock` -> ikut roam), gerbang boot via cache localStorage
   per-user, lockout 5 gagal -> cooldown 30 dtk, biometrik WebAuthn opsional,
-  lupa PIN -> verifikasi password.
+  lupa PIN -> verifikasi password. Sejak v107: RP ID mengikuti hostname
+  persis, metadata domain baru disimpan sebagai `rp_id`; pindah domain wajib
+  daftar ulang biometrik ([panduan](docs/applock-webauthn-domain.md)).
 - **Notifikasi & Pengingat (v92)**: budget >=80%/100%, recurring H-1, tenggat
   tujuan H-7/H-1; toggle per jenis di Pengaturan; dedup log per-perangkat
   (`myfinance_reminders_sent`, FIFO 200).
