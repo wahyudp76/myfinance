@@ -6,7 +6,7 @@
 
 ## Peta cepat
 - App: SPA statis `index.html` + `src/**` (domain services, modul ES) + Tailwind build (`npm run build:css`) + service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build:css setiap kali aset berubah).
-- Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (69 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
+- Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (70 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; Edge Functions `analyze-finance`, `refresh-asset-price` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, 7 view (ringkasan/transaksi/akun/aset/budget/laporan/pengaturan), Ctrl/Cmd+K command palette.
 - App Lock RP ID: `docs/applock-webauthn-domain.md`; `node scripts/verify-applock-rpid.mjs` (31 cek, hermetic tiga origin + virtual authenticator). Domain lain perlu login/PIN lalu daftar ulang; tidak ada ROR.
@@ -2607,3 +2607,20 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 - `npm test` setelah perubahan: lint bersih, unit **890/890**, parity **1/1**.
 
 **STATUS:** perubahan hanya tooling/test/docs; tidak ada regresi source aplikasi atau perubahan kontrak perilaku. Sudah di-commit sebagai v110, dipush ke `main`, dan verifikasi `git ls-remote` cocok dengan HEAD lokal. PAT hanya dipakai untuk perintah push dan tidak disimpan atau dicetak.
+
+
+## v111 — perbaikan edit aset legacy Shopee Merchant
+**BUG TERUKUR:** aset `Shopee Merchant` pada fixture produksi memiliki kategori lama `Bisnis`, sedangkan form aset terbaru tidak memiliki `<option value="Bisnis">`. Saat modal edit dibuka, `<select required>` menjadi kosong; akibatnya `form.checkValidity()` gagal dan perubahan platform/sekuritas tidak pernah dikirim ke Supabase. Selain itu, saran platform dibuat memakai `onmousedown` inline yang diblokir CSP `script-src` tanpa `unsafe-inline`, sehingga memilih saran seperti Bibit/IPOT tidak mengubah input.
+
+**FIX:**
+- `openAssetModal()` kini mempertahankan kategori legacy yang tidak lagi ada di daftar dengan menambahkan option DOM sementara secara aman (`textContent`), sehingga form tetap valid dan perubahan dapat disimpan.
+- Saran platform aset dipindahkan dari inline `onmousedown` ke listener DOM terdelegasi + `data-asset-platform`; listener memakai `preventDefault()` agar pilihan terjadi sebelum blur input menutup dropdown.
+- Tambah regression unit guard dan perluasan `verify-hud.mjs` menjadi 70 cek: buka/edit aset Shopee Merchant, pastikan kategori Bisnis tetap valid, pilih Bibit dari saran, lalu verifikasi PATCH berisi `kategori=Bisnis` dan `platform=Bibit`.
+- Karena `app.js` dan precache berubah, `CACHE_VERSION` dinaikkan `myfinance-v141` → `myfinance-v142` dan snapshot SW diregenerasi.
+
+**HASIL VALIDASI:**
+- `npm test`: lint bersih; unit **893/893 PASS**; parity **1/1 PASS** (live dilewati karena secret Supabase tidak tersedia).
+- Sembilan harness browser: **231/231 PASS** dengan 0 page error/console error tak terduga: HUD 70, logo aset 17, App Lock 21, biometrik 14, RP ID 31, offline cache 13, UI actions 39, CSP 17, UI sweep 9. Regression HUD secara khusus PASS untuk edit Shopee Merchant → pilih Bibit → PATCH `kategori=Bisnis`, `platform=Bibit`.
+- Lighthouse setelah perubahan: performance **62**, accessibility **100**, best-practices **100**; semua ambang lulus.
+
+**STATUS:** implementasi sudah lulus seluruh gerbang regresi dan siap di-commit, push, serta diverifikasi remote sebagai v111.

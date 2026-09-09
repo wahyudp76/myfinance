@@ -465,6 +465,28 @@ await page.evaluate((d) => {
 await page.waitForTimeout(900);
 const datedWrite = assetWrites.length ? assetWrites[assetWrites.length - 1] : null;
 ok("v57 sync manual: tanggal data pasar kustom (2 hari lalu) ikut terkirim", !!datedWrite && datedWrite.body.tanggal_nav === twoDaysAgo && Number(datedWrite.body.nilai) === 160000);
+// ---------- E2E: edit aset lama kategori legacy (bug "shopee merchant") ----------
+// Aset ini berasal dari data lama dengan kategori "Bisnis", yang dulu tidak
+// punya <option> di form. Select required menjadi kosong sehingga perubahan
+// platform/sekuritas selalu ditolak; saran platform juga harus benar-benar bisa
+// dipilih di bawah CSP tanpa unsafe-inline.
+const assetEditStart = assetWrites.length;
+const assetEditUi = await page.evaluate(() => {
+  switchView("aset");
+  openAssetModal(true, "asset-sm-1");
+  const category = document.getElementById("aset_kategori").value;
+  const formValidBefore = document.getElementById("formAsset").checkValidity();
+  searchAssetBankSuggestions("bibit");
+  const suggestion = document.querySelector("#asset-platform-suggestions [data-asset-platform]");
+  if (suggestion) suggestion.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  const platformAfterSuggestion = document.getElementById("aset_platform").value;
+  window.submitAsset(new Event("submit"));
+  return { category, formValidBefore, platformAfterSuggestion };
+});
+await page.waitForTimeout(1000);
+const assetEditWrite = assetWrites.slice(assetEditStart).find((w) => w.method === "PATCH");
+ok("bug-fix: aset Shopee Merchant kategori legacy dapat diedit platform/sekuritas via saran", assetEditUi.category === "Bisnis" && assetEditUi.formValidBefore && assetEditUi.platformAfterSuggestion === "Bibit" && assetEditWrite?.body?.kategori === "Bisnis" && assetEditWrite?.body?.platform === "Bibit");
+
 // ---------- E2E: self-heal akun-bayangan aset (bug "shopee merchant") ----------
 // Simulasikan polusi lama: nama aset pernah terdaftar sebagai akun. loadData()
 // harus membuangnya otomatis (aset ada + jejak Transfer-tujuan ada + tak pernah

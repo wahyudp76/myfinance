@@ -3092,6 +3092,19 @@ async function currentUserId() {
 
         function searchAssetBankSuggestions(query) {
             const box = document.getElementById('asset-platform-suggestions'); if(!box) return;
+            // Pilihan harus ditangani lewat listener DOM, bukan onmousedown yang
+            // disisipkan ke HTML. CSP script-src tanpa 'unsafe-inline' memblokir
+            // event handler inline -- akibatnya klik saran (mis. Bibit/IPOT)
+            // tampak tidak melakukan apa-apa, terutama saat mengedit aset lama.
+            if (!box.__assetPlatformSuggestionBound) {
+                box.addEventListener('mousedown', function (ev) {
+                    const target = ev.target && ev.target.closest ? ev.target.closest('[data-asset-platform]') : null;
+                    if (!target || !box.contains(target)) return;
+                    ev.preventDefault(); // jalankan sebelum blur input menyembunyikan daftar.
+                    pickAssetBankSuggestion(target.getAttribute('data-asset-platform') || '');
+                });
+                box.__assetPlatformSuggestionBound = true;
+            }
             const q = query.trim().toLowerCase();
             const results = q
                 ? bankWalletDatabase.filter(item => item.category === "Investasi" && (item.name.toLowerCase().includes(q) || item.keywords.some(k => k.includes(q)))).slice(0, 5)
@@ -3102,7 +3115,7 @@ async function currentUserId() {
                 const iconHtml = item.url
                     ? `<div class="w-5 h-5 rounded overflow-hidden flex-shrink-0 bg-white ring-1 ring-slate-100 flex items-center justify-center p-0.5"><img src="${item.url}" class="w-full h-full object-contain rounded-[inherit]"></div>`
                     : `<div class="w-5 h-5 rounded ${item.color} text-white flex items-center justify-center font-bold text-[7px] flex-shrink-0">${item.badge}</div>`;
-                return `<div onmousedown="pickAssetBankSuggestion('${jsStr(item.name)}')" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition">
+                return `<div data-asset-platform="${escapeHtml(item.name)}" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition">
                     ${iconHtml}
                     <span class="text-xs font-bold text-slate-700 truncate">${escapeHtml(item.name)}</span>
                 </div>`;
@@ -4086,7 +4099,19 @@ async function currentUserId() {
                 document.getElementById('modalAssetTitle').innerText = "Update Aset";
                 document.getElementById('btnSubmitAssetForm').innerText = "Simpan Perubahan";
                 document.getElementById('aset_nama').value = item.nama;
-                document.getElementById('aset_kategori').value = item.kategori;
+                const kategoriSelect = document.getElementById('aset_kategori');
+                const kategoriValue = String(item.kategori || '');
+                // Aset lama bisa berasal dari kategori yang sudah tidak ada di
+                // daftar form (contoh nyata: Shopee Merchant = "Bisnis").
+                // Tanpa opsi sementara, select menjadi kosong dan required
+                // membuat perubahan platform/sekuritas tidak pernah bisa disimpan.
+                if (kategoriValue && !Array.from(kategoriSelect.options).some((option) => option.value === kategoriValue)) {
+                    const legacyOption = document.createElement('option');
+                    legacyOption.value = kategoriValue;
+                    legacyOption.textContent = kategoriValue;
+                    kategoriSelect.appendChild(legacyOption);
+                }
+                kategoriSelect.value = kategoriValue;
                 document.getElementById('aset_platform').value = item.platform;
                 document.getElementById('aset_modal').value = item.modal;
                 document.getElementById('aset_modal_display').value = new Intl.NumberFormat('id-ID').format(item.modal);

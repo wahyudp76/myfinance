@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v110`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v111`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -43,7 +43,7 @@ myfinance/
 ├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v141)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v142)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -191,7 +191,7 @@ myfinance/
 │   ├── build-styles.mjs    # clean-css styles.src.css → styles.css
 │   ├── subset-fontawesome.py
 │   ├── bench-save-latency.mjs
-│   ├── verify-hud.mjs      # E2E Playwright (69 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
+│   ├── verify-hud.mjs      # E2E Playwright (70 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
 │   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
 │   ├── lighthouse/run.mjs      # pagar performa + deteksi executable Chromium yang eksplisit
 │   │   └── chrome-path.mjs     # validasi CHROME_PATH / Playwright tanpa path hardcode
@@ -293,7 +293,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   ```bash
   npm run lint          # ESLint (0 masalah)
   npm test              # lint + unit + parity
-  node scripts/verify-hud.mjs   # 69 cek E2E (butuh: npx http-server . -p 8123 -c-1)
+  node scripts/verify-hud.mjs   # 70 cek E2E (butuh: npx http-server . -p 8123 -c-1)
   node scripts/verify-asset-logos.mjs # 17 cek E2E logo aset (server sama)
   node scripts/verify-applock.mjs     # 21 cek E2E kunci aplikasi (server sama)
   node scripts/verify-applock-rpid.mjs # 31 cek RP ID, legacy & perpindahan domain (3 origin simulasi lokal)
