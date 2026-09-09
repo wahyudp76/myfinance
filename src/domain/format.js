@@ -22,9 +22,18 @@
  * - formatShortVal : kompak 1 desimal untuk >=1jt ("M"), bulat untuk >=1rb ("K").
  */
 
+// Cache formatter Intl di level modul (v112): pembuatan Intl.NumberFormat jauh
+// lebih mahal daripada pemanggilan .format()-nya, dan fungsi ini dipanggil
+// RATUSAN kali per render (per-baris tabel transaksi, kartu dashboard, legenda
+// chart, dsb). Formatter immutable & reusable -- output identik byte-per-byte
+// dengan `new Intl.NumberFormat(...)` per panggilan (dijaga test kontrak
+// format-domain.test.js yang membandingkan output, bukan sumber).
+const _rpFormatter = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 });
+const _digitsFormatter = new Intl.NumberFormat("id-ID");
+
 /** Format angka ke string Rupiah gaya id-ID (pemisah ribuan titik). */
 export function formatRp(angka) {
-  return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(angka);
+  return _rpFormatter.format(angka);
 }
 
 /**
@@ -69,7 +78,7 @@ export function deepCloneDict(d) {
  */
 export function formatRibuanDigits(rawValue) {
   const digits = String(rawValue == null ? "" : rawValue).replace(/[^0-9]/g, "");
-  const formatted = digits ? new Intl.NumberFormat("id-ID").format(digits) : "";
+  const formatted = digits ? _digitsFormatter.format(digits) : "";
   return { digits, formatted };
 }
 

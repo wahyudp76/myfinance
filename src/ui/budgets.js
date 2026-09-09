@@ -39,6 +39,9 @@
 
 import { hudBarDataset, hudLineScales, hudGlowPlugin } from "../domain/chart-hud.js";
 import { uiActionAttrs } from "../domain/sanitize.js";
+// v112: formatRp kanonik (formatter Intl di-cache di src/domain/format.js) menggantikan
+// `new Intl.NumberFormat("id-ID")` per-baris di template bawah -- output identik.
+import { formatRp } from "../domain/format.js";
 // CELAH LEGEND <-> PLOT (fix v63): tidak ada opsi Chart.js utk jarak VERTIKAL
 // antara kotak legend (atas) dan area plot -- layout selalu menempatkan
 // chartArea.top TEPAT di tepi bawah legend. Menggesernya via plugin
@@ -114,7 +117,7 @@ export function renderBudgetModalList({
                 </div>
                 <div class="flex items-center ${hasSubs ? "bg-slate-50" : "bg-white focus-within:ring-indigo-300"} rounded-xl ring-1 ring-slate-200 px-2.5 py-2 flex-shrink-0 w-32 focus-within:ring-2 transition">
                     <span class="text-[10px] text-slate-400 mr-1 flex-shrink-0">Rp</span>
-                    <input type="text" ${hasSubs ? `readonly tabindex="-1"` : ""} id="budget-parent-${pSlug}" data-parent="${escapeHtml(parentName)}" value="${parentVal > 0 ? new Intl.NumberFormat("id-ID").format(parentVal) : ""}" placeholder="0" oninput="formatBudgetInputDisplay(this)" class="w-full text-xs font-bold ${hasSubs ? "text-slate-500 cursor-not-allowed" : "text-slate-800"} outline-none bg-transparent text-right budget-parent-input">
+                    <input type="text" ${hasSubs ? `readonly tabindex="-1"` : ""} id="budget-parent-${pSlug}" data-parent="${escapeHtml(parentName)}" value="${parentVal > 0 ? formatRp(parentVal) : ""}" placeholder="0" oninput="formatBudgetInputDisplay(this)" class="w-full text-xs font-bold ${hasSubs ? "text-slate-500 cursor-not-allowed" : "text-slate-800"} outline-none bg-transparent text-right budget-parent-input">
                 </div>
             </div>
         </div>`;
@@ -131,7 +134,7 @@ export function renderBudgetModalList({
                 <span class="text-[11px] font-bold text-slate-600 flex-1 min-w-0 truncate">${escapeHtml(sub.name)}</span>
                 <div class="flex items-center bg-slate-50 rounded-lg ring-1 ring-slate-100 px-2.5 py-1.5 flex-shrink-0 w-28 focus-within:ring-2 focus-within:ring-indigo-300 transition">
                     <span class="text-[10px] text-slate-400 mr-1">Rp</span>
-                    <input type="text" inputmode="numeric" id="budget-sub-${sSlug}" data-parentslug="${pSlug}" data-category="${escapeHtml(sub.name)}" value="${subVal ? new Intl.NumberFormat("id-ID").format(subVal) : ""}" placeholder="0" oninput="formatBudgetInputDisplay(this); calcBudgetParent('${pSlug}')" class="w-full text-[11px] font-bold text-slate-800 outline-none bg-transparent text-right budget-input">
+                    <input type="text" inputmode="numeric" id="budget-sub-${sSlug}" data-parentslug="${pSlug}" data-category="${escapeHtml(sub.name)}" value="${subVal ? formatRp(subVal) : ""}" placeholder="0" oninput="formatBudgetInputDisplay(this); calcBudgetParent('${pSlug}')" class="w-full text-[11px] font-bold text-slate-800 outline-none bg-transparent text-right budget-input">
                 </div>
             </div>`;
       });

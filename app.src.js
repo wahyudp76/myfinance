@@ -1592,15 +1592,17 @@ async function currentUserId() {
 
         function formatShortVal(angka) { return __fmt.formatShortVal(angka); } // delegasi ke src/domain/format.js (v71/72)
         
-        function formatInputRibuan(input, hiddenId = null) { 
-            let value = input.value.replace(/[^0-9]/g, ''); 
-            if (value) { 
-                if(hiddenId && document.getElementById(hiddenId)) { document.getElementById(hiddenId).value = value; }
-                input.value = new Intl.NumberFormat('id-ID').format(value); 
-            } else { 
-                if(hiddenId && document.getElementById(hiddenId)) { document.getElementById(hiddenId).value = ''; }
-                input.value = ''; 
-            } 
+        function formatInputRibuan(input, hiddenId = null) {
+            // v112: delegasi ke __fmt.formatRibuanDigits (murni, ter-tes di
+            // tests/unit/format-domain.test.js) -- menghapus duplikasi logika
+            // DAN memakai formatter Intl yang di-cache di src/domain/format.js.
+            // Sebelumnya memanggil `new Intl.NumberFormat('id-ID')` pada TIAP
+            // keystroke input nominal (pembuatan formatter jauh lebih mahal
+            // daripada .format()-nya). Perilaku byte-identik: strip non-digit,
+            // format id-ID, hidden field menerima digit mentah ('' kalau kosong).
+            const { digits, formatted } = __fmt.formatRibuanDigits(input.value);
+            if (hiddenId && document.getElementById(hiddenId)) { document.getElementById(hiddenId).value = digits; }
+            input.value = formatted;
         }
 
         // Mendeteksi logo otomatis dari database bank/e-wallet berdasarkan nama akun.
@@ -4219,10 +4221,12 @@ async function currentUserId() {
                 }
                 if (needsSettingUpdate) { persistSettings(); renderSettings(); updateFormOptions(); }
 
-                filterTransactions();
+                // v112 (perf): render hanya utk view yang terlihat (switchView me-render
+                // ulang view tujuan saat masuk) -- lihat catatan yang sama di applyLocalTxEcho.
+                if (document.getElementById('view-transaksi').classList.contains('block')) filterTransactions();
                 renderRecentList(globalData);
                 processDataForUI(globalData);
-                renderReportTab();
+                if (document.getElementById('view-laporan').classList.contains('block')) renderReportTab();
 
                 if (document.getElementById('view-akun-detail').classList.contains('block')) { openAccountDetail(document.getElementById('detail-account-name').innerText); }
                 if (document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }
@@ -4273,11 +4277,23 @@ async function currentUserId() {
                     accSync.shadowNames.forEach((n) => servicesModule.pruneAccountKeyedMaps(appSettings, n));
                     persistSettings(); renderSettings(); updateFormOptions();
                 }
-                // Pipeline render yang sama persis dengan refreshTransactionsOnly().
-                filterTransactions();
+                // Pipeline render yang sama persis dengan refreshTransactionsOnly(), PLUS
+                // v112 (bug fix): patch aset dari "setor ke aset" kini ikut me-render ulang
+                // tab Aset kalau sedang terlihat. Sebelumnya hanya refreshAssetsOnly()
+                // (jalur fallback) yang melakukannya -- akibatnya user yang membuka tab
+                // Aset lalu mencatat setoran lewat tombol + melihat daftar aset LAMA
+                // (nilai/return tidak berubah) padahal state & cloud sudah ter-update.
+                if (Array.isArray(assetPatches) && assetPatches.length && document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
+                // v112 (perf): render hanya untuk view yang SEDANG terlihat. switchView()
+                // selalu me-render ulang view tujuan saat masuk (filterTransactions utk
+                // transaksi, renderReportTab utk laporan), jadi me-render view tersembunyi
+                // di sini cuma kerja sia-sia di JALUR PANAS yang jalan tiap simpan transaksi
+                // -- pola yang sama sudah dipakai utk budget/akun-detail/aset di blok ini
+                // dan di handler resize (setupResponsiveRerender).
+                if (document.getElementById('view-transaksi').classList.contains('block')) filterTransactions();
                 renderRecentList(globalData);
                 processDataForUI(globalData);
-                renderReportTab();
+                if (document.getElementById('view-laporan').classList.contains('block')) renderReportTab();
                 if (document.getElementById('view-akun-detail').classList.contains('block')) { openAccountDetail(document.getElementById('detail-account-name').innerText); }
                 if (document.getElementById('view-budget').classList.contains('block')) { renderBudgetView(); }
                 showLoading(false);
@@ -4483,11 +4499,19 @@ async function currentUserId() {
                 // juga sebagai lapisan aman tambahan.
                 try { handlePendingQuickAdd(); } catch (e) { console.error('Gagal membuka modal Quick Add:', e); }
 
-                filterTransactions(); 
+                // v112 (perf): tabel Transaksi & tab Laporan hanya di-render kalau
+                // view-nya sedang terlihat. applyDefaultViewOnce() di atas sudah
+                // memanggil switchView() utk default view non-dashboard, dan
+                // switchView() selalu me-render ulang view tujuan saat masuk --
+                // jadi me-render view tersembunyi di sini cuma kerja sia-sia di
+                // setiap sinkronisasi penuh (boot & pull-to-refresh). Pola guard
+                // yang sama sudah dipakai utk budget/aset/akun-detail tepat di
+                // bawah, dan di handler resize (setupResponsiveRerender).
+                if (document.getElementById('view-transaksi').classList.contains('block')) filterTransactions(); 
                 renderRecentList(globalData); 
                 renderHudSparklines();
                 processDataForUI(globalData); 
-                renderReportTab();
+                if (document.getElementById('view-laporan').classList.contains('block')) renderReportTab();
 
                 // v68: kalau bulan yang baru di-fetch (targetBulan) = bulan kalender berjalan, data
                 // response.budgets yang SUDAH turun dipakai langsung sebagai currentMonthBudgetsCache
@@ -5820,6 +5844,19 @@ async function currentUserId() {
             // sebelumnya. Lihat komentar "AUTH MODULE BRIDGE" di <head> soal kenapa lewat
             // servicesModule, bukan import langsung (200+ onclick= butuh scope global, lihat
             // docs/architecture-modernization-plan.md Phase 4).
+            //
+            // v112 (perf): pembuatan instance Chart.js di bawah DILEWATI bila view dashboard
+            // sedang tidak terlihat -- tapi AGREGASI + wawasan (insightsCtx) TETAP dihitung
+            // penuh, karena lastInsightsCtx dipakai jalur lain (notifikasi ambang budget
+            // pasca-simpan, refreshCurrentMonthBudgetsCache). switchView('dashboard') selalu
+            // memanggil fungsi ini lagi saat masuk, jadi chart selalu dibuat segar tepat
+            // sebelum terlihat. Rationale sama dengan guard resize di setupResponsiveRerender:
+            // membuat chart pada kontainer display:none cuma kerja sia-sia (dan Chart.js
+            // salah mengukur lebar canvas tersembunyi).
+            const dashVisible = (() => {
+                const el = document.getElementById('view-dashboard');
+                return !!(el && el.classList.contains('block'));
+            })();
             const now = new Date();
             const {
                 accBalances, totalIn, totalOut, monthIn, monthOut,
@@ -5875,7 +5912,7 @@ async function currentUserId() {
             }
 
             if (charts.cashflow7) charts.cashflow7.destroy();
-            if (document.getElementById('cashflow7Chart')) {
+            if (dashVisible && document.getElementById('cashflow7Chart')) {
                 let labels7 = last7Order.map(k => last7Map[k].dateObj.toLocaleDateString('id-ID', { weekday: 'short' }));
                 charts.cashflow7 = new Chart(document.getElementById('cashflow7Chart').getContext('2d'), servicesModule.chartsUi.buildCashflow7Config({ labels7, last7Order, last7Map, themeAccentColor, formatShortVal, formatRp, chartLabelColor }));
             }
@@ -5927,7 +5964,7 @@ async function currentUserId() {
             let assetData = assetEntries.length ? assetEntries.map(e => e.val) : [1];
 
             if(charts.asset) charts.asset.destroy();
-            if(document.getElementById('assetChart')) {
+            if(dashVisible && document.getElementById('assetChart')) {
                 charts.asset = new Chart(document.getElementById('assetChart').getContext('2d'), servicesModule.chartsUi.buildAssetDonutConfig({ assetLabels, assetData, modernPalette, chartEmptyColor }));
             }
             renderDonutBreakdown({
@@ -5957,11 +5994,11 @@ async function currentUserId() {
             let monthLabels = monthKeys.slice(-6); 
 
             if(charts.monthly) charts.monthly.destroy();
-            if(document.getElementById('monthlyChart')) {
+            if(dashVisible && document.getElementById('monthlyChart')) {
                 charts.monthly = new Chart(document.getElementById('monthlyChart').getContext('2d'), servicesModule.chartsUi.buildMonthlyConfig({ monthLabels, monthlyMap, themeAccentColor, formatShortVal, chartGridColor, chartLabelColor }));
             }
 
-            renderBalanceTrendChart();
+            if (dashVisible) renderBalanceTrendChart();
 
             // Context wawasan sekarang diperkaya (v64) oleh buildInsightsContext():
             // selain agregat bulanan standar, digali juga transaksi terbesar, pola

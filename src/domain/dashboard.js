@@ -65,6 +65,23 @@ export function aggregateDashboardData(transactions, {
     last7Order.push(key);
   }
 
+  // v112 (perf): label bulan di-cache per (tahun, bulan). toLocaleDateString dengan
+  // options membuat Intl.DateTimeFormat BARU pada tiap panggilan -- pemanggilan
+  // per-transaksi di bawah adalah hotspot terbesar seluruh pipeline dashboard pada
+  // dataset besar (profil CPU: ~200ms per render utk 2.500 transaksi), padahal opsi
+  // formatnya hanya { month, year } sehingga label dalam satu bulan kalender selalu
+  // identik. Output byte-identik (dijaga tests/unit/dashboard-domain.test.js).
+  const _monthLabelCache = {};
+  const monthLabelOf = (date) => {
+    const k = date.getFullYear() * 12 + date.getMonth();
+    let s = _monthLabelCache[k];
+    if (s === undefined) {
+      s = date.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
+      _monthLabelCache[k] = s;
+    }
+    return s;
+  };
+
   transactions.forEach((d) => {
     const date = parseTgl(d.tanggal);
     // amt = NATIVE (mata uang akun itu sendiri) -- dipakai HANYA utk saldo per-akun,
@@ -73,7 +90,7 @@ export function aggregateDashboardData(transactions, {
     // dipakai utk SEMUA total gabungan lintas akun/kategori.
     const amt = Number(d.jumlah);
     const amtIdr = txIdrAmount(d);
-    const monthLabel = date.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
+    const monthLabel = monthLabelOf(date);
 
     if (d.jenis === "Pemasukan") {
       if (accBalances[d.akun] !== undefined) accBalances[d.akun] += amt;

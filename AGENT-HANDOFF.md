@@ -2624,3 +2624,33 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 - Lighthouse setelah perubahan: performance **62**, accessibility **100**, best-practices **100**; semua ambang lulus.
 
 **STATUS:** implementasi sudah lulus seluruh gerbang regresi dan siap di-commit, push, serta diverifikasi remote sebagai v111.
+
+
+## v112 — bug fix aset view pasca-setor + render per-visibility + hot-path Intl/Date
+**KONTEKS:** permintaan lanjutan "fix bug, stability test, performance improvement" setelah v111. Audit dilakukan dengan probe Playwright baru (di luar repo): boot dengan stub Supabase yang meniru paginasi PostgREST via query param `limit`/`offset` (supabase-js 2.113 TIDAK memakai header Range) + header `content-range`, seed 2.500 transaksi (~385 hari, multi-akun, transfer, USD), CPU throttle 4x via CDP, plus CPU-profiler CDP untuk menemukan hotspot. Baseline: 231/231 harness hijau, 893 unit hijau -- tidak ada regresi yang tersisa di permukaan teruji; semua temuan di bawah berasal dari profil & jalur yang tidak ter-cover harness.
+
+**BUG FIX (terukur, dibuktikan sebelum fix lalu diverifikasi sesudahnya):**
+- `applyLocalTxEcho()` (jalur utama pasca-simpan "setor ke aset") meng-update `globalAssets` via assetPatches TAPI tidak pernah me-render ulang tab Aset yang sedang terbuka -- hanya `refreshAssetsOnly()` (jalur fallback) yang punya guard `view-aset` itu. Akibat: user membuka tab Aset → mencatat setoran lewat tombol + → daftar aset menampilkan nilai/return LAMA (probe: DOM tetap "Rp 1.000.000" padahal state 1.500.000). Fix: guard `renderAssetView()` bila `assetPatches` tidak kosong dan view-aset terlihat, pola yang sama dengan refreshAssetsOnly.
+- Perf sekaligus correctness-rationale: `loadData()`/`refreshTransactionsOnly()`/`applyLocalTxEcho()` memanggil `renderReportTab()` (5 chart + legenda + tren 6 bulan + render chat AI) dan `filterTransactions()` TANPA pandang view mana yang terlihat -- padahal `switchView()` selalu me-render ulang view tujuan saat masuk, dan handler resize sudah lama memakai guard visibility dengan alasan yang sama (chart pada kontainer display:none = kerja sia-sia + Chart.js salah mengukur). Sekarang kedua fungsi itu hanya jalan bila view-nya terlihat. `renderRecentList` SENGAJA tetap dijalankan tanpa syarat (switchView('dashboard') tidak me-render-nya ulang; 10 baris paginasi, murah).
+
+**PERFORMANCE (semua behavior-preserving, output byte-identik, dijaga guard test):**
+- `processDataForUI`: pembuatan instance Chart.js (cashflow7/aset-donut/monthly/balance-trend) kini dilewati bila dashboard tidak terlihat; agregasi + insightsCtx TETAP dihitung penuh karena `lastInsightsCtx` dipakai notifikasi ambang budget & refresh cache budget. switchView('dashboard') memanggil ulang fungsi ini sebelum terlihat.
+- `src/domain/dashboard.js`: `date.toLocaleDateString("id-ID", {month,year})` dipanggil PER TRANSAKSI (hotspot #1 profiler: ~618ms self dari ~1.1s pipeline pada 2.500 tx) -- kini di-cache per (tahun,bulan) karena label dalam satu bulan kalender selalu identik.
+- `src/domain/dates.js`: `parseTgl` memo string→timestamp (tetap mengembalikan objek Date BARU per panggilan, jadi mutasi cursor.setMonth di transactions.js aman); dipanggil puluhan ribu kali per render via comparator sort + tiap pass agregasi.
+- `src/domain/format.js`: formatter `Intl.NumberFormat` di-cache di module scope (formatRp dipanggil ratusan kali per render; pembuatan formatter jauh lebih mahal daripada .format()-nya). `formatRibuanDigits` ikut.
+- `src/ui/budgets.js` + `src/ui/goals-debts.js`: 6x `new Intl.NumberFormat("id-ID")` inline per render diganti import `formatRp` kanonik (output identik: min/max fraction digits sama).
+- `app.src.js` `formatInputRibuan`: delegasi ke `__fmt.formatRibuanDigits` (menghapus `new Intl.NumberFormat` per keystroke input nominal).
+
+**HASIL TERUKUR (probe 2.500 transaksi, CPU 4x throttle, sebelum → sesudah):**
+- Simpan 1 transaksi (view=Transaksi) via applyLocalTxEcho: **2018 ms → 957 ms**.
+- processDataForUI (dashboard tersembunyi): **1114 ms → 47-55 ms** (~20x).
+- Instance Chart.js dibuat per simpan: **11 → 2** (hanya view yang terlihat).
+- Boot sampai appShell + data termuat: **4592 ms → 3320 ms**.
+- 60x switchView beruntun (stability sweep): 61307 ms → 45916 ms; 0 error halaman/console.
+- Empty state (0 transaksi) + simpan transaksi pertama: tetap bersih, 0 error (~50 ms).
+
+**ASET:** `app.js` + `boot.bundle.js` dibangun ulang; `CACHE_VERSION` `myfinance-v142` → `myfinance-v143`; snapshot SW diregenerasi. CSS & CSP tidak berubah.
+
+**VERIFIKASI (Node v22.23.2):** lint 0 masalah; unit 893/893; parity lokal 1/1; sembilan harness browser 231/231 dengan 0 error halaman/console; build app/boot idempoten; snapshot SW cocok.
+
+**STATUS:** siap di-commit & push sebagai v112.

@@ -25,10 +25,29 @@
  * - todayDateStr : "hari ini" dalam bentuk YYYY-MM-DD aman zona waktu.
  */
 
+// v112 (perf): memo string-tanggal -> timestamp. parseTgl dipanggil PULUHAN RIBU
+// kali per render pada dataset besar (comparator sort txServerCompare memanggil
+// parseTgl 2x per perbandingan, plus tiap pass agregasi dashboard/insights/
+// laporan), dan `new Date("<string>")` harus lewat DateParser yang jauh lebih
+// mahal daripada `new Date(<number>)`. Memo menyimpan TIMESTAMP (bukan objek
+// Date) dan tetap mengembalikan objek Date BARU per panggilan -- mutasi hasil
+// oleh pemanggil (mis. cursor.setMonth di src/domain/transactions.js) tidak
+// pernah menular antar-panggilan. Perilaku output identik dengan implementasi
+// lama (dijaga guard konsistensi tests/unit/dates-domain.test.js).
+const _tglMemo = new Map();
+const _TGL_MEMO_MAX = 1024;
+
 /** Ubah string "YYYY-MM-DD" (atau ISO dengan T) -> Date lokal tengah malam. Null/empty -> invalid. */
 export function parseTgl(tanggalStr) {
   if (!tanggalStr) return new Date(NaN);
-  return new Date(String(tanggalStr).split("T")[0] + "T00:00:00");
+  const key = String(tanggalStr).split("T")[0];
+  let ts = _tglMemo.get(key);
+  if (ts === undefined) {
+    ts = new Date(key + "T00:00:00").getTime();
+    if (_tglMemo.size >= _TGL_MEMO_MAX) _tglMemo.clear(); // jaga ukuran tetap kecil; dataset realistis ~ribuan tanggal unik
+    _tglMemo.set(key, ts);
+  }
+  return new Date(ts);
 }
 
 /** Ubah Date -> "YYYY-MM-DD" pakai komponen lokal (aman zona waktu; BUKAN toISOString/UTC). */

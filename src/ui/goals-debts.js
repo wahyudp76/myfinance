@@ -38,6 +38,9 @@
  */
 
 import { uiActionAttrs } from "../domain/sanitize.js";
+// v112: formatRp kanonik (formatter Intl di-cache di src/domain/format.js) menggantikan
+// `new Intl.NumberFormat("id-ID")` per-baris di template bawah -- output identik.
+import { formatRp } from "../domain/format.js";
 
 const goalIconPalette = ["fa-plane", "fa-house", "fa-car", "fa-graduation-cap", "fa-ring", "fa-piggy-bank", "fa-laptop", "fa-umbrella-beach", "fa-gift", "fa-heart-pulse"];
 const goalColorPalette = [
@@ -128,12 +131,12 @@ export function renderGoalsList({ document, appSettings, computeGoalProgress, es
             <div class="h-full rounded-full ${isDone ? "bg-emerald-400" : "bg-indigo-400"} transition-all" data-style-width="${pct}%"></div>
         </div>
         <div class="flex items-center justify-between mb-3">
-            <span class="text-[11px] font-bold ${isDone ? "text-emerald-500" : "text-slate-500"}">${pct}% -- Rp ${new Intl.NumberFormat("id-ID").format(g.terkumpul)}</span>
-            <span class="text-[10px] text-slate-400">dari Rp ${new Intl.NumberFormat("id-ID").format(g.target)}</span>
+            <span class="text-[11px] font-bold ${isDone ? "text-emerald-500" : "text-slate-500"}">${pct}% -- Rp ${formatRp(g.terkumpul)}</span>
+            <span class="text-[10px] text-slate-400">dari Rp ${formatRp(g.target)}</span>
         </div>
         ${isDone
             ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Tercapai!</div>`
-            : `<button${uiActionAttrs('openGoalContributeModal', g.id)} class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Setor Dana <span class="text-slate-400 font-normal">(sisa Rp ${new Intl.NumberFormat("id-ID").format(sisa)})</span></button>`}
+            : `<button${uiActionAttrs('openGoalContributeModal', g.id)} class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition active:scale-95">+ Setor Dana <span class="text-slate-400 font-normal">(sisa Rp ${formatRp(sisa)})</span></button>`}
     </div>`;
   }).join("");
 }
@@ -213,7 +216,7 @@ export function renderDebtsList({ document, appSettings, computeDebtProgress, es
         </div>
         <div class="flex items-center justify-between mb-3">
             <span class="text-[11px] font-bold ${isLunas ? "text-emerald-500" : "text-slate-500"}">${paidPct}% terlunasi</span>
-            <span class="text-[10px] text-slate-400">sisa Rp ${new Intl.NumberFormat("id-ID").format(sisa)}</span>
+            <span class="text-[10px] text-slate-400">sisa Rp ${formatRp(sisa)}</span>
         </div>
         ${isLunas
             ? `<div class="w-full bg-emerald-50 text-emerald-600 text-center text-xs font-bold py-2.5 rounded-xl"><i class="fas fa-circle-check mr-1.5"></i>Lunas!</div>`
