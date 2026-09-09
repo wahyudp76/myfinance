@@ -82,7 +82,7 @@ export function sparklineSvg(values, { stroke = "#22d3ee", width = 96, height = 
   const g = sparklineGeometry(values, { width, height });
   const gid = `hud-spark-${String(id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const dot = g.last
-    ? `<circle cx="${g.last.x}" cy="${g.last.y}" r="2" fill="${stroke}" style="filter:drop-shadow(0 0 4px ${stroke})"/>`
+    ? `<circle cx="${g.last.x}" cy="${g.last.y}" r="2" fill="${stroke}" filter="drop-shadow(0 0 4px ${stroke})"/>`
     : "";
   return (
     `<svg width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}" fill="none" aria-hidden="true">` +
@@ -90,7 +90,7 @@ export function sparklineSvg(values, { stroke = "#22d3ee", width = 96, height = 
     `<stop offset="0" stop-color="${stroke}" stop-opacity="0.38"/>` +
     `<stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>` +
     `<path d="${g.area}" fill="url(#${gid})"/>` +
-    `<path d="${g.line}" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 3px ${stroke})"/>` +
+    `<path d="${g.line}" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" filter="drop-shadow(0 0 3px ${stroke})"/>` +
     dot +
     `</svg>`
   );

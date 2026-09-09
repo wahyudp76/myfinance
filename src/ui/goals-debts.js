@@ -125,7 +125,7 @@ export function renderGoalsList({ document, appSettings, computeGoalProgress, es
             </div>
         </div>
         <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-            <div class="h-full rounded-full ${isDone ? "bg-emerald-400" : "bg-indigo-400"} transition-all" style="width:${pct}%"></div>
+            <div class="h-full rounded-full ${isDone ? "bg-emerald-400" : "bg-indigo-400"} transition-all" data-style-width="${pct}%"></div>
         </div>
         <div class="flex items-center justify-between mb-3">
             <span class="text-[11px] font-bold ${isDone ? "text-emerald-500" : "text-slate-500"}">${pct}% -- Rp ${new Intl.NumberFormat("id-ID").format(g.terkumpul)}</span>
@@ -209,7 +209,7 @@ export function renderDebtsList({ document, appSettings, computeDebtProgress, es
             </div>
         </div>
         <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-            <div class="h-full rounded-full ${isLunas ? "bg-emerald-400" : "bg-rose-400"} transition-all" style="width:${paidPct}%"></div>
+            <div class="h-full rounded-full ${isLunas ? "bg-emerald-400" : "bg-rose-400"} transition-all" data-style-width="${paidPct}%"></div>
         </div>
         <div class="flex items-center justify-between mb-3">
             <span class="text-[11px] font-bold ${isLunas ? "text-emerald-500" : "text-slate-500"}">${paidPct}% terlunasi</span>

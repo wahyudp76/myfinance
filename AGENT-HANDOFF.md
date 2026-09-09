@@ -2284,7 +2284,7 @@ menggelembung; mendengarkan `focus` langsung di document TIDAK akan pernah
 jalan (dijaga tes eksplisit).
 
 **VERIFIKASI:**
-- `scripts/verify-csp.mjs` (BARU, 15 cek) menguji DUA arah: keempat blok inline
+- `scripts/verify-csp.mjs` (BARU, 15 cek pada v104) menguji DUA arah: keempat blok inline
   benar-benar TEREKSEKUSI (tema, jembatan auth, pemuat grafik, registrasi SW --
   diperiksa lewat efek nyatanya, karena hash meleset = gagal senyap), dan skrip
   inline yang disuntikkan benar-benar DITOLAK (+ pelanggaran terlapor).
@@ -2299,11 +2299,11 @@ Chrome -- eval di situ selalu berhasil sekalipun 'unsafe-eval' tidak ada.
 Percobaan pertama harness sempat melaporkannya sebagai KEGAGALAN padahal
 kebijakannya benar. Yang dijamin: 'unsafe-eval' memang tidak ada di kebijakan.
 
-**BELUM: `style-src` masih 'unsafe-inline'** -- 37 atribut `style=""` dipakai
-untuk nilai dinamis (lebar bar progres, warna dari data). Atribut style tidak
-bisa di-hash seperti blok skrip, jadi melepasnya menuntut refactor tersendiri
-(pindah ke CSS custom property). Fakta ini DIKUNCI unit test supaya tidak ada
-yang mengira script-src dan style-src sudah sama ketatnya.
+**STATUS PADA v104:** `style-src` masih `unsafe-inline` -- 37 atribut `style=""`
+dipakai untuk nilai dinamis (lebar bar progres, warna dari data). Refactor itu
+memang ditunda ke butir roadmap berikutnya; status tersebut kemudian ditutup
+oleh v109 di bawah. Jangan membaca catatan historis ini sebagai status produksi
+terkini.
 
 ## v105 — Perbaikan bug: kartu saldo per akun "tidak bisa diklik"
 **LAPORAN PENGGUNA:** kartu saldo per akun di dashboard tidak bisa diklik.
@@ -2538,3 +2538,49 @@ versi dependency atau lock resolution lain.
 **VERIFIKASI YANG HARUS DILAPORKAN:** jalankan `npm ci` dan `npm test` pada
 Node 22.23.2, lalu build idempoten. Jangan menyebut Node 20 sebagai runtime
 resmi kecuali seluruh dependency toolchain sudah benar-benar mendukungnya.
+
+
+## v109 — `style-src` tanpa `unsafe-inline` (roadmap berikutnya)
+**SASARAN:** menutup pengecualian `style-src 'unsafe-inline'` tanpa merusak
+style dinamis (lebar bar, warna data, radar, pull-to-refresh, ring budget,
+dan tooltip kategori). Kebijakan sekarang di **meta `index.html` dan `_headers`
+sama-sama** memakai `style-src 'self'` + hash SHA-256 untuk `<style>` kosong
+FullCalendar, serta `style-src-attr 'none'`; `script-src` berbasis hash tetap
+dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalendar
+6.1.10 membuat stylesheet kosong dan menambahkan rule melalui CSSOM `insertRule()`.
+
+
+**PERUBAHAN PRODUKSI:**
+- Style tetap di `index.html` dipindah ke class baru di `styles.src.css`:
+  auth gate, HUD dekorasi, radar/progress, ring, palet warna, app-lock, dan
+  fallback error.
+- Template dinamis tidak lagi menghasilkan atribut `style="..."`; nilai
+  numerik/warna memakai `data-style-*`. Bridge di awal `app.src.js` memvalidasi
+  nama property + nilai, lalu menerapkannya lewat `CSSStyleDeclaration.setProperty`
+  (CSSOM langsung, bukan `setAttribute`/`cssText`) dan mengawasi node/atribut
+  baru dengan `MutationObserver`. Ini tetap kompatibel dengan CSP karena
+  `style-src-attr` mengatur atribut style, bukan property CSSOM langsung.
+- SVG sparkline memakai atribut `filter`, bukan atribut style. Duplicate `class`
+  dari migrasi otomatis dibersihkan; definisi class dan artefak `app.js`,
+  `boot.bundle.js`, `css/tailwind.css`, dan `styles.css` dibangun ulang.
+
+**GERBANG & CACHE:**
+- `tests/unit/csp-style.test.js` menyisir meta/header (termasuk hash stylesheet
+  kosong FullCalendar) serta sumber dan artefak produksi (termasuk `boot.js`)
+  agar tidak ada `unsafe-inline` pada style dan tidak ada atribut `style=`.
+- `tests/unit/csp-hash.test.js` diperbarui dari guard historis `unsafe-inline`
+  menjadi guard `style-src-attr 'none'`; `scripts/verify-csp.mjs` sekarang
+  memiliki **17 cek** (tambah verifikasi bentuk kebijakan style).
+- Karena aset precache berubah, `CACHE_VERSION` naik `myfinance-v140` ->
+  `myfinance-v141` dan `tests/unit/sw-cache.snapshot` diperbarui.
+
+**HASIL VALIDASI LOKAL (Node v22.23.2 + Chromium Playwright):**
+- `npm test`: lint bersih; unit **887/887**; parity **1/1** (parity live dilewati
+  karena secret Supabase tidak dikonfigurasi).
+- Build app/boot/CSS/CSP dijalankan dua kali; hash keluaran identik (idempoten),
+  dan snapshot SW cocok.
+- Sembilan harness browser **230/230**: HUD 69, logo aset 17, App Lock 21,
+  biometrik 14, RP ID 31, offline cache 13, UI actions 39, CSP 17, dan UI
+  sweep 9. `verify-csp.mjs` secara khusus melewati view kalender/FullCalendar;
+  semua harness melaporkan 0 error halaman/console tak terduga.
+- Commit/push v109 belum dilakukan pada titik handoff ini.

@@ -86,7 +86,7 @@ test("renderGoalsList: tujuan berjalan -> bar indigo, persen, sisa dgn format id
   renderGoalsList(deps);
   const html = deps.document.getElementById("goals-list-container").innerHTML;
   assert.match(html, /bg-indigo-400/);
-  assert.match(html, /width:40%/);
+  assert.match(html, /data-style-width="40%"/);
   assert.match(html, /40% -- Rp 400\.000/);
   assert.match(html, /dari Rp 1\.000\.000/);
   assert.match(html, /sisa Rp 600\.000/);
@@ -188,7 +188,7 @@ test("renderDebtsList: utang berjalan -> bar rose, '25% terlunasi', sisa format 
   renderDebtsList(deps);
   const html = deps.document.getElementById("debts-list-container").innerHTML;
   assert.match(html, /bg-rose-400/);
-  assert.match(html, /width:25%/);
+  assert.match(html, /data-style-width="25%"/);
   assert.match(html, /25% terlunasi/);
   assert.match(html, /sisa Rp 750\.000/);
   assert.match(html, /~8 bulan lagi \(estimasi\)/);

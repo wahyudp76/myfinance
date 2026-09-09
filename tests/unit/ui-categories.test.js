@@ -269,7 +269,9 @@ test("buildSubTipHtml: kartu hitam MURNI #000 + nama ter-escape + nilai + persen
     { name: "Katering <Kantor>", total: 450000, pct: 29, count: 2 },
     { formatRp: () => "450.000", fmtPct: (p) => p + "%", color: "#8b5cf6", escapeHtml: (s) => String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") }
   );
-  assert.ok(html.includes("background:#000000"));
+  assert.ok(html.includes("csp-toast-background"));
+  assert.ok(html.includes('data-style-background="#8b5cf6"'));
+  assert.ok(html.includes('data-style-box-shadow="0 0 8px #8b5cf699"'));
   assert.ok(html.includes("Katering &lt;Kantor&gt;"));
   assert.ok(html.includes("Rp 450.000"));
   assert.ok(html.includes("29%"));

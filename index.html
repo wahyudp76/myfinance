@@ -8,7 +8,7 @@
          terjaga kebijakan. Ketahuan saat uji-negatif v104: hash blok tema
          sengaja dirusak, tapi browser tetap menjalankannya tanpa keluhan.
          Satu-satunya yang boleh mendahuluinya adalah <meta charset>. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-UfBtRoDm0oV9DlWtpXIT/w867CyJBCIJ/Aks348DbUw=' 'sha256-vSKSYZ/n0jDOh1qhGqFwcMi9jfXyQ+dQ5mV6p/35AZ0=' 'sha256-evGdneGbYbJifaJ+CFY8ChKxlYY1yeC5WEtKiG1ByYM=' 'sha256-ckH6q/TE4G4rBx4rHUBZCoQ+HeVwZfOEYsQZgZkH014='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://bibit.id https://stockbit.com https://images.bareksa.com https://image-cdn.pluang.com https://indodax.com https://pintu.co.id https://ajaib.co.id https://commons.wikimedia.org https://upload.wikimedia.org https://www.indopremier.com https://www.banksinarmas.com https://uxfngmxghupdlwoeoxgh.supabase.co; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-UfBtRoDm0oV9DlWtpXIT/w867CyJBCIJ/Aks348DbUw=' 'sha256-vSKSYZ/n0jDOh1qhGqFwcMi9jfXyQ+dQ5mV6p/35AZ0=' 'sha256-evGdneGbYbJifaJ+CFY8ChKxlYY1yeC5WEtKiG1ByYM=' 'sha256-ckH6q/TE4G4rBx4rHUBZCoQ+HeVwZfOEYsQZgZkH014='; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; style-src-attr 'none'; font-src 'self' data:; img-src 'self' data: https://bibit.id https://stockbit.com https://images.bareksa.com https://image-cdn.pluang.com https://indodax.com https://pintu.co.id https://ajaib.co.id https://commons.wikimedia.org https://upload.wikimedia.org https://www.indopremier.com https://www.banksinarmas.com https://uxfngmxghupdlwoeoxgh.supabase.co; connect-src 'self' https://uxfngmxghupdlwoeoxgh.supabase.co wss://uxfngmxghupdlwoeoxgh.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
     
     <script>
         (function () {
@@ -88,18 +88,18 @@
                     <svg class="login-mascot-svg" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <defs>
                             <linearGradient id="mascotBody" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#6366f1" style="stop-color: var(--accent-500, #6366f1)"/>
-                                <stop offset="100%" stop-color="#7c3aed" style="stop-color: var(--accent-600, #7c3aed)"/>
+                                <stop offset="0%" stop-color="#6366f1" class="csp-stop-accent-500"/>
+                                <stop offset="100%" stop-color="#7c3aed" class="csp-stop-accent-600"/>
                             </linearGradient>
                             <linearGradient id="mascotFlap" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#818cf8" style="stop-color: var(--accent-300, #818cf8)"/>
-                                <stop offset="100%" stop-color="#a78bfa" style="stop-color: var(--accent-400, #a78bfa)"/>
+                                <stop offset="0%" stop-color="#818cf8" class="csp-stop-accent-300"/>
+                                <stop offset="100%" stop-color="#a78bfa" class="csp-stop-accent-400"/>
                             </linearGradient>
                         </defs>
 
                         
                         <path class="login-sparkle" fill="#fbbf24" d="M14,20 L16.24,25.76 L22,28 L16.24,30.24 L14,36 L11.76,30.24 L6,28 L11.76,25.76 Z"/>
-                        <circle class="login-sparkle delay1" cx="150" cy="30" r="3.5" fill="#34d399" style="fill: var(--accent-400, #34d399)"/>
+                        <circle class="login-sparkle delay1 csp-fill-accent-400" cx="150" cy="30" r="3.5" fill="#34d399"/>
                         <path class="login-sparkle delay2" fill="#f472b6" d="M12,128 L13.6,131.8 L17.4,133.4 L13.6,135 L12,138.8 L10.4,135 L6.6,133.4 L10.4,131.8 Z"/>
 
                         
@@ -178,9 +178,9 @@
     </div>
 
     
-    <div id="authGate" style="position:fixed;inset:0;background:#f8fafc;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
-        <i class="fas fa-circle-notch fa-spin" style="font-size:26px;color:#151928;"></i>
-        <p style="color:#64748b;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;">Memeriksa sesi login...</p>
+    <div id="authGate" class="csp-auth-gate">
+        <i class="fas fa-circle-notch fa-spin csp-auth-spinner"></i>
+        <p class="csp-auth-text">Memeriksa sesi login...</p>
     </div>
 
     
@@ -197,9 +197,9 @@
     </div>
 
     
-    <div id="pullToRefreshIndicator" class="fixed left-0 right-0 flex justify-center pointer-events-none z-30" style="top: 0; transform: translateY(-60px); opacity: 0;">
+    <div id="pullToRefreshIndicator" class="fixed left-0 right-0 flex justify-center pointer-events-none z-30 csp-pull-indicator">
         <div class="w-10 h-10 rounded-full bg-white shadow-lg border border-slate-100 flex items-center justify-center mt-3">
-            <i id="pullToRefreshIcon" class="fas fa-arrow-down text-slate-400 text-sm" style="transition: transform 0.15s ease, color 0.15s ease;"></i>
+            <i id="pullToRefreshIcon" class="fas fa-arrow-down text-slate-400 text-sm csp-pull-icon"></i>
         </div>
     </div>
 
@@ -233,7 +233,7 @@
             <h1 class="text-lg font-extrabold tracking-tight text-slate-900">MyFinance</h1>
         </div>
         <div class="flex items-center gap-1">
-            <div class="hud-status" data-state="live" aria-hidden="true" style="margin-right:4px"><span class="hud-led"></span><span class="hud-status-text">LIVE</span></div>
+            <div class="hud-status csp-hud-status-live" data-state="live" aria-hidden="true"><span class="hud-led"></span><span class="hud-status-text">LIVE</span></div>
             <button data-action="switchView" data-args='["kalender"]' id="mobile-top-kalender" aria-label="Buka Kalender" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-calendar-alt text-xl"></i></button>
             <button data-action="switchView" data-args='["pengaturan"]' id="mobile-top-settings" aria-label="Buka Pengaturan" class="text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-50 transition-all"><i class="fas fa-cog text-xl"></i></button>
             <button data-logout-btn aria-label="Keluar" class="text-slate-500 hover:text-rose-500 p-2 rounded-xl hover:bg-rose-50 transition-all" title="Keluar"><i class="fas fa-arrow-right-from-bracket text-xl"></i></button>
@@ -261,9 +261,9 @@
                     <div class="hud-hash"></div>
                     <div class="flex items-center justify-between mt-3">
                         <div class="hud-status" data-state="live"><span class="hud-led"></span><span class="hud-status-text">LIVE</span></div>
-                        <div class="hud-barcode" style="width:48px;height:14px"></div>
+                        <div class="hud-barcode csp-barcode-small"></div>
                     </div>
-                    <p class="hud-mono" style="font-size:8px;letter-spacing:.28em;color:rgba(125,211,252,.45);margin-top:8px">SYS.01 // MF-HUD // NODE-JBI</p>
+                    <p class="hud-mono csp-system-label">SYS.01 // MF-HUD // NODE-JBI</p>
                 </div>
             </div>
         </div>
@@ -307,7 +307,7 @@
                     <p id="currentDate" class="text-slate-500 text-xs md:text-sm mt-1"></p>
                     <p class="hud-mono hud-coord mt-1" aria-hidden="true">// GEO -1.6101,103.6131 · NODE-JBI-01 · UPLINK STABLE</p>
                 </div>
-                <div class="hud-status hud-status-desk" data-state="live"><span class="hud-led"></span><span class="hud-status-text">LIVE</span><span class="hud-mono" style="opacity:.55">SEC-LINK</span></div>
+                <div class="hud-status hud-status-desk" data-state="live"><span class="hud-led"></span><span class="hud-status-text">LIVE</span><span class="hud-mono csp-sec-link">SEC-LINK</span></div>
                 <button data-action="openCommandPalette" class="hidden md:flex text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs md:text-sm transition items-center gap-2 shadow-sm" aria-label="Pencarian cepat (Ctrl K)">
                     <i class="fas fa-magnifying-glass"></i><span>Cari</span><kbd class="text-[10px] font-bold text-slate-400 border border-slate-200 rounded px-1">Ctrl K</kbd>
                 </button>
@@ -329,8 +329,8 @@
             </div>
 
             <div class="bg-[#171a25] rounded-[24px] p-6 md:p-8 relative overflow-hidden mb-6 md:mb-8 shadow-xl shadow-slate-200/50">
-                <div class="hud-barcode" aria-hidden="true" style="position:absolute;top:14px;right:16px;width:72px;height:16px;z-index:6"></div>
-                <div class="hud-dots" aria-hidden="true" style="position:absolute;bottom:14px;left:18px;width:64px;height:24px;opacity:.3;z-index:6"></div>
+                <div class="hud-barcode csp-barcode-corner" aria-hidden="true"></div>
+                <div class="hud-dots csp-dots-corner" aria-hidden="true"></div>
                 <div class="absolute -top-16 -right-16 w-48 md:w-64 h-48 md:h-64 bg-white opacity-[0.03] rounded-full pointer-events-none"></div>
                 <div class="absolute -bottom-16 -left-16 w-32 md:w-48 h-32 md:h-48 bg-blue-500 opacity-[0.05] rounded-full pointer-events-none"></div>
                 
@@ -401,7 +401,7 @@
                     <span class="text-xs md:text-sm text-slate-400 font-semibold mb-0.5">/100</span>
                 </div>
                 <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden mb-3.5">
-                    <div id="health-score-bar" class="h-full rounded-full transition-all duration-700" style="width:0%; background:#cbd5e1;"></div>
+                    <div id="health-score-bar" class="h-full rounded-full transition-all duration-700 csp-health-score-bar"></div>
                 </div>
                 <div id="health-score-breakdown" class="grid grid-cols-2 gap-x-3 gap-y-1.5"></div>
             </div>
@@ -442,7 +442,7 @@
                 </div>
                 <p class="text-xs text-slate-400 mb-4">Distribusi uang tunai dari berbagai akun</p>
                 <div class="flex items-center gap-4 md:gap-6">
-                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="asset-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="asset-radar-pct"><b>--%</b><span>TOP</span></div></div>
                     <div id="assetChart-legend" class="flex-1 min-w-0"></div>
                 </div>
                 <div id="assetChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
@@ -566,15 +566,15 @@
 
             
             <div class="bg-[#171a25] rounded-[24px] p-6 md:p-8 relative overflow-hidden mb-6 md:mb-8 shadow-xl shadow-slate-200/50">
-                <div class="hud-barcode" aria-hidden="true" style="position:absolute;top:14px;right:16px;width:72px;height:16px;z-index:6"></div>
-                <div class="hud-dots" aria-hidden="true" style="position:absolute;bottom:14px;left:18px;width:64px;height:24px;opacity:.3;z-index:6"></div>
+                <div class="hud-barcode csp-barcode-corner" aria-hidden="true"></div>
+                <div class="hud-dots csp-dots-corner" aria-hidden="true"></div>
                 <div class="absolute -top-16 -right-16 w-48 md:w-64 h-48 md:h-64 bg-white opacity-[0.03] rounded-full pointer-events-none"></div>
                 <div class="absolute -bottom-16 -left-16 w-32 md:w-48 h-32 md:h-48 bg-indigo-500 opacity-[0.05] rounded-full pointer-events-none"></div>
                 <div class="flex flex-col sm:flex-row sm:items-center gap-6 relative z-10">
                     <div class="flex-shrink-0 mx-auto sm:mx-0 relative w-28 h-28 md:w-32 md:h-32">
                         <svg viewBox="0 0 120 120" class="w-full h-full -rotate-90">
                             <circle cx="60" cy="60" r="52" fill="none" stroke="#ffffff1a" stroke-width="12"></circle>
-                            <circle id="budget-ring-progress" cx="60" cy="60" r="52" fill="none" stroke="#34d399" stroke-width="12" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7" style="transition: stroke-dashoffset 0.8s ease, stroke 0.5s ease; stroke: var(--accent-400, #34d399);"></circle>
+                            <circle id="budget-ring-progress" cx="60" cy="60" r="52" fill="none" stroke="#34d399" stroke-width="12" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7" class="csp-budget-ring"></circle>
                         </svg>
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
                             <p id="budget-ring-pct" class="text-white text-xl md:text-2xl font-extrabold">0%</p>
@@ -691,7 +691,7 @@
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Pengeluaran berdasarkan kategori</p>
                         <div class="flex items-center gap-3 md:gap-4">
-                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="expenseCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="exp-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="expenseCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="exp-radar-pct"><b>--%</b><span>TOP</span></div></div>
                             <div id="expenseCategoryChart-legend" class="flex-1 min-w-0"></div>
                         </div>
                         <div id="expenseCategoryChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50 max-h-64 overflow-y-auto"></div>
@@ -703,7 +703,7 @@
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Sumber pemasukan terbesar</p>
                         <div class="flex items-center gap-3 md:gap-4">
-                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="incomeCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="inc-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="incomeCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="inc-radar-pct"><b>--%</b><span>TOP</span></div></div>
                             <div id="incomeCategoryChart-legend" class="flex-1 min-w-0"></div>
                         </div>
                         <div id="incomeCategoryChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50 max-h-64 overflow-y-auto"></div>
@@ -743,7 +743,7 @@
                 </div>
 
                 
-                <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style="height: 440px;">
+                <div class="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col csp-chart-panel-fixed">
                     <div class="p-4 md:p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2 flex-shrink-0">
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center flex-shrink-0"><i class="fas fa-wand-magic-sparkles text-xs"></i></div>
                         <div class="min-w-0">
@@ -797,8 +797,8 @@
                     </div>
                 </div>
                 <div class="w-full h-2 rounded-full bg-white/10 overflow-hidden flex">
-                    <div id="networth-bar-aset" class="h-full bg-emerald-400" style="width:100%"></div>
-                    <div id="networth-bar-utang" class="h-full bg-rose-400" style="width:0%"></div>
+                    <div id="networth-bar-aset" class="h-full bg-emerald-400 w-full"></div>
+                    <div id="networth-bar-utang" class="h-full bg-rose-400 w-0"></div>
                 </div>
             </div>
 
@@ -849,7 +849,7 @@
                 </div>
                 <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi kamu</p>
                 <div class="flex items-center gap-4 md:gap-6">
-                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="assetAlloc-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="assetAlloc-radar-pct"><b>--%</b><span>TOP</span></div></div>
                     <div id="assetAllocationChart-legend" class="flex-1 min-w-0"></div>
                 </div>
                 <div id="assetAllocationChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
@@ -1042,11 +1042,11 @@
                     </div>
                     <div class="grid grid-cols-2 gap-2 mt-2">
                         <button id="chart-palette-btn-default" data-action="setChartPalette" data-args='["default"]' aria-label="Palet Grafik Standar" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
-                            <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full" style="background:#6366f1"></span><span class="w-2 h-2 rounded-full" style="background:#06b6d4"></span><span class="w-2 h-2 rounded-full" style="background:#10b981"></span><span class="w-2 h-2 rounded-full" style="background:#f59e0b"></span></span>
+                            <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full csp-dot-indigo"></span><span class="w-2 h-2 rounded-full csp-dot-cyan"></span><span class="w-2 h-2 rounded-full csp-dot-emerald"></span><span class="w-2 h-2 rounded-full csp-dot-amber"></span></span>
                             <span class="text-[10px] font-semibold text-slate-600">Standar</span>
                         </button>
                         <button id="chart-palette-btn-colorblind" data-action="setChartPalette" data-args='["colorblind"]' aria-label="Palet Grafik Ramah Buta Warna" class="theme-btn rounded-xl p-3 flex flex-col items-center gap-1.5 bg-slate-50 hover:bg-slate-100 transition-colors">
-                            <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full" style="background:#0173B2"></span><span class="w-2 h-2 rounded-full" style="background:#DE8F05"></span><span class="w-2 h-2 rounded-full" style="background:#029E73"></span><span class="w-2 h-2 rounded-full" style="background:#D55E00"></span></span>
+                            <span class="flex gap-0.5" aria-hidden="true"><span class="w-2 h-2 rounded-full csp-dot-cb-blue"></span><span class="w-2 h-2 rounded-full csp-dot-cb-orange"></span><span class="w-2 h-2 rounded-full csp-dot-cb-green"></span><span class="w-2 h-2 rounded-full csp-dot-cb-red"></span></span>
                             <span class="text-[10px] font-semibold text-slate-600">Ramah Buta Warna</span>
                         </button>
                     </div>
@@ -1374,7 +1374,7 @@
                 </div>
                 <div class="p-4 md:p-6">
                     <div class="flex items-center gap-4 md:gap-6">
-                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="accountCatChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct" id="accountCat-radar-pct" style="display:none"><b>--%</b><span>TOP</span></div></div>
+                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="accountCatChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="accountCat-radar-pct"><b>--%</b><span>TOP</span></div></div>
                         <div id="accountCatChart-legend" class="flex-1 min-w-0"></div>
                     </div>
                     <div id="accountCatChart-list" class="mt-3 pt-3 border-t border-slate-50 divide-y divide-slate-50"></div>
@@ -2275,7 +2275,7 @@
     
     <!-- v92 (Fase 1A): LAYAR KUNCI APLIKASI — selalu tampil di atas semuanya (z-200,
          di atas modal z-97 & nav z-40). Gaya gelap HUD konsisten dgn layar login. -->
-    <div id="appLockOverlay" class="fixed inset-0 z-[200] hidden flex-col items-center justify-center px-6" style="background: radial-gradient(900px 500px at 80% 0%, rgba(167,139,250,0.14), transparent 60%), radial-gradient(800px 500px at 10% 100%, rgba(34,211,238,0.12), transparent 55%), #04060e;">
+    <div id="appLockOverlay" class="fixed inset-0 z-[200] hidden flex-col items-center justify-center px-6 csp-app-lock-overlay">
         <div class="w-full max-w-xs text-center">
             <div class="w-16 h-16 rounded-2xl bg-slate-800/80 border border-cyan-400/30 flex items-center justify-center mx-auto mb-4 shadow-[0_0_28px_-8px_rgba(34,211,238,0.55)]">
                 <i class="fas fa-lock text-2xl text-cyan-300"></i>

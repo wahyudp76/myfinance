@@ -326,13 +326,13 @@ export function renderBudgetView({
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${sBadge.cls}">${sBadge.text}</span>
             </div>
             <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div class="h-full rounded-full ${sBarColor} transition-all duration-700 ease-out" style="width:${sWidthPct}%;"></div>
+                <div class="h-full rounded-full ${sBarColor} transition-all duration-700 ease-out" data-style-width="${sWidthPct}%"></div>
             </div>
             <p class="text-right text-[10px] font-bold text-slate-400 mt-1">${s.pct}%</p>
         </div>`;
       }).join("") : "";
 
-      return `<div class="stagger-item bg-white rounded-2xl border border-slate-100 shadow-sm transition hover:shadow-md overflow-hidden" style="animation-delay: ${idx * 45}ms">
+      return `<div class="stagger-item bg-white rounded-2xl border border-slate-100 shadow-sm transition hover:shadow-md overflow-hidden" data-style-animation-delay="${idx * 45}ms">
         <div class="p-4 ${canExpand ? "cursor-pointer select-none" : ""}" ${canExpand ? uiActionAttrs("toggleAccordion", accId) : ""}>
             <div class="flex items-center justify-between mb-2.5 gap-2">
                 <div class="flex items-center min-w-0">
@@ -348,7 +348,7 @@ export function renderBudgetView({
                 </div>
             </div>
             <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div class="h-full rounded-full ${barColor} transition-all duration-700 ease-out" style="width:${widthPct}%;"></div>
+                <div class="h-full rounded-full ${barColor} transition-all duration-700 ease-out" data-style-width="${widthPct}%"></div>
             </div>
             <p class="text-right text-[10px] font-bold text-slate-400 mt-1">${e.pct}%</p>
         </div>

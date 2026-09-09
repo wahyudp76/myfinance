@@ -85,14 +85,13 @@ test("index.html tidak memuat atribut handler inline (prasyarat kebijakan ini)",
     `masih ada ${handler.length} atribut handler inline -- di bawah CSP tanpa 'unsafe-inline' semuanya mati`);
 });
 
-test("style-src masih 'unsafe-inline' -- disengaja & tercatat, bukan kelalaian", () => {
-  // 37 atribut style="" dipakai untuk nilai dinamis (lebar bar progres, warna
-  // dari data). Atribut style TIDAK bisa di-hash seperti blok skrip, jadi
-  // melepasnya menuntut refactor terpisah. Tes ini mengunci FAKTA itu supaya
-  // tidak ada yang mengira script-src dan style-src sudah sama ketatnya.
+test("style-src tidak memuat 'unsafe-inline' dan atribut style diblokir", () => {
   const meta = html.match(/<meta http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/)[1];
   const styleSrc = (meta.match(/style-src ([^;]*)/) || [])[1] || "";
-  assert.ok(styleSrc.includes("'unsafe-inline'"),
-    "kalau style-src sudah diperketat, perbarui catatan ini dan hapus tesnya");
-  assert.ok(/\sstyle="/.test(html), "alasan pengecualian itu (atribut style dinamis) harus benar-benar masih ada");
+  assert.ok(!styleSrc.includes("'unsafe-inline'"),
+    "style-src tidak boleh membuka kembali seluruh atribut CSS inline");
+  assert.match(meta, /(?:^|;)\s*style-src-attr\s+'none'(?:;|$)/,
+    "style-src-attr 'none' wajib mengunci atribut style secara eksplisit");
+  assert.doesNotMatch(html, /\sstyle="/,
+    "index.html tidak boleh kembali memiliki atribut style inline");
 });

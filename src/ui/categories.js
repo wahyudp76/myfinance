@@ -185,8 +185,8 @@ export function formatRupiahShort(n) {
  * MURNI #000 solid, tidak mungkin menimpa chart. Murni + ter-unit-test.
  */
 export function buildSubTipHtml(it, { formatRp, fmtPct, color, escapeHtml }) {
-  return `<div class="inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5 shadow-lg transition-opacity" style="background:#000000" role="status">
-    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${color};box-shadow:0 0 8px ${color}99"></span>
+  return `<div class="inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5 shadow-lg transition-opacity csp-toast-background" role="status">
+    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" data-style-background="${color}" data-style-box-shadow="0 0 8px ${color}99"></span>
     <span class="text-xs md:text-sm font-extrabold text-white whitespace-nowrap">${escapeHtml(it.name)}</span>
     <span class="text-xs md:text-sm font-bold text-slate-200 whitespace-nowrap tabular-nums">Rp ${formatRp(it.total)} \u2022 ${fmtPct(it.pct)}</span>
   </div>`;
@@ -231,17 +231,17 @@ export function renderCategorySubProportion({
       <div>
         <div class="flex items-center justify-between mb-1.5 gap-2">
           <div class="flex items-center min-w-0">
-            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mr-2" style="background:${c};box-shadow:0 0 8px ${c}66"></span>
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mr-2" data-style-background="${c}" data-style-box-shadow="0 0 8px ${c}66"></span>
             <span class="text-xs md:text-sm font-bold text-slate-700 truncate">${escapeHtml(labelOf(it))}</span>
             <span class="text-[10px] text-slate-400 ml-2 flex-shrink-0">${it.count}x</span>
           </div>
           <div class="flex items-center flex-shrink-0">
             <span class="text-[10px] md:text-xs font-bold text-slate-500 tabular-nums whitespace-nowrap mr-2">Rp ${formatRupiahShort(it.total)}</span>
-            <span class="text-[11px] md:text-xs font-extrabold tabular-nums rounded-full px-2 py-0.5" style="background:${c}1f;color:${c}">${fmtPct(it.pct)}</span>
+            <span class="text-[11px] md:text-xs font-extrabold tabular-nums rounded-full px-2 py-0.5" data-style-background="${c}1f" data-style-color="${c}">${fmtPct(it.pct)}</span>
           </div>
         </div>
         <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
-          <div class="h-full rounded-full cat-sub-fill" data-w="${it.pct}" style="width:0%;background:linear-gradient(90deg,${c},${c}8c)"></div>
+          <div class="h-full rounded-full cat-sub-fill" data-w="${it.pct}" data-style-width="0%" data-style-background-image="linear-gradient(90deg,${c},${c}8c)"></div>
         </div>
       </div>`;
   }).join("");
@@ -249,11 +249,11 @@ export function renderCategorySubProportion({
   host.innerHTML = `
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 md:gap-6 items-center">
       <div class="lg:col-span-2 flex flex-col items-center">
-        <div class="relative w-44 h-44 md:w-52 md:h-52" style="filter:drop-shadow(0 8px 24px rgba(99,102,241,.28))">
+        <div class="relative w-44 h-44 md:w-52 md:h-52 csp-category-donut-shadow">
           <canvas id="catSubDonut" class="absolute inset-0 w-full h-full"></canvas>
           <div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div>
-          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="padding:0 30px">
-            <p class="text-[10px] font-bold uppercase tracking-widest" style="color:#6366f1">Total ${escapeHtml(jenis === "Pemasukan" ? "Masuk" : "Keluar")}</p>
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none csp-category-donut-center">
+            <p class="text-[10px] font-bold uppercase tracking-widest csp-category-donut-label">Total ${escapeHtml(jenis === "Pemasukan" ? "Masuk" : "Keluar")}</p>
             <p class="text-xl md:text-2xl font-extrabold text-slate-800 leading-tight tabular-nums">${formatRupiahShort(totalMonth)}</p>
             <p class="text-[10px] text-slate-400 tabular-nums">Rp ${formatRp(totalMonth)}</p>
             <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(monthLabel)}</p>

@@ -1,6 +1,7 @@
-// VERIFY CSP — harness untuk pengetatan Content-Security-Policy (v104).
+// VERIFY CSP — harness untuk pengetatan Content-Security-Policy (v109).
 //
 // Setelah `'unsafe-inline'` dilepas dari script-src dan diganti 4 hash sha256,
+// dan dari style-src setelah seluruh atribut style dipindah ke CSS/CSSOM,
 // ada dua cara gagal yang sama-sama buruk dan sama-sama SENYAP di unit test:
 //   (a) TERLALU KETAT -- satu blok inline yang hash-nya meleset (mis. karena
 //       satu spasi berubah) tidak akan dieksekusi browser. Aplikasi bisa tetap
@@ -78,11 +79,17 @@ const c1 = await page.evaluate(() => {
   const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
   const isi = meta ? meta.getAttribute("content") : "";
   const scriptSrc = (isi.match(/script-src ([^;]*)/) || [])[1] || "";
+  const styleSrc = (isi.match(/style-src ([^;]*)/) || [])[1] || "";
+  const styleSrcAttr = (isi.match(/style-src-attr ([^;]*)/) || [])[1] || "";
   return {
     ada: !!meta,
     scriptSrc,
+    styleSrc,
+    styleSrcAttr,
     unsafeInline: scriptSrc.includes("'unsafe-inline'"),
     unsafeEval: scriptSrc.includes("'unsafe-eval'"),
+    styleUnsafeInline: styleSrc.includes("'unsafe-inline'"),
+    styleAttrNone: styleSrcAttr.split(/\s+/).includes("'none'"),
     jumlahHash: (scriptSrc.match(/'sha256-/g) || []).length,
     inlineDiDom: [...document.querySelectorAll("script")].filter((s) => !s.src).length,
   };
@@ -90,6 +97,8 @@ const c1 = await page.evaluate(() => {
 ok(c1.ada, "C1: meta CSP hadir");
 ok(!c1.unsafeInline, "C1: script-src TIDAK lagi memuat 'unsafe-inline'", c1.scriptSrc.slice(0, 60) + "…");
 ok(!c1.unsafeEval, "C1: script-src tidak memuat 'unsafe-eval'");
+ok(!c1.styleUnsafeInline, "C1: style-src TIDAK lagi memuat 'unsafe-inline'", c1.styleSrc);
+ok(c1.styleAttrNone, "C1: style-src-attr memblokir atribut style", c1.styleSrcAttr);
 ok(c1.jumlahHash === c1.inlineDiDom,
   "C1: jumlah hash == jumlah blok skrip inline di dokumen", `${c1.jumlahHash} hash / ${c1.inlineDiDom} blok`);
 
@@ -161,7 +170,7 @@ ok(c5.pelanggaranBaru.length > 0, "C5: penolakannya dilaporkan sebagai pelanggar
 // pelanggaran yang MUNCUL SETELAH titik ini.
 const garisDasarPelanggaran = await page.evaluate(() => window.__cspViolations.length);
 console.log("\n-- C6: aplikasi tetap berfungsi di bawah kebijakan ketat --");
-for (const v of ["transaksi", "laporan", "aset", "pengaturan", "dashboard"]) {
+for (const v of ["transaksi", "laporan", "aset", "kalender", "pengaturan", "dashboard"]) {
   await page.evaluate((vv) => switchView(vv), v);
   await page.waitForTimeout(700);
 }
@@ -174,7 +183,7 @@ ok(c6.baru.length === 0, "C6: tidak ada pelanggaran CSP baru saat memakai aplika
   c6.baru.map((v) => `${v.directive}:${v.blocked}`).join(" | ") || "bersih");
 
 const errorTakTerduga = konsolError.filter((t) => !/Content Security Policy|Refused to execute/i.test(t));
-console.log("\n== HASIL VERIFY CSP (15 cek) ==");
+console.log("\n== HASIL VERIFY CSP (17 cek) ==");
 console.log(`Error halaman (${errorHalaman.length})`);
 [...new Set(errorHalaman)].slice(0, 5).forEach((e) => console.log(`   ${e}`));
 console.log(`console.error di luar laporan CSP (${errorTakTerduga.length})`);

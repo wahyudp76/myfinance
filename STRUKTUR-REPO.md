@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v108`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v109`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -43,7 +43,7 @@ myfinance/
 ├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v140)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v141)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -281,8 +281,10 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 - **RLS** aktif di semua tabel; tiap user hanya lihat/ubah datanya sendiri. Migrasi
   `*_rls_hardening*`, `event_trigger_ensure_rls`, `pre_migration_checks` menjaga ini.
 - **CSP** di `_headers` dan meta `index.html` harus **selalu sinkron**; `'unsafe-eval'`
-  sudah dibuang (kode tidak pakai `eval`/`new Function`). Domain yang diizinkan kini hanya
-  Supabase (project `uxfngmxghupdlwoeoxgh`).
+  dan `style-src 'unsafe-inline'` sudah dibuang. Atribut style dikunci dengan
+  `style-src-attr 'none'`; satu hash SHA-256 untuk `<style>` kosong FullCalendar
+  mengizinkan CSSOM `insertRule()` tanpa membuka inline style umum. Domain yang diizinkan
+  kini hanya Supabase (project `uxfngmxghupdlwoeoxgh`).
 - **Hardening input tak tepercaya** (v60): sanitasi CSV formula injection, escape nama akun,
   validasi override ikon/gaya, fallback ikon netral.
 - `.gitleaks.toml` mencegah secret ter-commit. Tidak ada service-role key di kode browser.
@@ -298,7 +300,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
                                       # http://localhost — WebAuthn menolak origin ber-IP)
   node scripts/verify-offline-cache.mjs # 13 cek cache data offline/PWA
   node scripts/verify-ui-actions.mjs  # 39 cek aksi UI deklaratif (data-action)
-  node scripts/verify-csp.mjs         # 15 cek Content-Security-Policy
+  node scripts/verify-csp.mjs         # 17 cek Content-Security-Policy
   node scripts/verify-ui-sweep.mjs    # 9 cek sapu seluruh permukaan aksi
   node scripts/schema-verify/run.mjs  # v96: install sql/schema.sql dari nol di
                                       # Postgres nyata + 10 cek RLS/RPC/grant

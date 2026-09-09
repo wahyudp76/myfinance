@@ -16,17 +16,84 @@
 // library gagal dimuat sama sekali), jangan biarkan pengguna terjebak selama-
 // nya di layar "Memeriksa sesi login..." tanpa penjelasan apa pun.
 // --------------------------------------------------------------------------
+const CSP_DYNAMIC_STYLE_NAMES = [
+    'data-style-width', 'data-style-height', 'data-style-max-width',
+    'data-style-background', 'data-style-background-color', 'data-style-background-image',
+    'data-style-color', 'data-style-box-shadow', 'data-style-animation-delay',
+    'data-style-opacity', 'data-style-transform', 'data-style-display',
+];
+const CSP_DYNAMIC_STYLE_PROPERTIES = new Set(
+    CSP_DYNAMIC_STYLE_NAMES.map((name) => name.slice('data-style-'.length))
+);
+const CSP_DYNAMIC_STYLE_SELECTOR = CSP_DYNAMIC_STYLE_NAMES.map((name) => `[${name}]`).join(',');
+const CSP_DYNAMIC_STYLE_SAFE = /^[a-zA-Z0-9#().,%\s+-]+$/;
+
+/**
+ * Terapkan nilai visual dinamis lewat CSSOM, bukan atribut CSS inline.
+ *
+ * CSP `style-src-attr 'none'` memblokir atribut style pada markup, tetapi
+ * aplikasi tetap perlu lebar bar progres/warna data. Nilai dimasukkan sebagai
+ * data-style-* (tidak dieksekusi), divalidasi ketat, lalu dipasang lewat
+ * CSSStyleDeclaration.setProperty(). Jangan menerima URL, titik koma, atau
+ * ekspresi CSS dari data pengguna.
+ */
+function applyCspDynamicStyles(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    const nodes = [];
+    if (root.nodeType === 1 && root.matches && root.matches(CSP_DYNAMIC_STYLE_SELECTOR)) nodes.push(root);
+    nodes.push(...root.querySelectorAll(CSP_DYNAMIC_STYLE_SELECTOR));
+    nodes.forEach((el) => {
+        Array.from(el.attributes).forEach((attr) => {
+            if (!attr.name.startsWith('data-style-')) return;
+            const property = attr.name.slice('data-style-'.length);
+            const value = String(attr.value || '').trim();
+            if (!CSP_DYNAMIC_STYLE_PROPERTIES.has(property) || value.length > 300 || !CSP_DYNAMIC_STYLE_SAFE.test(value)) {
+                el.style.removeProperty(property);
+                return;
+            }
+            el.style.setProperty(property, value);
+        });
+    });
+}
+
+function installCspDynamicStyleObserver() {
+    if (typeof document === 'undefined' || !document.documentElement) return;
+    applyCspDynamicStyles(document);
+    if (typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver((records) => {
+        records.forEach((record) => {
+            if (record.type === 'attributes') {
+                const property = String(record.attributeName || '').slice('data-style-'.length);
+                if (!record.target.getAttribute(record.attributeName)) record.target.style.removeProperty(property);
+                else applyCspDynamicStyles(record.target);
+                return;
+            }
+            record.addedNodes.forEach((node) => {
+                if (node.nodeType === 1) applyCspDynamicStyles(node);
+            });
+        });
+    });
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: CSP_DYNAMIC_STYLE_NAMES,
+    });
+    window.__myfinanceCspDynamicStyleObserver = observer;
+}
+installCspDynamicStyleObserver();
+
 function showFallbackError(detail) {
     var gate = document.getElementById('authGate');
     if (!gate || gate.classList.contains('hidden')) return; // sudah lewat tahap loading, abaikan
     var detailText = detail ? String(detail && detail.message ? detail.message : detail) : 'Tidak diketahui';
     gate.innerHTML =
-        '<div style="max-width:300px;text-align:center;padding:24px;font-family:\'Plus Jakarta Sans\',sans-serif;">' +
-            '<i class="fas fa-triangle-exclamation" style="font-size:26px;color:#f43f5e;"></i>' +
-            '<p style="color:#334155;font-weight:700;font-size:14px;margin-top:12px;">Gagal memuat aplikasi</p>' +
-            '<p style="color:#94a3b8;font-size:12px;margin-top:6px;">Coba muat ulang (kalau perlu, hard refresh: Ctrl/Cmd+Shift+R). Kalau masih terjadi, buka tab Console di DevTools browser untuk detail lengkapnya.</p>' +
-            '<p style="color:#cbd5e1;font-size:10px;margin-top:10px;word-break:break-word;">' + detailText.replace(/</g, '&lt;') + '</p>' +
-            '<button id="fallbackReloadBtn" type="button" style="margin-top:16px;background:#151928;color:#fff;border:none;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Muat Ulang</button>' +
+        '<div class="csp-fallback-card">' +
+            '<i class="fas fa-triangle-exclamation csp-fallback-icon"></i>' +
+            '<p class="csp-fallback-title">Gagal memuat aplikasi</p>' +
+            '<p class="csp-fallback-help">Coba muat ulang (kalau perlu, hard refresh: Ctrl/Cmd+Shift+R). Kalau masih terjadi, buka tab Console di DevTools browser untuk detail lengkapnya.</p>' +
+            '<p class="csp-fallback-detail">' + detailText.replace(/</g, '&lt;') + '</p>' +
+            '<button id="fallbackReloadBtn" type="button" class="csp-fallback-reload">Muat Ulang</button>' +
         '</div>';
     // SENGAJA listener langsung, BUKAN data-action + dispatcher delegasi.
     // Ini layar darurat saat aplikasi GAGAL BOOT. Dispatcher aksi UI dipasang
@@ -1770,7 +1837,7 @@ async function currentUserId() {
                 const active = current === t.color;
                 return `<button type="button"${uiActionAttrs('setThemeColor', t.color)} title="Tema ${t.label}" aria-label="Tema ${t.label}" aria-pressed="${active}"`
                     + ` class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${active ? 'border-slate-700 scale-110 ring-2 ring-slate-300 ring-offset-1' : 'border-slate-200'}"`
-                    + ` style="background:${t.color}"></button>`;
+                    + ` data-style-background="${t.color}"></button>`;
             }).join('');
             const custom = document.getElementById('theme-color-custom');
             if (custom && current) custom.value = current; // sinkronkan color picker dgn pilihan aktif
@@ -2748,7 +2815,7 @@ async function currentUserId() {
             if (legendEl) {
                 legendEl.innerHTML = entries.slice(0, 2).map((e, i) => `
                     <div class="flex items-center justify-between gap-3 py-1.5">
-                        <div class="flex items-center gap-2 min-w-0"><span class="w-3 h-3 rounded-full flex-shrink-0" style="background:${palette[i % palette.length]}"></span><span class="text-xs md:text-sm font-bold text-slate-600 truncate">${escapeHtml(e.label)}</span></div>
+                        <div class="flex items-center gap-2 min-w-0"><span class="w-3 h-3 rounded-full flex-shrink-0" data-style-background="${palette[i % palette.length]}"></span><span class="text-xs md:text-sm font-bold text-slate-600 truncate">${escapeHtml(e.label)}</span></div>
                         <span class="text-xs md:text-sm font-bold text-slate-800 flex-shrink-0">${Math.round(e.val / total * 100)}%</span>
                     </div>`).join('');
             }
@@ -2769,7 +2836,7 @@ async function currentUserId() {
                         aksiItem = null;
                     }
                     return `<div ${aksiItem ? uiActionAttrs(aksiItem.action, ...aksiItem.args) : ''} class="flex items-center gap-2.5 md:gap-3 py-2.5 px-1 -mx-1 rounded-lg ${clickable ? 'cursor-pointer hud-breakdown-row transition' : ''}">
-                        <span class="text-[10px] md:text-xs font-bold text-white rounded-lg px-2 py-1 flex-shrink-0 w-10 md:w-11 text-center" style="background:${chartColor}">${pct}%</span>
+                        <span class="text-[10px] md:text-xs font-bold text-white rounded-lg px-2 py-1 flex-shrink-0 w-10 md:w-11 text-center" data-style-background="${chartColor}">${pct}%</span>
                         ${e.iconHtml}
                         <span class="text-xs md:text-sm font-bold text-slate-700 flex-1 min-w-0 truncate">${escapeHtml(e.label)}</span>
                         <span class="text-xs md:text-sm font-bold text-slate-600 flex-shrink-0 whitespace-nowrap">Rp ${formatShortVal(e.val)}</span>
@@ -4886,7 +4953,7 @@ async function currentUserId() {
                         let style = getCategoryStyle(row.kategori, row.jenis);
 
                         return `
-                            <div class="stagger-row flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition" style="animation-delay: ${Math.min(idx, 14) * 30}ms">
+                            <div class="stagger-row flex items-center justify-between px-3 md:px-4 py-2.5 hover:bg-slate-50 transition" data-style-animation-delay="${Math.min(idx, 14) * 30}ms">
                                 <div class="flex items-center min-w-0">
                                     ${categoryIconHtml(style, 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center mr-3 flex-shrink-0 border border-slate-50 shadow-sm', 'text-xs md:text-sm')}
                                     <div class="min-w-0">
@@ -4900,7 +4967,7 @@ async function currentUserId() {
                                     <button${uiActionAttrs('editDataForm', row.id)} aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
                                     <button${uiActionAttrs('hapusData', row.id)} aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
-                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / grpMaxAmt * 100))}%"></div></div>
+                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" data-style-width="${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / grpMaxAmt * 100))}%"></div></div>
                             </div>`;
                     }).join('');
 
@@ -5809,7 +5876,7 @@ async function currentUserId() {
                                     <div class="flex items-center gap-2 flex-shrink-0"><p class="text-[10px] font-extrabold text-indigo-500">${pct}%</p><p class="text-[11px] font-bold text-slate-500">Rp ${formatShortVal(val)}</p></div>
                                 </div>
                                 <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/70">
-                                    <div class="h-full rounded-full transition-all duration-700 ease-out" style="width:${barWidth}%;background-color:${progressColor};"></div>
+                                    <div class="h-full rounded-full transition-all duration-700 ease-out" data-style-width="${barWidth}%" data-style-background-color="${progressColor}"></div>
                                 </div>
                             </div>
                         </div>`;
@@ -6299,12 +6366,12 @@ async function currentUserId() {
                 const hudBarPct = Math.max(4, Math.round(Math.abs(Number(row.jumlah) || 0) / hudMaxAmt * 100));
 
                 return `
-                    <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" style="animation-delay: ${idx * 50}ms"${uiActionAttrs('switchView', 'transaksi')}>
+                    <div class="stagger-item bg-white p-3 md:p-4 rounded-xl border border-slate-100 flex items-center shadow-sm hover:shadow-md transition cursor-pointer" data-style-animation-delay="${idx * 50}ms"${uiActionAttrs('switchView', 'transaksi')}>
                         ${categoryIconHtml(style, 'w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mr-3 md:mr-4 flex-shrink-0 border border-slate-50 shadow-sm', 'text-sm md:text-base')}
                         <div class="flex-1 min-w-0">
                             <p class="text-xs md:text-sm font-bold text-slate-800 truncate"><span class="hud-mono hud-tx-id" aria-hidden="true">TX-${String(pageStart + idx + 1).padStart(2, '0')}</span> ${row.jenis === 'Transfer' ? 'Transfer ke ' + escapeHtml(row.kategori) : escapeHtml(row.kategori)}</p>
                             <p class="text-[10px] md:text-xs text-slate-400 truncate flex items-center mt-0.5"><span class="w-3 h-3 mr-1 flex items-center">${getAccountLogo(row.akun)}</span> ${escapeHtml(row.akun)} ${row.keterangan? '• ' + escapeHtml(row.keterangan) : ''}</p>
-                            <div class="hud-bar mt-1.5" style="max-width:150px" aria-hidden="true"><div class="hud-bar-fill" style="width:${hudBarPct}%"></div></div>
+                            <div class="hud-bar mt-1.5" data-style-max-width="150px" aria-hidden="true"><div class="hud-bar-fill" data-style-width="${hudBarPct}%"></div></div>
                         </div>
                         <div class="text-right pl-2">
                             <p class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap">Rp ${prefix}${formatRp(row.jumlah)}</p>
@@ -7391,7 +7458,7 @@ async function currentUserId() {
                                     <button${uiActionAttrs('editDataForm', row.id)} aria-label="Ubah transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-pencil-alt text-[10px]"></i></button>
                                     <button${uiActionAttrs('hapusData', row.id)} aria-label="Hapus transaksi" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-trash-alt text-[10px]"></i></button>
                                 </div>
-                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(isTransferIn ? transferTargetAmount(row) : row.jumlah) || 0) / accGrpMaxAmt * 100))}%"></div></div>
+                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" data-style-width="${Math.max(3, Math.round(Math.abs(Number(isTransferIn ? transferTargetAmount(row) : row.jumlah) || 0) / accGrpMaxAmt * 100))}%"></div></div>
                             </div>`;
                     }).join('');
 
@@ -7527,7 +7594,7 @@ async function currentUserId() {
                                 <div class="flex items-center gap-0.5 flex-shrink-0 pl-2">
                                     <span class="text-xs md:text-sm font-bold hud-mono ${color} whitespace-nowrap">${prefix}${row.mata_uang && row.mata_uang !== 'IDR' ? row.mata_uang + ' ' : 'Rp '}${formatRp(row.jumlah)}</span>
                                 </div>
-                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" style="width:${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / catGrpMaxAmt * 100))}%"></div></div>
+                                <div class="hud-rowbar hud-bar" aria-hidden="true"><div class="hud-bar-fill" data-style-width="${Math.max(3, Math.round(Math.abs(Number(row.jumlah) || 0) / catGrpMaxAmt * 100))}%"></div></div>
                             </div>`;
                     }).join('');
 
@@ -7992,7 +8059,7 @@ async function currentUserId() {
         // terpisah seperti sebelumnya (login.html <-> index.html).
 
         // Menyembunyikan authGate lewat fungsi bersama ini, BUKAN classList.add('hidden') --
-        // elemen authGate punya atribut inline `style="display:flex;..."` (lihat markup-nya),
+        // elemen authGate punya atribut inline style attribute (`display:flex;...`) (lihat markup-nya),
         // dan style inline SELALU menang atas class manapun (termasuk class "hidden" bawaan
         // Tailwind) berapa pun spesifisitasnya. Sebelumnya kode ini memakai classList.add('hidden')
         // yang SECARA VISUAL TIDAK PERNAH BEREFEK di elemen ini -- authGate tetap tampil menutupi

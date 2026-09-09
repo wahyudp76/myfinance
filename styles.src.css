@@ -901,3 +901,57 @@ html.dark .bg-white.border-b h1 { text-shadow: 0 0 14px rgba(34, 211, 238, 0.55)
     .hud-radar-sweep { animation-duration: 10s; }
     .hud-radar-ring { animation-duration: 30s; }
 }
+
+/* ============================================================================
+   v109 — CSP style-src tanpa atribut style inline
+   Nilai dinamis datang sebagai data-style-* lalu dipasang lewat CSSOM oleh
+   app.src.js. Semua nilai layout/warna yang tetap berada di sini menjadi CSS
+   biasa, sehingga style-src-attr 'none' tidak mengubah tampilan.
+   ============================================================================ */
+.csp-stop-accent-500 { stop-color: var(--accent-500, #6366f1); }
+.csp-stop-accent-600 { stop-color: var(--accent-600, #7c3aed); }
+.csp-stop-accent-300 { stop-color: var(--accent-300, #818cf8); }
+.csp-stop-accent-400 { stop-color: var(--accent-400, #a78bfa); }
+.csp-fill-accent-400 { fill: var(--accent-400, #34d399); }
+
+.csp-auth-gate {
+    position: fixed; inset: 0; z-index: 9999; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: #f8fafc;
+}
+.csp-auth-spinner { font-size: 26px; color: #151928; }
+.csp-auth-text { color: #64748b; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; }
+.csp-pull-indicator { top: 0; transform: translateY(-60px); opacity: 0; }
+.csp-pull-icon { transition: transform 0.15s ease, color 0.15s ease; }
+.csp-hud-status-live { margin-right: 4px; }
+.csp-barcode-small { width: 48px; height: 14px; }
+.csp-system-label { font-size: 8px; letter-spacing: .28em; color: rgba(125, 211, 252, .45); margin-top: 8px; }
+.csp-sec-link { opacity: .55; }
+.csp-barcode-corner { position: absolute; top: 14px; right: 16px; width: 72px; height: 16px; z-index: 6; }
+.csp-dots-corner { position: absolute; bottom: 14px; left: 18px; width: 64px; height: 24px; opacity: .3; z-index: 6; }
+.csp-health-score-bar { width: 0%; background: #cbd5e1; }
+.csp-radar-pct { display: none; }
+.csp-chart-panel-fixed { height: 440px; }
+.csp-budget-ring { transition: stroke-dashoffset .8s ease, stroke .5s ease; stroke: var(--accent-400, #34d399); }
+.csp-dot-indigo { background: #6366f1; }
+.csp-dot-cyan { background: #06b6d4; }
+.csp-dot-emerald { background: #10b981; }
+.csp-dot-amber { background: #f59e0b; }
+.csp-dot-cb-blue { background: #0173B2; }
+.csp-dot-cb-orange { background: #DE8F05; }
+.csp-dot-cb-green { background: #029E73; }
+.csp-dot-cb-red { background: #D55E00; }
+.csp-app-lock-overlay {
+    background: radial-gradient(900px 500px at 80% 0%, rgba(167,139,250,.14), transparent 60%),
+        radial-gradient(800px 500px at 10% 100%, rgba(34,211,238,.12), transparent 55%), #04060e;
+}
+.csp-fallback-card { max-width: 300px; text-align: center; padding: 24px; font-family: 'Plus Jakarta Sans', sans-serif; }
+.csp-fallback-icon { font-size: 26px; color: #f43f5e; }
+.csp-fallback-title { color: #334155; font-weight: 700; font-size: 14px; margin-top: 12px; }
+.csp-fallback-help { color: #94a3b8; font-size: 12px; margin-top: 6px; }
+.csp-fallback-detail { color: #cbd5e1; font-size: 10px; margin-top: 10px; word-break: break-word; }
+.csp-fallback-reload { margin-top: 16px; background: #151928; color: #fff; border: none; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.csp-toast-background { background: #000; }
+.csp-category-donut-shadow { filter: drop-shadow(0 8px 24px rgba(99,102,241,.28)); }
+.csp-category-donut-center { padding: 0 30px; }
+.csp-category-donut-label { color: #6366f1; }

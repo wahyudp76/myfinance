@@ -169,7 +169,7 @@ test("renderBudgetView: daftar kategori -- badge & bar per level, width di-clamp
   const html = els["budget-category-list"].innerHTML;
   // parent 1 (120% -> over, clamp 100)
   assert.match(html, /Over Budget/);
-  assert.match(html, /bg-rose-400 transition-all duration-700 ease-out" style="width:100%;"/);
+  assert.match(html, /bg-rose-400 transition-all duration-700 ease-out" data-style-width="100%"/);
   assert.match(html, /data-action="toggleAccordion" data-args="\[&quot;budget-acc-0&quot;\]"/);
   assert.match(html, /Rincian Sub-kategori/);
   assert.match(html, /Rp 120\.000 <span class="text-slate-300">\/ Rp 100\.000<\/span>/);
@@ -177,7 +177,7 @@ test("renderBudgetView: daftar kategori -- badge & bar per level, width di-clamp
   assert.match(html, /Aman/);
   assert.match(html, /bg-emerald-400/);
   // parent 2 (75% -> safe, tanpa accordion)
-  assert.match(html, /style="animation-delay: 45ms"/); // idx 1 * 45ms (tanpa semicolon di template asli)
+  assert.match(html, /data-style-animation-delay="45ms"/); // idx 1 * 45ms
   // ikon via categoryIconHtml: di daftar kategori, style sudah MELEKAT di entry
   // (digabung summarizeBudgets lewat opsi getCategoryStyle) -- categoryIconHtml
   // menerima entry itu langsung, bukan hasil getCategoryStyle baru.
