@@ -19,6 +19,8 @@
  * tetap bisa membaca semua angka inti tanpa error.
  */
 
+import { savingsValueOfMonth } from "./insights.js";
+
 const BULAN_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 /** Kunci YYYY-MM untuk perbandingan deterministik. */
@@ -60,6 +62,10 @@ export function buildAiFinanceSummary(ctx, {
   const monthOut = Math.round(Number(ctx.monthOut) || 0);
   const prevMonthIn = Math.round(Number(ctx.prevMonthIn) || 0);
   const prevMonthOut = Math.round(Number(ctx.prevMonthOut) || 0);
+  // v113: setoran ke aset dihitung sebagai nilai menabung (savingsValueOfMonth) --
+  // tanpa ctx.monthToAsset hasil identik rumus lama (monthIn - monthOut).
+  const monthToAsset = Math.round(Math.max(0, Number(ctx.monthToAsset) || 0));
+  const saved = Math.round(savingsValueOfMonth(monthIn, monthOut, monthToAsset));
   const net = monthIn - monthOut;
   const avgDaily = dayOfMonth > 0 ? Math.round(monthOut / dayOfMonth) : 0;
   const projected = remainingDays > 0 ? avgDaily * daysInMonth : monthOut;
@@ -169,7 +175,11 @@ export function buildAiFinanceSummary(ctx, {
     pemasukan_bulan_ini: monthIn,
     pengeluaran_bulan_ini: monthOut,
     selisih_bulan_ini: net,
-    tingkat_menabung_persen: monthIn > 0 ? Math.round(((monthIn - monthOut) / monthIn) * 1000) / 10 : null,
+    // v113: tingkat menabung memakai savingsValueOfMonth (setoran ke aset dihitung
+    // penuh sebagai menabung); + field baru setoran/nilai menabung utk konteks AI.
+    tingkat_menabung_persen: monthIn > 0 ? Math.round((saved / monthIn) * 1000) / 10 : null,
+    setoran_ke_aset_bulan_ini: monthToAsset,
+    nilai_menabung_bulan_ini: saved,
     rata_rata_pengeluaran_harian: avgDaily,
     proyeksi_pengeluaran_akhir_bulan: projected,
     // pembanding bulan lalu

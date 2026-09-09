@@ -21,6 +21,9 @@
  * @param {Array<object>} transactions - baris transaksi (bentuk sama seperti tabel `transactions`).
  * @param {object} deps
  * @param {string[]} deps.accounts - daftar nama akun (appSettings.accounts).
+ * @param {Array<object>} [deps.assets] - daftar aset (globalAssets), dipakai mendeteksi
+ *   transaksi "setor ke aset" (v113): Transfer dengan kategori = nama aset. Opsional;
+ *   bila tidak disuntik, monthToAsset/prevMonthToAsset = 0 (perilaku pra-v113).
  * @param {Date} deps.now - waktu "sekarang" (disuntik, bukan `new Date()` internal, supaya testable).
  * @param {(t: object) => number} deps.txIdrAmount - nilai IDR-equivalent 1 transaksi.
  * @param {(row: object) => number} deps.transferTargetAmount - nominal sisi tujuan transfer.
@@ -30,6 +33,7 @@
  */
 export function aggregateDashboardData(transactions, {
   accounts,
+  assets = [],
   now,
   txIdrAmount,
   transferTargetAmount,
@@ -45,6 +49,20 @@ export function aggregateDashboardData(transactions, {
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   let prevMonthIn = 0, prevMonthOut = 0;
   let monthTxCount = 0;
+  // v113: total setoran ke aset (Transfer + kategori = nama aset yang dikenal) bulan
+  // ini & bulan lalu, dalam IDR. Bukan pemasukan/pengeluaran (kekayaan bersih tetap),
+  // tapi dihitung sebagai NILAI MENABUNG oleh savingsValueOfMonth() di
+  // src/domain/insights.js (wawasan "Tingkat Menabung" + skor kesehatan + ringkasan AI).
+  let monthToAsset = 0, prevMonthToAsset = 0;
+  // Normalisasi nama aset SAMA PERSIS dengan findAssetByName() di src/domain/asset-flows.js
+  // (trim + lowercase) -- ditaruh dalam Set sekali di sini supaya pengecekan per baris
+  // Transfer O(1), bukan scan linear per transaksi (pipeline ini jalur panas v112).
+  // Kesetaraan dengan findAssetByName dijaga tests/unit/dashboard-domain.test.js.
+  const assetNameSet = new Set(
+    (Array.isArray(assets) ? assets : [])
+      .map((a) => (a && a.nama != null ? String(a.nama).trim().toLowerCase() : ""))
+      .filter(Boolean),
+  );
   const monthCatOutMap = {};
   // Total pengeluaran per kategori (PARENT), diakumulasi utk 3 bulan SEBELUM bulan ini --
   // dipakai computeFinancialInsights() di index.html utk bandingkan pengeluaran bulan ini
@@ -107,6 +125,10 @@ export function aggregateDashboardData(transactions, {
     }
 
     const isCurMonth = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    // v113: deteksi "setor ke aset" sekali per baris (hanya baris Transfer yang membayar
+    // biaya normalisasi string). Sisi nominal pakai amtIdr (nilai IDR-equivalent sisi
+    // SUMBER) -- konsisten dengan total IDR lainnya di agregat ini.
+    const isSetorKeAset = d.jenis === "Transfer" && assetNameSet.has(String(d.kategori || "").trim().toLowerCase());
     if (isCurMonth) {
       if (d.jenis === "Pemasukan") monthIn += amtIdr;
       if (d.jenis === "Pengeluaran") {
@@ -114,11 +136,13 @@ export function aggregateDashboardData(transactions, {
         const parentName = categorizeExpenseParent(d.kategori) || "Lain-lain";
         monthCatOutMap[parentName] = (monthCatOutMap[parentName] || 0) + amtIdr;
       }
+      if (isSetorKeAset) monthToAsset += amtIdr;
       if (d.jenis !== "Transfer") monthTxCount++;
     }
     if (date.getMonth() === prevMonthDate.getMonth() && date.getFullYear() === prevMonthDate.getFullYear()) {
       if (d.jenis === "Pemasukan") prevMonthIn += amtIdr;
       if (d.jenis === "Pengeluaran") prevMonthOut += amtIdr;
+      if (isSetorKeAset) prevMonthToAsset += amtIdr;
     }
     if (d.jenis === "Pengeluaran" && prior3MonthKeys.includes(monthKeyOf(date))) {
       const parentName = categorizeExpenseParent(d.kategori) || "Lain-lain";
@@ -144,6 +168,8 @@ export function aggregateDashboardData(transactions, {
     prevMonthIn,
     prevMonthOut,
     monthTxCount,
+    monthToAsset,
+    prevMonthToAsset,
     monthCatOutMap,
     catOut3MoMap,
     last7Map,

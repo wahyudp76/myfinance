@@ -2654,3 +2654,23 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **VERIFIKASI (Node v22.23.2):** lint 0 masalah; unit 893/893; parity lokal 1/1; sembilan harness browser 231/231 dengan 0 error halaman/console; build app/boot idempoten; snapshot SW cocok.
 
 **STATUS:** siap di-commit & push sebagai v112.
+
+
+## v113 — setor ke aset dihitung sebagai nilai menabung (tingkat menabung & wawasan)
+**KONTEKS:** laporan user: di Wawasan Keuangan tab Dashboard, "Tingkat Menabung" tampil 0% padahal user mencatat setoran dari akun rekening ke salah satu aset aktif (Transfer + kategori = nama aset) -- setoran itu semestinya dihitung sebagai menabung.
+
+**AKAR MASALAH:** `aggregateDashboardData()` memang sengaja TIDAK memasukkan Transfer ke monthIn/monthOut (setor ke aset = pindah wadah, kekayaan bersih tetap -- itu benar), tapi konsekuensinya setoran ke aset tidak dikenal SAMA SEKALI oleh seluruh rantai wawasan: `tingkat menabung = (monthIn - monthOut)/monthIn` (komponen skor #1, aturan #9/#11, review, ringkasan AI). Saat surplus kas bulan berjalan <= 0 (pengeluaran >= pemasukan), rate di-clamp 0% -- user yang disiplin "bayar diri sendiri" tidak pernah diakui menabungnya.
+
+**RUMUS BARU (anti dobel-hitung):** `savingsValueOfMonth(in, out, toAsset) = max(surplus kas, setoran ke aset)` -- diambil yang TERBESAR, BUKAN dijumlah: saat surplus positif, setoran ke aset sudah tercakup di dalam surplus (uang tidak dikonsumsi), jadi menjumlah akan menghitung dua kali. max() hanya "mengangkat" setoran saat surplus tipis/negatif. Tanpa setoran (ctx.monthToAsset absen/0) hasil IDENTIK rumus lama -- semua user tanpa aset melihat angka yang sama persis.
+
+**PERUBAHAN:**
+- `src/domain/dashboard.js`: dep baru opsional `assets` (default []) -> `monthToAsset`/`prevMonthToAsset` (IDR, via txIdrAmount; deteksi Transfer + kategori = nama aset, normalisasi trim+lowercase setara `findAssetByName`, di-Set sekali supaya O(1) per baris; kesetaraan dijaga test). Tidak mengubah monthIn/monthOut/totalIn/totalOut/monthTxCount/accBalances.
+- `src/domain/insights.js`: export `savingsValueOfMonth()`; komponen skor #1 & rateThis/rateLast aturan #9/#11 memakainya; kartu Review kini (a) muncul juga untuk bulan yang HANYA berisi setoran ke aset, (b) menyebut "Setoran ke aset Rp X dihitung sebagai nilai menabung (Y% dari pemasukan)" saat ada setoran -- menggantikan frasa "% tersisa sebagai tabungan" supaya defisit kas & nilai menabung tidak tampak kontradiktif (frasa lama tetap utuh tanpa setoran; pembeda defisit kini pakai `net`, bukan rateThis yang kini di-clamp >= 0); aturan #11b BARU: kartu positif "Setoran ke Aset" saat aturan #9/#11 belum menyoroti tingkat menabung (dipakai guard anti-dobel judul, sama seperti #11).
+- `src/domain/ai-summary.js`: `tingkat_menabung_persen` memakai nilai menabung baru; field baru `setoran_ke_aset_bulan_ini` & `nilai_menabung_bulan_ini` (kontrak kompatibilitas tetap: field lama tidak berubah nama/nilai, field baru hanya DITAMBAH).
+- `app.src.js`: `processDataForUI` melewati `assets: globalAssets` ke agregasi + `monthToAsset`/`prevMonthToAsset` ke insightsCtx (mengalir juga ke lastInsightsCtx -> ringkasan AI/chat).
+
+**VERIFIKASI E2E (probe Playwright, 13/13 PASS, 0 error halaman/console):** (A) repro user -- pemasukan 3jt, pengeluaran 3,5jt, setor 1jt ke aset "Bibit": "Tingkat Menabung" breakdown 0% -> 100% (rate 33% = skor penuh), kartu "Setoran ke Aset" muncul, review menulis "Setoran ke aset Rp 1.000.000 dihitung sebagai nilai menabung (33% dari pemasukan)" TANPA menyembunyikan "defisit Rp 500.000"; (B) regresi surplus 60% tanpa setoran: breakdown, frasa "60% tersisa sebagai tabungan", dan kartu "Menabung Konsisten" identik perilaku lama, tidak ada kartu setoran; (C) bulan berisi HANYA setoran 750rb: review + kartu "Setoran ke Aset" tetap muncul.
+
+**VERIFIKASI (Node v22.23.2):** lint 0 masalah; unit 908/908 (15 test baru: dashboard-domain 5, insights-domain 8, ai-summary 2); parity lokal 1/1; sembilan harness browser 231/231; build app/boot idempoten; snapshot SW cocok. CACHE_VERSION `myfinance-v143` -> `myfinance-v144`.
+
+**STATUS:** siap di-commit & push sebagai v113.

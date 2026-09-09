@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext } from "../../src/domain/insights.js";
+import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext, savingsValueOfMonth } from "../../src/domain/insights.js";
 
 const formatRp = (n) => new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(n);
 const formatShortVal = (n) => {
@@ -491,4 +491,96 @@ test("computeFinancialHealthScore: skor komponen tetap <= max-nya masing-masing 
   for (const c of components) {
     assert.ok(c.score >= 0 && c.score <= c.max, `${c.label}: ${c.score} dalam [0, ${c.max}]`);
   }
+});
+
+// ===================== v113: setoran ke aset = nilai menabung =====================
+
+test("v113 savingsValueOfMonth: max(surplus kas, setoran ke aset) -- bukan penjumlahan (anti dobel-hitung)", () => {
+  // surplus kas 3jt > setoran 1jt -> 3jt: setoran sudah tercakup dalam surplus
+  // (uang cuma pindah wadah ke aset, tidak dikonsumsi).
+  assert.equal(savingsValueOfMonth(5_000_000, 2_000_000, 1_000_000), 3_000_000);
+  // setoran 1jt > surplus kas -500rb -> 1jt: setoran dihitung PENUH sebagai menabung.
+  assert.equal(savingsValueOfMonth(3_000_000, 3_500_000, 1_000_000), 1_000_000);
+  // tanpa setoran: identik rumus lama (termasuk tidak pernah negatif).
+  assert.equal(savingsValueOfMonth(1_000_000, 800_000, 0), 200_000);
+  assert.equal(savingsValueOfMonth(100_000, 500_000), 0);
+  assert.equal(savingsValueOfMonth(0, 0, 750_000), 750_000);
+});
+
+test("v113 skor kesehatan: user defisit yang tetap menyetor ke aset dapat skor Tingkat Menabung > 0", () => {
+  const { components } = computeFinancialHealthScore(
+    { monthIn: 3_000_000, monthOut: 3_500_000, monthToAsset: 300_000, monthCatOutMap: {}, monthlyMap: {}, monthTxCount: 5 },
+    { currentMonthBudgets: {} },
+  );
+  const savings = components.find((c) => c.label === "Tingkat Menabung");
+  // rate = 300rb / 3jt = 10% -> (10/20) * 40 = 20 (dulu 0 karena surplus kas negatif).
+  assert.equal(savings.score, 20);
+});
+
+test("v113 skor kesehatan: tanpa ctx.monthToAsset hasil identik rumus lama (rate negatif tetap skor 0)", () => {
+  const { components } = computeFinancialHealthScore(
+    { monthIn: 100_000, monthOut: 500_000, monthCatOutMap: {}, monthlyMap: {}, monthTxCount: 0 },
+    { currentMonthBudgets: {} },
+  );
+  assert.equal(components.find((c) => c.label === "Tingkat Menabung").score, 0);
+});
+
+test("v113 review bulan ini: setoran ke aset disebut eksplisit sebagai nilai menabung (walau kas defisit)", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 3_000_000, monthOut: 3_500_000, monthToAsset: 1_000_000, monthTxCount: 8 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const rev = insights.find((i) => i.title === "Review Bulan Ini");
+  assert.match(rev.message, /defisit Rp 500\.000/);
+  assert.match(rev.message, /Setoran ke aset Rp 1\.000\.000 dihitung sebagai nilai menabung \(33% dari pemasukan\)/);
+});
+
+test("v113 review bulan ini: bulan dengan HANYA setoran ke aset (tanpa pemasukan/pengeluaran) tetap direview", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthToAsset: 750_000 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const rev = insights.find((i) => i.title === "Review Bulan Ini");
+  assert.ok(rev, "kartu review tetap muncul walau tidak ada pemasukan/pengeluaran tercatat");
+  assert.match(rev.message, /Setoran ke aset Rp 750\.000/);
+});
+
+test("v113 kartu 'Setoran ke Aset' muncul saat tingkat menabung belum disorot aturan lain", () => {
+  // Defisit + setoran: rateThis 33% (>=30%) tapi guard defisit aturan 11 menahan kartu
+  // 'Menabung Konsisten', dan diff vs bulan lalu < 5 poin menahan aturan 9 -- jadi
+  // kartu 'Setoran ke Aset' yang memberi penguatan positif (dulu: tidak ada sama sekali).
+  const insights = computeFinancialInsights(
+    baseCtx({
+      monthIn: 3_000_000, monthOut: 3_500_000, monthToAsset: 1_000_000,
+      prevMonthIn: 3_000_000, prevMonthOut: 3_500_000, prevMonthToAsset: 1_000_000,
+      monthTxCount: 8,
+    }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const s = insights.find((i) => i.title === "Setoran ke Aset");
+  assert.ok(s, "kartu Setoran ke Aset harus muncul");
+  assert.match(s.message, /Rp 1\.000\.000/);
+  assert.equal(insights.find((i) => i.title === "Menabung Konsisten"), undefined);
+  assert.equal(insights.find((i) => i.title === "Tingkat Menabung"), undefined);
+});
+
+test("v113 kartu 'Setoran ke Aset' TIDAK dobel saat 'Menabung Konsisten' sudah muncul", () => {
+  const insights = computeFinancialInsights(
+    baseCtx({ monthIn: 1_000_000, monthOut: 500_000, monthToAsset: 200_000, monthTxCount: 10 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  assert.ok(insights.find((i) => i.title === "Menabung Konsisten"));
+  assert.equal(insights.find((i) => i.title === "Setoran ke Aset"), undefined);
+});
+
+test("v113 rule 9 'Tingkat Menabung': rate baru memakai nilai menabung (setoran ke aset dihitung)", () => {
+  const insights = computeFinancialInsights(
+    // bulan ini: 3jt masuk, 3,5jt keluar, setor 1jt -> rate 33%; bulan lalu: 3jt masuk, 1jt keluar -> 67%.
+    baseCtx({ monthIn: 3_000_000, monthOut: 3_500_000, monthToAsset: 1_000_000, prevMonthIn: 3_000_000, prevMonthOut: 1_000_000, monthTxCount: 8 }),
+    { currentMonthBudgets: {}, formatRp, formatShortVal },
+  );
+  const savings = insights.find((i) => i.title === "Tingkat Menabung");
+  assert.ok(savings);
+  assert.match(savings.message, /menabung 33%/);
+  assert.match(savings.message, /turun 33 poin/);
 });

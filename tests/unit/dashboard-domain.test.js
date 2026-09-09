@@ -124,3 +124,52 @@ test("data kosong tidak error dan semua total 0", () => {
   assert.equal(result.monthTxCount, 0);
   assert.deepEqual(result.accBalances, { Dompet: 0, Bank: 0 });
 });
+
+// ===================== v113: setor ke aset -> monthToAsset/prevMonthToAsset =====================
+
+test("v113 setor ke aset (Transfer + kategori = nama aset): masuk monthToAsset bulan ini & prevMonthToAsset bulan lalu, TIDAK mengubah monthIn/monthOut/totalIn/totalOut/monthTxCount", () => {
+  const result = aggregateDashboardData([
+    { jenis: "Transfer", akun: "Bank", kategori: "Bibit", tanggal: "2026-08-05", jumlah: 1_000_000 },
+    { jenis: "Transfer", akun: "Bank", kategori: "Bibit", tanggal: "2026-07-10", jumlah: 500_000 },
+  ], makeDeps({ assets: [{ id: "a1", nama: "Bibit", nilai: 1_500_000 }] }));
+
+  assert.equal(result.monthToAsset, 1_000_000);
+  assert.equal(result.prevMonthToAsset, 500_000);
+  // Perilaku lama tetap utuh: setor ke aset bukan pemasukan/pengeluaran (kekayaan bersih tetap).
+  assert.equal(result.monthIn, 0);
+  assert.equal(result.monthOut, 0);
+  assert.equal(result.totalIn, 0);
+  assert.equal(result.totalOut, 0);
+  assert.equal(result.monthTxCount, 0);
+  assert.equal(result.accBalances.Bank, -1_500_000);
+});
+
+test("v113 transfer akun->akun biasa TIDAK dihitung sebagai setoran ke aset", () => {
+  const result = aggregateDashboardData([
+    { jenis: "Transfer", akun: "Dompet", kategori: "Bank", tanggal: "2026-08-03", jumlah: 200_000 },
+  ], makeDeps({ assets: [{ id: "a1", nama: "Bibit", nilai: 0 }] }));
+  assert.equal(result.monthToAsset, 0);
+  assert.equal(result.prevMonthToAsset, 0);
+});
+
+test("v113 tanpa dep assets (pemanggil lama): monthToAsset/prevMonthToAsset = 0, perilaku pra-v113 utuh", () => {
+  const result = aggregateDashboardData([
+    { jenis: "Transfer", akun: "Bank", kategori: "Bibit", tanggal: "2026-08-05", jumlah: 1_000_000 },
+  ], makeDeps());
+  assert.equal(result.monthToAsset, 0);
+  assert.equal(result.prevMonthToAsset, 0);
+});
+
+test("v113 deteksi nama aset setara findAssetByName: trim + case-insensitive", () => {
+  const result = aggregateDashboardData([
+    { jenis: "Transfer", akun: "Bank", kategori: "  bibit reksa dana ", tanggal: "2026-08-05", jumlah: 300_000 },
+  ], makeDeps({ assets: [{ id: "a1", nama: "Bibit Reksa Dana", nilai: 0 }] }));
+  assert.equal(result.monthToAsset, 300_000);
+});
+
+test("v113 setoran ke aset dari akun valuta asing: monthToAsset memakai nilai IDR (txIdrAmount)", () => {
+  const result = aggregateDashboardData([
+    { jenis: "Transfer", akun: "Bank USD", kategori: "Bibit", tanggal: "2026-08-05", jumlah: 100, jumlah_idr: 1_600_000 },
+  ], makeDeps({ assets: [{ id: "a1", nama: "Bibit", nilai: 0 }] }));
+  assert.equal(result.monthToAsset, 1_600_000);
+});

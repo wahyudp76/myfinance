@@ -13,6 +13,27 @@
  */
 
 /**
+ * Nilai menabung bulan berjalan (v113).
+ *
+ * = max(surplus kas bulan ini, setoran ke aset bulan ini) -- diambil yang TERBESAR,
+ * bukan dijumlahkan, supaya tidak dobel-hitung: setoran ke aset (Transfer + kategori
+ * = nama aset) bukan pengeluaran, jadi selama surplus kas positif, setoran itu sudah
+ * tercakup di dalam surplus (uang cuma pindah wadah, kekayaan bersih bertambah sekali).
+ * Rumus max() hanya "mengangkat" setoran saat surplus kas tipis/negatif -- itulah
+ * kasus yang dulu bikin tingkat menabung tampil 0% padahal user disiplin menyetor
+ * ke aset ("bayar diri sendiri"): setoran ke aset dihitung PENUH sebagai menabung.
+ *
+ * Dipakai: komponen skor "Tingkat Menabung", aturan wawasan #9/#11, dan ringkasan AI
+ * (tingkat_menabung_persen). Tanpa argumen monthToAsset (ctx lama/test lama) hasilnya
+ * identik dengan rumus lama max(monthIn - monthOut, 0).
+ */
+export function savingsValueOfMonth(monthIn, monthOut, monthToAsset = 0) {
+  const surplus = (Number(monthIn) || 0) - (Number(monthOut) || 0);
+  const toAsset = Math.max(0, Number(monthToAsset) || 0);
+  return Math.max(surplus, toAsset);
+}
+
+/**
  * Skor kesehatan keuangan bulan ini (0-100) -- v66: diperluas dari 4 menjadi
  * 7 komponen berbobot supaya lebih presisi, teliti & komprehensif mencerminkan
  * kondisi finansial riil:
@@ -34,8 +55,9 @@
  *
  * @param {object} ctx - context (dari buildInsightsContext()/aggregateDashboardData()):
  *   { monthIn, monthOut, monthCatOutMap, monthlyMap, monthTxCount, now?,
- *     smallTx?, weekendTx? } -- kolom pola (v64) opsional; bila absen komponen
- *   5/7 di-skip.
+ *     monthToAsset?, smallTx?, weekendTx? } -- kolom pola (v64) opsional; bila absen
+ *   komponen 5/7 di-skip. monthToAsset (v113, opsional) = total setoran ke aset bulan
+ *   ini -- dihitung sebagai nilai menabung oleh savingsValueOfMonth().
  * @param {object} deps
  * @param {Record<string, number>} deps.currentMonthBudgets - budget kategori bulan ini (currentMonthBudgetsCache).
  * @returns {{ finalScore: number, components: Array<{label: string, score: number, max: number}> }}
@@ -47,8 +69,12 @@ export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
   const clamp01 = (n) => Math.max(0, Math.min(1, n));
 
   // 1. Tingkat menabung bulan ini (maks 40) -- target acuan 20% dari pemasukan = skor penuh.
+  //    v113: nilai menabung memakai savingsValueOfMonth() -- setoran ke aset
+  //    (ctx.monthToAsset) dihitung penuh sebagai menabung, sehingga user yang
+  //    menyisihkan dana ke aset tetap dihargai walau surplus kasnya <= 0.
+  //    Tanpa ctx.monthToAsset, hasil identik dengan rumus lama.
   if (monthIn > 0) {
-    const savingsRate = (monthIn - monthOut) / monthIn;
+    const savingsRate = savingsValueOfMonth(monthIn, monthOut, ctx.monthToAsset) / monthIn;
     components.push({ label: "Tingkat Menabung", score: Math.max(0, Math.min(40, (savingsRate / 0.20) * 40)), max: 40 });
   }
 
@@ -128,8 +154,11 @@ export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
  * @param {object} ctx - aggregation context dari aggregateDashboardData +
  *   buildInsightsContext(): { now, monthIn, monthOut, prevMonthIn, prevMonthOut,
  *   monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap, prevMonthCatOutMap,
- *   biggestExpense, smallTx, weekendTx } -- kolom tambahan opsional (diabaikan
- *   bila tidak tersedia) supaya pemanggil lama/tes tetap kompatibel.
+ *   biggestExpense, smallTx, weekendTx, monthToAsset?, prevMonthToAsset? } --
+ *   kolom tambahan opsional (diabaikan bila tidak tersedia) supaya pemanggil
+ *   lama/tes tetap kompatibel. monthToAsset/prevMonthToAsset (v113) = total
+ *   setoran ke aset bulan ini/lalu -- dihitung sebagai nilai menabung
+ *   (savingsValueOfMonth) oleh aturan #9/#11 dan kartu Review.
  * @param {object} deps
  * @param {Record<string, number>} deps.currentMonthBudgets - budget kategori bulan ini.
  * @param {(angka: number) => string} deps.formatRp - format rupiah penuh ("1.234.567").
@@ -140,14 +169,20 @@ export function computeFinancialHealthScore(ctx, { currentMonthBudgets }) {
  */
 export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, formatShortVal }) {
   const { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap } = ctx;
+  // v113: setoran ke aset bulan ini & bulan lalu (dari aggregateDashboardData; opsional
+  // supaya ctx lama/tanpa aset tetap kompatibel) -- dihitung sebagai nilai menabung.
+  const monthToAsset = Math.max(0, Number(ctx.monthToAsset) || 0);
+  const prevMonthToAsset = Math.max(0, Number(ctx.prevMonthToAsset) || 0);
   const monthRows = ctx.monthTxCount || 0;
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const pctMonthElapsed = dayOfMonth / daysInMonth;
   const toPct = (n) => `${Math.round(n * 100)}%`;
   const topCat = Object.entries(monthCatOutMap || {}).sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))[0];
-  const rateThis = monthIn > 0 ? ((monthIn - monthOut) / monthIn) * 100 : null;
-  const rateLast = prevMonthIn > 0 ? ((prevMonthIn - prevMonthOut) / prevMonthIn) * 100 : null;
+  // v113: tingkat menabung memakai savingsValueOfMonth (setoran ke aset dihitung
+  // penuh sebagai menabung) -- tanpa setoran, hasil identik rumus lama.
+  const rateThis = monthIn > 0 ? (savingsValueOfMonth(monthIn, monthOut, monthToAsset) / monthIn) * 100 : null;
+  const rateLast = prevMonthIn > 0 ? (savingsValueOfMonth(prevMonthIn, prevMonthOut, prevMonthToAsset) / prevMonthIn) * 100 : null;
 
   const review = [];
   const urgent = [];
@@ -157,7 +192,8 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
   // ------------------------------------------------------------------ REVIEW
   // Ringkasan angka bulan ini (data apa adanya) -- selalu muncul begitu ada
   // transaksi, supaya bagian ini tidak pernah kosong saat user punya data.
-  if (monthRows > 0 || monthIn > 0) {
+  // v113: bulan yang aktivitasnya CUMA setoran ke aset tetap layak direview.
+  if (monthRows > 0 || monthIn > 0 || monthToAsset > 0) {
     const net = monthIn - monthOut;
     let msg = `Pemasukan Rp ${formatRp(monthIn)}, pengeluaran Rp ${formatRp(monthOut)} -- ${net >= 0 ? "surplus" : "defisit"} Rp ${formatRp(Math.abs(net))}.`;
     if (monthRows > 0) {
@@ -169,8 +205,17 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
     } else if (monthOut > 0 && !prevMonthOut) {
       msg += ` Bulan lalu tidak ada pengeluaran tercatat, jadi belum ada pembanding.`;
     }
-    if (rateThis != null && rateLast == null && monthOut > 0) {
-      msg += ` Dari pemasukan bulan ini, ${rateThis >= 0 ? `${rateThis.toFixed(0)}% tersisa sebagai tabungan` : "pengeluaran melebihi pemasukan"}.`;
+    // v113: saat ada setoran ke aset, tampilkan eksplisit (menggantikan frasa
+    // "% tersisa sebagai tabungan") supaya angka defisit kas & nilai menabung
+    // tidak terlihat saling meniadakan -- keduanya benar secara keuangan:
+    // kas boleh defisit sementara dana SUDAH disisihkan ke aset.
+    if (monthToAsset > 0) {
+      msg += ` Setoran ke aset Rp ${formatRp(monthToAsset)} dihitung sebagai nilai menabung${rateThis != null && rateThis >= 0 ? ` (${rateThis.toFixed(0)}% dari pemasukan)` : ""}.`;
+    } else if (rateThis != null && rateLast == null && monthOut > 0) {
+      // Catatan: tes pembeda pakai `net` (surplus kas), bukan rateThis -- sejak v113
+      // nilai menabung di-clamp >= 0 (max dengan setoran ke aset), tapi pesan
+      // "pengeluaran melebihi pemasukan" utk user defisit tanpa setoran tetap harus muncul.
+      msg += ` Dari pemasukan bulan ini, ${net >= 0 ? `${rateThis.toFixed(0)}% tersisa sebagai tabungan` : "pengeluaran melebihi pemasukan"}.`;
     }
     review.push({
       icon: "fa-file-lines",
@@ -431,20 +476,46 @@ export function computeFinancialInsights(ctx, { currentMonthBudgets, formatRp, f
   }
 
   // 11. Kebiasaan menabung sehat (>= 30% pemasukan), bila belum tercakup aturan lain.
+  //     v113: nominal "berhasil disisihkan" memakai savingsValueOfMonth (setoran ke
+  //     aset termasuk), bukan sekadar surplus kas.
   if (monthIn > 0 && rateThis != null && rateThis >= 30 && !positive.some((i) => i.title === "Tingkat Menabung") && !(monthIn > 0 && monthOut > monthIn)) {
+    const savedThis = savingsValueOfMonth(monthIn, monthOut, monthToAsset);
     positive.push({
       icon: "fa-piggy-bank",
       bg: "bg-emerald-100",
       color: "text-emerald-600",
       title: "Menabung Konsisten",
-      message: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini (Rp ${formatRp(Math.max(0, monthIn - monthOut))}). Kebiasaan bagus -- pertahankan!`,
+      message: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini (Rp ${formatRp(savedThis)}). Kebiasaan bagus -- pertahankan!`,
       short: `Kamu menyisihkan ${rateThis.toFixed(0)}% pemasukan bulan ini.`,
-      detail: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini, sekitar Rp ${formatRp(Math.max(0, monthIn - monthOut))}.\n\n`
+      detail: `Kamu berhasil menyisihkan ${rateThis.toFixed(0)}% dari pemasukan bulan ini, sekitar Rp ${formatRp(savedThis)}.\n\n`
         + "Menabung 20-30% secara konsisten adalah fondasi keuangan yang sehat. Kamu sudah melakukan ini dengan baik.\n\n"
         + "Untuk memaksimalkannya:\n"
         + "- Otomatiskan: sisihkan dana tabungan di awal bulan, bukan sisa di akhir.\n"
         + "- Pisahkan tabungan ke rekening/dana terpisah supaya tidak mudah tersentuh.\n"
         + "- Kalau sudah nyaman, naikkan persentase atau arahkan ke tujuan spesifik (dana darurat, investasi).",
+    });
+  }
+
+  // 11b. Setoran ke aset (v113): dialokasikannya dana ke aset adalah "bayar diri
+  //      sendiri" dan dihitung PENUH sebagai nilai menabung (savingsValueOfMonth).
+  //      Kartu ini mengisi celah lama: user dengan surplus kas <= 0 (defisit) atau
+  //      tanpa pemasukan tercatat tidak pernah dapat penguatan positif walau
+  //      disiplin menyetor ke aset. Dilewati bila aturan 9/11 sudah menyoroti
+  //      tingkat menabung supaya tidak dobel pesan.
+  if (monthToAsset > 0 && !positive.some((i) => i.title === "Tingkat Menabung") && !positive.some((i) => i.title === "Menabung Konsisten")) {
+    positive.push({
+      icon: "fa-chart-line",
+      bg: "bg-cyan-100",
+      color: "text-cyan-600",
+      title: "Setoran ke Aset",
+      message: `Kamu menyetor Rp ${formatRp(monthToAsset)} ke aset bulan ini -- dana yang dialokasikan ke aset dihitung penuh sebagai nilai menabung. Disiplin "bayar diri sendiri" seperti ini fondasi investasi. Pertahankan!`,
+      short: `Menyetor Rp ${formatShortVal(monthToAsset)} ke aset bulan ini.`,
+      detail: `Kamu menyetor Rp ${formatRp(monthToAsset)} ke aset bulan ini.\n\n`
+        + "Setoran ke aset (reksa dana, emas, platform investasi, dsb.) dihitung sebagai nilai menabung: uangnya berpindah wadah dari rekening ke aset, kekayaan bersihmu tidak berkurang.\n\n"
+        + "Saran:\n"
+        + "- Pertahankan ritme setor rutin (mis. setiap tanggal gajian) supaya konsisten.\n"
+        + "- Kalau belum, siapkan alokasi tetap di awal bulan (mis. 10-20% pemasukan).\n"
+        + "- Pantau perkembangan nilainya di tab Aset untuk melihat efek pertumbuhan berbunga majemuk.",
     });
   }
 

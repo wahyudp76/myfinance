@@ -152,3 +152,23 @@ test("buildAiFinanceSummary: context miskin (tanpa pola v64) tetap aman & field 
     if (typeof v === "number") assert.ok(Number.isFinite(v), k);
   }
 });
+
+// ===================== v113: setoran ke aset = nilai menabung =====================
+
+test("buildAiFinanceSummary: v113 setoran ke aset dihitung sebagai nilai menabung (bukan sekadar selisih kas)", () => {
+  const s = buildAiFinanceSummary(
+    baseCtx({ monthIn: 2_000_000, monthOut: 2_500_000, monthToAsset: 1_000_000 }),
+    { budgets: {}, allTransactions: baseTx(), txIdrAmount, parseTgl },
+  );
+  assert.equal(s.setoran_ke_aset_bulan_ini, 1_000_000);
+  assert.equal(s.nilai_menabung_bulan_ini, 1_000_000); // max(surplus -500rb, setoran 1jt)
+  assert.equal(s.tingkat_menabung_persen, 50); // 1jt / 2jt
+  assert.equal(s.selisih_bulan_ini, -500_000); // selisih kas tetap dilaporkan apa adanya
+});
+
+test("buildAiFinanceSummary: v113 tanpa setoran ke aset -> angka identik rumus lama", () => {
+  const s = buildAiFinanceSummary(baseCtx(), { budgets: {}, allTransactions: baseTx(), txIdrAmount, parseTgl });
+  assert.equal(s.setoran_ke_aset_bulan_ini, 0);
+  assert.equal(s.nilai_menabung_bulan_ini, 750_000);
+  assert.equal(s.tingkat_menabung_persen, 37.5);
+});

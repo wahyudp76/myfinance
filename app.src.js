@@ -5862,8 +5862,13 @@ async function currentUserId() {
                 accBalances, totalIn, totalOut, monthIn, monthOut,
                 prevMonthIn, prevMonthOut, monthTxCount,
                 monthCatOutMap, catOut3MoMap, last7Map, last7Order, monthlyMap,
+                monthToAsset, prevMonthToAsset,
             } = servicesModule.aggregateDashboardData(data, {
                 accounts: appSettings.accounts,
+                // v113: daftar aset dipakai mendeteksi transaksi "setor ke aset"
+                // (Transfer + kategori = nama aset) -> monthToAsset/prevMonthToAsset,
+                // bahan nilai menabung (savingsValueOfMonth) di wawasan & skor kesehatan.
+                assets: globalAssets,
                 now,
                 txIdrAmount,
                 transferTargetAmount,
@@ -6007,7 +6012,10 @@ async function currentUserId() {
             // Field hasil aggregateDashboardData dipertahankan apa adanya (context
             // lama yang dipakai renderInsights/renderHealthScore tetap kompatibel).
             const insightsCtx = servicesModule.buildInsightsContext(
-                { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap },
+                // v113: monthToAsset/prevMonthToAsset (setoran ke aset) ikut ke context --
+                // dipakai savingsValueOfMonth() utk tingkat menabung (wawasan #9/#11b,
+                // komponen skor "Tingkat Menabung", dan ringkasan AI).
+                { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap, monthToAsset, prevMonthToAsset },
                 {
                     transactions: data,
                     now,
