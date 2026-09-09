@@ -17,7 +17,7 @@
     "build:csp": "node scripts/build-csp.mjs"
   },
   "engines": {
-    "node": ">=22 <23"
+    "node": ">=22.19.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

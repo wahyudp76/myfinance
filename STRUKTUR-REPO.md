@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v107`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v108`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -50,8 +50,8 @@ myfinance/
 ├── tailwind.config.js      # Konfigurasi Tailwind (content scanning)
 ├── eslint.config.js        # ESLint 9 flat-config (kebenaran, bukan gaya)
 ├── .gitleaks.toml          # Guard agar secret tidak ter-commit
-├── .nvmrc                  # Versi Node (>=22 <23)
-├── package.json            # Script lint/test/build + devDependencies
+├── .nvmrc                  # Jalur Node 22 LTS; engines minimal >=22.19.0
+├── package.json            # Script lint/test/build + devDependencies; Node >=22.19.0
 │
 ├── src/                        # ★ Modul JS produksi (ES module) — di-import oleh index.html
 │   ├── auth/                   # Autentikasi Supabase
@@ -347,6 +347,12 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   `platform_logos`, `whatsapp_link_codes`, `whatsapp_links`.
 
 ---
+
+### Toolchain pengembangan
+
+- Runtime yang didukung untuk `npm ci`, lint, unit/parity, build, Lighthouse, dan harness adalah **Node `>=22.19.0`**.
+- `.nvmrc` tetap berisi `22`, sehingga CI memilih rilis terbaru dari jalur Node 22 LTS.
+- Node 20 mungkin masih menjalankan sebagian tes murni, tetapi tidak didukung oleh seluruh toolchain npm (Lighthouse, Puppeteer, dan Supabase JS). Jangan menganggap hasil unit di Node 20 sebagai dukungan resmi.
 
 ### Catatan praktis untuk mulai berkontribusi
 1. Fitur logika baru → tulis pure function di `src/domain/` + test di `tests/unit/`.

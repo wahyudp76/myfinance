@@ -66,6 +66,10 @@ v54 blok `<script>` monolit terbesarnya diekstrak byte-exact ke `app.js`
 dua tampilan di halaman yang sama, ditukar lewat JavaScript (tanpa reload
 halaman) — bukan dua file HTML terpisah.
 
+### Toolchain pengembangan
+
+Perintah `npm ci`, lint, build, Lighthouse, dan harness verifikasi menggunakan Node **`>=22.19.0`**. File `.nvmrc` berisi `22` agar CI tetap mengikuti jalur Node 22 LTS. Node 20 masih mungkin menjalankan sebagian unit test murni, tetapi tidak didukung oleh seluruh dependency toolchain dan bukan runtime resmi repo ini.
+
 > **PERLU AKSI kalau kamu sudah pernah setup Supabase sebelumnya**: versi ini
 > menambah 1 tabel baru (`recurring_transactions`, untuk fitur Transaksi
 > Berulang) dan 1 kolom baru (`value_history` di tabel `assets`, untuk

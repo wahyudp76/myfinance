@@ -10,6 +10,7 @@
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; Edge Functions `analyze-finance`, `refresh-asset-price` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, 7 view (ringkasan/transaksi/akun/aset/budget/laporan/pengaturan), Ctrl/Cmd+K command palette.
 - App Lock RP ID: `docs/applock-webauthn-domain.md`; `node scripts/verify-applock-rpid.mjs` (31 cek, hermetic tiga origin + virtual authenticator). Domain lain perlu login/PIN lalu daftar ulang; tidak ada ROR.
+- Toolchain resmi: Node `>=22.19.0`; `.nvmrc` tetap `22` untuk jalur Node 22 LTS. Node 20 bukan dukungan resmi karena dependency Lighthouse/Puppeteer/Supabase memiliki engine Node 22.
 
 ## v41 — Reksadana: auto-update nilai dari Bibit (Edge Function `refresh-asset-price`)
 - Kolom baru di aset: `simbol`, `jumlah_unit`, `sumber_harga`, `tanggal_nav` (form Tambah/Edit Aset, sumber otomatis per kategori via `ASSET_AUTO_UPDATE_CONFIG` di index.html: Kripto→coingecko, Saham→yahoo_id_stock, Reksadana→reksadana_bibit).
@@ -2512,3 +2513,28 @@ ringkasan harness, bukan unhandled rejection. Tidak mengubah timer UI aplikasi.
 - Build app/boot/CSS/CSP + snapshot dibangun ulang dan diperiksa idempoten.
   Status rilis harus dikonfirmasi pada CI SHA commit yang dipush, bukan hanya
   berdasarkan angka lokal di atas.
+
+
+## v108 — `engines.node` selaras dengan toolchain (nomor 3)
+**MASALAH:** `package.json` dan root `package-lock.json` menulis `>=22 <23`.
+Batas atas `<23` tidak pernah dibuktikan oleh kode maupun CI dan bisa menolak
+Node baru yang kompatibel. Sebaliknya, `>=22` terlalu longgar: lockfile saat
+ini memuat `lighthouse@13.4.1` yang meminta `>=22.19`, `puppeteer-core` yang
+meminta `>=22.12`, serta Supabase JS yang meminta `>=22`.
+
+**PERBAIKAN:** keduanya sekarang menulis `node: ">=22.19.0"` tanpa batas atas.
+`.nvmrc` tetap `22`, sehingga CI dan developer yang memakai file itu tetap
+berada di jalur Node 22 LTS. Ini bukan klaim dukungan Node 20: sebagian unit
+murni memang berjalan di Node 20.20.2, tetapi `npm install` di sana memberi
+EBADENGINE dari dependency toolchain dan `npm ci --engine-strict` tidak layak
+untuk runtime tersebut.
+
+**GERBANG:** `tests/unit/node-engine.test.js` mengunci tiga hal: deklarasi
+package cocok dengan kebutuhan minimum Lighthouse, tidak ada batas atas
+artifisial, dan root lockfile sinkron; `.nvmrc` tetap `22`. Uji negatif sebelum
+perubahan: **1 FAIL + 2 PASS** pada v107 karena deklarasi lama. Tidak mengubah
+versi dependency atau lock resolution lain.
+
+**VERIFIKASI YANG HARUS DILAPORKAN:** jalankan `npm ci` dan `npm test` pada
+Node 22.23.2, lalu build idempoten. Jangan menyebut Node 20 sebagai runtime
+resmi kecuali seluruh dependency toolchain sudah benar-benar mendukungnya.
