@@ -2584,3 +2584,26 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
   sweep 9. `verify-csp.mjs` secara khusus melewati view kalender/FullCalendar;
   semua harness melaporkan 0 error halaman/console tak terduga.
 - Commit/push v109 belum dilakukan pada titik handoff ini.
+
+
+## v110 — audit stability/performance + runner Lighthouse tahan cold-start
+**KONTEKS:** audit lanjutan untuk permintaan "fix bug, stability test, for better performance" dimulai setelah v109. Baseline aplikasi tidak menunjukkan bug runtime baru, tetapi runner Lighthouse gagal dengan `ChromePathNotSetError` ketika `playwright.chromium.executablePath()` menunjuk cache Chromium yang belum benar-benar terpasang. Path tersebut ada sebagai string, namun file executable-nya tidak ada.
+
+**FIX BUG TOOLING:**
+- `scripts/lighthouse/chrome-path.mjs` baru: menghormati `CHROME_PATH` eksplisit bila diberikan, atau mengambil path dari Playwright tanpa hardcode direktori cache; keduanya divalidasi dengan `F_OK | X_OK` sebelum diteruskan ke `chrome-launcher`.
+- Pesan kegagalan sekarang menyebut path yang hilang dan perintah pemulihan `npx playwright install --with-deps chromium`, bukan error generik `ChromePathNotSetError`.
+- `scripts/lighthouse/run.mjs` tidak lagi mengandalkan `sleep 1200 ms`: runner menunggu HTTP server benar-benar merespons (batas 8 detik), selalu membersihkan server dalam `finally`, dan membedakan kegagalan deteksi browser/server dari kegagalan ambang Lighthouse.
+- `tests/unit/lighthouse-runner.test.js` menjaga validasi executable, penolakan path hilang, serta kontrak `CHROME_PATH` eksplisit.
+
+**HASIL PERFORMANCE TERUKUR (tanpa perubahan perilaku aplikasi):**
+- Lighthouse mobile dijalankan 3 kali setelah browser dipasang: **3/3 PASS**.
+- Semua run: performance **62** (ambang 55), accessibility **100** (ambang 85), best-practices **100** (ambang 90); FCP 5,6–5,7 dtk, LCP 6,8–7,0 dtk, TBT 20–70 ms, CLS 0, Speed Index 5,6–5,7 dtk.
+- Audit menemukan bobot awal besar (`app.js`, `boot.bundle.js`, Supabase vendored, serta CSS) dan server lokal audit tidak mengaktifkan kompresi; ini dicatat sebagai observasi, bukan diakali dengan mengubah skor atau memotong fitur yang sudah tervalidasi. Optimasi jalur kritis/lazy chart dari versi sebelumnya tetap dipertahankan.
+
+**STABILITY TEST:**
+- Suite unit/parity dijalankan **5 kali berturut-turut**: masing-masing unit **890/890 PASS**, parity **1/1 PASS** (live dilewati karena secret Supabase tidak tersedia), tanpa flake.
+- Sembilan harness browser dijalankan berurutan terhadap server statis: **230/230 PASS**, seluruhnya 0 page error / console error tak terduga: HUD 69, logo aset 17, App Lock 21, biometrik 14, RP ID 31, offline cache 13, UI actions 39, CSP 17, UI sweep 9.
+- Uji negatif runner tanpa browser (`CHROME_PATH` menunjuk file hilang) menghasilkan pesan diagnostik yang benar dan exit code **2**; tidak meninggalkan server yatim.
+- `npm test` setelah perubahan: lint bersih, unit **890/890**, parity **1/1**.
+
+**STATUS:** perubahan hanya tooling/test/docs; tidak ada regresi source aplikasi atau perubahan kontrak perilaku. Sudah di-commit sebagai v110, dipush ke `main`, dan verifikasi `git ls-remote` cocok dengan HEAD lokal. PAT hanya dipakai untuk perintah push dan tidak disimpan atau dicetak.

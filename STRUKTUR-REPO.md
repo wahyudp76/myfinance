@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v109`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v110`
 > Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
 > Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
 
@@ -193,7 +193,8 @@ myfinance/
 │   ├── bench-save-latency.mjs
 │   ├── verify-hud.mjs      # E2E Playwright (69 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
 │   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
-│   ├── lighthouse/run.mjs
+│   ├── lighthouse/run.mjs      # pagar performa + deteksi executable Chromium yang eksplisit
+│   │   └── chrome-path.mjs     # validasi CHROME_PATH / Playwright tanpa path hardcode
 │   ├── schema-verify/      # v95/v96: uji sql/schema.sql di Postgres NYATA — run.mjs
 │   │                       #   (install dari nol + idempotensi + 10 cek RLS/RPC/grant).
 │   │                       #   Jalan otomatis di CI: job "Schema install check (Postgres)"
