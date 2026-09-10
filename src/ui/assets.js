@@ -57,7 +57,7 @@
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan karena bisa di-reassign utuh).
  */
 import { hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
-import { buildExternalDonutTip } from "./charts.js"; // v115: kartu tooltip eksternal donat
+import { buildExternalDonutTip, suppressInternalTooltipPlugin } from "./charts.js"; // v115: kartu tooltip eksternal donat; v116: batalkan tooltip internal
 import { uiActionAttrs } from "../domain/sanitize.js";
 
 export function renderAssetView({
@@ -183,8 +183,14 @@ export function renderAssetView({
   const modernPalette = ["#22d3ee", "#34d399", "#a78bfa", "#f472b6", "#fbbf24", "#38bdf8", "#4ade80", "#e879f9"];
 
   if (charts.assetAlloc) charts.assetAlloc.destroy();
+  // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori"); v116: penggambaran
+  // tooltip INTERNAL Chart.js dibatalkan (suppressInternalTooltipPlugin) -- kotak internal
+  // menutupi donat. Tanpa data -> tooltip internal default (segmen "Kosong" tak perlu kartu).
+  const allocTip = catLabels.length
+    ? buildExternalDonutTip({ tipEl: document.getElementById("assetAllocationChart-tip"), labels: catLabels, data: catData, colors: modernPalette, formatRp, escapeHtml })
+    : null;
   charts.assetAlloc = new Chart(document.getElementById("assetAllocationChart").getContext("2d"), {
-    plugins: [hudDonutGlowPlugin], // DNA donut HUD: glow violet reactor
+    plugins: [hudDonutGlowPlugin, ...(allocTip ? [suppressInternalTooltipPlugin] : [])], // DNA donut HUD: glow violet reactor
     type: "doughnut",
     data: {
       labels: catLabels.length ? catLabels : ["Kosong"],
@@ -199,10 +205,7 @@ export function renderAssetView({
       responsive: true, maintainAspectRatio: false, cutout: "70%",
       plugins: {
         legend: { display: false }, datalabels: { display: false },
-        // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori") -- tooltip
-        // internal Chart.js menutupi segmen donat kecil di layar HP. Tanpa data -> tetap
-        // tooltip internal default (segmen "Kosong" tidak informatif utk dikartu-kan).
-        ...(catLabels.length ? { tooltip: buildExternalDonutTip({ tipEl: document.getElementById("assetAllocationChart-tip"), labels: catLabels, data: catData, colors: modernPalette, formatRp, escapeHtml }) } : {})
+        ...(allocTip ? { tooltip: allocTip } : {})
       }
     }
   });

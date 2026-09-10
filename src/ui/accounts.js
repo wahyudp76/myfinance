@@ -81,7 +81,7 @@
  */
 import { hudLineDataset, hudLineScales, hudGlowPlugin, hudBarDataset, hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
 import { escapeHtml } from "../domain/sanitize.js";
-import { buildExternalDonutTip } from "./charts.js"; // v115: kartu tooltip eksternal donut
+import { buildExternalDonutTip, suppressInternalTooltipPlugin } from "./charts.js"; // v115: kartu eksternal donut; v116: batalkan tooltip internal
 
 export function renderAccountDetailCharts({
   document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
@@ -200,8 +200,14 @@ export function renderAccountDetailCharts({
 
   if (charts.accCat) charts.accCat.destroy();
   if (document.getElementById("accountCatChart")) {
+    // v115: kartu tooltip DI LUAR kanvas; v116: penggambaran tooltip INTERNAL dibatalkan
+    // (suppressInternalTooltipPlugin) -- kotak internal menutupi donat. Tanpa data ->
+    // tooltip internal default (segmen kosong tidak perlu kartu).
+    const accTip = hasCatData
+      ? buildExternalDonutTip({ tipEl: document.getElementById("accountCatChart-tip"), labels: catEntries.map(e => e.label), data: catEntries.map(e => e.val), colors: cutePaletteOut, formatRp, escapeHtml })
+      : null;
     charts.accCat = new Chart(document.getElementById("accountCatChart").getContext("2d"), {
-      plugins: [hudDonutGlowPlugin], // DNA donut HUD: glow violet reactor
+      plugins: [hudDonutGlowPlugin, ...(accTip ? [suppressInternalTooltipPlugin] : [])], // DNA donut HUD: glow violet reactor
       type: "doughnut",
       data: {
         labels: hasCatData ? catEntries.map(e => e.label) : ["Belum ada pengeluaran"],
@@ -213,9 +219,7 @@ export function renderAccountDetailCharts({
         responsive: true, maintainAspectRatio: false, cutout: "70%",
         plugins: {
           legend: { display: false }, datalabels: { display: false },
-          // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori"). Tanpa
-          // data -> tooltip internal default (segmen kosong tidak perlu kartu).
-          ...(hasCatData ? { tooltip: buildExternalDonutTip({ tipEl: document.getElementById("accountCatChart-tip"), labels: catEntries.map(e => e.label), data: catEntries.map(e => e.val), colors: cutePaletteOut, formatRp, escapeHtml }) } : {})
+          ...(accTip ? { tooltip: accTip } : {})
         }
       }
     });

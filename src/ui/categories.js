@@ -123,7 +123,7 @@ export function renderCategoryDetailMonthData({
 
 import { pickChartPalette } from "../domain/chart-palette.js";
 import { hudBarDataset, hudLineScales, hudGlowPlugin, hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
-import { donutTipCardHtml } from "./charts.js"; // v115: markup kartu tip eksternal = SATU sumber kebenaran semua donat
+import { donutTipCardHtml, suppressInternalTooltipPlugin } from "./charts.js"; // v115: markup kartu tip eksternal = SATU sumber kebenaran semua donat; v116: batalkan tooltip internal
 
 /**
  * Palet warna proporsi sub-kategori -- sumber kebenaran kini di
@@ -266,7 +266,12 @@ export function renderCategorySubProportion({
 
   if (charts.catSubDonut) charts.catSubDonut.destroy();
   charts.catSubDonut = new Chart(document.getElementById("catSubDonut").getContext("2d"), {
-    plugins: [hudDonutGlowPlugin], // DNA donut HUD: glow violet reactor
+    // v116: suppressInternalTooltipPlugin membatalkan penggambaran tooltip INTERNAL Chart.js
+    // (kotak hitam menutupi donat). Forensik chartjs-4.5.1: afterDraw menggambar internal
+    // tiap kali tooltip.opacity truthy TANPA memeriksa `external` -- klaim lama di bawah
+    // ("kehadiran external saja mengganti penggambaran internal") TIDAK benar; kini internal
+    // dibatalkan lewat hook cancelable beforeTooltipDraw, model tooltip tetap hidup.
+    plugins: [hudDonutGlowPlugin, suppressInternalTooltipPlugin], // DNA donut HUD: glow violet reactor
     type: "doughnut",
     data: {
       labels: items.map(labelOf),
@@ -301,9 +306,13 @@ export function renderCategorySubProportion({
           // menimpa kanvas; di donat kecil layar HP kotak 136px menutupi
           // teks pusat (tumpang tindih). Solusi: tooltip DIGAMBAR DI LUAR
           // kanvas sebagai kartu hitam MURNI #000 di bawah donat.
-          // PENTING: JANGAN enabled:false -- itu mematikan tooltip SEMPURNA
-          // (handler external tak pernah dipanggil; terbukti di uji hover).
-          // Kehadiran `external` saja sudah mengganti penggambaran internal.
+          // v116 (koreksi forensik chartjs-4.5.1): catatan lama di sini
+          // ("JANGAN enabled:false; kehadiran `external` saja mengganti
+          // penggambaran internal") TIDAK benar -- afterDraw tooltip hanya
+          // mengecek opacity, sehingga kartu eksternal dulu tampil BERSAMA
+          // kotak internal. Penggambaran internal kini dibatalkan plugin
+          // suppressInternalTooltipPlugin (beforeTooltipDraw cancelable);
+          // model tooltip & handler external tetap hidup seperti sebelumnya.
           // animation:false -> opacity langsung 1 saat hover (tanpa fade
           // internal Chart.js; kartu punya transisi CSS sendiri).
           animation: false,

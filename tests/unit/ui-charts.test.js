@@ -7,7 +7,7 @@ import {
   buildTxTrendConfig, buildCashflow7Config, buildAssetDonutConfig, buildMonthlyConfig,
   buildBalanceTrendConfig, buildAssetDetailConfig, buildYearlyNetConfig,
   buildCategoryDonutConfig, buildDailyConfig, buildCatTrendConfig,
-  donutTipPct, donutTipCardHtml, buildExternalDonutTip
+  donutTipPct, donutTipCardHtml, buildExternalDonutTip, suppressInternalTooltipPlugin
 } from "../../src/ui/charts.js";
 
 const fmtShort = (v) => (v >= 1000 ? Math.round(v / 1000) + "K" : String(v));
@@ -194,12 +194,20 @@ test("v115 buildAssetDonutConfig: tipEl + data -> tooltip eksternal; tanpa tipEl
   assert.equal(typeof withTip.options.plugins.tooltip.external, "function");
   withTip.options.plugins.tooltip.external({ tooltip: { opacity: 1, dataPoints: [{ dataIndex: 0 }] } });
   assert.match(tipEl.innerHTML, /BCA/);
-  // tanpa tipEl: perilaku lama (tidak ada config tooltip eksternal)
+  // v116: bersama kartu eksternal, plugin pembatal tooltip internal ikut terpasang
+  assert.ok(withTip.plugins.some((p) => p.id === "suppressInternalTooltip"));
+  // tanpa tipEl: perilaku lama (tidak ada config tooltip eksternal + tanpa pembatal internal)
   const legacy = buildAssetDonutConfig({ assetLabels: ["BCA"], assetData: [60], modernPalette: ["#22d3ee"], chartEmptyColor: () => "#f1f5f9" });
   assert.equal(legacy.options.plugins.tooltip, undefined);
+  assert.ok(!legacy.plugins.some((p) => p.id === "suppressInternalTooltip"));
   // state kosong ("Kosong") -> tidak ada kartu tip
   const empty = buildAssetDonutConfig({ assetLabels: ["Kosong"], assetData: [1], modernPalette: ["#22d3ee"], chartEmptyColor: () => "#f1f5f9", tipEl, formatRp: (n) => String(n), escapeHtml: (s) => s });
   assert.equal(empty.options.plugins.tooltip, undefined);
+});
+
+test("v116 suppressInternalTooltipPlugin: beforeTooltipDraw mengembalikan false (membatalkan penggambaran internal Chart.js)", () => {
+  assert.equal(suppressInternalTooltipPlugin.id, "suppressInternalTooltip");
+  assert.equal(suppressInternalTooltipPlugin.beforeTooltipDraw(), false);
 });
 
 test("v115 buildCategoryDonutConfig: tipEl + hasData -> tooltip eksternal; klik segmen tetap buka detail kategori", () => {
@@ -217,7 +225,10 @@ test("v115 buildCategoryDonutConfig: tipEl + hasData -> tooltip eksternal; klik 
   assert.match(tipEl.innerHTML, /25%/);
   cfg.options.onClick({}, [{ index: 0 }], { data: { labels: ["Makanan", "Transport"] } });
   assert.deepEqual(opened, [["Makanan", "Pengeluaran"]]);
+  // v116: plugin pembatal tooltip internal terpasang bersama kartu eksternal
+  assert.ok(cfg.plugins.some((p) => p.id === "suppressInternalTooltip"));
   // hasData false -> tidak ada kartu tip (segmen 'Kosong')
   const empty = buildCategoryDonutConfig({ hasData: false, entries: [], palette: [], chartEmptyColor: () => "#f1f5f9", openCategoryDetail: () => {}, jenis: "Pengeluaran", tipEl, formatRp: (n) => String(n), escapeHtml: (s) => s });
   assert.equal(empty.options.plugins.tooltip, undefined);
+  assert.ok(!empty.plugins.some((p) => p.id === "suppressInternalTooltip"));
 });

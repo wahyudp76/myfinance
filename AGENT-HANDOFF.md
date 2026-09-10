@@ -2716,3 +2716,18 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **VERIFIKASI:** probe E2E baru (tools/probe-donut-tips.mjs) 16/16 PASS, 0 error console: ke-5 donut menampilkan kartu eksternal saat hover, hint saat idle, klik laporan tetap buka detail kategori, Proporsi Sub-Kategori (regresi) tetap eksternal. Lint 0; unit 917/917 (5 test baru ui-charts); parity 1/1; 9 harness 231/231; build idempoten (app/boot/css); Lighthouse PASS (perf 61 / a11y 100 / bp 100). CACHE_VERSION `myfinance-v145` -> `myfinance-v146`.
 
 **STATUS:** siap di-commit & push sebagai v115.
+
+## v116 — hapus kotak tooltip INTERNAL Chart.js yang menimpa donat (kartu eksternal tetap)
+**KONTEKS:** laporan pemilik atas v115: kartu callout yang DI LUAR chart "sudah betul ditampilkan seperti itu" (pertahankan), NAMUN masih ada kotak hitam yang muncul DI DALAM chart saat segmen di-hover/ketuk -- menutupi chart itu sendiri.
+
+**AKAR MASALAH (forensik vendor/chartjs-4.5.1.min.js):** klaim v115 bahwa "kehadiran `external` mengganti penggambaran internal" SALAH. Kode asli Chart.js: `afterDraw` memanggil `notifyPlugins("beforeTooltipDraw", {..., cancelable:true})` lalu `e.draw(t.ctx)` SETIAP kali `tooltip._willRender()` truthy -- dan `_willRender()` HANYA `!!this.opacity`, TIDAK memeriksa `external`/`enabled`. Akibatnya setelah v115 kotak internal digambar MENIMPA kanvas BERSAMA kartu eksternal. `handleEvent` tetap hidup via `(s.enabled||s.external)`, dan handler `external` dipanggil dari `Tooltip.update()`.
+
+**PERUBAHAN (kunci: batalkan PENGGAMBARAN, JANGAN matikan model tooltip):**
+- `src/ui/charts.js`: export baru `suppressInternalTooltipPlugin = { id: "suppressInternalTooltip", beforeTooltipDraw() { return false; } }` -- hook `beforeTooltipDraw` CANCELABLE; `false` membuat Chart.js MELEWATI `tooltip.draw()` internal, tetapi hover, klik-navigasi, dan handler `external` tetap jalan (model tooltip tetap di-update). `buildAssetDonutConfig`/`buildCategoryDonutConfig`: saat tip eksternal aktif -> `plugins: [hudDonutGlowPlugin, suppressInternalTooltipPlugin]`; tanpa tipEl / state kosong -> hanya glow (perilaku lama, tooltip internal default utk pemanggil legacy). Helper kartu v115 (`donutTipPct`, `donutTipCardHtml`, `buildExternalDonutTip`, `DONUT_TIP_HINT`) TIDAK berubah.
+- `src/ui/assets.js` (Alokasi per Kategori) + `src/ui/accounts.js` (Distribusi per akun): hitung `allocTip`/`accTip` dulu (null saat tak ada data), pasang `suppressInternalTooltipPlugin` hanya saat tip ada; keduanya import dari `./charts.js`.
+- `src/ui/categories.js` (Proporsi Sub-Kategori): plugin suppress selalu terpasang bersama glow; komentar lama yang keliru soal `external`/`enabled:false` dikoreksi dengan catatan forensik v116.
+- Cakupan 6 donat: assetChart (dashboard), expense/incomeCategoryChart (laporan), assetAllocationChart (aset), accountCatChart (detail akun), catSubDonut (detail kategori).
+
+**VERIFIKASI:** probe bukti-piksel baru (tools/probe-donut-internal.mjs, di luar repo): menghitung piksel hitam pekat (r,g,b<15, alpha>200) via offscreen `getImageData` pada keenam kanvas saat hover -- 19/19 PASS, 0 error console: 0 piksel hitam di SEMUA donat, kartu eksternal tetap tampil + kembali ke hint saat idle, klik segmen laporan tetap membuka detail kategori (sub-proporsi dibuka via klik segmen NYATA, bukan openCategoryDetail langsung). Lint 0; unit 918/918 (1 test baru ui-charts: plugin return false + kehadiran/absennya plugin di builder); parity 1/1; 9 harness 231/231; build idempoten (app/boot/css/styles/index); Lighthouse PASS (perf 59 / a11y 100 / bp 100, TBT 200ms). CACHE_VERSION `myfinance-v146` -> `myfinance-v147`, snapshot SW diregenerasi.
+
+**STATUS:** siap di-commit & push sebagai v116.

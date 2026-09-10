@@ -43,6 +43,24 @@ export function donutTipPct(p) {
 export const DONUT_TIP_HINT = '<span class="text-[10px] text-slate-400"><i class="fas fa-hand-pointer mr-1"></i>Ketuk segmen untuk detail</span>';
 
 /**
+ * Plugin pembatal penggambaran tooltip INTERNAL Chart.js (v116).
+ *
+ * Forensik vendor/chartjs-4.5.1.min.js: hook afterDraw tooltip menggambar kotak
+ * internal setiap kali `tooltip.opacity` truthy -- TIDAK memeriksa `options.external`
+ * (klaim lama "kehadiran external saja mengganti penggambaran internal" TIDAK benar;
+ * akibatnya kartu eksternal v115 tampil BERSAMA kotak hitam internal yang menutupi
+ * donat). `enabled:false` pun tidak menjamin: afterDraw tetap hanya mengecek opacity.
+ * Jalur resmi yang PASTI membatalkan penggambaran: hook `beforeTooltipDraw` bersifat
+ * CANCELABLE (`notifyPlugins("beforeTooltipDraw", {cancelable: true})` -> `false`
+ * = skip `tooltip.draw(ctx)`) -- tanpa mematikan model tooltip: event hover/klik tetap
+ * diproses dan handler `external` tetap dipanggil dari Tooltip.update().
+ */
+export const suppressInternalTooltipPlugin = {
+  id: "suppressInternalTooltip",
+  beforeTooltipDraw() { return false; },
+};
+
+/**
  * Markup kartu tip eksternal (pola buildSubTipHtml di src/ui/categories.js --
  * dipertahankan byte-identik supaya kartu semua donat terlihat sama persis).
  * Warna lewat data-style-* (bukan style=) -- diterapkan applyCspDynamicStyles
@@ -185,6 +203,7 @@ export function buildCashflow7Config({ labels7, last7Order, last7Map, themeAccen
 /** Dashboard: donut Komposisi Kas & Rekening (ACUAN karakter donut seluruh app). */
 export function buildAssetDonutConfig({ assetLabels, assetData, modernPalette, chartEmptyColor, tipEl, formatRp, escapeHtml }) {
   const isEmpty = assetData[0] === 1 && assetLabels[0] === 'Kosong';
+  const tip = (tipEl && !isEmpty) ? buildExternalDonutTip({ tipEl, labels: assetLabels, data: assetData, colors: modernPalette, formatRp, escapeHtml }) : null;
   return {
     type: 'doughnut',
     data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: hudDonutSegment(isEmpty ? [chartEmptyColor()] : modernPalette), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] },
@@ -192,13 +211,12 @@ export function buildAssetDonutConfig({ assetLabels, assetData, modernPalette, c
       responsive: true, maintainAspectRatio: false, cutout: '70%',
       plugins: {
         legend: { display: false }, datalabels: { display: false },
-        // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori") -- tooltip
-        // internal Chart.js menutupi segmen donat kecil di layar HP. tipEl absen =
-        // perilaku lama (tooltip internal default), supaya pemanggil lama/test aman.
-        ...(tipEl && !isEmpty ? { tooltip: buildExternalDonutTip({ tipEl, labels: assetLabels, data: assetData, colors: modernPalette, formatRp, escapeHtml }) } : {})
+        ...(tip ? { tooltip: tip } : {})
       }
     },
-    plugins: [hudDonutGlowPlugin]
+    // v116: bersama kartu eksternal, penggambaran tooltip INTERNAL dibatalkan
+    // (suppressInternalTooltipPlugin) -- kotak internal menutupi donat.
+    plugins: tip ? [hudDonutGlowPlugin, suppressInternalTooltipPlugin] : [hudDonutGlowPlugin]
   };
 }
 
@@ -287,6 +305,7 @@ export function buildYearlyNetConfig({ monthLabels, monthlyNet, themeAccentColor
  * Klik segmen membuka detail kategori (kecuali segmen 'Kosong').
  */
 export function buildCategoryDonutConfig({ hasData, entries, palette, chartEmptyColor, openCategoryDetail, jenis, tipEl, formatRp, escapeHtml }) {
+  const tip = (tipEl && hasData) ? buildExternalDonutTip({ tipEl, labels: entries.map(e => e.label), data: entries.map(e => e.val), colors: palette, formatRp, escapeHtml }) : null;
   return {
     type: 'doughnut',
     data: { labels: hasData ? entries.map(e => e.label) : ['Kosong'], datasets: [{ data: hasData ? entries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasData ? palette : [chartEmptyColor()]), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] },
@@ -294,9 +313,7 @@ export function buildCategoryDonutConfig({ hasData, entries, palette, chartEmpty
       responsive: true, maintainAspectRatio: false, cutout: '70%',
       plugins: {
         legend: { display: false }, datalabels: { display: false },
-        // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori"); klik segmen
-        // tetap membuka detail kategori. tipEl absen = tooltip internal default (lama).
-        ...(tipEl && hasData ? { tooltip: buildExternalDonutTip({ tipEl, labels: entries.map(e => e.label), data: entries.map(e => e.val), colors: palette, formatRp, escapeHtml }) } : {})
+        ...(tip ? { tooltip: tip } : {})
       },
       onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
       onClick: (e, elements, chart) => {
@@ -307,7 +324,8 @@ export function buildCategoryDonutConfig({ hasData, entries, palette, chartEmpty
         }
       }
     },
-    plugins: [hudDonutGlowPlugin]
+    // v116: bersama kartu eksternal, penggambaran tooltip INTERNAL dibatalkan.
+    plugins: tip ? [hudDonutGlowPlugin, suppressInternalTooltipPlugin] : [hudDonutGlowPlugin]
   };
 }
 
