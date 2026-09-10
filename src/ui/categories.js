@@ -250,7 +250,7 @@ export function renderCategorySubProportion({
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 md:gap-6 items-center">
       <div class="lg:col-span-2 flex flex-col items-center">
         <div class="relative w-44 h-44 md:w-52 md:h-52 csp-category-donut-shadow">
-          <canvas id="catSubDonut" class="absolute inset-0 w-full h-full"></canvas>
+          <div class="donut-canvas-wrap"><canvas id="catSubDonut" class="w-full h-full"></canvas></div>
           <div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div>
           <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none csp-category-donut-center">
             <p class="text-[10px] font-bold uppercase tracking-widest csp-category-donut-label">Total ${escapeHtml(jenis === "Pemasukan" ? "Masuk" : "Keluar")}</p>
@@ -290,6 +290,8 @@ export function renderCategorySubProportion({
       responsive: true,
       maintainAspectRatio: false,
       cutout: "70%",
+      // v117: ruang pop-out segmen hoverOffset — kanvas meluber via .donut-canvas-wrap.
+      layout: { padding: 8 },
       animation: { animateRotate: true, duration: 900 },
       plugins: {
         legend: { display: false },

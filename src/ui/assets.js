@@ -203,6 +203,8 @@ export function renderAssetView({
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: "70%",
+      // v117: ruang pop-out segmen hoverOffset — kanvas meluber via .donut-canvas-wrap.
+      layout: { padding: 8 },
       plugins: {
         legend: { display: false }, datalabels: { display: false },
         ...(allocTip ? { tooltip: allocTip } : {})

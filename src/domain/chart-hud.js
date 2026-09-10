@@ -102,12 +102,36 @@ export function hudLineDataset({ from = HUD_COLORS.cyan, to, fill, points = 6, g
 /** Warna glow ungu utk donut "reactor" (kontras dgn cyan milik grafik garis). */
 export const HUD_GLOW_VIOLET = "rgba(167,139,250,0.45)";
 
-/** Plugin glow violet utk donut -- dipasang per-chart via `plugins: [hudDonutGlowPlugin]`. */
+/**
+ * Plugin glow violet utk donut -- dipasang per-chart via `plugins: [hudDonutGlowPlugin]`.
+ *
+ * v117: shadowBlur(16) meluber MELEWATI batas kanvas → halo terpotong KOTAK di
+ * tepi (terlihat sebagai "box outline" mengikuti rangka kanvas, paling menyolok
+ * saat segmen pop-out). Fix: sebelum dataset digambar, ctx di-CLIP ke lingkaran
+ * konsentris yang dikandung penuh oleh kanvas (radius = jarak pusat donat ke
+ * tepi terdekat). Potongan glow kini mengikuti LINGKARAN (konsentris dgn donat,
+ * terbaca sebagai pudar alami) dan tak pernah membentuk garis kotak. Segmen
+ * donat sendiri (radius + hoverOffset + layout.padding 8) selalu DI DALAM
+ * lingkaran clip, jadi tidak tersentuh.
+ */
 export const hudDonutGlowPlugin = {
   id: "hudGlow",
   beforeDatasetsDraw(chart) {
     const c = chart.ctx;
     c.save();
+    if (typeof chart.getDatasetMeta === "function" && chart.width && chart.height) {
+      const meta = chart.getDatasetMeta(0);
+      const arc = meta && meta.data && meta.data[0];
+      if (arc) {
+        const p = arc.getProps(["x", "y"], true);
+        const reach = Math.min(p.x, p.y, chart.width - p.x, chart.height - p.y) - 0.5;
+        if (Number.isFinite(reach) && reach > 0) {
+          c.beginPath();
+          c.arc(p.x, p.y, reach, 0, Math.PI * 2);
+          c.clip();
+        }
+      }
+    }
     c.shadowColor = HUD_GLOW_VIOLET;
     c.shadowBlur = 16;
   },

@@ -145,12 +145,44 @@ test("hudDonutSegment: sudut komet dari data (aktif tanpa klik) + fallback palet
   assert.equal(fb({ dataIndex: 3, chart: null, dataset: { data: [1] } }), "#22d3ee");
 });
 
-test("hudDonutGlowPlugin: id 'hudGlow', glow violet, save/restore", () => {
+test("hudDonutGlowPlugin: id 'hudGlow', glow violet, save/restore, clip lingkaran inskrip (v117)", () => {
   const calls = [];
-  const chart = { ctx: { save: () => calls.push("save"), restore: () => calls.push("restore") } };
+  const arcArgs = [];
+  const chart = {
+    ctx: {
+      save: () => calls.push("save"),
+      restore: () => calls.push("restore"),
+      beginPath: () => calls.push("beginPath"),
+      arc: (...a) => { calls.push("arc"); arcArgs.push(a); },
+      clip: () => calls.push("clip"),
+      set shadowColor(v) { calls.push(["shadowColor", v]); },
+      set shadowBlur(v) { calls.push(["shadowBlur", v]); },
+    },
+    width: 112,
+    height: 112,
+    getDatasetMeta: () => ({ data: [{ getProps: () => ({ x: 56, y: 56 }) }] }),
+  };
   assert.equal(hudDonutGlowPlugin.id, "hudGlow");
   assert.equal(HUD_GLOW_VIOLET, "rgba(167,139,250,0.45)");
   hudDonutGlowPlugin.beforeDatasetsDraw(chart);
   hudDonutGlowPlugin.afterDatasetsDraw(chart);
-  assert.deepEqual(calls, ["save", "restore"]);
+  // urutan: save → clip lingkaran konsentris → glow → restore
+  assert.deepEqual(calls.map((c) => (Array.isArray(c) ? c[0] : c)), ["save", "beginPath", "arc", "clip", "shadowColor", "shadowBlur", "restore"]);
+  // lingkaran clip dikandung penuh kanvas: pusat (56,56) pada kanvas 112x112 → radius 55.5
+  assert.deepEqual(arcArgs[0], [56, 56, 55.5, 0, Math.PI * 2]);
+  assert.deepEqual(calls[4], ["shadowColor", HUD_GLOW_VIOLET]);
+  assert.deepEqual(calls[5], ["shadowBlur", 16]);
+  // tanpa geometri (chart minimal / meta kosong): tetap save + glow, TIDAK crash
+  const calls2 = [];
+  const chart2 = {
+    ctx: { save: () => calls2.push("save"), restore: () => calls2.push("restore"), set shadowColor(v) { calls2.push("sc"); }, set shadowBlur(v) { calls2.push("sb"); } },
+    getDatasetMeta: () => ({ data: [] }),
+  };
+  hudDonutGlowPlugin.beforeDatasetsDraw(chart2);
+  hudDonutGlowPlugin.afterDatasetsDraw(chart2);
+  assert.deepEqual(calls2, ["save", "sc", "sb", "restore"]);
+  const chart3 = { ctx: { save: () => calls2.push("save"), restore: () => calls2.push("restore"), set shadowColor(v) { calls2.push("sc"); }, set shadowBlur(v) { calls2.push("sb"); } } };
+  hudDonutGlowPlugin.beforeDatasetsDraw(chart3);
+  hudDonutGlowPlugin.afterDatasetsDraw(chart3);
+  assert.deepEqual(calls2, ["save", "sc", "sb", "restore", "save", "sc", "sb", "restore"]);
 });

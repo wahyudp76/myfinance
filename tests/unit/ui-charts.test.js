@@ -232,3 +232,15 @@ test("v115 buildCategoryDonutConfig: tipEl + hasData -> tooltip eksternal; klik 
   assert.equal(empty.options.plugins.tooltip, undefined);
   assert.ok(!empty.plugins.some((p) => p.id === "suppressInternalTooltip"));
 });
+
+test("v117 buildAssetDonutConfig/buildCategoryDonutConfig: layout.padding 8 — anggaran ruang pop-out segmen (anti terpotong kotak kanvas)", () => {
+  const a = buildAssetDonutConfig({ assetLabels: ["BCA"], assetData: [60], modernPalette: ["#22d3ee"], chartEmptyColor: () => "#f1f5f9" });
+  assert.equal(a.options.layout.padding, 8);
+  // cakupan 6 donat: hoverOffset 8 + padding 8 → ujung segmen aktif = base+8 ≤ setengah kanvas
+  // (dengan kanvas meluber 8px via .donut-canvas-wrap, radius dasar tak berubah).
+  const c = buildCategoryDonutConfig({ hasData: true, entries: [{ label: "Makanan", val: 30 }], palette: ["#fb7185"], chartEmptyColor: () => "#f1f5f9", openCategoryDetail: () => {}, jenis: "Pengeluaran" });
+  assert.equal(c.options.layout.padding, 8);
+  // dataset tetap pop-out 8 (interaksi "membesar" dipertahankan)
+  assert.equal(a.data.datasets[0].hoverOffset, 8);
+  assert.equal(c.data.datasets[0].hoverOffset, 8);
+});

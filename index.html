@@ -442,7 +442,7 @@
                 </div>
                 <p class="text-xs text-slate-400 mb-4">Distribusi uang tunai dari berbagai akun</p>
                 <div class="flex items-center gap-4 md:gap-6">
-                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="asset-radar-pct"><b>--%</b><span>TOP</span></div></div>
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><div class="donut-canvas-wrap"><canvas id="assetChart"></canvas></div><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="asset-radar-pct"><b>--%</b><span>TOP</span></div></div>
                     <div id="assetChart-legend" class="flex-1 min-w-0"></div>
                 </div>
                 <div id="assetChart-tip" class="flex items-center justify-center min-h-[40px]"></div>
@@ -692,7 +692,7 @@
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Pengeluaran berdasarkan kategori</p>
                         <div class="flex items-center gap-3 md:gap-4">
-                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="expenseCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="exp-radar-pct"><b>--%</b><span>TOP</span></div></div>
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><div class="donut-canvas-wrap"><canvas id="expenseCategoryChart"></canvas></div><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="exp-radar-pct"><b>--%</b><span>TOP</span></div></div>
                             <div id="expenseCategoryChart-legend" class="flex-1 min-w-0"></div>
                         </div>
                         <div id="expenseCategoryChart-tip" class="flex items-center justify-center min-h-[40px]"></div>
@@ -705,7 +705,7 @@
                         </div>
                         <p class="text-xs text-slate-400 mb-4">Sumber pemasukan terbesar</p>
                         <div class="flex items-center gap-3 md:gap-4">
-                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><canvas id="incomeCategoryChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="inc-radar-pct"><b>--%</b><span>TOP</span></div></div>
+                            <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 relative"><div class="donut-canvas-wrap"><canvas id="incomeCategoryChart"></canvas></div><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="inc-radar-pct"><b>--%</b><span>TOP</span></div></div>
                             <div id="incomeCategoryChart-legend" class="flex-1 min-w-0"></div>
                         </div>
                         <div id="incomeCategoryChart-tip" class="flex items-center justify-center min-h-[40px]"></div>
@@ -852,7 +852,7 @@
                 </div>
                 <p class="text-[10px] text-slate-400 mb-4">Penyebaran portofolio investasi kamu</p>
                 <div class="flex items-center gap-4 md:gap-6">
-                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="assetAllocationChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="assetAlloc-radar-pct"><b>--%</b><span>TOP</span></div></div>
+                    <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><div class="donut-canvas-wrap"><canvas id="assetAllocationChart"></canvas></div><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="assetAlloc-radar-pct"><b>--%</b><span>TOP</span></div></div>
                     <div id="assetAllocationChart-legend" class="flex-1 min-w-0"></div>
                 </div>
                 <div id="assetAllocationChart-tip" class="flex items-center justify-center min-h-[40px]"></div>
@@ -1378,7 +1378,7 @@
                 </div>
                 <div class="p-4 md:p-6">
                     <div class="flex items-center gap-4 md:gap-6">
-                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><canvas id="accountCatChart"></canvas><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="accountCat-radar-pct"><b>--%</b><span>TOP</span></div></div>
+                        <div class="w-24 h-24 md:w-32 md:h-32 flex-shrink-0 relative"><div class="donut-canvas-wrap"><canvas id="accountCatChart"></canvas></div><div class="hud-radar" aria-hidden="true"><div class="hud-radar-ticks"></div><div class="hud-radar-sweep"></div><div class="hud-radar-ring"></div></div><div class="hud-radar-pct csp-radar-pct" id="accountCat-radar-pct"><b>--%</b><span>TOP</span></div></div>
                         <div id="accountCatChart-legend" class="flex-1 min-w-0"></div>
                     </div>
                     <div id="accountCatChart-tip" class="flex items-center justify-center min-h-[40px]"></div>

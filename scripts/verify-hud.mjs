@@ -287,9 +287,12 @@ ok("tab Aset: donut alokasi ber-DNA HUD (segmen + glow)", await page.evaluate(()
   return c && typeof c.data.datasets[0].backgroundColor === "function" && (c.plugins || []).some((p) => p.id === "hudGlow");
 }));
 ok("tab Aset: donut alokasi radar overlay + badge persen ala Komposisi", await page.evaluate(() => {
-  const wrap = document.getElementById("assetAllocationChart").parentElement;
+  // v117: kanvas donat kini dibungkus .donut-canvas-wrap (meluber 8px, ruang pop-out
+  // segmen) — kotak radar = leluhur yang MEMUAT overlay radar, bukan parent langsung.
+  let wrap = document.getElementById("assetAllocationChart").parentElement;
+  while (wrap && wrap !== document.body && !wrap.querySelector(".hud-radar-sweep")) wrap = wrap.parentElement;
   const badge = document.getElementById("assetAlloc-radar-pct");
-  return !!(wrap.querySelector(".hud-radar-sweep") && wrap.querySelector(".hud-radar-ticks") && wrap.querySelector(".hud-radar-ring") &&
+  return !!(wrap && wrap.querySelector(".hud-radar-sweep") && wrap.querySelector(".hud-radar-ticks") && wrap.querySelector(".hud-radar-ring") &&
     badge && (badge.style.display === "none" || /^\d+%$/.test(badge.querySelector("b").textContent)));
 }));
 await page.screenshot({ path: `${SHOTS}/10-tab-aset.png` });

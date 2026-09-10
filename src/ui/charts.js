@@ -209,6 +209,13 @@ export function buildAssetDonutConfig({ assetLabels, assetData, modernPalette, c
     data: { labels: assetLabels, datasets: [{ data: assetData, backgroundColor: hudDonutSegment(isEmpty ? [chartEmptyColor()] : modernPalette), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '70%',
+      // v117: anggaran ruang pop-out segmen (hoverOffset 8) — Chart.js 4.5.1 TIDAK
+      // menganggarkan hoverOffset level-dataset dalam radius luar (getMaxOffset
+      // resolve scope non-hover → 0; terbukti radius = (min−spacing)/2), sehingga
+      // tanpa padding segmen aktif terdorong MELEWATI tepi kanvas dan terpotong
+      // kotak. Kanvas sendiri dibesarkan via .donut-canvas-wrap (meluber 8px ke
+      // semua arah) supaya ukuran visual donat TIDAK berubah.
+      layout: { padding: 8 },
       plugins: {
         legend: { display: false }, datalabels: { display: false },
         ...(tip ? { tooltip: tip } : {})
@@ -311,6 +318,8 @@ export function buildCategoryDonutConfig({ hasData, entries, palette, chartEmpty
     data: { labels: hasData ? entries.map(e => e.label) : ['Kosong'], datasets: [{ data: hasData ? entries.map(e => e.val) : [1], backgroundColor: hudDonutSegment(hasData ? palette : [chartEmptyColor()]), borderWidth: 0, spacing: 6, borderRadius: 5, hoverOffset: 8 }] },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '70%',
+      // v117: ruang pop-out segmen — lihat catatan di buildAssetDonutConfig.
+      layout: { padding: 8 },
       plugins: {
         legend: { display: false }, datalabels: { display: false },
         ...(tip ? { tooltip: tip } : {})

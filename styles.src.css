@@ -659,6 +659,13 @@ html.dark #table-body .stagger-row:hover { background: rgba(34, 211, 238, 0.05);
 .hud-rowbar { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; pointer-events: none; }
 
 /* ---------- RADAR / REAKTOR DONAT ---------- */
+/* v117: bungkus kanvas donat agar meluber 8px ke semua arah (di luar kotak
+   radar) — ruang bagi segmen pop-out (hoverOffset 8) + halo glow, dipasangkan
+   dengan layout.padding: 8 di config chart sehingga UKURAN VISUAL donat tidak
+   berubah. Absolut → nol dampak ke layout tetangga (pola sama dgn .hud-radar
+   yang memang sudah inset: -7px). */
+.donut-canvas-wrap { position: absolute; inset: -8px; }
+.donut-canvas-wrap canvas { display: block; }
 .hud-radar { position: absolute; inset: -7px; pointer-events: none; z-index: 1; }
 .hud-radar-sweep {
     position: absolute; inset: 0; border-radius: 9999px;
