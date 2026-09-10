@@ -44,6 +44,43 @@ export function applyAssetDeposit(asset, jumlah, tanggal) {
   return { modal: modalBaru, nilai: nilaiBaru, value_history: history };
 }
 
+/**
+ * Edit setoran ke aset: terapkan (oldJumlah -> newJumlah) + (opsional) pindah
+ * tanggal titik riwayat (v114).
+ *
+ * Dua kasus:
+ *  - tanggal TIDAK berubah -> perilaku lama: delta (baru - lama) di-upsert di
+ *    tanggal itu (satu titik riwayat, nilai dikoreksi di tempat).
+ *  - tanggal BERUBAH -> setoran lama "ditarik" dulu di tanggal LAMA (titik
+ *    riwayat lama dikoreksi TURUN, tidak lagi membawa nilai setoran yang sudah
+ *    pindah), lalu setoran baru diterapkan di tanggal BARU. Tanpa ini, titik
+ *    riwayat di tanggal lama tetap memakai nilai LAMA (stale) -- grafik riwayat
+ *    aset menampilkan lonjakan di tanggal yang sudah tidak punya transaksi
+ *    (dibuktikan probe E2E v114: setor 500rb @T1 lalu edit tanggal ke T2 ->
+ *    T1 masih 1,5jt padahal seharusnya kembali 1jt).
+ *
+ * Nilai/modal bersih = newJumlah - oldJumlah pada kedua kasus (setoran pindah
+ * tanggal tidak mengubah nilai akhir aset, hanya posisi titik riwayatnya).
+ *
+ * @param {object} asset - baris aset minimal { nilai, modal, value_history }.
+ * @param {number} oldJumlah - nominal setoran SEBELUM edit.
+ * @param {number} newJumlah - nominal setoran SESUDAH edit.
+ * @param {string|null} oldTanggal - tanggal setoran lama ('YYYY-MM-DD').
+ * @param {string|null} newTanggal - tanggal setoran baru ('YYYY-MM-DD').
+ * @returns {{ modal: number, nilai: number, value_history: Array<{tanggal: string, nilai: number}> }}
+ */
+export function applyAssetDepositEdit(asset, oldJumlah, newJumlah, oldTanggal, newTanggal) {
+  const old = Number(oldJumlah) || 0;
+  const next = Number(newJumlah) || 0;
+  const from = typeof oldTanggal === "string" && oldTanggal.length >= 10 ? oldTanggal.slice(0, 10) : null;
+  const to = typeof newTanggal === "string" && newTanggal.length >= 10 ? newTanggal.slice(0, 10) : null;
+  if (from && to && from !== to) {
+    const afterWithdraw = applyAssetDeposit(asset, -old, from);
+    return applyAssetDeposit({ ...asset, ...afterWithdraw }, next, to);
+  }
+  return applyAssetDeposit(asset, next - old, to != null ? to : from);
+}
+
 /** Cari aset berdasarkan nama (case-insensitive, trim). Return null bila tak ada. */
 export function findAssetByName(assets, nama) {
   if (!Array.isArray(assets) || !nama) return null;

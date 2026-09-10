@@ -2600,7 +2600,8 @@ async function currentUserId() {
             // server.
             renderCategoryTree(jenisKey);
             if (typeof filterTransactions === 'function' && document.getElementById('view-transaksi') && document.getElementById('view-transaksi').classList.contains('block')) filterTransactions();
-            if (typeof processDataForUI === 'function') processDataForUI(globalData);
+            // v114: gaya kategori dimutasi IN-PLACE (bukan reassign) -> paksa render dashboard.
+            if (typeof processDataForUI === 'function') processDataForUI(globalData, true);
         }
 
         function searchAccountModalSuggestions(query) {
@@ -2674,7 +2675,8 @@ async function currentUserId() {
 
             persistSettings();
             renderSettings();
-            if (globalData.length > 0) processDataForUI(globalData);
+            // v114: ikon akun dimutasi IN-PLACE -> paksa render dashboard.
+            if (globalData.length > 0) processDataForUI(globalData, true);
 
             // ---- Sinkronkan gambar/ikon custom (base64 upload/pilihan palet) ----
             {
@@ -2733,7 +2735,7 @@ async function currentUserId() {
                         });
                     }
                 }
-                persistSettings(); renderSettings(); if(globalData.length > 0) processDataForUI(globalData);
+                persistSettings(); renderSettings(); if(globalData.length > 0) processDataForUI(globalData, true); // v114: ikon/akun berubah in-place -> paksa render
             };
 
             if (type === 'accounts') {
@@ -2878,7 +2880,8 @@ async function currentUserId() {
 
         function rerenderVisibleCharts() {
             if (globalData.length === 0) return;
-            if (document.getElementById('view-dashboard').classList.contains('block')) { processDataForUI(globalData); }
+            // v114: dipanggil pasca ganti tema/palet (state skalar mungkin sama, warna chart beda) -> paksa render.
+            if (document.getElementById('view-dashboard').classList.contains('block')) { processDataForUI(globalData, true); }
             if (document.getElementById('view-laporan').classList.contains('block')) { renderReportTab(); }
             if (document.getElementById('view-akun-detail').classList.contains('block')) { renderAccountDetailCharts(); }
             if (document.getElementById('view-kalender').classList.contains('block')) { renderCalendar(globalData); }
@@ -3270,7 +3273,9 @@ async function currentUserId() {
                     if (!appSettings.hidden_categories[type].subs[parentName].includes(subName)) appSettings.hidden_categories[type].subs[parentName].push(subName);
                 }
                 persistSettings(); renderSettings();
-                if (globalData.length > 0) processDataForUI(globalData);
+                // v114: hidden/custom categories dimutasi IN-PLACE -> agregasi kategori ikut
+                // berubah -> paksa render dashboard.
+                if (globalData.length > 0) processDataForUI(globalData, true);
             });
         }
 
@@ -3290,7 +3295,9 @@ async function currentUserId() {
                     if (!appSettings.hidden_categories[type].parents.includes(parentName)) appSettings.hidden_categories[type].parents.push(parentName);
                 }
                 persistSettings(); renderSettings();
-                if (globalData.length > 0) processDataForUI(globalData);
+                // v114: hidden/custom categories dimutasi IN-PLACE -> agregasi kategori ikut
+                // berubah -> paksa render dashboard.
+                if (globalData.length > 0) processDataForUI(globalData, true);
             });
         }
 
@@ -3925,12 +3932,13 @@ async function currentUserId() {
                 const runDeposit = () => {
                     showLoading(true);
                     // Konsistensi aset saat edit:
-                    //  - setor baru / lama bukan setor / aset tujuan SAMA -> selisih (baru-lama).
+                    //  - setor baru / lama bukan setor / aset tujuan SAMA -> selisih (baru-lama);
+                    //    bila TANGGAL diubah, titik riwayat tanggal lama dikoreksi turun dulu
+                    //    (applyAssetDepositEdit, v114).
                     //  - aset tujuan DIGANTI -> aset lama dipulihkan penuh dulu, aset baru dapat penuh.
                     const oldRow = wasEdit ? globalData.find(t => t.id === currentEditId) : null;
                     const oldDepositAsset = oldRow ? servicesModule.resolveAssetDepositTx(oldRow, globalAssets) : null;
                     const sameAsset = !!(oldDepositAsset && oldDepositAsset.id === assetTarget.id);
-                    const depositDelta = sameAsset ? (jumlahNum - (Number(oldRow.jumlah) || 0)) : jumlahNum;
                     const txPromise = wasEdit
                         ? transactionService.update(currentEditId, servicesModule.toUpdateRecord(data))
                         : transactionService.create(servicesModule.toCreateRecord(data));
@@ -3947,7 +3955,16 @@ async function currentUserId() {
                         assetPatches.push(oldAssetPatch);
                         chain = chain.then(() => servicesModule.updateAsset(supabaseClient, oldDepositAsset.id, oldAssetPatch));
                     }
-                    const targetAssetPatch = { id: assetTarget.id, terakhir: new Date().toISOString(), ...servicesModule.applyAssetDeposit(assetTarget, depositDelta, data.tanggal) };
+                    // v114 (bug fix): edit setor pada aset yang SAMA kini lewat applyAssetDepositEdit
+                    // -- bila tanggalnya diubah, titik riwayat di tanggal LAMA dikoreksi turun dulu
+                    // (setoran lama "ditarik") sebelum setoran baru diterapkan di tanggal BARU.
+                    // Sebelumnya delta tunggal di-upsert di tanggal baru saja, sehingga titik riwayat
+                    // tanggal lama tetap memakai nilai STALE -- grafik riwayat aset menampilkan
+                    // lonjakan di tanggal yang sudah tidak punya transaksi setor (dibuktikan probe
+                    // E2E: setor 500rb @T1, edit tanggal ke T2 -> T1 masih 1,5jt, harusnya 1jt).
+                    const targetAssetPatch = { id: assetTarget.id, terakhir: new Date().toISOString(), ...(sameAsset
+                        ? servicesModule.applyAssetDepositEdit(assetTarget, Number(oldRow.jumlah) || 0, jumlahNum, oldRow.tanggal, data.tanggal)
+                        : servicesModule.applyAssetDeposit(assetTarget, jumlahNum, data.tanggal)) };
                     assetPatches.push(targetAssetPatch);
                     chain
                         .then(() => servicesModule.updateAsset(supabaseClient, assetTarget.id, targetAssetPatch))
@@ -4192,8 +4209,34 @@ async function currentUserId() {
         }
 
         function deleteAssetData(id) {
-            showConfirm('Yakin ingin menghapus aset ini dari portofolio?', () => {
-                showLoading(true); servicesModule.deleteAsset(supabaseClient, id).then(() => { refreshAssetsOnly(); showSuccessToast('Aset berhasil dihapus.'); }).catch((err) => { console.error('api.run.deleteAsset gagal:', err); showErrorToast('Gagal menghapus aset. Coba lagi.'); showLoading(false); });
+            // v114 (bug fix): aset yang masih punya transaksi "setor ke aset" tidak boleh
+            // dihapus diam-diam. Setor tx yang yatim (asetnya sudah tidak ada) membuat nama
+            // aset DIDAFTARKAN LAGI sebagai "rekening" oleh syncAccountsFromTransactions()
+            // -- akun bayangan muncul di daftar rekening & pemilih akun (dibuktikan probe
+            // E2E: hapus aset "Bibit" yang masih punya 1 setor tx -> "Bibit" masuk
+            // appSettings.accounts), dan deteksi setor utk nilai menabung (v113) ikut mati.
+            // Konfirmasi kini eksplisit soal jumlah transaksi + totalnya, dan menghapus
+            // aset sekaligus transaksi setor terkait (transaksi setor hanya bermakna
+            // relatif thd asetnya). Urutan: hapus transaksi DULU (aset masih ada, tidak
+            // perlu patch penarikan karena asetnya memang akan dihapus), lalu aset.
+            const asset = globalAssets.find(a => a.id === id);
+            const linkedTxs = asset ? globalData.filter(t => servicesModule.resolveAssetDepositTx(t, [asset])) : [];
+            const linkedTotal = linkedTxs.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+            const confirmMsg = linkedTxs.length > 0
+                ? 'Aset ini terhubung dengan ' + linkedTxs.length + ' transaksi setor ke aset (total Rp ' + formatRp(linkedTotal) + '). Menghapus aset akan menghapus transaksi setor tersebut juga, supaya riwayatnya tidak menjadi "rekening" yatim. Yakin ingin menghapus?'
+                : 'Yakin ingin menghapus aset ini dari portofolio?';
+            showConfirm(confirmMsg, () => {
+                showLoading(true);
+                const finishDeleteAsset = () => {
+                    servicesModule.deleteAsset(supabaseClient, id).then(() => {
+                        refreshTransactionsOnly(() => refreshAssetsOnly());
+                        showSuccessToast(linkedTxs.length > 0 ? 'Aset & ' + linkedTxs.length + ' transaksi setor terkait berhasil dihapus.' : 'Aset berhasil dihapus.');
+                    }).catch((err) => { console.error('api.run.deleteAsset gagal:', err); showErrorToast('Gagal menghapus aset. Coba lagi.'); showLoading(false); });
+                };
+                if (linkedTxs.length === 0) { finishDeleteAsset(); return; }
+                Promise.all(linkedTxs.map(t => transactionService.remove(t.id)))
+                    .then(finishDeleteAsset)
+                    .catch((err) => { console.error('api.run.deleteAsset: gagal menghapus transaksi setor terkait:', err); showErrorToast('Gagal menghapus transaksi setor terkait -- aset tidak jadi dihapus. Coba lagi.'); showLoading(false); });
             });
         }
 
@@ -5837,7 +5880,29 @@ async function currentUserId() {
         }
 
         // ========================== DASHBOARD ==========================
-        function processDataForUI(data) {
+        // v114 (perf): tanda tangan "kesegaran" render dashboard. processDataForUI()
+        // dipanggil dari BANYAK tempat (switchView masuk dashboard, resize, echo simpan
+        // transaksi, refresh, ganti tema/palet/ikon) -- tetapi render penuhnya (angka
+        // animateRupiah, 4 chart Chart.js, leaderboard kategori, kartu akun, kartu wawasan)
+        // hanya perlu diulang kalau SESUATU yang memengaruhi tampilannya benar-benar berubah.
+        // Signature ini membandingkan IDENTITAS REFERENSI state sumber (semua titik mutasi
+        // globalData/globalAssets/currentMonthBudgetsCache di app ini berbentuk REASSIGN,
+        // bukan mutasi in-place -- di-audit v114) + nilai skalar tema/nominal/tanggal.
+        // Pemanggil yang mengubah state SECARA IN-PLACE (gaya kategori, ikon akun,
+        // hidden_categories, palet chart, refresh harga aset) wajib memaksa render ulang
+        // lewat argumen kedua processDataForUI(globalData, true).
+        let _dashRenderedSig = null;
+        function dashRenderSig() {
+            return [
+                globalData, globalAssets, appSettings && appSettings.accounts,
+                currentMonthBudgetsCache, themeAccentColor, nominalHidden, todayDateStr(),
+            ];
+        }
+        function dashSigEquals(a, b) {
+            return !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+        }
+
+        function processDataForUI(data, forceRender) {
             // Kalkulasi (saldo per akun, total masuk/keluar, breakdown kategori, dll) sekarang
             // satu sumber kebenaran: src/domain/dashboard.js (dipakai juga oleh
             // tests/unit/dashboard-domain.test.js) -- bukan lagi ditulis manual di sini seperti
@@ -5853,10 +5918,25 @@ async function currentUserId() {
             // sebelum terlihat. Rationale sama dengan guard resize di setupResponsiveRerender:
             // membuat chart pada kontainer display:none cuma kerja sia-sia (dan Chart.js
             // salah mengukur lebar canvas tersembunyi).
+            //
+            // v114 (perf, lanjutan v112): (a) bila dashboard TERLIHAT dan signature di bawah
+            // tidak berubah sejak render terakhir yang sukses, render di-skip total (chart &
+            // DOM masih hidup dan sudah benar -- profil CPU: render dashboard ~270ms pada
+            // 2.500 transaksi dgn CPU 4x throttle, mayoritas pembuatan chart + DOM). (b) bila
+            // dashboard TERSEMBUNYI, kini SEMUA penulisan DOM dashboard dilewati (v112 baru
+            // chart-nya) -- cukup agregasi + insightsCtx (lastInsightsCtx tetap diperbarui
+            // utk notifikasi budget & AI); switchView('dashboard') memanggil fungsi ini lagi
+            // dan sig pasti belum ditandai (hidden path tidak menandai), sehingga dashboard
+            // selalu di-render penuh TEPAT sebelum terlihat.
             const dashVisible = (() => {
                 const el = document.getElementById('view-dashboard');
                 return !!(el && el.classList.contains('block'));
             })();
+            let dashSigNow = null;
+            if (dashVisible) {
+                dashSigNow = dashRenderSig();
+                if (!forceRender && dashSigEquals(dashSigNow, _dashRenderedSig)) return;
+            }
             const now = new Date();
             const {
                 accBalances, totalIn, totalOut, monthIn, monthOut,
@@ -5875,6 +5955,41 @@ async function currentUserId() {
                 parseTgl,
                 categorizeExpenseParent: categorizeExpenseParent,
             });
+
+            // Context wawasan sekarang diperkaya (v64) oleh buildInsightsContext():
+            // selain agregat bulanan standar, digali juga transaksi terbesar, pola
+            // transaksi kecil, belanja akhir pekan & pengeluaran per kategori bulan
+            // lalu -- bahan aturan review/saran baru yang lebih komprehensif.
+            // Field hasil aggregateDashboardData dipertahankan apa adanya (context
+            // lama yang dipakai renderInsights/renderHealthScore tetap kompatibel).
+            // (v114: dibangun di sini, sebelum cabang render, supaya jalur dashboard
+            // tersembunyi tetap bisa memperbarui lastInsightsCtx tanpa menyentuh DOM.)
+            const insightsCtx = servicesModule.buildInsightsContext(
+                // v113: monthToAsset/prevMonthToAsset (setoran ke aset) ikut ke context --
+                // dipakai savingsValueOfMonth() utk tingkat menabung (wawasan #9/#11b,
+                // komponen skor "Tingkat Menabung", dan ringkasan AI).
+                { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap, monthToAsset, prevMonthToAsset },
+                {
+                    transactions: data,
+                    now,
+                    parseTgl,
+                    txIdrAmount,
+                    categorizeExpenseParent: categorizeExpenseParent,
+                }
+            );
+
+            // v114 (perf): dashboard sedang TIDAK terlihat -> cukup agregasi + context
+            // wawasan di atas. SEMUA penulisan DOM (animateRupiah, chip, chart, kartu
+            // wawasan/skor) dilewati; lastInsightsCtx tetap diperbarui karena dipakai
+            // jalur lain (notifikasi ambang budget pasca-simpan, rekomendasi AI).
+            // switchView('dashboard') memanggil fungsi ini lagi sebelum tampil -- dan
+            // jalur ini SENGAJA tidak menandai _dashRenderedSig, jadi render penuh
+            // pasti terjadi tepat sebelum dashboard terlihat (pola yang dibuktikan
+            // aman oleh guard chart v112, diperluas ke seluruh DOM dashboard).
+            if (!dashVisible) {
+                lastInsightsCtx = insightsCtx;
+                return;
+            }
 
             animateRupiah(document.getElementById('dash-total'), totalIn - totalOut, true);
             animateRupiah(document.getElementById('dash-in'), monthIn, true); animateRupiah(document.getElementById('dash-out'), monthOut, true);
@@ -6005,27 +6120,15 @@ async function currentUserId() {
 
             if (dashVisible) renderBalanceTrendChart();
 
-            // Context wawasan sekarang diperkaya (v64) oleh buildInsightsContext():
-            // selain agregat bulanan standar, digali juga transaksi terbesar, pola
-            // transaksi kecil, belanja akhir pekan & pengeluaran per kategori bulan
-            // lalu -- bahan aturan review/saran baru yang lebih komprehensif.
-            // Field hasil aggregateDashboardData dipertahankan apa adanya (context
-            // lama yang dipakai renderInsights/renderHealthScore tetap kompatibel).
-            const insightsCtx = servicesModule.buildInsightsContext(
-                // v113: monthToAsset/prevMonthToAsset (setoran ke aset) ikut ke context --
-                // dipakai savingsValueOfMonth() utk tingkat menabung (wawasan #9/#11b,
-                // komponen skor "Tingkat Menabung", dan ringkasan AI).
-                { now, monthIn, monthOut, prevMonthIn, prevMonthOut, monthCatOutMap, catOut3MoMap, monthTxCount, monthlyMap, monthToAsset, prevMonthToAsset },
-                {
-                    transactions: data,
-                    now,
-                    parseTgl,
-                    txIdrAmount,
-                    categorizeExpenseParent: categorizeExpenseParent,
-                }
-            );
+            // insightsCtx dibangun di ATAS (sebelum cabang render) sejak v114 -- lihat
+            // sana. Di jalur ini (dashboard terlihat) context dipakai untuk render
+            // kartu wawasan + skor kesehatan.
             renderInsights(insightsCtx);
             renderHealthScore(insightsCtx);
+            // v114 (perf): tandai render berhasil HANYA di akhir (bila gagal di tengah,
+            // sig tidak tertandai -> panggilan berikutnya tetap render ulang, tidak
+            // pernah mentok di DOM setengah jadi).
+            _dashRenderedSig = dashSigNow;
         }
 
         // ========================== WAWASAN KEUANGAN (Financial Insights) ==========================
@@ -7040,7 +7143,8 @@ async function currentUserId() {
                                 fresh.tanggal_nav = tglPasar;
                             } catch (eDate) { console.error('simpan tanggal data pasar gagal:', eDate); }
                         }
-                        processDataForUI(globalData);
+                        // v114: baris aset dimutasi IN-PLACE (bukan reassign globalAssets) -> paksa render.
+                        processDataForUI(globalData, true);
                         if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
                         openAssetDetailModal(currentAssetDetailId); // re-render detail dgn nilai & grafik terbaru
                     }).catch((err) => { console.error('api.run.getAssetsOnly gagal:', err); btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate mr-2"></i>Refresh Harga Otomatis'; });
@@ -7175,7 +7279,8 @@ async function currentUserId() {
                         .then(() => { fresh.tanggal_nav = tanggal; })
                         .catch((e) => { console.error('simpan tanggal data pasar gagal:', e); });
                 }));
-                processDataForUI(globalData);
+                // v114: baris aset dimutasi IN-PLACE -> paksa render.
+                processDataForUI(globalData, true);
                 if (document.getElementById('view-aset').classList.contains('block')) { renderAssetView(); }
             } catch (e) { console.error('muat ulang aset pasca-refresh gagal:', e); }
             showLoading(false);

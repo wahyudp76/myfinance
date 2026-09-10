@@ -39,7 +39,7 @@
         import { aggregateDashboardData } from './src/domain/dashboard.js';
         import { computeAccountTotals, buildAccountBalanceSeries, computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount } from './src/domain/accounts.js';
         import { summarizeAssets, computeNetWorth } from './src/domain/assets.js';
-        import { applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions } from './src/domain/asset-flows.js';
+        import { applyAssetDeposit, applyAssetDepositEdit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions } from './src/domain/asset-flows.js';
         import * as chartsUi from './src/ui/charts.js';
         import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext } from './src/domain/insights.js';
         import { buildAiFinanceSummary } from './src/domain/ai-summary.js';
@@ -117,7 +117,7 @@
             createTransactionService, toCreateRecord, toUpdateRecord, mapTransactionRow, createTransfer, toTransferParams, createRecurringTransaction, toCreateRecurringParams, toRecurringRecord, listRecurring, createRecurring, updateRecurring, deleteRecurring, setRecurringActive, advanceRecurringDueDate, replaceMonthBudgets, fetchMonthBudgets,
             getSettings, saveSettings, getCustomIcons, saveCustomIcon, deleteCustomIcon,
             listAssets, createAsset, updateAsset, deleteAsset, refreshAssetPrice,
-            applyAssetDeposit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
+            applyAssetDeposit, applyAssetDepositEdit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions, // mekanisme setor ke aset (domain murni, src/domain/asset-flows.js)
             // planRecurringCatchup, advanceDueDate, & pruneAccountKeyedMaps sebenarnya domain
             // logic murni (src/domain/recurring.js, src/domain/settings.js), bukan service
             // Supabase -- ditumpangkan di bag yang sama supaya tidak perlu bikin Promise/event
