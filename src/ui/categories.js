@@ -123,6 +123,7 @@ export function renderCategoryDetailMonthData({
 
 import { pickChartPalette } from "../domain/chart-palette.js";
 import { hudBarDataset, hudLineScales, hudGlowPlugin, hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
+import { donutTipCardHtml } from "./charts.js"; // v115: markup kartu tip eksternal = SATU sumber kebenaran semua donat
 
 /**
  * Palet warna proporsi sub-kategori -- sumber kebenaran kini di
@@ -185,11 +186,10 @@ export function formatRupiahShort(n) {
  * MURNI #000 solid, tidak mungkin menimpa chart. Murni + ter-unit-test.
  */
 export function buildSubTipHtml(it, { formatRp, fmtPct, color, escapeHtml }) {
-  return `<div class="inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5 shadow-lg transition-opacity csp-toast-background" role="status">
-    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" data-style-background="${color}" data-style-box-shadow="0 0 8px ${color}99"></span>
-    <span class="text-xs md:text-sm font-extrabold text-white whitespace-nowrap">${escapeHtml(it.name)}</span>
-    <span class="text-xs md:text-sm font-bold text-slate-200 whitespace-nowrap tabular-nums">Rp ${formatRp(it.total)} \u2022 ${fmtPct(it.pct)}</span>
-  </div>`;
+  // v115: markup-nya kini SATU sumber kebenaran di src/ui/charts.js (donutTipCardHtml)
+  // -- dipakai juga kartu tip eksternal semua donat lain; output byte-identik
+  // (dijaga tests/unit/ui-categories.test.js).
+  return donutTipCardHtml({ label: it.name, val: it.total, pctText: fmtPct(it.pct), color, escapeHtml, formatRp });
 }
 
 export function renderCategorySubProportion({

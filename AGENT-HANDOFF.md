@@ -2696,3 +2696,23 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **CATATAN TOOLING:** probe E2E & perf kini tersimpan permanen di `tools/` (di luar repo, tidak ikut ter-commit): probe-bughunt.mjs (stub dinamis + alur CRUD penuh), probe-perf.mjs (paginasi + throttle + penghitung chart), probe-profile.mjs (CDP Profiler + agregasi call-tree).
 
 **STATUS:** siap di-commit & push sebagai v114.
+
+
+## v115 — tooltip eksternal untuk SEMUA donat (hapus callout di dalam pie)
+**KONTEKS:** permintaan pemilik: pada semua grafik pie chart, saat satu segmen diklik/di-hover, data "callout" TIDAK perlu dimunculkan DI DALAM pie -- cukup ditampilkan di luar, seperti perilaku chart "Proporsi Sub-Kategori" (kartu "Shopee Paylater Rp 619.150 • 65,2%").
+
+**AKAR MASALAH:** 5 donat masih memakai tooltip INTERNAL Chart.js (kotak digambar MENIMPA kanvas -- di donat kecil layar HP menutupi segmen & teks pusat; masalah yang sama yang dulu memotong revisi #3 chart Proporsi Sub-Kategori): (1) Komposisi Kas & Rekening (dashboard), (2) Distribusi Pengeluaran (Laporan), (3) Distribusi Pemasukan (Laporan), (4) Alokasi per Kategori (tab Aset), (5) Distribusi Pengeluaran per Kategori (detail akun). Hanya donat Proporsi Sub-Kategori (detail kategori) yang sudah eksternal.
+
+**PERUBAHAN:**
+- `src/ui/charts.js` (satu sumber kebabaran baru): `donutTipPct` (persen 1-desimal koma "65,2%"), `donutTipCardHtml` (kartu hitam MURNI #000, role=status, warna via data-style-* -- aman CSP, diterapkan MutationObserver applyCspDynamicStyles), `buildExternalDonutTip({tipEl,...})` -> config `tooltip.external` Chart.js (bukan enabled:false -- itu mematikan tooltip sempurna; kehadiran `external` mengganti penggambaran internal; animation:false supaya instan), + `DONUT_TIP_HINT` ("Ketuk segmen untuk detail" saat idle).
+- `buildAssetDonutConfig` + `buildCategoryDonutConfig` menerima `tipEl/formatRp/escapeHtml` opsional: tipEl absen = tooltip internal default (perilaku lama, pemanggil lama/test tetap kompatibel); state kosong ("Kosong") tidak diberi kartu.
+- `src/ui/assets.js` (assetAlloc) + `src/ui/accounts.js` (accCat): tooltip eksternal inline via helper yang sama; accounts.js kini import escapeHtml dari sanitize.js.
+- `src/ui/categories.js`: `buildSubTipHtml` kini DELEGASI ke donutTipCardHtml (markup byte-identik, dijaga ui-categories.test.js) -- kartu semua donat satu gaya.
+- `app.src.js`: 3 call-site (assetChart dashboard, catOut/catIn laporan) melewati tipEl+helper.
+- `index.html`: 5 elemen tip baru (`assetChart-tip`, `expenseCategoryChart-tip`, `incomeCategoryChart-tip`, `assetAllocationChart-tip`, `accountCatChart-tip`) di bawah baris donat+legend; `css/tailwind.css` di-rebuild (kelas `min-h-[40px]` kini discan).
+
+**PERILAKU:** hover (desktop) / ketuk (mobile) segmen -> kartu "Label Rp <nilai> • <persen>" muncul DI LUAR kanvas, kembali ke hint saat idle. Klik segmen donut Laporan TETAP membuka detail kategori (perilaku lama). Radar badge % terbesar di pusat donat tidak berubah (itu indikator statis, bukan callout interaksi).
+
+**VERIFIKASI:** probe E2E baru (tools/probe-donut-tips.mjs) 16/16 PASS, 0 error console: ke-5 donut menampilkan kartu eksternal saat hover, hint saat idle, klik laporan tetap buka detail kategori, Proporsi Sub-Kategori (regresi) tetap eksternal. Lint 0; unit 917/917 (5 test baru ui-charts); parity 1/1; 9 harness 231/231; build idempoten (app/boot/css); Lighthouse PASS (perf 61 / a11y 100 / bp 100). CACHE_VERSION `myfinance-v145` -> `myfinance-v146`.
+
+**STATUS:** siap di-commit & push sebagai v115.

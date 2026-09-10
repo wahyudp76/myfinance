@@ -80,6 +80,8 @@
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan).
  */
 import { hudLineDataset, hudLineScales, hudGlowPlugin, hudBarDataset, hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
+import { escapeHtml } from "../domain/sanitize.js";
+import { buildExternalDonutTip } from "./charts.js"; // v115: kartu tooltip eksternal donut
 
 export function renderAccountDetailCharts({
   document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
@@ -209,7 +211,12 @@ export function renderAccountDetailCharts({
       options: {
         // Opsi disamakan dgn donut "Komposisi Kas & Rekening" (cutout 70%).
         responsive: true, maintainAspectRatio: false, cutout: "70%",
-        plugins: { legend: { display: false }, datalabels: { display: false } }
+        plugins: {
+          legend: { display: false }, datalabels: { display: false },
+          // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori"). Tanpa
+          // data -> tooltip internal default (segmen kosong tidak perlu kartu).
+          ...(hasCatData ? { tooltip: buildExternalDonutTip({ tipEl: document.getElementById("accountCatChart-tip"), labels: catEntries.map(e => e.label), data: catEntries.map(e => e.val), colors: cutePaletteOut, formatRp, escapeHtml }) } : {})
+        }
       }
     });
     // HUD radar: persen kategori terbesar di tengah cincin (pola "Komposisi Kas & Rekening").

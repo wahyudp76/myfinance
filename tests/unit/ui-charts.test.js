@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import {
   buildTxTrendConfig, buildCashflow7Config, buildAssetDonutConfig, buildMonthlyConfig,
   buildBalanceTrendConfig, buildAssetDetailConfig, buildYearlyNetConfig,
-  buildCategoryDonutConfig, buildDailyConfig, buildCatTrendConfig
+  buildCategoryDonutConfig, buildDailyConfig, buildCatTrendConfig,
+  donutTipPct, donutTipCardHtml, buildExternalDonutTip
 } from "../../src/ui/charts.js";
 
 const fmtShort = (v) => (v >= 1000 ? Math.round(v / 1000) + "K" : String(v));
@@ -142,4 +143,81 @@ test("buildCatTrendConfig: N seri solid per palet + legenda bawah", () => {
   assert.equal(cfg.data.datasets[1].borderColor, "#22d3ee");
   assert.equal(cfg.options.plugins.legend.position, "bottom");
   assert.equal(cfg.options.plugins.tooltip.callbacks.label({ dataset: { label: "Makanan" }, raw: 1500 }), "Makanan: Rp 1.500");
+});
+
+// ===================== v115: tooltip eksternal donat (pola Proporsi Sub-Kategori) =====================
+
+test("v115 donutTipPct: bulat polos, selain itu 1 desimal koma", () => {
+  assert.equal(donutTipPct(65), "65%");
+  assert.equal(donutTipPct(65.2), "65,2%");
+  assert.equal(donutTipPct(0), "0%");
+});
+
+test("v115 donutTipCardHtml: kartu #000 dgn label ter-escape + Rp nilai + persen + warna via data-style-*", () => {
+  const html = donutTipCardHtml({
+    label: "Shopee <Paylater>", val: 619150, pctText: "65,2%", color: "#22d3ee",
+    escapeHtml: (s) => String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+    formatRp: (n) => new Intl.NumberFormat("id-ID").format(n),
+  });
+  assert.ok(html.includes("csp-toast-background"));
+  assert.ok(html.includes("Shopee &lt;Paylater&gt;"));
+  assert.ok(html.includes("Rp 619.150"));
+  assert.ok(html.includes("65,2%"));
+  assert.ok(html.includes('data-style-background="#22d3ee"'));
+  assert.ok(html.includes('data-style-box-shadow="0 0 8px #22d3ee99"'));
+  assert.ok(!/style="/.test(html)); // CSP: tanpa atribut style inline
+});
+
+test("v115 buildExternalDonutTip: aktif menulis kartu ke tipEl, idle kembali ke hint; tanpa tipEl = null (perilaku lama)", () => {
+  const labels = ["BCA", "DANA"], data = [600000, 200000];
+  const tipEl = { innerHTML: "" };
+  const tip = buildExternalDonutTip({
+    tipEl, labels, data, colors: ["#22d3ee", "#a78bfa"],
+    escapeHtml: (s) => s, formatRp: (n) => String(n),
+  });
+  assert.ok(tip && tip.animation === false && typeof tip.external === "function");
+  // aktif (hover/ketuk segmen index 1)
+  tip.external({ tooltip: { opacity: 1, dataPoints: [{ dataIndex: 1 }] } });
+  assert.match(tipEl.innerHTML, /DANA/);
+  assert.match(tipEl.innerHTML, /Rp 200000/);
+  assert.match(tipEl.innerHTML, /25%/); // 200rb dari 800rb
+  // idle (opacity 0) -> hint
+  tip.external({ tooltip: { opacity: 0, dataPoints: [{ dataIndex: 1 }] } });
+  assert.match(tipEl.innerHTML, /Ketuk segmen untuk detail/);
+  // tanpa tipEl -> null (pemanggil lama tetap tooltip internal default)
+  assert.equal(buildExternalDonutTip({ tipEl: null, labels, data, colors: [] }), null);
+});
+
+test("v115 buildAssetDonutConfig: tipEl + data -> tooltip eksternal; tanpa tipEl / state kosong -> tidak ada (default internal)", () => {
+  const tipEl = { innerHTML: "" };
+  const withTip = buildAssetDonutConfig({ assetLabels: ["BCA", "DANA"], assetData: [60, 40], modernPalette: ["#22d3ee", "#a78bfa"], chartEmptyColor: () => "#f1f5f9", tipEl, formatRp: (n) => String(n), escapeHtml: (s) => s });
+  assert.equal(typeof withTip.options.plugins.tooltip.external, "function");
+  withTip.options.plugins.tooltip.external({ tooltip: { opacity: 1, dataPoints: [{ dataIndex: 0 }] } });
+  assert.match(tipEl.innerHTML, /BCA/);
+  // tanpa tipEl: perilaku lama (tidak ada config tooltip eksternal)
+  const legacy = buildAssetDonutConfig({ assetLabels: ["BCA"], assetData: [60], modernPalette: ["#22d3ee"], chartEmptyColor: () => "#f1f5f9" });
+  assert.equal(legacy.options.plugins.tooltip, undefined);
+  // state kosong ("Kosong") -> tidak ada kartu tip
+  const empty = buildAssetDonutConfig({ assetLabels: ["Kosong"], assetData: [1], modernPalette: ["#22d3ee"], chartEmptyColor: () => "#f1f5f9", tipEl, formatRp: (n) => String(n), escapeHtml: (s) => s });
+  assert.equal(empty.options.plugins.tooltip, undefined);
+});
+
+test("v115 buildCategoryDonutConfig: tipEl + hasData -> tooltip eksternal; klik segmen tetap buka detail kategori", () => {
+  const opened = [];
+  const tipEl = { innerHTML: "" };
+  const cfg = buildCategoryDonutConfig({
+    hasData: true, entries: [{ label: "Makanan", val: 30 }, { label: "Transport", val: 10 }],
+    palette: ["#fb7185", "#fbbf24"], chartEmptyColor: () => "#f1f5f9",
+    openCategoryDetail: (l, j) => opened.push([l, j]), jenis: "Pengeluaran",
+    tipEl, formatRp: (n) => String(n), escapeHtml: (s) => s,
+  });
+  assert.equal(typeof cfg.options.plugins.tooltip.external, "function");
+  cfg.options.plugins.tooltip.external({ tooltip: { opacity: 1, dataPoints: [{ dataIndex: 1 }] } });
+  assert.match(tipEl.innerHTML, /Transport/);
+  assert.match(tipEl.innerHTML, /25%/);
+  cfg.options.onClick({}, [{ index: 0 }], { data: { labels: ["Makanan", "Transport"] } });
+  assert.deepEqual(opened, [["Makanan", "Pengeluaran"]]);
+  // hasData false -> tidak ada kartu tip (segmen 'Kosong')
+  const empty = buildCategoryDonutConfig({ hasData: false, entries: [], palette: [], chartEmptyColor: () => "#f1f5f9", openCategoryDetail: () => {}, jenis: "Pengeluaran", tipEl, formatRp: (n) => String(n), escapeHtml: (s) => s });
+  assert.equal(empty.options.plugins.tooltip, undefined);
 });

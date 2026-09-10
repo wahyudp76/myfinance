@@ -57,6 +57,7 @@
  * @param {Record<string, object>} ctx.charts - holder instance chart milik index.html (di-inject per pemanggilan karena bisa di-reassign utuh).
  */
 import { hudDonutSegment, hudDonutGlowPlugin } from "../domain/chart-hud.js";
+import { buildExternalDonutTip } from "./charts.js"; // v115: kartu tooltip eksternal donat
 import { uiActionAttrs } from "../domain/sanitize.js";
 
 export function renderAssetView({
@@ -196,7 +197,13 @@ export function renderAssetView({
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: "70%",
-      plugins: { legend: { display: false }, datalabels: { display: false } }
+      plugins: {
+        legend: { display: false }, datalabels: { display: false },
+        // v115: kartu tooltip DI LUAR kanvas (pola "Proporsi Sub-Kategori") -- tooltip
+        // internal Chart.js menutupi segmen donat kecil di layar HP. Tanpa data -> tetap
+        // tooltip internal default (segmen "Kosong" tidak informatif utk dikartu-kan).
+        ...(catLabels.length ? { tooltip: buildExternalDonutTip({ tipEl: document.getElementById("assetAllocationChart-tip"), labels: catLabels, data: catData, colors: modernPalette, formatRp, escapeHtml }) } : {})
+      }
     }
   });
   // HUD radar: persen kategori terbesar di tengah cincin alokasi (pola

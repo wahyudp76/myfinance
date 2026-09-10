@@ -6085,7 +6085,7 @@ async function currentUserId() {
 
             if(charts.asset) charts.asset.destroy();
             if(dashVisible && document.getElementById('assetChart')) {
-                charts.asset = new Chart(document.getElementById('assetChart').getContext('2d'), servicesModule.chartsUi.buildAssetDonutConfig({ assetLabels, assetData, modernPalette, chartEmptyColor }));
+                charts.asset = new Chart(document.getElementById('assetChart').getContext('2d'), servicesModule.chartsUi.buildAssetDonutConfig({ assetLabels, assetData, modernPalette, chartEmptyColor, tipEl: document.getElementById('assetChart-tip'), formatRp, escapeHtml })); // v115: tooltip eksternal
             }
             renderDonutBreakdown({
                 legendEl: document.getElementById('assetChart-legend'),
@@ -7385,7 +7385,7 @@ async function currentUserId() {
             });
 
             if(charts.catOut) charts.catOut.destroy(); let hasOutCat = outEntries.length > 0;
-            charts.catOut = new Chart(document.getElementById('expenseCategoryChart').getContext('2d'), servicesModule.chartsUi.buildCategoryDonutConfig({ hasData: hasOutCat, entries: outEntries, palette: cutePaletteOut, chartEmptyColor, openCategoryDetail, jenis: 'Pengeluaran' }));
+            charts.catOut = new Chart(document.getElementById('expenseCategoryChart').getContext('2d'), servicesModule.chartsUi.buildCategoryDonutConfig({ hasData: hasOutCat, entries: outEntries, palette: cutePaletteOut, chartEmptyColor, openCategoryDetail, jenis: 'Pengeluaran', tipEl: document.getElementById('expenseCategoryChart-tip'), formatRp, escapeHtml }));
             renderDonutBreakdown({
                 legendEl: document.getElementById('expenseCategoryChart-legend'),
                 listEl: document.getElementById('expenseCategoryChart-list'),
@@ -7409,7 +7409,7 @@ async function currentUserId() {
                 }
 
             if(charts.catIn) charts.catIn.destroy(); let hasInCat = inEntries.length > 0;
-            charts.catIn = new Chart(document.getElementById('incomeCategoryChart').getContext('2d'), servicesModule.chartsUi.buildCategoryDonutConfig({ hasData: hasInCat, entries: inEntries, palette: getCutePaletteIn(), chartEmptyColor, openCategoryDetail, jenis: 'Pemasukan' }));
+            charts.catIn = new Chart(document.getElementById('incomeCategoryChart').getContext('2d'), servicesModule.chartsUi.buildCategoryDonutConfig({ hasData: hasInCat, entries: inEntries, palette: getCutePaletteIn(), chartEmptyColor, openCategoryDetail, jenis: 'Pemasukan', tipEl: document.getElementById('incomeCategoryChart-tip'), formatRp, escapeHtml }));
             renderDonutBreakdown({
                 legendEl: document.getElementById('incomeCategoryChart-legend'),
                 listEl: document.getElementById('incomeCategoryChart-list'),
