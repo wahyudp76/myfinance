@@ -2802,3 +2802,21 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **VERIFIKASI:** probe pasca-fix 3 viewport: visibleCount 8→**4**, doubleLabelsAtSameIndex 4→**0**, indeks terpilih tetap bucket signifikan (8/16/24/30), 0 error halaman. Unit chart-labels+ui-accounts 33/33. CACHE_VERSION `myfinance-v150` → `myfinance-v151`, snapshot SW diregenerasi (`67de624d…`). (npm test lengkap + harness + Lighthouse + idempotensi build dicatat di commit.)
 
 **STATUS:** siap di-commit & push sebagai v120.
+
+## v121 — inkonsistensi angka Arus Kas antar rentang/reload: label kini selalu sparse & deterministik
+**KONTEKS:** laporan pemilik pasca-v120: "masih inkonsistensi — kadang semua angka tampil, pindah range lain hilang lagi, reload kadang masih bertumpuk".
+
+**AKAR MASALAH (2 lapis):**
+- **RACE urutan render:** `openAccountDetail()` memanggil `renderAccountDetailCharts()` SEBELUM `switchView('akun-detail')` → chart dibangun saat `#view-akun-detail` masih `display:none` → `clientWidth` container = 0 → fallback `|| window.innerWidth` (1440/1920) → `isChartNarrow` = false → mode "lebar" (`cashflowCellsToShow = null`) → SEMUA label aktif. Chart.js lalu me-resize canvas ke lebar asli (~530px) & menggambar ulang DENGAN keputusan basi → angka bertumpuk. Ganti rentang me-render ulang saat view SUDAH terlihat → lebar benar → sparse lagi — persis gejala "pindah range hilang, kadang muncul semua, reload kadang tumpuk".
+- **Gerbang lebar itu sendiri:** mode lebar memang sengaja menampilkan semua angka (desain v120 dipertahankan) — tapi pada chart 2-dataset (Masuk+Keluar) itu membuat perilaku berubah-ubah antar rentang tergantung px/bucket (mis. 90 hari = 13 bucket: 530px→sempit, fallback 1440px→lebar).
+
+**PERUBAHAN:**
+- `src/ui/accounts.js`: `selectSparseLabelCells([cashInData, cashOutData], 4)` kini dipanggil SELALU (tanpa gerbang `isChartNarrow`); callback `datalabels.display` = `nilai>0 && cells.get(bucket) === datasetIndex`. Keputusan label TIDAK LAGI bergantung lebar container sama sekali → data sama = set angka sama, apapun rentang/lebar/jalur render/reload. `cashflowIsNarrow` tetap dipakai (hanya padding layout). Chart 1-dataset (Tren Transaksi/Kategori) tidak berubah.
+- `app.src.js` `openAccountDetail()`: urutan dipulihkan jadi `switchView('akun-detail')` DULU → `renderAccountDetailCharts()` — semua keputusan berbasis lebar (tick sumbu-x, padding) memakai lebar container sebenarnya.
+- `tests/unit/ui-accounts.test.js`: test "LEBAR" kini menegaskan sparse TETAP dihitung saat lebar + display dominan-saja (kontrak v121).
+
+**PERILAKU:** setiap rentang (30/90/180/365/Semua) selalu menampilkan ≤4 angka dominan (sebagian rentang lebih sedikit karena bucket kosong/jarak minimal), tidak pernah "semua angka", tidak berubah saat buka-tutup berulang maupun reload.
+
+**VERIFIKASI:** probe konsistensi (tools/probe-accflow-labels.mjs) **25/25 PASS**: 5 rentang × 2 viewport (1440/390) semua ≤4 angka & 0 pasangan bertumpuk; buka-tutup 3× set angka IDENTIK ([8,16,24,30]); setelah reload IDENTIK; 0 error halaman. Unit 33/33 (chart-labels+ui-accounts). CACHE_VERSION `myfinance-v151` → `myfinance-v152`, snapshot SW diregenerasi (`1decb02d…`). (npm test lengkap + harness + Lighthouse + idempotensi dicatat di commit.)
+
+**STATUS:** siap di-commit & push sebagai v121.

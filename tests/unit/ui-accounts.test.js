@@ -125,12 +125,16 @@ test("renderAccountDetailCharts: chart Saldo -> line, label/data domain, tooltip
 
 // ===================== chart arus kas (bar, sparse label) =====================
 
-test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Keluar merah); lebar dari clientWidth parent; LEBAR -> tanpa sparse", () => {
+test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Keluar merah); lebar dari clientWidth parent; LEBAR pun tetap sparse (v121)", () => {
   const { deps, chartInstances, domain } = makeDeps();
   renderAccountDetailCharts(deps);
   assert.equal(domain.narrow.w, 640); // clientWidth parent container, BUKAN window.innerWidth
   assert.equal(domain.narrow.n, 3);
-  assert.equal(domain.sparse, undefined);
+  // v121: sparse SELALU dihitung -- keputusan label tidak lagi bergantung lebar
+  // (akar inkonsistensi: render saat view display:none -> clientWidth 0 -> fallback
+  // window.innerWidth -> dikira lebar -> semua angka aktif pada batang sempit).
+  assert.deepEqual(domain.sparse.series, [[100000, 0, 250000], [50000, 0, 0]]);
+  assert.equal(domain.sparse.max, 4);
   const cashflow = chartInstances.find(c => c.config.type === "bar");
   assert.deepEqual(cashflow.config.data.labels, ["Jun", "Jul", "Ags"]);
   // DNA batang HUD: backgroundColor scriptable -- fallback solid = warna sumber lama.
@@ -142,9 +146,13 @@ test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Ke
   assert.equal(dsOut.borderSkipped, false);
   assert.ok(cashflow.config.plugins.some((p) => p.id === "hudGlow"));
   assert.equal(cashflow.config.options.plugins.tooltip.callbacks.label({ dataset: { label: "Masuk" }, raw: 2500 }), "Masuk: Rp 2.500");
+  // v121: walau TIDAK sempit, display tetap sparse-dominan (stub Map: bucket 0 -> dataset 0).
+  const displayWide = cashflow.config.options.plugins.datalabels.display;
+  assert.equal(displayWide({ dataset: { data: [100000, 0, 250000] }, datasetIndex: 0, dataIndex: 0 }), true);
+  assert.equal(displayWide({ dataset: { data: [50000, 0, 0] }, datasetIndex: 1, dataIndex: 0 }), false);
 });
 
-test("renderAccountDetailCharts: SEMPIT -> hanya angka DOMINAN per bucket terpilih (v120); nilai 0/bukan dominan/bucket tak terpilih disembunyikan", () => {
+test("renderAccountDetailCharts: SEMPIT -> hanya angka DOMINAN per bucket terpilih; nilai 0/bukan dominan/bucket tak terpilih disembunyikan", () => {
   const { deps, chartInstances, domain } = makeDeps({ isChartNarrow: () => true });
   renderAccountDetailCharts(deps);
   assert.deepEqual(domain.sparse.series, [[100000, 0, 250000], [50000, 0, 0]]); // [cashIn, cashOut] utuh

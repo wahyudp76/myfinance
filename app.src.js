@@ -7718,9 +7718,16 @@ async function currentUserId() {
                 tbody.innerHTML += historyPaginationHtml(accountHistoryPage, accountPage.totalPages, 'setAccountHistoryPage');
             }
 
-            renderAccountDetailCharts();
-
+            // v121: tampilkan view DULU, baru bangun chart. Urutan lama (render lalu
+            // switchView) membangun chart saat #view-akun-detail masih display:none ->
+            // clientWidth container = 0 -> fallback window.innerWidth -> chart dikira
+            // "lebar" -> Chart.js resize ke lebar asli & menggambar ulang dgn keputusan
+            // basi (semua label aktif pada batang sempit). Angka arus kas kini selalu
+            // sparse (lihat src/ui/accounts.js), tapi urutan ini tetap dipulihkan supaya
+            // SEMUA keputusan berbasis lebar (tick sumbu-x, padding layout) memakai
+            // lebar container yang sebenarnya.
             switchView('akun-detail');
+            renderAccountDetailCharts();
         }
 
         // buildAccountSeries() lama sudah dipindah ke src/domain/accounts.js

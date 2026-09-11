@@ -130,24 +130,24 @@ export function renderAccountDetailCharts({
 
   if (charts.accCashflow) charts.accCashflow.destroy();
   if (document.getElementById("accountDetailChart")) {
-    // Sama seperti chart "Tren Transaksi"/"Tren Kategori" -- di layar sempit (HP), cuma
-    // beberapa titik (bucket) paling signifikan yang dikasih label, dengan jarak minimal
-    // antar titik berlabel. BEDANYA (v120): chart ini punya 2 dataset (Masuk & Keluar)
-    // per titik, dan di rentang 30 hari (bucket harian, batang cuma ~9-15px per pasangan)
-    // DUA angka berdampingan di atas sepasang batang saling menimpa -- teks "844K"
-    // (±22px @font 8) lebih lebar dari satu bucket utuh. Maka di mode sempit, per bucket
-    // terpilih HANYA dataset DOMINAN (nilai terbesar) yang diberi angka: total teks
-    // maksimal 4 angka, satu per bucket terpilih. Nilai satunya tetap bisa dilihat
-    // lewat tap (tooltip). Batang yg tidak kepilih tetap ada, tanpa angka.
+    // Sama seperti chart "Tren Transaksi"/"Tren Kategori" -- batang banyak & sempit
+    // cuma dikasih beberapa angka paling signifikan. v121: keputusan label chart ini
+    // kini TIDAK LAGI bergantung lebar container (SELALU sparse) -- akar masalah v120:
+    // chart pernah dibangun saat #view-akun-detail masih display:none (openAccountDetail
+    // lama: render sebelum switchView) -> clientWidth = 0 -> fallback window.innerWidth
+    // -> dikira "lebar" -> SEMUA angka aktif, lalu Chart.js me-resize canvas ke lebar
+    // asli (~ratusan px) & menggambar ulang dengan keputusan basi -> angka bertumpuk,
+    // dan hilang-appear lagi antar rentang/reload (inkonsistensi yang dilaporkan pemilik).
+    // Sekarang: data sama = set angka sama, APAPUN rentang/lebar/reload.
     //
-    // "Sempit?" dicek dari lebar CONTAINER chart (bukan window.innerWidth -- chart ini
-    // duduk berdampingan 2-kolom bareng chart "Tren Saldo Akun", jadi window lebar tidak
-    // berarti canvas-nya lebar) dibagi jumlah titik data. Ketiga chart bar di app ini
-    // (chart ini, "Tren Transaksi", "Tren Kategori") sekarang satu sumber kebenaran di
-    // src/domain/chart-labels.js (dipakai juga oleh tests/unit/chart-labels.test.js).
+    // Dua dataset (Masuk & Keluar) per bucket: di bucket terpilih HANYA dataset DOMINAN
+    // (nilai terbesar) yang diberi angka -- dua angka berdampingan di atas sepasang
+    // batang ~9-15px (rentang 30 hari) saling menimpa. Maksimal 4 angka; nilai satunya
+    // tetap bisa dilihat lewat tap (tooltip). Sumbu-x & "sempit?" (padding layout)
+    // memakai lebar CONTAINER chart (bukan window.innerWidth).
     const cashflowContainerWidth = document.getElementById("accountDetailChart").parentElement.clientWidth || window.innerWidth;
     const cashflowIsNarrow = isChartNarrow(cashflowContainerWidth, bucketLabels.length);
-    const cashflowCellsToShow = cashflowIsNarrow ? selectSparseLabelCells([cashInData, cashOutData], 4) : null;
+    const cashflowCellsToShow = selectSparseLabelCells([cashInData, cashOutData], 4);
     // Semua mode menempatkan legend di BAWAH chart agar label batang selalu
     // punya area terpisah dari legend. Pada mobile, sparse labels menjaga angka
     // tetap terbaca tanpa menampilkan 30 label yang saling bertabrakan.
@@ -172,15 +172,12 @@ export function renderAccountDetailCharts({
           legend: { position: cashflowLegendPosition, labels: { boxWidth: 10, padding: 14, font: { size: 10, weight: "bold" } } },
           datalabels: {
             display: (ctx) => {
-              // Pada mobile/range 30 hari, lebar tiap batang sangat sempit. Label
-              // nominal sengaja disembunyikan agar tidak naik ke area legend atau
-              // bertabrakan dengan label batang sebelahnya; nilai tetap tersedia
-              // melalui tooltip saat batang disentuh. v120: saat sempit, hanya
-              // dataset DOMINAN per bucket terpilih yang diberi label (satu angka
-              // per bucket, bukan dua yang saling menimpa).
+              // v121: SELALU sparse & deterministik -- hanya dataset DOMINAN per bucket
+              // terpilih yang diberi angka (maks 4 angka), apapun lebar container /
+              // rentang / jalur render (buka detail, ganti rentang, resize, reload).
+              // Nilai lain tetap tersedia melalui tooltip saat batang disentuh.
               if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
-              if (cashflowCellsToShow && cashflowCellsToShow.get(ctx.dataIndex) !== ctx.datasetIndex) return false;
-              return true;
+              return cashflowCellsToShow.get(ctx.dataIndex) === ctx.datasetIndex;
             },
             color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 4, clamp: true
           },
