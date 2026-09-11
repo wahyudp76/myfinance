@@ -339,3 +339,79 @@ export function replaceTransactionRow(rows, row) {
   }
   return list;
 }
+
+/**
+ * v119 — rekonsiliasi mutasi lokal terhadap respons fetch yang MUNGKIN basi.
+ *
+ * MASALAH (dibuktikan probe tools/probe-sync-input.mjs): simpan transaksi saat
+ * sinkronisasi penuh sedang berjalan (mis. pull-to-refresh di koneksi lambat).
+ * Respons GET diambil server pada SAAT REQUEST DIMULAI -- INSERT yang terjadi
+ * setelahnya belum termuat. Saat respons basi itu mendarat, `globalData = rows`
+ * MENIMPA state lokal: baris yang barusan disimpan user HILANG dari UI (padahal
+ * aman di cloud) sampai reload berikutnya. Kasus kembar: HAPUS saat GET basi
+ * berjalan -> baris yang sudah dihapus "hidup lagi" di UI.
+ *
+ * SOLUSI: setiap mutasi lokal sukses (echo insert/update, delete) dicatat di
+ * peta pending {id -> { op, row?, at }} (`at` = performance.now() saat mutasi).
+ * Setiap kali hasil fetch akan mengisi globalData, lewat fungsi ini dulu dengan
+ * `fetchStartAt` = waktu fetch DIMULAI:
+ *  - upsert + respons TIDAK memuat id -> baris lokal DIPERTAHANKAN (insert
+ *    belum terlihat snapshot basi). Pending dipertahankan sampai ada respons
+ *    yang benar-benar memuat id itu.
+ *  - upsert + respons memuat id -> versi LOKAL menimpa (hasil POST/PATCH lebih
+ *    baru). Pending selesai bila isi respons == isi lokal DAN fetch ini dimulai
+ *    SETELAH mutasi DAN tak ada fetch lebih-tua-dari-mutasi yang masih berjalan
+ *    (aturan saksi yang sama dgn delete).
+ *  - delete + respons masih memuat id -> baris dibuang dari hasil, pending
+ *    dipertahankan (respons berikutnya bisa masih basi).
+ *  - delete + respons tanpa id -> pending selesai HANYA bila fetch ini dimulai
+ *    SETELAH delete (fetch lama boleh saja tak memuat baris yang bahkan belum
+ *    pernah ia lihat) DAN tidak ada fetch lain yang LEBIH TUA dari mutasi itu
+ *    dan masih berjalan (respons basinya bisa tiba BELAKANGAN dan menghidupkan
+ *    baris lagi -- kasus nyata probe v119: refresh pasca-delete memuaskan
+ *    pending, lalu GET pra-delete yang lambat mendarat terakhir).
+ *
+ * Murni tanpa DOM; peta pending dipegang pemanggil (app.src.js), entri yang
+ * selesai dikembalikan lewat `satisfied` supaya pemanggil memangkas petanya.
+ *
+ * @param {Array}  fetchedRows      baris hasil GET (bentuk mapTransactionRow).
+ * @param {Map}    pendingMutations Map id -> { op:'upsert'|'delete', row?, at:number }.
+ * @param {number} fetchStartAt     performance.now() saat fetch dimulai.
+ * @param {number[]} [inFlightFetchStarts] waktu mulai fetch lain yang MASIH
+ *   berjalan (termasuk fetch ini boleh -- aturan sudah tak menganggapnya lebih
+ *   tua dari dirinya sendiri). Entry hanya boleh puas bila tak ada di antaranya
+ *   yang lebih tua dari mutasi entry (respons basi bisa tiba belakangan).
+ * @returns {{ rows: Array, satisfied: string[] }}
+ */
+export function reconcileTxRowsWithPending(fetchedRows, pendingMutations, fetchStartAt, inFlightFetchStarts = []) {
+  const fetched = Array.isArray(fetchedRows) ? fetchedRows : [];
+  const rows = fetched.slice();
+  const satisfied = [];
+  if (!pendingMutations || typeof pendingMutations.forEach !== "function" || pendingMutations.size === 0) {
+    return { rows, satisfied };
+  }
+  pendingMutations.forEach((mut, rawId) => {
+    const id = String(rawId);
+    const fetchIdx = fetched.findIndex((r) => r && String(r.id) === id);
+    const rowsIdx = rows.findIndex((r) => r && String(r.id) === id);
+    const mulaiSesudahMutasi = typeof fetchStartAt === "number" && typeof mut.at === "number" && fetchStartAt >= mut.at;
+    // Saksi tambahan: fetch lain yang lebih tua dari mutasi dan masih berjalan bisa
+    // membawa respons basi yang tiba BELAKANGAN -> jangan puaskan entry ini dulu.
+    const adaFetchLebihTuaBerjalan = Array.isArray(inFlightFetchStarts) && inFlightFetchStarts.some((s) => typeof s === "number" && s < mut.at);
+    if (mut.op === "upsert" && mut.row) {
+      if (fetchIdx === -1) {
+        rows.push(mut.row); // insert belum kelihatan di snapshot basi -> pertahankan
+      } else {
+        rows[rowsIdx] = mut.row; // versi lokal (respons POST/PATCH) lebih baru
+        // Selesai bila server sudah menyajikan isi yang sama persis DAN fetch ini
+        // dimulai setelah mutasi (saksi yang valid). (Kedua baris lewat
+        // mapTransactionRow yang sama -> bentuk & urutan kunci identik.)
+        if (mulaiSesudahMutasi && !adaFetchLebihTuaBerjalan && JSON.stringify(fetched[fetchIdx]) === JSON.stringify(mut.row)) satisfied.push(id);
+      }
+    } else if (mut.op === "delete") {
+      if (rowsIdx !== -1) rows.splice(rowsIdx, 1); // snapshot basi masih memuat baris terhapus
+      else if (mulaiSesudahMutasi && !adaFetchLebihTuaBerjalan) satisfied.push(id); // fetch pasca-delete + tak ada saksi basi berjalan -> benar2 hilang
+    }
+  });
+  return { rows, satisfied };
+}

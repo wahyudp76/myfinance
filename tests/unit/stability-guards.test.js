@@ -52,8 +52,9 @@ test("v69: commit state hanya dari panggilan yang masih terakhir & akun sama", (
     "guard commit harus memastikan akun tidak berubah selama fetch (logout/ganti akun)"
   );
   assert.ok(
-    chain.includes("if (!stillCurrent) return;"),
-    "commit basi harus dilewati (return sebelum menimpa state)"
+    // v119: baris return kini juga melepas saksi in-flight (_txFetchInFlight) sebelum keluar
+    chain.includes("if (!stillCurrent) { _txFetchInFlight.delete(loadFetchStart); return; }"),
+    "commit basi harus dilewati (return sebelum menimpa state, plus lepas saksi in-flight v119)"
   );
 });
 

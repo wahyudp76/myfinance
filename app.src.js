@@ -840,6 +840,30 @@ async function currentUserId() {
             if (categoryDetailName && categoryDetailJenis) openCategoryDetail(categoryDetailName, categoryDetailJenis, true);
         }
         let currentEditId = null; 
+        // v119 (input): guard anti double-submit. Dua submitForm beruntun (event antrean
+        // di perangkat lambat / pemanggilan ganda) tanpa guard terbukti mengirim 2 POST
+        // (probe tools/probe-sync-input.mjs). Overlay #loading memblokir klik ganda NYATA,
+        // tapi bukan pemanggilan programatik/ter-antre; guard ini menutup celah itu.
+        let _txSaveInFlight = false;
+        // v119 (sync): peta mutasi lokal yang belum pasti terlihat oleh fetch yang sedang
+        // berjalan. Key = id transaksi (string), value = { op:'upsert', row } | { op:'delete' }.
+        // Dicek & dipangkas oleh commitFetchedTransactions() setiap kali hasil GET akan
+        // menimpa globalData -- mencegah respons basi menghapus baris yang baru disimpan
+        // user atau menghidupkan lagi baris yang baru dihapus (lost-update, probe v119).
+        let _pendingTxMutations = new Map();
+        // v119: waktu mulai fetch transaksi yang MASIH berjalan. Entry pending hanya boleh
+        // dianggap selesai bila tak ada fetch yang lebih tua dari mutasinya dan masih
+        // in-flight -- respons basi bisa tiba BELAKANGAN (bukti probe v119 skenario delete).
+        const _txFetchInFlight = new Set();
+        // Penanda simpan selesai (sukses/gagal): bebaskan guard + sembunyikan overlay.
+        function txSaveDone() { _txSaveInFlight = false; showLoading(false); }
+        // SATU pintu komit hasil fetch transaksi ke globalData: rekonsiliasi dulu dengan
+        // mutasi lokal yang belum ter-laporan oleh respons (bisa basi), baru timpa state.
+        function commitFetchedTransactions(fetched, fetchStartAt) {
+            const rec = servicesModule.reconcileTxRowsWithPending(fetched, _pendingTxMutations, fetchStartAt, [..._txFetchInFlight]);
+            rec.satisfied.forEach((id) => _pendingTxMutations.delete(id));
+            globalData = rec.rows;
+        }
         let currentAssetEditId = null;
         // Flag "Simpan & Catat Lagi": diset oleh tombol repeat, dibaca & langsung di-reset
         // di awal submitForm() -- jadi tidak pernah "nyangkut" ke submit berikutnya.
@@ -3308,20 +3332,38 @@ async function currentUserId() {
         }
         function updateFormOptions() {
             const akunSelect = document.getElementById('akun');
+            // v119 (input vs sync): fungsi ini juga dipanggil oleh commit sinkronisasi latar
+            // (loadData/echo saat daftar akun berubah). Dulunya ia MEMUSNAHKAN isi form yang
+            // sedang diisi user: innerHTML akun me-reset pilihan, kategori dikosongkan, kurs
+            // tujuan transfer di-nol-kan -- terbukti probe (sync mendarat saat user mengisi
+            // form -> kategori hilang -> simpan ditolak "Silakan pilih kategori!"). Sekarang:
+            // daftar opsi diperbarui, tapi SELEKSI yang masih valid DIPERTAHANKAN; kategori
+            // hanya direset bila form sedang TIDAK terbuka (atau memang kosong).
+            const prevAkun = akunSelect.value;
+            const prevKategori = document.getElementById('kategori').value;
+            const formTerbuka = !document.getElementById('modalForm').classList.contains('hidden');
+            const pertahankanKategori = !!(formTerbuka && prevKategori);
             // Nama akun adalah input user (bisa mengandung karakter markup) & nilainya ditaruh di
             // atribut value + teks <option> -- WAJIB di-escape (pola yang sama dgn select akun di
             // form berulang/recurring, lihat openRecurringFormModal). Sebelumnya tidak di-escape di
             // sini: nama akun berisi tanda kutip/<> merusak markup dropdown ini.
             akunSelect.innerHTML = appSettings.accounts.map(acc => `<option value="${escapeHtml(acc)}">${escapeHtml(acc)}</option>`).join('');
+            // Pulihkan pilihan akun lama bila masih ada di daftar baru (akun dihapus -> fallback
+            // ke opsi pertama, perilaku lama).
+            if (prevAkun && [...akunSelect.options].some((o) => o.value === prevAkun)) {
+                akunSelect.value = prevAkun;
+            }
             handleAccountChangeForCurrency(); // sinkronkan info mata uang/kurs ke akun yg kepilih (default: pertama)
             
-            document.getElementById('kategori').value = '';
-            document.getElementById('selected-category-display').innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>Pilih Kategori`;
-            // Akun tujuan ikut direset di atas -> state kurs tujuannya juga harus ikut direset,
-            // supaya tidak ada sisa kurs dari akun tujuan pilihan SEBELUMNYA yang nyangkut.
-            currentTxMataUangTujuan = null; currentTxKursTujuan = 1;
-            currentTransferDestIsAsset = false; currentTransferDestAssetId = null; // tujuan direset -> bukan setor aset
-            updateTransferDestCurrencyHintUI(currentTxMataUang, null, 1);
+            if (!pertahankanKategori) {
+                document.getElementById('kategori').value = '';
+                document.getElementById('selected-category-display').innerHTML = `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center mr-2"><i class="fas fa-question text-[10px]"></i></div>Pilih Kategori`;
+                // Akun tujuan ikut direset di atas -> state kurs tujuannya juga harus ikut direset,
+                // supaya tidak ada sisa kurs dari akun tujuan pilihan SEBELUMNYA yang nyangkut.
+                currentTxMataUangTujuan = null; currentTxKursTujuan = 1;
+                currentTransferDestIsAsset = false; currentTransferDestAssetId = null; // tujuan direset -> bukan setor aset
+                updateTransferDestCurrencyHintUI(currentTxMataUang, null, 1);
+            }
             
             let labelKat = document.getElementById('label-kategori');
             if (activeFormType === 'Pengeluaran') { labelKat.innerText = "Kategori Pengeluaran"; } 
@@ -3875,12 +3917,17 @@ async function currentUserId() {
         // kosong alih-alih menutup modal, jadi entri transaksi beruntun tidak perlu
         // buka-tutup modal berkali-kali.
         function submitFormNewAndRepeat() {
+            if (_txSaveInFlight) return; // v119: jangan konsumsi flag repeat saat simpan lain masih berjalan
             _pendingRepeatSave = true;
             submitForm(new Event('submit'));
         }
 
         function submitForm(e) {
             if(e) e.preventDefault();
+            // v119: satu simpanan dalam satu waktu. Klik ganda nyata sudah diblokir overlay
+            // #loading, tapi pemanggilan beruntun (event antrean, perangkat lambat, jalur
+            // programatik) terbukti bisa menembus -> 2 POST duplikat (probe v119).
+            if (_txSaveInFlight) return;
             const form = document.getElementById('formInput'); 
             const catVal = document.getElementById('kategori').value;
             if(!catVal) { alert("Silakan pilih kategori/tujuan transfer!"); return; }
@@ -3893,6 +3940,7 @@ async function currentUserId() {
                 showErrorToast('Kurs untuk akun tujuan belum berhasil diambil. Coba pilih ulang akun tujuannya.'); return;
             }
 
+            _txSaveInFlight = true; // v119: aktif mulai titik ini; dibebaskan oleh txSaveDone()
             showLoading(true);
             const wasEdit = !!currentEditId; // simpan sebelum async, karena currentEditId bisa berubah setelahnya
             const jumlahNum = Number(document.getElementById('jumlah').value);
@@ -3903,7 +3951,7 @@ async function currentUserId() {
                 mata_uang: currentTxMataUang, kurs: currentTxMataUang ? currentTxKurs : 1,
                 jumlah_idr: currentTxMataUang ? Math.round(jumlahNum * currentTxKurs) : jumlahNum
             };
-            const onSaveFail = () => { showErrorToast('Gagal menyimpan transaksi. Periksa koneksi internet kamu lalu coba lagi.'); showLoading(false); };
+            const onSaveFail = () => { showErrorToast('Gagal menyimpan transaksi. Periksa koneksi internet kamu lalu coba lagi.'); txSaveDone(); };
             // Ambil status budget SEBELUM transaksi ini masuk (cuma relevan utk Pengeluaran) -- dibandingkan
             // lagi SETELAH data ke-refresh, buat deteksi baru saja lewat ambang 80%/100% (lihat penjelasan
             // di notifyIfBudgetThresholdCrossed).
@@ -3918,6 +3966,7 @@ async function currentUserId() {
                 if (repeatSave) openModal(false); else closeModal();
                 applyLocalTxEcho(wasEdit ? 'update' : 'insert', txRow, assetPatches, () => { if (budgetBefore) notifyIfBudgetThresholdCrossed(catVal, budgetBefore); });
                 showSuccessToast(successMsg);
+                txSaveDone(); // v119: simpan selesai -> guard double-submit dibebaskan
             };
             const onSaveOk = (txRow, assetPatches) => finishSave(txRow, assetPatches, wasEdit ? 'Transaksi berhasil diperbarui.' : 'Transaksi berhasil dicatat.');
 
@@ -3926,10 +3975,11 @@ async function currentUserId() {
                 // nama aset -> saldo akun sumber berkurang lewat logika transfer yg ada) LALU
                 // nilai/modal/value_history aset di-update via applyAssetDeposit. BUKAN lewat
                 // RPC create_transfer_transaction -- RPC itu khusus transfer akun-ke-akun.
-                if (!(jumlahNum > 0)) { showErrorToast('Jumlah setoran harus lebih dari 0.'); showLoading(false); return; }
+                if (!(jumlahNum > 0)) { showErrorToast('Jumlah setoran harus lebih dari 0.'); txSaveDone(); return; }
                 const assetTarget = globalAssets.find(a => a.id === currentTransferDestAssetId);
-                if (!assetTarget) { showErrorToast('Aset tujuan tidak ditemukan -- pilih ulang dari daftar tujuan.'); showLoading(false); return; }
+                if (!assetTarget) { showErrorToast('Aset tujuan tidak ditemukan -- pilih ulang dari daftar tujuan.'); txSaveDone(); return; }
                 const runDeposit = () => {
+                    _txSaveInFlight = true; // v119: re-arm guard (dilepas saat dialog saldo ditampilkan)
                     showLoading(true);
                     // Konsistensi aset saat edit:
                     //  - setor baru / lama bukan setor / aset tujuan SAMA -> selisih (baru-lama);
@@ -3969,13 +4019,13 @@ async function currentUserId() {
                     chain
                         .then(() => servicesModule.updateAsset(supabaseClient, assetTarget.id, targetAssetPatch))
                         .then(() => finishSave(savedTxRow, assetPatches, 'Setoran Rp ' + formatRp(jumlahNum) + ' ke ' + assetTarget.nama + ' berhasil dicatat.'))
-                        .catch((err) => { console.error('Setor ke aset gagal:', err); showErrorToast('Gagal menyimpan setoran. Periksa koneksi internet kamu lalu coba lagi.'); showLoading(false); });
+                        .catch((err) => { console.error('Setor ke aset gagal:', err); showErrorToast('Gagal menyimpan setoran. Periksa koneksi internet kamu lalu coba lagi.'); txSaveDone(); });
                 };
                 // Cek lunak: peringatkan bila saldo akun sumber tidak cukup -- user boleh lanjut
                 // (konsisten dgn pengeluaran yg juga tidak memblokir saldo minus).
                 const saldoSumber = servicesModule.computeAccountTotals(globalData, data.akun, { transferTargetAmount }).balance;
                 if (!wasEdit && jumlahNum > saldoSumber) {
-                    showLoading(false);
+                    txSaveDone(); // v119: lepas guard selama menunggu keputusan user; runDeposit re-arm
                     showConfirm('Saldo akun "' + data.akun + '" (Rp ' + formatRp(saldoSumber) + ') lebih kecil dari jumlah setoran. Tetap catat setorannya?', runDeposit);
                     return;
                 }
@@ -4049,6 +4099,9 @@ async function currentUserId() {
             const rowToDelete = globalData.find(t => t.id === id) || null;
             const depositAsset = servicesModule.resolveAssetDepositTx(rowToDelete, globalAssets);
             transactionService.remove(id).then(() => {
+                // v119 (sync): fetch yang sedang berjalan bisa memuat snapshot pra-hapus ->
+                // tanpa pending, baris yang sudah dihapus "hidup lagi" saat respons basi mendarat.
+                _pendingTxMutations.set(String(id), { op: 'delete', at: performance.now() });
                 if (depositAsset) {
                     servicesModule.updateAsset(supabaseClient, depositAsset.id, { ...depositAsset, ...servicesModule.applyAssetDeposit(depositAsset, -(Number(rowToDelete.jumlah) || 0), rowToDelete.tanggal) })
                         .then(() => { refreshTransactionsOnly(() => refreshAssetsOnly()); showSuccessToast('Transaksi dihapus & nominal ditarik kembali dari aset ' + depositAsset.nama + '.'); })
@@ -4249,8 +4302,11 @@ async function currentUserId() {
         // bagian yang relevan -- hasil akhir di layar identik, tapi jauh lebih sedikit request ke server.
         function refreshTransactionsOnly(afterCallback) {
             // Pensyahan api.run (slice transactions): service langsung, callback persis versi lama.
+            const refreshFetchStart = performance.now(); // v119: saksi usia utk rekonsiliasi pending
+            _txFetchInFlight.add(refreshFetchStart);
             transactionService.list().then((transactions) => {
-                globalData = transactions || [];
+                commitFetchedTransactions(transactions || [], refreshFetchStart); // v119: rekonsiliasi mutasi lokal vs respons (bisa basi)
+                _txFetchInFlight.delete(refreshFetchStart);
 
                 // Pendaftaran akun baru + self-heal "nama aset bayangan" -- SATU sumber
                 // kebenaran (src/domain/asset-flows.js, syncAccountsFromTransactions), dipakai
@@ -4277,6 +4333,7 @@ async function currentUserId() {
                 showLoading(false);
                 if (typeof afterCallback === 'function') afterCallback();
             }).catch((err) => {
+                _txFetchInFlight.delete(refreshFetchStart); // v119: fetch gagal -> saksi in-flight dilepas
                 console.error('api.run.getTransactionsOnly gagal:', err);
                 showErrorToast('Gagal memuat data dari cloud. Periksa koneksi internet kamu, lalu coba muat ulang halaman.');
                 showLoading(false);
@@ -4301,6 +4358,9 @@ async function currentUserId() {
         function applyLocalTxEcho(mode, txRow, assetPatches, afterCallback) {
             try {
                 if (!txRow || txRow.id == null) throw new Error('Baris hasil simpan tidak tersedia.');
+                // v119 (sync): catat mutasi sukses supaya fetch yang sedang berjalan (responsnya
+                // bisa snapshot SEBELUM mutasi ini) tidak menghapusnya dari UI saat mendarat.
+                _pendingTxMutations.set(String(txRow.id), { op: 'upsert', row: txRow, at: performance.now() });
                 if (mode === 'insert') globalData = servicesModule.insertTransactionRow(globalData, txRow);
                 else if (mode === 'update') globalData = servicesModule.replaceTransactionRow(globalData, txRow);
                 else throw new Error('Mode echo tidak dikenal: ' + mode);
@@ -4398,6 +4458,8 @@ async function currentUserId() {
             // basi (fetch tumpang-tindih / selesai SETELAH logout) menimpa data yang lebih baru --
             // lihat kontrak request-generation di docs/production-loader-contract.md.
             const loadSeq = ++_loadDataSeq;
+            const loadFetchStart = performance.now(); // v119: saksi usia utk rekonsiliasi pending (fetch basi vs mutasi lokal)
+            _txFetchInFlight.add(loadFetchStart); // v119: fetch ini berjalan -- pending tak boleh puas selama ia bisa membawa respons basi
             const loadUserId = (currentSession && currentSession.user && currentSession.user.id) || null;
             // v68 (optimasi sinkronisasi): tarikan 6 tabel DIMULAI SEGERA di sini, TIDAK lagi
             // menunggu chart lib. Sebelumnya `await window.__mfChartLibReady` (unduhan+parse
@@ -4450,8 +4512,9 @@ async function currentUserId() {
                 const stillCurrent = loadSeq === _loadDataSeq &&
                     ((loadUserId === null && !(currentSession && currentSession.user)) ||
                      (loadUserId !== null && currentSession && currentSession.user && currentSession.user.id === loadUserId));
-                if (!stillCurrent) return;
-                globalData = response.transactions || [];
+                if (!stillCurrent) { _txFetchInFlight.delete(loadFetchStart); return; } // v119: jangan bocorkan saksi in-flight
+                commitFetchedTransactions(response.transactions || [], loadFetchStart); // v119: rekonsiliasi mutasi lokal vs respons (bisa basi)
+                _txFetchInFlight.delete(loadFetchStart); // commit selesai -> fetch ini tak lagi menghalangi kepuasan pending
                 cloudBudgets = response.budgets || {};
                 globalAssets = response.assets || [];
                 globalRecurring = response.recurring || [];
@@ -4580,6 +4643,8 @@ async function currentUserId() {
                 reconcileAppLockAfterLoad(); // v92: sinkronkan kunci cloud -> cache lokal; kunci jika baru diaktifkan dari perangkat lain
                 maybeShowReminders(); // v92: pengingat budget/recurring/tujuan (dedup per perangkat)
             }).catch((err) => {
+                // v119: fetch selesai (gagal/batal) -> saksi in-flight dilepas di SEMUA jalur keluar.
+                _txFetchInFlight.delete(loadFetchStart);
                 // v69: kegagalan dari panggilan yang SUDAH BASI (ada loadData lebih baru, atau user
                 // logout saat fetch berjalan) tidak berhak menampilkan toast error -- panggilan
                 // terbaru yang menentukan nasib layar.
@@ -8352,6 +8417,8 @@ async function currentUserId() {
             authModule.onAuthStateChange(({ event }) => {
                 if (event === 'SIGNED_OUT') {
                     appLockOnSignedOut(); // v92: bersihkan timer/overlay kunci & state sesi
+                    _pendingTxMutations.clear(); // v119: pending milik user ini tidak boleh ikut ke sesi berikutnya
+                    _txFetchInFlight.clear();
                     showLoginView();
                 }
             });

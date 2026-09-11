@@ -7,6 +7,7 @@ import {
   computeDateRangeView,
   isWithinAmountRange,
   computeDayNetTotal,
+  reconcileTxRowsWithPending,
 } from "../../src/domain/transactions.js";
 
 const parseTgl = (tanggalStr) => new Date(String(tanggalStr).split("T")[0] + "T00:00:00");
@@ -183,4 +184,113 @@ test("computeDayNetTotal: Transfer TIDAK dihitung sama sekali", () => {
 
 test("computeDayNetTotal: grup kosong -> 0", () => {
   assert.equal(computeDayNetTotal([], { txIdrAmount }), 0);
+});
+
+// ===== v119: rekonsiliasi mutasi lokal vs respons fetch (anti lost-update) =====
+const mkTx = (id, jumlah, ket) => ({ id, jenis: "Pengeluaran", kategori: "Makanan", akun: "BCA", tanggal: "2026-09-01", jumlah: String(jumlah), keterangan: ket ?? id, mata_uang: null, kurs: 1, jumlah_idr: String(jumlah) });
+
+test("v119 reconcileTxRowsWithPending: insert belum termuat respons basi -> baris lokal DIPERTAHANKAN, pending tetap", () => {
+  const fetched = [mkTx("a", 100), mkTx("b", 200)];
+  const baru = mkTx("baru", 300);
+  const pending = new Map([["baru", { op: "upsert", row: baru, at: 500 }]]);
+  // fetch dimulai SEBELUM insert (100 < 500) -> snapshot basi tak memuat baris
+  const { rows, satisfied } = reconcileTxRowsWithPending(fetched, pending, 100);
+  assert.equal(rows.length, 3);
+  assert.ok(rows.some((r) => r.id === "baru"));
+  assert.deepEqual(satisfied, []);
+});
+
+test("v119 reconcileTxRowsWithPending: respons basi memuat versi LAMA -> versi lokal (baru) menimpa, pending tetap", () => {
+  const lama = mkTx("x", 100, "versi-lama");
+  const baru = mkTx("x", 999, "versi-baru");
+  const pending = new Map([["x", { op: "upsert", row: baru, at: 500 }]]);
+  const { rows, satisfied } = reconcileTxRowsWithPending([mkTx("a", 1), lama], pending, 100);
+  const x = rows.find((r) => r.id === "x");
+  assert.equal(x.keterangan, "versi-baru");
+  assert.equal(x.jumlah, "999");
+  assert.deepEqual(satisfied, []); // isi respons != lokal -> pending dipertahankan
+});
+
+test("v119 reconcileTxRowsWithPending: fetch PASCA-mutasi menyajikan versi baru -> pending selesai", () => {
+  const baru = mkTx("x", 999, "sama");
+  const pending = new Map([["x", { op: "upsert", row: baru, at: 500 }]]);
+  const { rows, satisfied } = reconcileTxRowsWithPending([mkTx("a", 1), baru], pending, 600);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(satisfied, ["x"]);
+});
+
+test("v119 reconcileTxRowsWithPending: fetch PRA-mutasi (saksi tak valid) -> meski isi sama, pending TETAP", () => {
+  const baru = mkTx("x", 999, "sama");
+  const pending = new Map([["x", { op: "upsert", row: baru, at: 500 }]]);
+  const { satisfied } = reconcileTxRowsWithPending([mkTx("a", 1), baru], pending, 100);
+  assert.deepEqual(satisfied, []); // fetch yang dimulai sebelum mutasi tak bisa memuaskan
+});
+
+test("v119 reconcileTxRowsWithPending: delete + respons basi masih memuat baris -> dibuang, pending tetap", () => {
+  const fetched = [mkTx("a", 1), mkTx("hapus", 2), mkTx("c", 3)];
+  const pending = new Map([["hapus", { op: "delete", at: 500 }]]);
+  const { rows, satisfied } = reconcileTxRowsWithPending(fetched, pending, 100);
+  assert.ok(!rows.some((r) => r.id === "hapus"));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(satisfied, []);
+});
+
+test("v119 reconcileTxRowsWithPending: delete + fetch PASCA-delete tanpa baris -> pending selesai", () => {
+  const pending = new Map([["hapus", { op: "delete", at: 500 }]]);
+  const { rows, satisfied } = reconcileTxRowsWithPending([mkTx("a", 1)], pending, 600);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(satisfied, ["hapus"]);
+});
+
+test("v119 reconcileTxRowsWithPending: delete + fetch PRA-delete tanpa baris (baris belum pernah ada di snapshot) -> pending TETAP", () => {
+  // Skenario probe: fetch segar (pasca-delete) memuaskan pending terlalu cepat, lalu respons
+  // basi yang tiba BELAKANGAN menghidupkan baris lagi. Aturan fetchStart mencegah itu: hanya
+  // fetch yang MULAI setelah delete yang boleh memuaskan.
+  const pending = new Map([["hapus", { op: "delete", at: 500 }]]);
+  const { satisfied } = reconcileTxRowsWithPending([mkTx("a", 1)], pending, 100);
+  assert.deepEqual(satisfied, []);
+});
+
+test("v119 reconcileTxRowsWithPending: tanpa pending -> identik; input null aman", () => {
+  const fetched = [mkTx("a", 1)];
+  assert.deepEqual(reconcileTxRowsWithPending(fetched, new Map(), 999).rows, fetched);
+  assert.deepEqual(reconcileTxRowsWithPending(fetched, null, 999).rows, fetched);
+  assert.deepEqual(reconcileTxRowsWithPending(null, new Map([["z", { op: "delete", at: 1 }]]), 999).rows, []);
+});
+
+test("v119 reconcileTxRowsWithPending: kombinasi (insert baru + edit + delete) dalam satu respons basi", () => {
+  const n = mkTx("new", 50);
+  const ed = mkTx("edit", 60, "baru");
+  const fetched = [mkTx("edit", 10, "lama"), mkTx("del", 20), mkTx("tetap", 30)];
+  const pending = new Map([
+    ["new", { op: "upsert", row: n, at: 500 }],
+    ["edit", { op: "upsert", row: ed, at: 500 }],
+    ["del", { op: "delete", at: 500 }],
+  ]);
+  const { rows, satisfied } = reconcileTxRowsWithPending(fetched, pending, 100);
+  assert.ok(rows.some((r) => r.id === "new"), "insert dipertahankan");
+  assert.equal(rows.find((r) => r.id === "edit").keterangan, "baru", "edit menimpa versi lama");
+  assert.ok(!rows.some((r) => r.id === "del"), "hapus tetap terhapus");
+  assert.ok(rows.some((r) => r.id === "tetap"));
+  assert.deepEqual(satisfied, []);
+});
+
+test("v119 reconcileTxRowsWithPending: fetch pasca-delete TAPI ada fetch pra-delete masih in-flight -> pending TETAP (anti resurrect)", () => {
+  // Kasus nyata probe: refresh (mulai 600, pasca-delete at=500) tak memuat baris, tapi
+  // loadData (mulai 100, pra-delete) masih berjalan & respons basinya bisa tiba belakangan.
+  const pending = new Map([["hapus", { op: "delete", at: 500 }]]);
+  const r = reconcileTxRowsWithPending([mkTx("a", 1)], pending, 600, [100, 600]);
+  assert.deepEqual(r.satisfied, []);
+  // setelah fetch tua (100) selesai, fetch segar berikutnya boleh memuaskan
+  const r2 = reconcileTxRowsWithPending([mkTx("a", 1)], pending, 700, [700]);
+  assert.deepEqual(r2.satisfied, ["hapus"]);
+});
+
+test("v119 reconcileTxRowsWithPending: upsert content-sama tapi ada fetch lebih tua berjalan -> pending TETAP", () => {
+  const baru = mkTx("x", 999, "sama");
+  const pending = new Map([["x", { op: "upsert", row: baru, at: 500 }]]);
+  const r = reconcileTxRowsWithPending([mkTx("a", 1), baru], pending, 600, [100]);
+  assert.deepEqual(r.satisfied, []);
+  const r2 = reconcileTxRowsWithPending([mkTx("a", 1), baru], pending, 600, []);
+  assert.deepEqual(r2.satisfied, ["x"]);
 });

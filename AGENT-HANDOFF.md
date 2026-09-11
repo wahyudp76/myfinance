@@ -2763,3 +2763,25 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **VERIFIKASI:** urutan drift guard CI lengkap LOLOS lokal (build:css + diff css/tailwind.css styles.css; build:app + diff app.js; build:boot + diff boot.bundle.js; build:csp + diff index.html — semua nol diff). Lint 0; unit 919/919; parity 1/1; snapshot SW cocok (v149). Aset yang diberikan browser: byte-identik dgn v117.
 
 **STATUS:** siap di-commit & push sebagai v118 (perbaikan CI).
+
+## v119 — fix bug sync & input (double-submit, lost-update, form reset, resurrect) + kecepatan echo/filter
+**KONTEKS:** permintaan pemilik: "fix bug + cek stability + tingkatkan performance sync data dan input". Probe forensik (tools/probe-sync-input.mjs, 2500 transaksi live + stub delay GET/POST 1500ms) menemukan EMPAT cacat sekaligus pada jalur simpan/sync transaksi.
+
+**AKAR MASALAH (4 temuan probe):**
+- **BUG A — double-submit:** klik cepat 2× tombol Simpan → 2 POST; tidak ada guard in-flight pada jalur submit.
+- **BUG B — lost-update:** GET server (data basi) yang MENDARAT SETELAH echo lokal menimpa baris lokal → baris baru "hilang" dari tabel sampai refresh berikutnya.
+- **BUG C — form di-reset oleh sync commit:** commitFetchedTransactions memanggil ulang pembangun opsi form → pilihan kategori/akun user ter-reset saat sync periodic mendarat.
+- **RACE resurrect:** fetch yang DIMULAI sebelum mutasi DELETE (data masih memuat baris) mendarat SETELAH delete → baris terhapus "hidup lagi".
+
+**PERUBAHAN:**
+- `app.src.js`: guard `_txSaveInFlight` (~3921) — submit kedua di-silent-drop selama POST berjalan; terminal-state txSaveDone (3932–4006) melepas guard di SEMUA jalur keluar. `updateFormOptions` (~3329) hanya menulis `innerHTML` select BILA daftar opsi berubah (formState user utuh — kategori/akun terpilih tak ter-reset).
+- **Domain murni baru** `src/domain/transactions.js` `reconcileTxRowsWithPending(fetchedRows, pendingMutations, fetchStartAt, inFlightFetchStarts = [])` — signature FINAL v3, JANGAN diubah: entri pending `{op, row?, at}` (at = `performance.now()` saat mutasi); `mulaiSesudahMutasi = fetchStartAt >= mut.at`; `adaFetchLebihTuaBerjalan = inFlightFetchStarts.some(s => s < mut.at)`. Upsert: id absen di fetched → push baris lokal; id ada → lokal MENIMPA fetched; satisfied bila mulaiSesudahMutasi && !adaFetchLebihTuaBerjalan && JSON identik. Delete: id ada → splice dari fetched; id absen → satisfied bila mulaiSesudahMutasi && !adaFetchLebihTuaBerjalan. Kunci anti-resurrect: kepuasan pending MENUNGGU semua fetch yang lebih tua dari mutasi selesai — fetch basi yang mendarat belakangan tidak bisa membangkitkan baris terhapus.
+- `app.src.js` wiring: `_pendingTxMutations` Map (853) + `_txFetchInFlight` Set waktu-mulai-fetch (857); `commitFetchedTransactions(fetched, fetchStartAt)` (862) memanggil reconcile dgn snapshot `[..._txFetchInFlight]` lalu menghapus saksi fetch sendiri; SEMUA jalur fetch mendaftar/menghapus saksi: refreshTransactionsOnly (~4303–4310: add / commit-delete / catch-delete) dan loadData (~4461 add; early-return stillCurrent & catch juga delete ~4516+). SIGNED_OUT (8418) membersihkan keduanya. `hapusData` (4082) & `applyLocalTxEcho` (4337) mencatat mutasi pending (`at: performance.now()`).
+- `tests/unit/transactions-domain.test.js` +11 test reconcile (total file 34) termasuk 2 kasus in-flight witness; `tests/unit/stability-guards.test.js` pola guard di-update (baris kini `if (!stillCurrent) { _txFetchInFlight.delete(loadFetchStart); return; }`).
+- `tools/probe-sync-input.mjs` FINAL 16 cek; stub DELETE kini benar-benar memutasi `liveTx` (splice) + jendela tunggu 5000/1200ms — versi lama menghasilkan false negative (tunggu 2500ms < delay GET 2×1500ms).
+
+**PERILAKU:** double-click/2 submit beruntun → TEPAT 1 POST; repeat 3× → 3 POST & 3 baris; sync periodic mendarat → baris lokal BARU tetap ada + pilihan kategori/akun form TIDAK berubah; delete + fetch basi belakangan → baris tetap terhapus (hidupLagi=false); POST gagal → state konsisten.
+
+**VERIFIKASI:** probe FINAL **16/16 PASS** (boot 2500tx; echo 922–988ms vs baseline 957ms; filter 132–250ms; longtask ketik []; stability 0 error / heap Δ 0.0MB; GET 500 state utuh; settings 2 PUT). Unit domain 34/34; **npm test 930/930**; harness **231/231** (9 script verify-*: hud 70, applock-rpid 31, ui-actions 39, applock 21, asset-logos 17, csp 17, applock-biometric 14, offline-cache 13, ui-sweep 9); Lighthouse PASS (perf 60–62 / a11y 100 / bp 100, TBT 180ms, CLS 0); build idempoten 5/5 (semua builder md5 identik 2×). CACHE_VERSION `myfinance-v149` → `myfinance-v150`, snapshot SW diregenerasi (`e6a36fc6…`).
+
+**STATUS:** siap di-commit & push sebagai v119.
