@@ -61,7 +61,7 @@
  * @param {(fullSeries: Array<object>, periodVal: string, opts: {now: Date}) => {cutoff: Date, bucketLabels: string[], cashInData: number[], cashOutData: number[], balanceLabels: string[], balanceChartData: number[]}} ctx.computeAccountChartSeries -
  *   dari src/domain/accounts.js (via servicesModule).
  * @param {(containerWidth: number, barCount: number) => boolean} ctx.isChartNarrow - dari src/domain/chart-labels.js (via servicesModule).
- * @param {(magnitudes: number[], maxLabels: number) => Set<number>} ctx.selectSparseLabelIndices - dari src/domain/chart-labels.js (via servicesModule); dipanggil HANYA kalau sempit.
+ * @param {(seriesByDataset: number[][], maxLabels: number) => Map<number, number>} ctx.selectSparseLabelCells - dari src/domain/chart-labels.js (via servicesModule); dipanggil HANYA kalau sempit.
  * @param {(filterType: string, opts: {now: Date, syncCutoff: Date, customMonthStr: string|null}) => {start: Date, end: Date}} ctx.resolveAccountCategoryDateRange -
  *   dari src/domain/accounts.js (via servicesModule).
  * @param {(globalData: Array<object>, accName: string, opts: object) => {entries: Array<{label: string, val: number}>}} ctx.aggregateAccountExpenseByCategory -
@@ -85,7 +85,7 @@ import { buildExternalDonutTip, suppressInternalTooltipPlugin } from "./charts.j
 
 export function renderAccountDetailCharts({
   document, currentAccountDetail, globalData, transferTargetAmount, parseTgl,
-  buildAccountBalanceSeries, computeAccountChartSeries, isChartNarrow, selectSparseLabelIndices,
+  buildAccountBalanceSeries, computeAccountChartSeries, isChartNarrow, selectSparseLabelCells,
   resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory,
   getCategoryStyle, categoryIconHtml, formatRp, formatShortVal,
   chartGridColor, chartLabelColor, chartEmptyColor,
@@ -132,10 +132,13 @@ export function renderAccountDetailCharts({
   if (document.getElementById("accountDetailChart")) {
     // Sama seperti chart "Tren Transaksi"/"Tren Kategori" -- di layar sempit (HP), cuma
     // beberapa titik (bucket) paling signifikan yang dikasih label, dengan jarak minimal
-    // antar titik berlabel. Di sini ADA 2 dataset (Masuk & Keluar) per titik, jadi total
-    // teksnya 2x lebih padat -- batasnya dibuat lebih ketat (4, bukan 5) dari chart 1
-    // dataset. Titik yg tidak kepilih tetap ada batangnya, cuma tanpa angka di atasnya --
-    // detail nilainya tetap bisa dilihat lewat tap (tooltip).
+    // antar titik berlabel. BEDANYA (v120): chart ini punya 2 dataset (Masuk & Keluar)
+    // per titik, dan di rentang 30 hari (bucket harian, batang cuma ~9-15px per pasangan)
+    // DUA angka berdampingan di atas sepasang batang saling menimpa -- teks "844K"
+    // (±22px @font 8) lebih lebar dari satu bucket utuh. Maka di mode sempit, per bucket
+    // terpilih HANYA dataset DOMINAN (nilai terbesar) yang diberi angka: total teks
+    // maksimal 4 angka, satu per bucket terpilih. Nilai satunya tetap bisa dilihat
+    // lewat tap (tooltip). Batang yg tidak kepilih tetap ada, tanpa angka.
     //
     // "Sempit?" dicek dari lebar CONTAINER chart (bukan window.innerWidth -- chart ini
     // duduk berdampingan 2-kolom bareng chart "Tren Saldo Akun", jadi window lebar tidak
@@ -144,8 +147,7 @@ export function renderAccountDetailCharts({
     // src/domain/chart-labels.js (dipakai juga oleh tests/unit/chart-labels.test.js).
     const cashflowContainerWidth = document.getElementById("accountDetailChart").parentElement.clientWidth || window.innerWidth;
     const cashflowIsNarrow = isChartNarrow(cashflowContainerWidth, bucketLabels.length);
-    const cashflowMagnitudes = bucketLabels.map((_, i) => Math.abs(cashInData[i] || 0) + Math.abs(cashOutData[i] || 0));
-    const cashflowIndicesToShow = cashflowIsNarrow ? selectSparseLabelIndices(cashflowMagnitudes, 4) : null;
+    const cashflowCellsToShow = cashflowIsNarrow ? selectSparseLabelCells([cashInData, cashOutData], 4) : null;
     // Semua mode menempatkan legend di BAWAH chart agar label batang selalu
     // punya area terpisah dari legend. Pada mobile, sparse labels menjaga angka
     // tetap terbaca tanpa menampilkan 30 label yang saling bertabrakan.
@@ -173,9 +175,11 @@ export function renderAccountDetailCharts({
               // Pada mobile/range 30 hari, lebar tiap batang sangat sempit. Label
               // nominal sengaja disembunyikan agar tidak naik ke area legend atau
               // bertabrakan dengan label batang sebelahnya; nilai tetap tersedia
-              // melalui tooltip saat batang disentuh.
+              // melalui tooltip saat batang disentuh. v120: saat sempit, hanya
+              // dataset DOMINAN per bucket terpilih yang diberi label (satu angka
+              // per bucket, bukan dua yang saling menimpa).
               if (!(ctx.dataset.data[ctx.dataIndex] > 0)) return false;
-              if (cashflowIndicesToShow && !cashflowIndicesToShow.has(ctx.dataIndex)) return false;
+              if (cashflowCellsToShow && cashflowCellsToShow.get(ctx.dataIndex) !== ctx.datasetIndex) return false;
               return true;
             },
             color: (ctx) => chartLabelColor(ctx.datasetIndex === 0 ? ((accentColor && accentColor("incomeBar")) || "#34d399") : "#fb7185"), font: { size: 8, weight: "bold" }, formatter: (v) => formatShortVal(v), anchor: "end", align: "top", offset: 4, clamp: true

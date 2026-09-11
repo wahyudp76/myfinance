@@ -72,3 +72,47 @@ export function selectSparseLabelIndices(magnitudes, maxLabelCount) {
   }
   return new Set(chosen);
 }
+
+/**
+ * Varian utk chart BANYAK DATASET per titik (mis. bar Masuk & Keluar): pilih
+ * bucket yang sama seperti selectSparseLabelIndices (peringkat by TOTAL
+ * magnitudo semua dataset), lalu di tiap bucket terpilih HANYA dataset
+ * DOMINAN (nilai absolut terbesar, > 0) yang boleh menaruh angka.
+ *
+ * Mengapa: dua angka berdampingan di atas sepasang batang selebar ~10-14px
+ * (rentang 30 hari) SALING MENIMPA -- teks "844K" (±22px @font 8) lebih lebar
+ * dari satu bucket utuh. Satu angka dominan per bucket = "beberapa angka
+ * saja" yang tetap terbaca; nilai satunya tetap ada di tooltip (tap batang).
+ *
+ * Tie-break deterministik: dataset indeks terkecil menang (perbandingan
+ * strict >). Bucket bernilai 0 semua tidak pernah terpilih (filter di
+ * selectSparseLabelIndices), jadi `best` selalu valid utk bucket terpilih.
+ *
+ * @param {number[][]} seriesByDataset - 1 array angka per dataset, sejajar
+ *   per indeks bucket (boleh ada null/undefined di dalamnya).
+ * @param {number} maxLabelCount
+ * @returns {Map<number, number>} bucketIndex -> datasetIndex dominan.
+ */
+export function selectSparseLabelCells(seriesByDataset, maxLabelCount) {
+  const datasets = (Array.isArray(seriesByDataset) ? seriesByDataset : []).filter(Array.isArray);
+  const cells = new Map();
+  if (!datasets.length) return cells;
+
+  const bucketCount = datasets.reduce((n, s) => Math.max(n, s.length), 0);
+  const magnitudes = [];
+  for (let i = 0; i < bucketCount; i++) {
+    let sum = 0;
+    for (const s of datasets) sum += Math.abs(Number(s[i]) || 0);
+    magnitudes.push(sum);
+  }
+
+  for (const i of selectSparseLabelIndices(magnitudes, maxLabelCount)) {
+    let bestDataset = -1, bestVal = 0;
+    datasets.forEach((s, d) => {
+      const v = Math.abs(Number(s[i]) || 0);
+      if (v > 0 && v > bestVal) { bestVal = v; bestDataset = d; }
+    });
+    if (bestDataset >= 0) cells.set(i, bestDataset);
+  }
+  return cells;
+}

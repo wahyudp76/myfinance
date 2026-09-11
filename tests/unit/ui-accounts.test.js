@@ -52,7 +52,7 @@ function makeDeps(over = {}) {
       return { cutoff: new Date(2026, 5, 1), bucketLabels: ["Jun", "Jul", "Ags"], cashInData: [100000, 0, 250000], cashOutData: [50000, 0, 0], balanceLabels: ["a", "b", "c"], balanceChartData: [1, 2, 3] };
     },
     isChartNarrow: (w, n) => { domain.narrow = { w, n }; return false; },
-    selectSparseLabelIndices: (mags, max) => { domain.sparse = { mags, max }; return new Set([0]); },
+    selectSparseLabelCells: (series, max) => { domain.sparse = { series, max }; return new Map([[0, 0]]); }, // bucket 0 -> dataset 0 (Masuk dominan)
     resolveAccountCategoryDateRange: (type, opts) => { domain.range = { type, opts }; return { start: new Date(2026, 6, 1), end: new Date(2026, 7, 31) }; },
     aggregateAccountExpenseByCategory: (data, acc, opts) => { domain.cat = { data, acc, opts }; return { entries: [{ label: "Makanan", val: 300000 }, { label: "Transport", val: 120000 }] }; },
     getCategoryStyle: (name, jenis) => ({ icon: "fa-" + name, bg: "bg-x-100", color: "text-x-500", jenis }),
@@ -144,16 +144,19 @@ test("renderAccountDetailCharts: chart Arus Kas -> bar 2 dataset (Masuk hijau/Ke
   assert.equal(cashflow.config.options.plugins.tooltip.callbacks.label({ dataset: { label: "Masuk" }, raw: 2500 }), "Masuk: Rp 2.500");
 });
 
-test("renderAccountDetailCharts: SEMPIT -> label nominal disembunyikan agar tidak menimpa legend; sparse selection tetap dihitung", () => {
+test("renderAccountDetailCharts: SEMPIT -> hanya angka DOMINAN per bucket terpilih (v120); nilai 0/bukan dominan/bucket tak terpilih disembunyikan", () => {
   const { deps, chartInstances, domain } = makeDeps({ isChartNarrow: () => true });
   renderAccountDetailCharts(deps);
-  assert.deepEqual(domain.sparse.mags, [150000, 0, 250000]); // |100000|+|50000|, |0|+|0|, |250000|+|0|
+  assert.deepEqual(domain.sparse.series, [[100000, 0, 250000], [50000, 0, 0]]); // [cashIn, cashOut] utuh
   assert.equal(domain.sparse.max, 4); // lebih ketat dari chart 1-dataset (5)
   const cashflow = chartInstances.find(c => c.config.type === "bar");
   const display = cashflow.config.options.plugins.datalabels.display;
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 0 }), true); // label sparse tetap ditampilkan
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 1 }), false); // nilai 0
-  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, dataIndex: 2 }), false); // di luar sparse set
+  // v120: saat sempit hanya dataset DOMINAN per bucket terpilih yang diberi label
+  // (satu angka per bucket -- dua angka berdampingan saling menimpa di batang ~10px).
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, datasetIndex: 0, dataIndex: 0 }), true); // dominan bucket 0 = Masuk
+  assert.equal(display({ dataset: { data: [50000, 0, 0] }, datasetIndex: 1, dataIndex: 0 }), false); // Keluar di bucket sama -> tutup
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, datasetIndex: 0, dataIndex: 1 }), false); // nilai 0
+  assert.equal(display({ dataset: { data: [100000, 0, 250000] }, datasetIndex: 0, dataIndex: 2 }), false); // di luar sparse set
   const colorFn = cashflow.config.options.plugins.datalabels.color;
   assert.equal(colorFn({ datasetIndex: 0 }), "#047857"); // via chartLabelColor (dataset 0 = Masuk)
 });

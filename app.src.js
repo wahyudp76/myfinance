@@ -7753,7 +7753,7 @@ async function currentUserId() {
                 buildAccountBalanceSeries: servicesModule.buildAccountBalanceSeries,
                 computeAccountChartSeries: servicesModule.computeAccountChartSeries,
                 isChartNarrow: servicesModule.isChartNarrow,
-                selectSparseLabelIndices: servicesModule.selectSparseLabelIndices,
+                selectSparseLabelCells: servicesModule.selectSparseLabelCells,
                 resolveAccountCategoryDateRange: servicesModule.resolveAccountCategoryDateRange,
                 aggregateAccountExpenseByCategory: servicesModule.aggregateAccountExpenseByCategory,
                 getCategoryStyle, categoryIconHtml, jsStr, formatRp, formatShortVal,

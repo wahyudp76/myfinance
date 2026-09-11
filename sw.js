@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v150'; // v116: batalkan penggambaran tooltip internal donat (kotak hitam di dalam pie)
+const CACHE_VERSION = 'myfinance-v151'; // v116: batalkan penggambaran tooltip internal donat (kotak hitam di dalam pie)
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 // v100: dinaikkan v1 -> v2 SEKALI supaya sampah yang sudah terlanjur menumpuk di

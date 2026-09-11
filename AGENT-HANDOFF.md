@@ -2785,3 +2785,20 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **VERIFIKASI:** probe FINAL **16/16 PASS** (boot 2500tx; echo 922–988ms vs baseline 957ms; filter 132–250ms; longtask ketik []; stability 0 error / heap Δ 0.0MB; GET 500 state utuh; settings 2 PUT). Unit domain 34/34; **npm test 930/930**; harness **231/231** (9 script verify-*: hud 70, applock-rpid 31, ui-actions 39, applock 21, asset-logos 17, csp 17, applock-biometric 14, offline-cache 13, ui-sweep 9); Lighthouse PASS (perf 60–62 / a11y 100 / bp 100, TBT 180ms, CLS 0); build idempoten 5/5 (semua builder md5 identik 2×). CACHE_VERSION `myfinance-v149` → `myfinance-v150`, snapshot SW diregenerasi (`e6a36fc6…`).
 
 **STATUS:** siap di-commit & push sebagai v119.
+
+## v120 — Arus Kas Detail Akun rentang 30 hari: angka dominan saja (tidak lagi bertumpuk)
+**KONTEKS:** laporan pemilik: "masih ada bug angka yang ditampilkan terlalu rapat pada rentang 30 hari" pada grafik Arus Kas Masuk vs Keluar di Detail Akun (tab Akun/rekening) — perbaiki supaya angka yang tampil hanya beberapa saja.
+
+**AKAR MASALAH (repro probe tools/probe-accflow-labels.mjs, seed 31 hari × Masuk+Keluar/hari di BCA):** rentang 30 hari = bucket HARIAN (31 bucket) sehingga sepasang batang Masuk+Keluar cuma mendapat 8.6–14.7px. Mekanisme sparse lama (selectSparseLabelIndices, v-unifikasi chart-labels) memang sudah membatasi ke 4 bucket terpaling-signifikan, TAPI di setiap bucket terpilih KEDUA dataset diberi label → 8 angka; teks "844K" (±22px @font 8 bold) lebih lebar dari satu bucket utuh → pasangan Masuk/Keluar di bucket yang sama SALING MENIMPA dan meluber ke batang tetangga. Terkonfirmasi di 3 viewport (1440/390/1920): visibleCount=8, doubleLabelsAtSameIndex=4.
+
+**PERUBAHAN:**
+- `src/domain/chart-labels.js` + fungsi murni `selectSparseLabelCells(seriesByDataset, maxLabelCount)` → `Map<bucketIndex, datasetIndex>`: ranking bucket tetap by TOTAL magnitudo semua dataset (reuse selectSparseLabelIndices → jarak minimal & filter 0 tetap berlaku), lalu per bucket terpilih HANYA dataset DOMINAN (abs terbesar, >0) yang dipilih; tie → dataset indeks terkecil (deterministik); guard input non-array.
+- `src/ui/accounts.js`: chart Arus Kas kini `cashflowCellsToShow = selectSparseLabelCells([cashInData, cashOutData], 4)` saat sempit; callback `datalabels.display` menutup dataset non-dominan (`cells.get(i) !== datasetIndex`). Mode lebar (tidak sempit) TIDAK berubah. Chart 1-dataset lain (Tren Transaksi/Kategori) TIDAK berubah.
+- Wiring: `boot.js` (import + attach servicesModule) dan `app.src.js` (renderAccountDetailChartsUI deps: selectSparseLabelIndices → selectSparseLabelCells).
+- `tests/unit/chart-labels.test.js` +7 test (dominan, bucket tak terpilih, ≤maxLabelCount, tie, null, all-zero, guard, 3-dataset); `tests/unit/ui-accounts.test.js` di-update (stub Map + assertion dataset dominan vs non-dominan).
+
+**PERILAKU:** rentang 30 hari kini menampilkan maksimal 4 ANGKA (satu per bucket signifikan, warna mengikuti arus dominan hijau/merah) — turun dari 8 yang saling menimpa; nilai satunya tetap tersedia via tooltip tap batang. Rentang 90/180/365 ikut membaik (juga 4 angka); sumbu-x tetap ≤8 tick, legend bawah tidak berubah.
+
+**VERIFIKASI:** probe pasca-fix 3 viewport: visibleCount 8→**4**, doubleLabelsAtSameIndex 4→**0**, indeks terpilih tetap bucket signifikan (8/16/24/30), 0 error halaman. Unit chart-labels+ui-accounts 33/33. CACHE_VERSION `myfinance-v150` → `myfinance-v151`, snapshot SW diregenerasi (`67de624d…`). (npm test lengkap + harness + Lighthouse + idempotensi build dicatat di commit.)
+
+**STATUS:** siap di-commit & push sebagai v120.
