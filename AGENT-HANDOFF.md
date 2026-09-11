@@ -2748,3 +2748,18 @@ dikelola oleh `npm run build:csp`. Hash kosong itu diperlukan karena FullCalenda
 **VERIFIKASI:** probe bukti-piksel baru (tools/probe-donut-clip.mjs) **65/65 PASS**, 0 error console: per segmen per donat — ring tepi kanvas 2px bebas piksel solid (busur tak terpotong), 4 kotak sudut kanvas total kosong (glow ter-clip lingkaran), pop-out tetap terjadi (maxR=base+7±1) dan muat (≤ half+1), radius dasar = ukuran lama, kartu eksternal + tanpa kotak internal + hint idle + klik-navigasi. Regresi probe v116 19/19 PASS. Harness verify-hud disesuaikan (kotak radar = leluhur yang memuat overlay radar, bukan parent langsung kanvas — kini ada wrapper) → **70/70**; total 9 harness **231/231**. Lint 0; unit **919/919** (+2 test: layout.padding builder; clip lingkaran glow); parity 1/1; build idempoten 5/5 (app/boot/tailwind/styles/index); Lighthouse PASS (perf 62 / a11y 100 / bp 100, TBT 90ms). CACHE_VERSION `myfinance-v147` -> `myfinance-v148`, snapshot SW diregenerasi.
 
 **STATUS:** siap di-commit & push sebagai v117.
+
+## v118 — perbaikan CI #290: drift tailwind.css (kata "outline" di komentar src ter-scan jadi kelas)
+**KONTEKS:** CI #290 MERAH pada job "Build drift guard" untuk commit v117 (6247c67): `git diff --exit-code -- css/tailwind.css` gagal — rebuild Tailwind di CI menghasilkan tailwind.css BERBEDA dari yang di-commit (blob ae257f6 → c807731).
+
+**AKAR MASALAH:** `tailwind.config.js` memindai TEKS MENTAH `content: ['./index.html', './app.js', './boot.js', './src/**/*.js']` — KOMENTAR ikut di-scan. Komentar forensik v117 di src/domain/chart-hud.js memuat frasa "box outline"; kata `outline` adalah utility Tailwind → rebuild menghasilkan rule baru `.outline{outline-style:solid}` (+29 B) yang tidak ada di tailwind.css ter-commit. v117 tidak menjalankan `npm run build:css` (tidak ada kelas yang berubah), dan cek "idempotensi 5/5" v107… v117 hanya MEMBANDINGKAN hash tailwind.css TANPA membangunnya ulang — drift lolos ke CI. (CI #289/v116 hijau karena komentar itu belum ada.)
+
+**PERBAIKAN (dipilih agar CSS yang dikirim TIDAK berubah sama sekali):** rephrase komentar "box outline" → "bingkai kotak" (src/domain/chart-hud.js). Rebuild `npm run build:css` kini menghasilkan tailwind.css byte-identik dgn blob v116/v117 (ae257f6) — TANPA rule mati `.outline` di produksi. Alternatif "commit saja tailwind.css hasil rebuild" ditolak: mengirim CSS mati & jebakan drift berikutnya saat komentar itu kelak dihapus.
+
+**CATATAN BUMP:** boot.bundle.js TIDAK berubah (bundler mem-strip komentar — byte-identik), tetapi CACHE_VERSION tetap dinaikkan v148 → v149 + snapshot diregenerasi: hash snapshot mencakup `src/**` LANGSUNG (kebijakan v55/v98/v103 — perubahan sumber apa pun mewajibkan bump; test sw-cache-version: "aset berubah => WAJIB bump").
+
+**PELAJARAN RITUAL:** (1) cek idempotensi build WAJIB benar-benar MENJALANKAN semua builder (build:css/app/boot/csp) sebelum membandingkan hash — hash file yang tidak dibangun ulang adalah cek kosong; (2) jangan menaruh kata yang kebetulan nama utility Tailwind (outline, ring, block, table, hidden, flex, grow, dst.) di komentar/teks file yang di-scan content config; (3) urutan drift guard CI = build:css → diff css → build:app → diff → build:boot → diff → build:csp → diff index.html — jalankan urutan persis ini secara lokal sebelum push.
+
+**VERIFIKASI:** urutan drift guard CI lengkap LOLOS lokal (build:css + diff css/tailwind.css styles.css; build:app + diff app.js; build:boot + diff boot.bundle.js; build:csp + diff index.html — semua nol diff). Lint 0; unit 919/919; parity 1/1; snapshot SW cocok (v149). Aset yang diberikan browser: byte-identik dgn v117.
+
+**STATUS:** siap di-commit & push sebagai v118 (perbaikan CI).

@@ -106,7 +106,7 @@ export const HUD_GLOW_VIOLET = "rgba(167,139,250,0.45)";
  * Plugin glow violet utk donut -- dipasang per-chart via `plugins: [hudDonutGlowPlugin]`.
  *
  * v117: shadowBlur(16) meluber MELEWATI batas kanvas → halo terpotong KOTAK di
- * tepi (terlihat sebagai "box outline" mengikuti rangka kanvas, paling menyolok
+ * tepi (terlihat sebagai bingkai kotak mengikuti rangka kanvas, paling menyolok
  * saat segmen pop-out). Fix: sebelum dataset digambar, ctx di-CLIP ke lingkaran
  * konsentris yang dikandung penuh oleh kanvas (radius = jarak pusat donat ke
  * tepi terdekat). Potongan glow kini mengikuti LINGKARAN (konsentris dgn donat,
