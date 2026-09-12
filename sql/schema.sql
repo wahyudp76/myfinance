@@ -551,6 +551,10 @@ declare
     v_row public.transactions;
     v_target_amount numeric;
     v_source_idr numeric;
+    v_mata_uang_sumber text;
+    v_mata_uang_tujuan text;
+    v_kurs_sumber numeric;
+    v_kurs_tujuan numeric;
 begin
     if auth.uid() is null then
         raise exception 'Authentication required';
@@ -567,15 +571,37 @@ begin
     if p_akun_sumber = p_akun_tujuan then
         raise exception 'Akun sumber dan tujuan harus berbeda';
     end if;
-    if nullif(trim(p_mata_uang_sumber), '') is null or nullif(trim(p_mata_uang_tujuan), '') is null then
-        raise exception 'Mata uang sumber dan tujuan wajib diisi';
-    end if;
-    if p_kurs_sumber is null or p_kurs_sumber <= 0 or p_kurs_tujuan is null or p_kurs_tujuan <= 0 then
+    -- v123 (2026-09-12): mata uang NULL/kosong = IDR IMPLISIT, BUKAN error.
+    --
+    -- Konvensi "NULL berarti IDR" dipakai di SELURUH app: kolom
+    -- transactions.mata_uang memang nullable, dan app.src.js menyimpan NULL utk
+    -- akun IDR (`currentTxMataUang = null`, baris ~3375/~3423) lalu mengirimnya
+    -- apa adanya ke RPC ini (src/services/supabase/transfers.js ->
+    -- toTransferParams: `data.mata_uang_sumber || null`).
+    --
+    -- SEBELUM perbaikan ini RPC menolak NULL dengan 'Mata uang sumber dan tujuan
+    -- wajib diisi' -- padahal tests/unit/rpc-param-shapes.test.js justru
+    -- MENEGASKAN kontrak null itu ("transfer IDR-ke-IDR biasa (mayoritas
+    -- transfer di app ini)"). Dua kontrak yang saling bertentangan, keduanya
+    -- hijau, karena diuji terpisah: unit test memakai mock client (tidak pernah
+    -- menyentuh Postgres), dan CEK 3 di scripts/schema-verify/functional-check.sql
+    -- hanya menguji transfer LINTAS mata uang. Akibatnya transfer IDR-ke-IDR
+    -- gagal di database tanpa satu pun gerbang yang merah.
+    --
+    -- Normalisasi: NULL/kosong -> NULL (TETAP IDR implisit -- sengaja TIDAK
+    -- ditulis 'IDR' supaya baris Transfer konsisten dengan baris
+    -- Pemasukan/Pengeluaran yang juga menyimpan NULL), kurs NULL -> 1.
+    -- Kurs yang eksplisit 0/negatif tetap ditolak.
+    v_mata_uang_sumber := nullif(trim(coalesce(p_mata_uang_sumber, '')), '');
+    v_mata_uang_tujuan := nullif(trim(coalesce(p_mata_uang_tujuan, '')), '');
+    v_kurs_sumber := coalesce(p_kurs_sumber, 1);
+    v_kurs_tujuan := coalesce(p_kurs_tujuan, 1);
+    if v_kurs_sumber <= 0 or v_kurs_tujuan <= 0 then
         raise exception 'Kurs sumber dan tujuan harus lebih besar dari nol';
     end if;
 
-    v_source_idr := p_jumlah * p_kurs_sumber;
-    v_target_amount := v_source_idr / p_kurs_tujuan;
+    v_source_idr := p_jumlah * v_kurs_sumber;
+    v_target_amount := v_source_idr / v_kurs_tujuan;
 
     insert into public.transactions (
         user_id, jenis, tanggal, jumlah, akun, kategori, keterangan,
@@ -584,8 +610,8 @@ begin
         transfer_kurs_tujuan, transfer_jumlah_tujuan_idr
     ) values (
         auth.uid(), 'Transfer', p_tanggal, p_jumlah, p_akun_sumber, p_akun_tujuan,
-        p_keterangan, p_mata_uang_sumber, p_kurs_sumber, v_source_idr,
-        v_target_amount, p_mata_uang_tujuan, p_kurs_tujuan, v_source_idr
+        p_keterangan, v_mata_uang_sumber, v_kurs_sumber, v_source_idr,
+        v_target_amount, v_mata_uang_tujuan, v_kurs_tujuan, v_source_idr
     )
     returning * into v_row;
 
@@ -627,7 +653,18 @@ begin
     ) values (
         auth.uid(), p_jenis, p_due_date, p_jumlah, p_akun, p_kategori,
         p_keterangan, p_mata_uang, p_kurs,
-        coalesce(p_jumlah_idr, p_jumlah), p_recurring_id, p_due_date
+        -- v123: snapshot IDR dihitung dari kurs bila p_jumlah_idr tidak diberikan.
+        -- Sebelumnya `coalesce(p_jumlah_idr, p_jumlah)` menyalin nominal MENTAH, jadi
+        -- template berulang bermata uang asing yang suatu saat diisi (tabel
+        -- recurring_transactions belum punya kolom mata_uang/kurs -- gap yang tercatat
+        -- di docs/supabase-native-migration-plan.md) akan menghasilkan USD 100 ->
+        -- jumlah_idr 100, bukan 1.600.000. Persis regresi klasik "USD 100 jadi Rp 100"
+        -- yang sudah dijaga di create_transfer_transaction (CEK 3a/3b).
+        -- Untuk pemanggil SEKARANG (p_kurs selalu NULL karena belum ada dukungan mata
+        -- uang di template berulang) hasilnya IDENTIK: coalesce -> p_jumlah.
+        coalesce(p_jumlah_idr,
+                 case when p_kurs is not null then p_jumlah * p_kurs else p_jumlah end),
+        p_recurring_id, p_due_date
     )
     on conflict (user_id, recurring_id, recurring_due_date)
         where recurring_id is not null and recurring_due_date is not null

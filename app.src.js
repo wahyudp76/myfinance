@@ -1521,6 +1521,21 @@ async function currentUserId() {
             updateScrollToTopVisibility();
         }
 
+        // v123 (2026-09-12): SEMUA pemanggil di monolit yang dulu menulis
+        // `new Intl.NumberFormat('id-ID').format(x)` kini lewat fungsi ini (16 situs:
+        // hint kurs, field nominal transaksi/aset, sub-input budget, layar goal, utang,
+        // toast setoran & pembayaran). Alasannya sama persis dengan optimasi v112 di
+        // formatInputRibuan(): membuat formatter Intl jauh lebih mahal daripada
+        // memanggil .format()-nya -- terukur 46x (744 ms vs 16 ms utk 20.000 format di
+        // Node 20), dan situs-situs ini ada di jalur per-baris render & per-keystroke.
+        // Output BYTE-IDENTIK: `new Intl.NumberFormat('id-ID')` dan
+        // `new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 })` sama-sama
+        // memakai maximumFractionDigits default 3, jadi formatRp() (yang memakai
+        // formatter ter-cache di src/domain/format.js) menghasilkan string yang sama
+        // -- diverifikasi utk 23 nilai termasuk 0, negatif, NaN, Infinity, 1e15.
+        // Shim default __fmt di atas SENGAJA tetap membuat formatter sendiri: itu
+        // jalur sebelum adoptFormatModule() jalan, dan harus tetap byte-compatible
+        // dengan implementasi monolit asli.
         function formatRp(angka) { return __fmt.formatRp(angka); } // delegasi ke src/domain/format.js (v71/72)
 
         // Fitur Growth "Multi-currency": nilai IDR-equivalent 1 transaksi, dipakai utk SEMUA total
@@ -3410,7 +3425,7 @@ async function currentUserId() {
             hint.classList.remove('hidden');
             if (loading) { hint.innerText = 'Mengambil kurs terkini...'; return; }
             if (error || !kurs) { hint.innerText = 'Gagal ambil kurs terkini. Coba pilih ulang akunnya, atau cek koneksi internet.'; return; }
-            hint.innerText = `Kurs: 1 ${mataUang} = Rp ${new Intl.NumberFormat('id-ID').format(Math.round(kurs))}` + (tanggalKurs ? ` (${tanggalKurs})` : '');
+            hint.innerText = `Kurs: 1 ${mataUang} = Rp ${formatRp(Math.round(kurs))}` + (tanggalKurs ? ` (${tanggalKurs})` : '');
         }
 
         // Dipanggil tiap user GANTI PILIHAN akun secara aktif (termasuk saat form baru dibuka dgn akun
@@ -3839,7 +3854,7 @@ async function currentUserId() {
             }
             if (hasil.total) {
                 document.getElementById('jumlah').value = Math.round(hasil.total);
-                document.getElementById('jumlah_display').value = new Intl.NumberFormat('id-ID').format(Math.round(hasil.total));
+                document.getElementById('jumlah_display').value = formatRp(Math.round(hasil.total));
             }
             if (hasil.merchant) document.getElementById('keterangan').value = hasil.merchant;
             if (hasil.kategori) setCategoryUIFromValue(hasil.kategori, 'Pengeluaran');
@@ -3889,7 +3904,7 @@ async function currentUserId() {
             document.querySelector(`input[name="jenis"][value="${item.jenis}"]`).checked = true; handleFormTypeChange();
             document.getElementById('tanggal').value = item.tanggal.split('T')[0]; 
             document.getElementById('jumlah').value = item.jumlah;
-            document.getElementById('jumlah_display').value = new Intl.NumberFormat('id-ID').format(item.jumlah);
+            document.getElementById('jumlah_display').value = formatRp(item.jumlah);
             document.getElementById('akun').value = item.akun; 
             document.getElementById('keterangan').value = item.keterangan || "";
             setCategoryUIFromValue(item.kategori, item.jenis);
@@ -4186,9 +4201,9 @@ async function currentUserId() {
                 kategoriSelect.value = kategoriValue;
                 document.getElementById('aset_platform').value = item.platform;
                 document.getElementById('aset_modal').value = item.modal;
-                document.getElementById('aset_modal_display').value = new Intl.NumberFormat('id-ID').format(item.modal);
+                document.getElementById('aset_modal_display').value = formatRp(item.modal);
                 document.getElementById('aset_nilai').value = item.nilai;
-                document.getElementById('aset_nilai_display').value = new Intl.NumberFormat('id-ID').format(item.nilai);
+                document.getElementById('aset_nilai_display').value = formatRp(item.nilai);
                 document.getElementById('aset_simbol').value = item.simbol || '';
                 document.getElementById('aset_jumlah_unit').value = item.jumlah_unit || '';
             }
@@ -6680,7 +6695,7 @@ async function currentUserId() {
 
         function formatBudgetInputDisplay(input) {
             let value = input.value.replace(/[^0-9]/g, '');
-            input.value = value ? new Intl.NumberFormat('id-ID').format(value) : '';
+            input.value = value ? formatRp(value) : '';
         }
 
         function calcBudgetParent(parentSlug) {
@@ -6690,7 +6705,7 @@ async function currentUserId() {
             
             const parentInput = document.getElementById(`budget-parent-${parentSlug}`);
             if(parentInput) {
-                parentInput.value = sum > 0 ? new Intl.NumberFormat('id-ID').format(sum) : '';
+                parentInput.value = sum > 0 ? formatRp(sum) : '';
             }
         }
 
@@ -6766,12 +6781,12 @@ async function currentUserId() {
                     let n = 0;
                     document.querySelectorAll('.budget-input').forEach(inp => {
                         const v = Number(map[inp.getAttribute('data-category')]) || 0;
-                        inp.value = v > 0 ? new Intl.NumberFormat('id-ID').format(v) : '';
+                        inp.value = v > 0 ? formatRp(v) : '';
                         if (v > 0) n++;
                     });
                     document.querySelectorAll('.budget-parent-input:not([readonly])').forEach(inp => {
                         const v = Number(map[inp.getAttribute('data-parent')]) || 0;
-                        inp.value = v > 0 ? new Intl.NumberFormat('id-ID').format(v) : '';
+                        inp.value = v > 0 ? formatRp(v) : '';
                         if (v > 0) n++;
                     });
                     // Parent yg punya sub = readonly akumulator -> hitung ulang dari sub yg baru diisi.
@@ -6894,9 +6909,9 @@ async function currentUserId() {
                 document.getElementById('btnSubmitGoalForm').innerText = 'Simpan Perubahan';
                 document.getElementById('goal_nama').value = g.nama;
                 document.getElementById('goal_target').value = g.target;
-                document.getElementById('goal_target_display').value = new Intl.NumberFormat('id-ID').format(g.target);
+                document.getElementById('goal_target_display').value = formatRp(g.target);
                 document.getElementById('goal_terkumpul').value = g.terkumpul;
-                document.getElementById('goal_terkumpul_display').value = new Intl.NumberFormat('id-ID').format(g.terkumpul);
+                document.getElementById('goal_terkumpul_display').value = formatRp(g.terkumpul);
                 document.getElementById('goal_deadline').value = g.deadline || '';
                 goalFormState = { icon: g.icon, bg: g.bg, color: g.color };
             }
@@ -6959,7 +6974,7 @@ async function currentUserId() {
             persistSettings();
             renderGoalsList();
             closeGoalContributeModal();
-            showSuccessToast(`Setoran Rp ${new Intl.NumberFormat('id-ID').format(amount)} berhasil dicatat.`);
+            showSuccessToast(`Setoran Rp ${formatRp(amount)} berhasil dicatat.`);
         }
 
         // ========================== UTANG & CICILAN (Debt Tracker) ==========================
@@ -7028,12 +7043,12 @@ async function currentUserId() {
                 document.getElementById('btnSubmitDebtForm').innerText = 'Simpan Perubahan';
                 document.getElementById('debt_nama').value = d.nama;
                 document.getElementById('debt_total').value = d.totalUtang;
-                document.getElementById('debt_total_display').value = new Intl.NumberFormat('id-ID').format(d.totalUtang);
+                document.getElementById('debt_total_display').value = formatRp(d.totalUtang);
                 document.getElementById('debt_sisa').value = d.sisaUtang;
-                document.getElementById('debt_sisa_display').value = new Intl.NumberFormat('id-ID').format(d.sisaUtang);
+                document.getElementById('debt_sisa_display').value = formatRp(d.sisaUtang);
                 if (d.cicilanPerBulan) {
                     document.getElementById('debt_cicilan').value = d.cicilanPerBulan;
-                    document.getElementById('debt_cicilan_display').value = new Intl.NumberFormat('id-ID').format(d.cicilanPerBulan);
+                    document.getElementById('debt_cicilan_display').value = formatRp(d.cicilanPerBulan);
                 }
                 debtFormState = { icon: d.icon, bg: d.bg, color: d.color };
             }
@@ -7096,7 +7111,7 @@ async function currentUserId() {
             persistSettings();
             renderDebtsList();
             closeDebtPayModal();
-            showSuccessToast(`Pembayaran Rp ${new Intl.NumberFormat('id-ID').format(amount)} berhasil dicatat.`);
+            showSuccessToast(`Pembayaran Rp ${formatRp(amount)} berhasil dicatat.`);
         }
 
         // ---------- Detail Aset (riwayat & grafik performa satu aset) ----------

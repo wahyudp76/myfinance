@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~413 commit · versi terbaru `v122`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~414 commit · versi terbaru `v123`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -54,7 +54,7 @@ myfinance/
 │                           #   INI yang dimuat index.html; jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v152)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v153)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -233,7 +233,7 @@ myfinance/
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
-│   ├── unit/               # 89 file *.test.js murni (node --test) — npm run test:unit
+│   ├── unit/               # 90 file *.test.js murni (node --test) — npm run test:unit
 │   │   ├── sw-cache.snapshot            # snapshot hash aset precache SW
 │   │   ├── sw-cache-hash-helper.mjs     # helper penghitung hash precache
 │   │   ├── update-sw-cache-snapshot.mjs # regen snapshot SETELAH bump CACHE_VERSION + build
@@ -513,12 +513,18 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
    (dua arah — kalau suatu saat benar-benar ter-wire, dokumen yang masih menandainya
    "⚠️ BELUM ter-wire ke produksi" ikut merah).
    Satu test di sana bukan soal dokumen melainkan soal markup:
-   `markup: 0 handler inline, dan SEMUA data-action terdaftar di registry`. Ia menjaga
-   `index.html` tetap bebas `on*=` (CSP `script-src` tanpa `'unsafe-inline'` akan menolak
-   menjalankannya — fitur hilang tanpa error), dan memastikan setiap `data-action=`,
-   baik yang statis di markup maupun yang dihasilkan runtime lewat `uiActionAttrs()`,
-   punya entri di registry `__uiActionsCache` (`app.src.js`). Tanpa entri itu tombolnya
-   mati saat diklik, juga tanpa error.
+   `markup: 0 handler inline, dan SEMUA data-action/data-on-* terdaftar di registry`.
+   Ia menjaga `index.html` tetap bebas `on*=` (CSP `script-src` tanpa `'unsafe-inline'`
+   akan menolak menjalankannya — fitur hilang tanpa error), dan memastikan **ketujuh**
+   atribut aksi deklaratif punya entri di registry `__uiActionsCache` (`app.src.js`):
+   `data-action` (119 atribut) plus enam atribut yang dilayani dispatcher
+   `UI_EVENT_ATTR` — `data-on-change` (29), `data-on-input` (21), `data-on-submit` (7),
+   `data-on-keydown` (6), `data-on-focus` (2), `data-on-blur` (2). Daftar enam itu
+   **dibaca dari `UI_EVENT_ATTR` di sumbernya**, jadi menambah event kedelapan otomatis
+   ikut terjaga. Aksi yang dihasilkan runtime lewat `uiActionAttrs()` diperiksa juga.
+   Tanpa entri registry, handler-nya mati **tanpa error apa pun** — persis bahaya yang
+   ditulis di komentar `app.src.js:1470-1474`. (Versi v122 guard ini hanya memeriksa
+   `data-action`; 67 atribut `data-on-*` lolos tanpa pengawasan. Diperluas di v123.)
    Test terakhirnya meta: ia menghitung `test(` di dirinya sendiri dan menagih angka
    "(16 test)" di awal butir ini — menambah guard baru berarti menaikkan angka itu juga.
    Kalau test-test itu merah, dokumennya (atau markup-nya) yang basi — bukan test-nya

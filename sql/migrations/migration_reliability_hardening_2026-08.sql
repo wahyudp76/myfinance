@@ -85,7 +85,18 @@ begin
     ) values (
         auth.uid(), p_jenis, p_due_date, p_jumlah, p_akun, p_kategori,
         p_keterangan, p_mata_uang, p_kurs,
-        coalesce(p_jumlah_idr, p_jumlah), p_recurring_id, p_due_date
+        -- v123: snapshot IDR dihitung dari kurs bila p_jumlah_idr tidak diberikan.
+        -- Sebelumnya `coalesce(p_jumlah_idr, p_jumlah)` menyalin nominal MENTAH, jadi
+        -- template berulang bermata uang asing yang suatu saat diisi (tabel
+        -- recurring_transactions belum punya kolom mata_uang/kurs -- gap yang tercatat
+        -- di docs/supabase-native-migration-plan.md) akan menghasilkan USD 100 ->
+        -- jumlah_idr 100, bukan 1.600.000. Persis regresi klasik "USD 100 jadi Rp 100"
+        -- yang sudah dijaga di create_transfer_transaction (CEK 3a/3b).
+        -- Untuk pemanggil SEKARANG (p_kurs selalu NULL karena belum ada dukungan mata
+        -- uang di template berulang) hasilnya IDENTIK: coalesce -> p_jumlah.
+        coalesce(p_jumlah_idr,
+                 case when p_kurs is not null then p_jumlah * p_kurs else p_jumlah end),
+        p_recurring_id, p_due_date
     )
     on conflict (user_id, recurring_id, recurring_due_date)
         where recurring_id is not null and recurring_due_date is not null

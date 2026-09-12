@@ -77,7 +77,7 @@ myfinance/
 ├── scripts/                     # Build (build-app/styles/boot/csp) · 9 harness E2E verify-* ·
 │                                #   lighthouse/ · schema-verify/ (Postgres nyata) · rls-audit/
 ├── tests/
-│   ├── unit/                     # 89 file test murni, tanpa network (npm run test:unit)
+│   ├── unit/                     # 90 file test murni, tanpa network (npm run test:unit)
 │   └── parity/                   # Banding legacy vs native (6 file), sebagian butuh secret live
 ├── docs/                          # Rencana migrasi, audit historis & kontrak loader (13 dokumen)
 ├── .github/workflows/             # CI: parity.yml ("CI") · e2e-harness.yml · dependabot-auto-merge.yml

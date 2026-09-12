@@ -214,22 +214,46 @@ function uiActionRegistry() {
   return new Set(names);
 }
 
-test("markup: 0 handler inline, dan SEMUA data-action terdaftar di registry", () => {
+/**
+ * Atribut event deklaratif yang dilayani dispatcher (dibaca dari UI_EVENT_ATTR di
+ * app.src.js, jadi otomatis ikut kalau ada event ketujuh ditambahkan).
+ *
+ * v123: guard v122 hanya memeriksa `data-action`, padahal dispatcher melayani
+ * ENAM atribut lain (data-on-change/input/submit/keydown/focus/blur = 67 atribut
+ * di markup). Komentar di app.src.js:1470-1474 justru menjelaskan bahayanya:
+ * handler yang tidak terdaftar membuat fitur mati "tanpa error, cuma diam".
+ */
+function uiEventAttrs() {
+  const app = read("app.src.js");
+  const m = app.match(/const UI_EVENT_ATTR = \{([\s\S]*?)\};/);
+  assert.ok(m, "pola 'const UI_EVENT_ATTR = { ... };' hilang dari app.src.js -- bentuk dispatcher berubah? perbarui guard ini.");
+  const attrs = [...m[1].matchAll(/\w+:\s*'([^']+)'/g)].map((x) => x[1]);
+  assert.ok(attrs.length >= 6, `UI_EVENT_ATTR cuma ${attrs.length} entri -- parser guard ini rusak?`);
+  assert.ok(attrs.every((a) => a.startsWith("data-on-")), `UI_EVENT_ATTR berisi atribut tak terduga: ${attrs.join(", ")}`);
+  return attrs;
+}
+
+test("markup: 0 handler inline, dan SEMUA data-action/data-on-* terdaftar di registry", () => {
   const html = read("index.html");
   const handler = /\son(?:click|change|input|submit|keydown|keyup|keypress|focus|blur|load|error|mouse\w+)\s*=/gi;
   const inline = html.match(handler) || [];
   assert.deepEqual(inline, [],
     `index.html punya ${inline.length} atribut handler inline (${inline.slice(0, 5).join(", ")}). ` +
     `CSP script-src tanpa 'unsafe-inline' MENOLAK menjalankannya -- fitur hilang diam-diam. ` +
-    `Pakai data-action="..." lalu daftarkan di registry __uiActionsCache (app.src.js).`);
+    `Pakai data-action="..." / data-on-*="..." lalu daftarkan di registry __uiActionsCache (app.src.js).`);
 
   const registry = uiActionRegistry();
 
-  const statis = [...html.matchAll(/data-action="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(statis.length > 50, `cuma ${statis.length} data-action di index.html -- parser guard ini rusak?`);
-  const statisBolong = [...new Set(statis)].filter((a) => !registry.has(a));
-  assert.deepEqual(statisBolong, [],
-    `data-action di index.html TIDAK ada di registry (tombol mati saat diklik): ${statisBolong.join(", ")}`);
+  let total = 0;
+  for (const atr of ["data-action", ...uiEventAttrs()]) {
+    const names = [...html.matchAll(new RegExp(`${atr}="([^"]+)"`, "g"))].map((m) => m[1]);
+    total += names.length;
+    const bolong = [...new Set(names)].filter((a) => !registry.has(a));
+    assert.deepEqual(bolong, [],
+      `${atr}= di index.html TIDAK ada di registry __uiActionsCache (handler mati, TANPA error): ${bolong.join(", ")}`);
+  }
+  assert.ok(total > 150,
+    `cuma ${total} atribut aksi deklaratif di index.html (diharapkan >150) -- parser guard ini rusak?`);
 
   // HTML yang dihasilkan runtime memakai uiActionAttrs() (src/domain/sanitize.js).
   const dinamis = [...new Set([...read("app.src.js").matchAll(/uiActionAttrs\(\s*'([^']+)'/g)].map((m) => m[1]))];

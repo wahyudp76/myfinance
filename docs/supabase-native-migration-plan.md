@@ -28,7 +28,7 @@
 >
 > | Gate | Bukti otomatis |
 > |---|---|
-> | Transfer IDR→IDR / USD→USD / USD→IDR / IDR→USD terverifikasi | `schema-verify/functional-check.sql` CEK 3a+3b (USD 100 @16.000 → `jumlah_idr` **dan** `transfer_jumlah_tujuan` = 1.600.000) di Postgres nyata; `tests/unit/finance-domain.test.js` utk USD→IDR & IDR→USD. *Sisa kecil:* pasangan same-currency (rate 1) hanya terjamin lewat rumus `S × Rs / Rd`, belum punya kasus uji eksplisit di level DB. |
+> | Transfer IDR→IDR / USD→USD / USD→IDR / IDR→USD terverifikasi | `schema-verify/functional-check.sql` CEK 3a+3b (USD 100 @16.000 → `jumlah_idr` **dan** `transfer_jumlah_tujuan` = 1.600.000) + **CEK 3c–3i (v123)**: IDR→IDR dengan mata uang `NULL`/`''`/campuran `USD`→`NULL`, kurs tersimpan 1, dan kurs 0 tetap ditolak — semuanya di Postgres nyata; `tests/unit/finance-domain.test.js` utk USD→IDR & IDR→USD; `tests/unit/rpc-param-shapes.test.js` utk kontrak `null` di sisi JS. **Catatan v123:** gate ini sebelumnya ditandai "terpenuhi" padahal kasus same-currency (IDR→IDR, mayoritas transfer) justru **GAGAL di database** — RPC menolak `NULL` dengan 'Mata uang sumber dan tujuan wajib diisi' sementara lapisan JS sengaja mengirim `NULL`. Kedua kontrak diuji terpisah sehingga tidak ada gerbang yang merah. Sudah diperbaiki; lihat `sql/migrations/migration_transfer_currency_2026-08.sql` (kanonik) + `sql/schema.sql`.
 > | Transfer dikecualikan dari total pemasukan/pengeluaran | `isCashflowTransaction()` (`src/domain/finance.js`) + test-nya; `computeAccountGroupNet`/`buildAccountBalanceSeries` (`src/domain/accounts.js`) |
 > | Recurring retry idempoten | CEK 4a+4b (dipanggil 2× → id sama, tetap 1 baris) + unique index |
 > | Budget save atomik | CEK 2+2b (replace, bukan menumpuk) |

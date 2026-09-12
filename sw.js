@@ -42,7 +42,10 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v152'; // v116: batalkan penggambaran tooltip internal donat (kotak hitam di dalam pie)
+const CACHE_VERSION = 'myfinance-v153'; // v123: boot.bundle.js berubah -- roundMoney()
+//   di src/domain/finance.js kini simetris untuk nilai negatif (half away from zero)
+//   dan menolak `decimals` non-integer; keduanya diperbaiki SEBELUM ada pemanggil
+//   runtime (Phase 4) yang mewarisinya. Aset lain byte-identik.
 // Cache DATA user (GET /rest/v1) -- sengaja TIDAK ikut versi CACHE_VERSION agar
 // tidak terbuang tiap deploy; dibersihkan eksplisit saat logout.
 // v100: dinaikkan v1 -> v2 SEKALI supaya sampah yang sudah terlanjur menumpuk di

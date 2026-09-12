@@ -95,6 +95,60 @@ begin
     end if;
     raise notice 'CEK 3 LULUS: transfer USD 100 @16.000 -> Rp 1.600.000';
 
+    -- CEK 3c: transfer IDR-ke-IDR dengan mata uang NULL/kosong (kasus MAYORITAS) --
+    -- v123: app MENYIMPAN & MENGIRIM NULL untuk akun IDR (konvensi "NULL = IDR
+    -- implisit" -- lihat app.src.js `currentTxMataUang = null` dan
+    -- src/services/supabase/transfers.js `data.mata_uang_sumber || null`), dan
+    -- tests/unit/rpc-param-shapes.test.js menegaskan kontrak itu. Sebelum v123
+    -- RPC menolak NULL sehingga transfer IDR-ke-IDR GAGAL di database, dan tidak
+    -- ada gerbang yang merah: unit test memakai mock client (tak pernah menyentuh
+    -- Postgres) sementara CEK 3 di atas hanya menguji LINTAS mata uang.
+    -- Sekarang: nominal tujuan = nominal sumber, mata uang tersimpan NULL, kurs 1.
+    v_row := public.create_transfer_transaction(
+        current_date, 250000, 'BCA', 'Cash', NULL, NULL, NULL, NULL, 'tes transfer IDR');
+    if v_row.transfer_jumlah_tujuan <> 250000 then
+        raise exception 'CEK 3c GAGAL: nominal tujuan IDR-ke-IDR harusnya 250.000, dapat %', v_row.transfer_jumlah_tujuan;
+    end if;
+    if v_row.jumlah_idr <> 250000 then
+        raise exception 'CEK 3d GAGAL: jumlah_idr harusnya 250.000, dapat %', v_row.jumlah_idr;
+    end if;
+    if v_row.mata_uang is not null or v_row.transfer_mata_uang_tujuan is not null then
+        raise exception 'CEK 3e GAGAL: mata uang harus tersimpan NULL (IDR implisit), dapat % / %',
+            v_row.mata_uang, v_row.transfer_mata_uang_tujuan;
+    end if;
+    if v_row.kurs <> 1 or v_row.transfer_kurs_tujuan <> 1 then
+        raise exception 'CEK 3f GAGAL: kurs harus tersimpan 1, dapat % / %', v_row.kurs, v_row.transfer_kurs_tujuan;
+    end if;
+
+    -- String kosong diperlakukan sama (PostgREST bisa mengirim '' dari form).
+    v_row := public.create_transfer_transaction(
+        current_date, 75000, 'BCA', 'Cash', '', '', 1, 1, 'tes transfer string kosong');
+    if v_row.transfer_jumlah_tujuan <> 75000 or v_row.mata_uang is not null then
+        raise exception 'CEK 3g GAGAL: mata uang "" harus jadi NULL, dapat nominal % mata_uang %',
+            v_row.transfer_jumlah_tujuan, v_row.mata_uang;
+    end if;
+
+    -- Pelonggaran ini TIDAK boleh melonggarkan validasi kurs: 0 tetap ditolak.
+    v_ok := false;
+    begin
+        perform public.create_transfer_transaction(
+            current_date, 10000, 'BCA', 'Cash', 'USD', 'IDR', 0, 1, 'harus ditolak');
+    exception when raise_exception then
+        v_ok := true;
+    end;
+    if not v_ok then
+        raise exception 'CEK 3h GAGAL: kurs sumber 0 seharusnya tetap ditolak';
+    end if;
+
+    -- Campuran: sumber USD, tujuan NULL (= IDR implisit, kurs 1).
+    v_row := public.create_transfer_transaction(
+        current_date, 100, 'Wise USD', 'BCA', 'USD', NULL, 16000, NULL, 'tes campur');
+    if v_row.transfer_jumlah_tujuan <> 1600000 or v_row.transfer_mata_uang_tujuan is not null then
+        raise exception 'CEK 3i GAGAL: tujuan NULL harus = IDR @kurs 1 (1.600.000), dapat % / %',
+            v_row.transfer_jumlah_tujuan, v_row.transfer_mata_uang_tujuan;
+    end if;
+    raise notice 'CEK 3c LULUS: transfer IDR-ke-IDR (NULL/kosong/campuran) diterima, kurs 0 tetap ditolak';
+
     -- CEK 4: idempotensi create_recurring_transaction ----------------------------
     v_id1 := (public.create_recurring_transaction(
         '33333333-3333-3333-3333-333333333333'::uuid, current_date,
@@ -111,6 +165,37 @@ begin
         raise exception 'CEK 4b GAGAL: harusnya 1 transaksi berulang, dapat % (dobel!)', v_count;
     end if;
     raise notice 'CEK 4 LULUS: create_recurring_transaction idempoten';
+
+    -- CEK 4c: snapshot IDR transaksi berulang dihitung dari kurs (v123) -----------
+    -- Sebelumnya `coalesce(p_jumlah_idr, p_jumlah)` menyalin nominal mentah: template
+    -- berulang USD 100 @16.000 tanpa p_jumlah_idr akan tersimpan dengan jumlah_idr 100
+    -- (bukan 1.600.000) -- regresi klasik "USD 100 jadi Rp 100" yang sudah dijaga di
+    -- create_transfer_transaction (CEK 3a/3b) tapi belum di jalur berulang. Belum bisa
+    -- terpicu dari UI (tabel recurring_transactions belum punya kolom mata_uang/kurs),
+    -- tapi lapisan JS sudah meneruskan p_mata_uang/p_kurs, jadi jebakannya sudah terpasang.
+    v_row := public.create_recurring_transaction(
+        '44444444-4444-4444-4444-444444444444'::uuid, current_date,
+        'Pengeluaran', 100, 'Wise USD', 'Langganan', 'Netflix USD',
+        'USD', 16000, NULL);
+    if v_row.jumlah_idr <> 1600000 then
+        raise exception 'CEK 4c GAGAL: jumlah_idr harusnya 1.600.000 (100 x kurs 16.000), dapat %', v_row.jumlah_idr;
+    end if;
+    -- Jalur IDR (kurs NULL, seperti SEMUA pemanggil hari ini) harus tetap tidak berubah.
+    v_row := public.create_recurring_transaction(
+        '55555555-5555-5555-5555-555555555555'::uuid, current_date,
+        'Pengeluaran', 99000, 'BCA', 'Langganan', 'Spotify', NULL, NULL, NULL);
+    if v_row.jumlah_idr <> 99000 then
+        raise exception 'CEK 4d GAGAL: jalur IDR (kurs NULL) harusnya jumlah_idr = 99.000, dapat %', v_row.jumlah_idr;
+    end if;
+    -- p_jumlah_idr eksplisit tetap menang (kompatibilitas mundur).
+    v_row := public.create_recurring_transaction(
+        '66666666-6666-6666-6666-666666666666'::uuid, current_date,
+        'Pengeluaran', 100, 'Wise USD', 'Langganan', 'Eksplisit',
+        'USD', 16000, 1234567);
+    if v_row.jumlah_idr <> 1234567 then
+        raise exception 'CEK 4e GAGAL: p_jumlah_idr eksplisit harus menang, dapat %', v_row.jumlah_idr;
+    end if;
+    raise notice 'CEK 4c LULUS: jumlah_idr berulang = kurs x nominal (IDR & eksplisit tetap sama)';
 
     -- CEK 5: check_and_consume_rate_limit ----------------------------------------
     for i in 1..3 loop
