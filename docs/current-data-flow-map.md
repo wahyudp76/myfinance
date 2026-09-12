@@ -1,5 +1,29 @@
 # MyFinance — Current Data Flow Map
 
+> **⚠️ DOKUMEN HISTORIS — SUDAH TIDAK BERLAKU (catatan 2026-09-12).**
+> Ini snapshot fase *discovery* awal, ditulis saat alat pencari kode hanya melihat
+> `index.html` yang terpotong. Hampir seluruh kesimpulan "not confirmed" di bawah
+> **sudah terbantahkan**:
+> - `createClient(...)` **ADA** — `src/services/supabase/client.js`, memakai bundel
+>   ter-pin `vendor/supabase-js-2.113.0.bundle.min.mjs` (bukan CDN).
+> - `SUPABASE_URL` + `SUPABASE_ANON_KEY` **ADA** — di `app.src.js` bawah komentar
+>   "KONEKSI SUPABASE" (bukan di `index.html`; ikut pindah saat blok monolit
+>   diekstrak di v54).
+> - "Inline HTML/CSS/JavaScript + CDN libraries" **sudah tidak benar**: CSS dipisah ke
+>   `styles.css` + `css/tailwind.css` (build statis), JS monolit ke `app.js`, wiring
+>   modul ke `boot.bundle.js`, dan **nol CDN** di jalur kritis sejak v59 (semua
+>   di-vendor ke `vendor/`).
+> - "Browser → PostgreSQL directly: not confirmed" → **terkonfirmasi**: itulah satu-satunya
+>   jalur data, lewat PostgREST + RLS (11 tabel) dan 4 RPC.
+> - `google.script.run` sudah lama hilang; adapter penggantinya (`api.run`) juga sudah
+>   **pensiun utuh** (seri commit `refactor(api-seam)`).
+> - Satu-satunya yang masih benar: preferensi tema memang di `localStorage`
+>   (`myfinance-theme`) dan itu **sengaja** per-perangkat, bukan data keuangan.
+>
+> **Sumber kebenaran terbaru:** [`STRUKTUR-REPO.md`](../STRUKTUR-REPO.md) §3 (Alur Muat)
+> dan §4 (Alur Data), plus [`AGENT-HANDOFF.md`](../AGENT-HANDOFF.md) untuk riwayat per versi.
+> Isi di bawah dipertahankan apa adanya sebagai catatan proses, bukan sebagai peta terkini.
+
 > This document describes what can be established from the repository code currently visible in GitHub. It intentionally distinguishes **confirmed** paths from **not yet confirmed** paths.
 
 ## 1. Confirmed runtime entry point

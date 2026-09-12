@@ -1,5 +1,33 @@
 # Production Initial Data Loader Contract
 
+> **STATUS 2026-09-12 — kontrak ini SUDAH dipenuhi produksi, tapi bukan oleh `src/bootstrap/`.**
+>
+> - **`getSyncData()` sudah tidak ada.** Adapter `api.run` dipensiunkan utuh (seri commit
+>   `refactor(api-seam)`); body-nya di-inline ke `loadData()` di `app.src.js` sebagai
+>   `Promise.all` atas service layer `src/services/**`. Bentuk hasilnya tetap
+>   `{ transactions, budgets, assets, settings, customIcons, recurring }`.
+> - **Bukan enam grup lagi, tapi TUJUH.** Sejak v86 ada `platformLogos`
+>   (`services/supabase/platform-logos.js`, katalog global logo platform aset).
+> - **"One full-load operation → validated snapshot → state commit"**: dipenuhi lewat
+>   `_loadDataSeq` (v69). Tiap panggilan `loadData()` mengambil nomor urut; saat hasil tiba,
+>   hanya panggilan TERAKHIR yang boleh menimpa state, jadi respons basi (fetch
+>   tumpang-tindih, atau selesai SETELAH logout) ditolak. `resetAppState()` menaikkan
+>   nomornya di setiap jalur logout.
+> - **"Must not overwrite newer state" untuk refresh sempit**: dipenuhi v119 lewat
+>   `_txFetchInFlight` (saksi fetch berjalan) + `_pendingTxMutations` +
+>   `reconcileTxRowsWithPending()` di `src/domain/transactions.js`.
+> - **"A failed optional dataset must not silently masquerade as an empty dataset"**:
+>   perilaku produksi MEMANG memakai fallback, tapi **tidak diam-diam** — helper `optional()`
+>   membungkus 4 grup non-inti (`custom_icons` → `{}`, `settings` → `null`,
+>   `recurring_transactions` → `[]`, `platform_logos` → `[]`) dan selalu
+>   `console.warn("Data cloud opsional gagal dimuat (<label>); memakai default lokal.")`.
+>   Tiga grup inti (transactions, budgets, assets) TIDAK difallback — kegagalannya
+>   menggagalkan load dan menampilkan pesan error.
+> - **`src/bootstrap/app.js` + `loader.js` (generation counter & de-dup in-flight) BELUM
+>   ter-wire ke produksi** dan belum punya unit test: tidak di-import `boot.js`, sehingga
+>   di-tree-shake habis dari `boot.bundle.js`. Modularisasi pola yang sama sudah ada di
+>   monolit. Jangan mengedit `src/bootstrap/` sambil mengira itu jalur produksi.
+
 This is the refactor boundary for the existing MyFinance loader. It does not replace the production loader yet.
 
 ## Confirmed from `main/index.html`

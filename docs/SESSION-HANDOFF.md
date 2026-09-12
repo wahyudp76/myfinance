@@ -1,8 +1,23 @@
 # SESSION HANDOFF — MyFinance (2026-08-31)
 
+> **⚠️ SNAPSHOT BER-TANGGAL, BUKAN SUMBER TERKINI (catatan 2026-09-12).**
+> Angka di file ini membeku pada 2026-08-31 dan sudah tertinggal ±80 versi: SW live
+> `myfinance-v42` (sekarang **v152**), "495 unit + 1 smoke" (sekarang ratusan test murni di
+> `tests/unit/` — jalankan `npm run test:unit` untuk angka pastinya),
+> `verify-hud.mjs` 45 cek (sekarang **70**, plus 8 harness E2E lain yang waktu itu belum ada).
+>
+> **Untuk sesi baru, baca dua file ini dulu** (keduanya dijaga agar tidak basi oleh
+> `tests/unit/docs-consistency.test.js`):
+> 1. [`STRUKTUR-REPO.md`](../STRUKTUR-REPO.md) — peta struktur, alur muat, alur data, keamanan
+> 2. [`AGENT-HANDOFF.md`](../AGENT-HANDOFF.md) — log antar-agen per versi; **"Peta cepat"** di
+>    bagian atasnya selalu menggambarkan kondisi sekarang (entri `## vNN` di bawahnya adalah
+>    fakta pada versinya masing-masing dan sengaja tidak diperbarui)
+>
+> Isi di bawah dipertahankan apa adanya sebagai catatan proses v38–v42.
+
 > Dokumen ini ditulis untuk **sesi chat baru** yang mulai dari nol tanpa memori
-> percakapan sebelumnya. Baca file ini + `docs/` lain SEBELUM menyentuh kode.
-> Segala hal penting sudah dibekukan di repo — sesi lama tidak diperlukan lagi.
+> percakapan sebelumnya. Segala hal penting sudah dibekukan di repo — sesi lama tidak
+> diperlukan lagi.
 
 ## Status saat handoff
 

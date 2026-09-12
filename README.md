@@ -23,37 +23,66 @@ login.
 > terbesar DIEKSTRAKSI byte-exact dari `index.html` ke `app.js`; sejak v55
 > `app.js` adalah OUTPUT BUILD: sumber manualnya `app.src.js`, di-minify
 > lewat `npm run build:app` (terser, nama fungsi global dipertahankan --
-> mereka adalah kontrak `onclick=` di markup). **Edit `app.src.js`, BUKAN
-> `app.js`**, lalu jalankan build. Modul produksi `src/**` (domain/services/
-> ui) di-import `index.html` via ES module statis.
+> mereka adalah kontrak **registry aksi `data-action=`** di markup + harness
+> E2E; atribut `onclick=` sudah habis dihapus sejak v101-v102). **Edit
+> `app.src.js`, BUKAN `app.js`**, lalu jalankan build. Modul produksi `src/**`
+> (auth/bootstrap/domain/services/ui) sejak v103 di-bundel jadi SATU berkas
+> `boot.bundle.js` (esbuild) yang dimuat `index.html` lewat
+> `<script type="module">` -- sumber manualnya `boot.js`.
 
 ```
-myfinance-app/
-├── index.html          # Markup + modul ES (auth/services) + jembatan bootstrap
-├── app.src.js          # SUMBER MANUAL logika monolit (editor di sini)
-├── app.js              # OUTPUT BUILD app.src.js (terser, -49,7%) -- jangan diedit langsung
+myfinance/
+├── index.html          # Markup 9 view + 19 modal (role="dialog"), meta CSP, jembatan
+│                       #   bootstrap, loader Chart.js, registrasi service worker
+├── app.src.js          # SUMBER MANUAL logika monolit (editor di sini). Konstanta
+│                       #   SUPABASE_URL / SUPABASE_ANON_KEY / WHATSAPP_BOT_NUMBER juga di sini
+├── app.js              # OUTPUT BUILD app.src.js (terser, -52,8%) -- jangan diedit langsung
+├── boot.js             # SUMBER MANUAL wiring <script type="module"> (diekstrak dari index.html, v98)
+├── boot.bundle.js      # OUTPUT BUILD boot.js + 71 modul src/ (esbuild, v103) -- INI yang dimuat index.html
 ├── styles.src.css      # SUMBER MANUAL gaya visual kustom
-├── styles.css           # OUTPUT BUILD (clean-css) -- dipisah dari index.html di Phase 7
-├── css/tailwind.css    # OUTPUT BUILD Tailwind (sumber: css/tailwind.src.css)
+├── styles.css          # OUTPUT BUILD (clean-css) -- dipisah dari index.html di Phase 7
+├── css/
+│   ├── tailwind.src.css        # SUMBER Tailwind (3 directive)
+│   ├── tailwind.css            # OUTPUT BUILD Tailwind (minified, di-commit)
+│   └── fontawesome-all.min.css # Font Awesome self-host (+ _full/ = sumber subset)
 ├── manifest.json       # Web App Manifest (buat "Add to Home Screen")
-├── icons/               # Ikon PWA (192/512/apple-touch/favicon)
-├── robots.txt            # Larangan crawling mesin pencari (app ini privat)
-├── _headers               # Header keamanan (khusus hosting Netlify)
-├── sw.js                   # Service Worker (precache app shell, network-first utk dokumen)
-├── package.json            # Script test/build + metadata Node (CI: .github/workflows/)
+├── sw.js               # Service Worker (precache app shell, network-first utk dokumen)
+├── _headers            # Header keamanan (dibaca Netlify/Cloudflare Pages; GitHub Pages mengabaikannya)
+├── robots.txt          # Larangan crawling mesin pencari (app ini privat)
+├── tailwind.config.js  # Konfigurasi Tailwind (content scanning)
+├── eslint.config.js    # ESLint flat-config (ketat soal kebenaran, sengaja diam soal gaya)
+├── .gitleaks.toml      # Guard agar secret tidak ikut ter-commit
+├── .nvmrc              # Jalur Node 22 LTS (package.json: engines >=22.19.0)
+├── package.json        # Script test/build + devDependencies ("dependencies" sengaja kosong)
+├── src/                # Modul JS produksi (ES module), 5 lapisan:
+│                       #   auth/ (5) · bootstrap/ (2) · domain/ (38, pure) ·
+│                       #   services/ (2 + supabase/ 11 + parity/ 1) · ui/ (12)
+├── vendor/             # SEMUA pustaka pihak-3 self-hosted & ter-pin (v59): supabase-js 2.113.0
+│                       #   + 5 polyfill esm-node-*, Chart.js 4.5.1, datalabels 2.0.0,
+│                       #   FullCalendar 6.1.10 -- nol CDN di jalur kritis (provenance: vendor/README.md)
+├── icons/              # Ikon PWA (192/512/apple-touch/favicon) + banks/ (10 logo bank &
+│                       #   e-wallet) + platforms/ (11 logo platform investasi)
+├── fonts/ webfonts/    # Plus Jakarta Sans (variable) + subset Font Awesome -- self-hosted
 ├── sql/
 │   ├── schema.sql              # SQL LENGKAP (satu kali Run cukup): 11 tabel +
 │   │                            # 4 RPC + RLS + seed katalog logo
-│   └── migrations/*.sql         # ARSIP RIWAYAT migrasi -- bukan untuk project baru
-├── supabase/functions/
-│   ├── scan-receipt/index.ts    # Edge Function: baca struk lewat Gemini vision
-│   └── whatsapp-webhook/index.ts # Edge Function: bot WhatsApp (Fonnte)
-├── src/                          # Modul JS produksi (auth/bootstrap/data/domain/services/ui) -- diimpor index.html
+│   └── migrations/*.sql         # ARSIP RIWAYAT migrasi (15 file) -- bukan untuk project baru
+├── supabase/functions/          # 5 Edge Function (Deno) + folder helper _shared/
+│   ├── analyze-finance/         # Rekomendasi AI, Tanya AI, Ringkasan Bulanan, saran kategori (Gemini)
+│   ├── refresh-asset-price/     # Auto-update nilai aset (Bibit / CoinGecko / Yahoo IDX)
+│   ├── scan-receipt/            # Baca foto struk lewat Gemini vision
+│   ├── get-exchange-rate/       # Kurs ke IDR (Frankfurter/ECB, tanpa API key)
+│   ├── whatsapp-webhook/        # Bot WhatsApp (Fonnte)
+│   └── _shared/                 # bibit.js (dekripsi AES-256-CBC) · market-sync.js · price-sources.js
+├── scripts/                     # Build (build-app/styles/boot/csp) · 9 harness E2E verify-* ·
+│                                #   lighthouse/ · schema-verify/ (Postgres nyata) · rls-audit/
 ├── tests/
-│   ├── unit/                      # Test murni, tanpa network -- selalu jalan (npm run test:unit)
-│   └── parity/                    # Banding legacy vs native, sebagian butuh secret live
-├── scripts/rls-audit/       # Probe audit RLS + grants behavioral (docs/rls-grants-audit-*)
-├── docs/                           # Rencana migrasi, audit historis & kontrak loader
+│   ├── unit/                     # 89 file test murni, tanpa network (npm run test:unit)
+│   └── parity/                   # Banding legacy vs native (6 file), sebagian butuh secret live
+├── docs/                          # Rencana migrasi, audit historis & kontrak loader (13 dokumen)
+├── .github/workflows/             # CI: parity.yml ("CI") · e2e-harness.yml · dependabot-auto-merge.yml
+├── STRUKTUR-REPO.md               # Peta lengkap struktur repo + alur muat/data (baca ini dulu)
+├── AGENT-HANDOFF.md               # Log antar-agen per versi (v41 -> versi terbaru)
 └── README.md
 ```
 
@@ -122,8 +151,14 @@ Perintah `npm ci`, lint, build, Lighthouse, dan harness verifikasi menggunakan N
    kamu bisa mematikan "Confirm email" supaya akun baru langsung bisa login
    tanpa perlu klik link konfirmasi di email dulu.
 
-Konfigurasi URL & anon key sudah ditaruh di dalam `index.html` (cari komentar
-"KONEKSI SUPABASE") — tidak perlu diubah kecuali kamu ganti project Supabase.
+Konfigurasi URL & anon key ada di dalam **`app.src.js`** (cari komentar
+"KONEKSI SUPABASE" — konstanta `SUPABASE_URL` & `SUPABASE_ANON_KEY`) — tidak
+perlu diubah kecuali kamu ganti project Supabase. Anon key memang bersifat
+publik (yang menegakkan pembatasan data adalah RLS di database), jadi aman
+ada di kode browser. Kalau kamu menggantinya: jalankan `npm run build:app`
+supaya `app.js` ikut terbarui, lalu sesuaikan juga domain project baru di CSP
+(`_headers` **dan** meta `Content-Security-Policy` di `index.html` — keduanya
+wajib sinkron) serta di `<link rel="preconnect">`.
 
 ## 3. Menjalankan di VS Code
 
@@ -135,7 +170,7 @@ Konfigurasi URL & anon key sudah ditaruh di dalam `index.html` (cari komentar
 
 Alternatif tanpa extension (pakai terminal):
 ```bash
-cd myfinance-app
+cd myfinance
 python3 -m http.server 5500
 ```
 lalu buka `http://localhost:5500/index.html` di browser.
@@ -149,15 +184,20 @@ ke home screen dan tampil seperti app biasa (tanpa address bar browser).
 `file://` ataupun `localhost` di laptop) — cara termudah & gratis pakai
 **Netlify Drop**:
 1. Buka https://app.netlify.com/drop di browser laptop.
-2. Drag & drop folder `myfinance-app` (isinya `index.html`, `manifest.json`,
-   `icons/`, `robots.txt`, `_headers`, `sql/`) ke halaman itu.
+2. Drag & drop folder `myfinance` **beserta seluruh isinya** ke halaman itu.
+   Yang wajib ikut: `index.html`, `app.js`, `boot.bundle.js`, `styles.css`,
+   `sw.js`, `manifest.json`, `_headers`, `robots.txt`, plus folder `src/`,
+   `vendor/`, `css/`, `fonts/`, `webfonts/`, dan `icons/`. (`sql/`, `tests/`,
+   `scripts/`, `docs/`, `.github/`, dan berkas `*.src.*` tidak dibutuhkan
+   browser — boleh ikut ter-upload, boleh tidak.)
 3. Netlify langsung kasih link publik, misal `https://nama-acak.netlify.app`.
 
 Lalu di HP Android (Chrome):
 1. Buka link Netlify tadi.
 2. Menu titik tiga (⋮) → **"Tambahkan ke Layar Utama" / "Install app"**.
 3. Ikon MyFinance akan muncul di home screen, terbuka full-screen tanpa
-   address bar, dengan warna splash screen sesuai brand (`#151928`).
+   address bar, dengan warna splash screen sesuai `manifest.json`
+   (`background_color` `#f8fafc`, `theme_color` `#151928`).
 
 Di iPhone (Safari): tombol **Share** (kotak dengan panah ke atas) →
 **"Add to Home Screen"**.
@@ -234,8 +274,9 @@ membuka modal catat transaksi. Beberapa catatan jujur soal batasannya:
   bukan karakter berlisensi) supaya tampilan login lebih hidup, plus animasi
   mengambang & kerlip halus.
 - **Edit Profil** (menu Pengaturan → kartu "Akun Saya" → tombol **Edit
-  Profil**): ubah **foto profil** (upload gambar, maks 1MB), **nama
-  lengkap**, **nomor HP/WhatsApp**, dan **tentang saya** singkat. Foto &
+  Profil**): ubah **foto profil** (upload gambar maks 8MB mentah — otomatis
+  dikecilkan & dikompres di browser sebelum diunggah, lihat bagian 8),
+  **nama lengkap**, **nomor HP/WhatsApp**, dan **tentang saya** singkat. Foto &
   nama langsung tampil di kartu Akun Saya dan di pojok sidebar.
 - **Ekspor CSV** (menu Transaksi → tombol **Ekspor CSV**): mengunduh daftar
   transaksi yang sedang tampil (mengikuti filter & pencarian aktif) sebagai
@@ -336,8 +377,9 @@ lebih layak dipakai sehari-hari, bukan cuma prototipe:
   **Kalau ada yang aneh setelah deploy** (misal ada resource yang gagal
   dimuat), coba hapus dulu file `_headers` untuk isolasi apakah itu
   penyebabnya.
-- **Aksesibilitas**: semua 8 modal sekarang punya `role="dialog"` +
-  `aria-modal="true"`, tombol ber-ikon-saja (close modal, navigasi, tombol
+- **Aksesibilitas**: semua 19 modal sekarang punya `role="dialog"` +
+  `aria-modal="true"` (dijaga `src/ui/modal-a11y.js`: focus trap, urutan Tab,
+  dan nama aksesibel modal), tombol ber-ikon-saja (close modal, navigasi, tombol
   catat transaksi) dapat `aria-label` supaya pembaca layar (screen reader)
   tahu fungsinya, dan tombol **Escape** sekarang menutup modal yang sedang
   terbuka.
@@ -466,21 +508,31 @@ miliknya sendiri, walau key-nya identik.
 - Kolom `tanggal` transaksi pakai tipe `date` (tanpa jam), sama seperti
   input form aslinya (`<input type="date">`).
 - Ikon kustom akun & foto profil berupa gambar upload disimpan sebagai
-  base64 di kolom `jsonb` — cukup untuk logo/ikon/foto ukuran wajar, tapi
-  hindari upload gambar beresolusi sangat besar (dibatasi maks 1MB).
+  base64 di kolom `jsonb`. File mentah yang boleh dipilih dibatasi maks 8MB,
+  tapi SEMUA gambar otomatis dikecilkan & dikompres di browser lebih dulu
+  (maks 480px sisi terpanjang, JPEG 82% — atau PNG kalau sumbernya punya area
+  transparan, supaya tepi logo tidak berpinggiran putih) sebelum diunggah,
+  jadi yang benar-benar tersimpan biasanya cuma puluhan–ratusan KB.
+  Khusus foto struk untuk AI batasnya 10MB mentah dan dikompres ke maks
+  1600px / JPEG 85%.
 - **Kustomisasi ikon/warna/gambar per kategori** (tombol palet di halaman
   Pengaturan > Kategori) juga disimpan di tabel `custom_icons` yang sama —
   lewat key khusus berawalan `__myfinance_category_style__`, sama seperti
   foto profil pakai `__myfinance_profile_avatar__`. Jadi **tidak perlu
   migrasi SQL tambahan** kalau kamu sudah menjalankan skema di bawah ini.
-- **Tailwind CSS di-build statis** (`css/tailwind.css`, ~50KB minified,
+- **Tailwind CSS di-build statis** (`css/tailwind.css`, ~55KB minified,
   di-commit ke repo) — menggantikan Play CDN lama yang men-generate style
   saat runtime (warning console + flash gaya saat first paint). Setelah
-  mengubah kelas Tailwind di `index.html`/`src/`, jalankan
-  `npm run build:css` lalu commit ulang `css/tailwind.css`-nya; job CI
-  "Tailwind build drift guard" akan gagal kalau CSS yang di-commit
-  kadaluarsa. Konfigurasi di `tailwind.config.js` (darkMode class,
-  content: index.html + src).
+  mengubah kelas Tailwind di `index.html`, `app.src.js`, `boot.js`, atau
+  `src/**`, jalankan `npm run build:css` lalu commit ulang
+  `css/tailwind.css`-nya; job CI **"Build drift guard (CSS + app + bundel
+  boot)"** akan gagal kalau CSS yang di-commit kadaluarsa. Konfigurasi di
+  `tailwind.config.js` (darkMode class; `content` memindai `index.html` +
+  `app.js` + `boot.js` + `src/**/*.js`). Perhatikan yang dipindai adalah
+  `app.js` **hasil build** — kalau kelas Tailwind barumu ada di `app.src.js`,
+  jalankan `npm run build:app` dulu, baru `npm run build:css` (v118 pernah
+  kecolongan drift karena sebuah kata di komentar `*.src.css` ikut ter-scan
+  jadi kelas).
 
 ## 10. Kalau ada error saat login/memuat data
 
@@ -499,21 +551,29 @@ miliknya sendiri, walau key-nya identik.
 
 ## 11. Setup "Rekomendasi AI" & "Tanya AI" (opsional)
 
-Dua fitur di aplikasi ini memanggil **Gemini (Google AI)** lewat internet untuk
-menganalisis keuangan kamu: **Rekomendasi AI** (kartu insight otomatis di
-Dashboard) dan **Tanya AI** (chat bebas di tab Analisis) -- keduanya memakai
-Edge Function yang sama, jadi **satu kali setup untuk keduanya**. Ini
-**opsional** -- kalau belum di-setup, kedua section itu cuma menampilkan
-pesan "belum aktif" dan sisa aplikasi tetap berjalan normal (termasuk
-"Wawasan Keuangan" yang rule-based di Dashboard, yang selalu jalan tanpa
-setup apa pun).
+Edge Function **`analyze-finance`** dipakai bersama oleh EMPAT fitur yang
+memanggil **Gemini (Google AI)** lewat internet: **Rekomendasi AI** (kartu di
+Dashboard, dipicu manual lewat tombol refresh), **Tanya AI** (chat bebas di tab
+Analisis), **Ringkasan Bulanan** (1 paragraf naratif di tab Laporan), dan
+**saran kategori otomatis** (muncul saat kamu mengetik field Keterangan di
+modal Catat Transaksi) -- jadi **satu kali setup untuk keempatnya**. Secret
+`GEMINI_API_KEY` yang sama juga dipakai Edge Function **`scan-receipt`** (tombol
+kamera "Isi otomatis dari foto struk"), sedangkan `get-exchange-rate` dan
+`refresh-asset-price` tidak butuh secret apa pun.
 
-**Kenapa butuh Edge Function, tidak langsung dari `index.html` saja?**
-API key Gemini harus dirahasiakan di server. Kalau ditaruh di kode
-`index.html`, siapa pun yang buka DevTools browser bisa mencurinya dan
-memakainya atas nama akun Google AI-mu (kena tagihan/kuota kamu). Edge
-Function berjalan di server Supabase, menyimpan key itu lewat "secret"
-yang tidak pernah dikirim ke browser.
+Semua fitur AI ini **opsional** -- kalau belum di-setup, section-nya cuma
+menampilkan pesan "belum aktif" dan sisa aplikasi tetap berjalan normal
+(termasuk "Wawasan Keuangan" yang rule-based di Dashboard, yang selalu jalan
+tanpa setup apa pun karena dihitung langsung di browser).
+
+**Kenapa butuh Edge Function, tidak langsung dari kode browser saja?**
+API key Gemini harus dirahasiakan di server. Kalau ditaruh di kode sisi
+browser (`app.src.js`/`app.js`, `index.html`), siapa pun yang buka DevTools
+bisa mencurinya dan memakainya atas nama akun Google AI-mu (kena
+tagihan/kuota kamu). Edge Function berjalan di server Supabase, menyimpan key
+itu lewat "secret" yang tidak pernah dikirim ke browser — browser cuma
+mengirim ringkasan angka agregat (bukan data mentah per transaksi) dan
+menerima balasan JSON-nya.
 
 **Langkah setup (sekali saja):**
 
@@ -543,16 +603,27 @@ yang tidak pernah dikirim ke browser.
    ```
    supabase functions deploy analyze-finance
    ```
-6. Selesai! Buka Dashboard, section "Rekomendasi AI" akan otomatis mencoba
-   memanggilnya. Kalau masih menampilkan "belum aktif", cek log lewat
-   `supabase functions logs analyze-finance` untuk lihat error detailnya.
+6. Selesai! Buka Dashboard → kartu **"Rekomendasi AI"** → klik **tombol
+   refresh** (ikon reload di pojok kanan atas kartu). Gemini SENGAJA tidak
+   pernah dipanggil otomatis saat dashboard dibuka — kartu itu hanya
+   menampilkan hasil yang sudah tersimpan di akunmu
+   (`appSettings.ai_insight_cache` di tabel `settings`, ikut sinkron ke semua
+   perangkat), atau pesan "Belum ada rekomendasi — klik tombol refresh" kalau
+   belum pernah dianalisis. Kalau setelah diklik masih muncul "belum aktif",
+   cek log lewat `supabase functions logs analyze-finance` untuk lihat error
+   detailnya.
 
 **Soal biaya:** setiap panggilan ke Gemini dikenakan biaya sesuai tarif
 Google AI (model default yang dipakai: **Gemini 3.6 Flash**, tier
 tercepat & termurah yang tersedia, cukup untuk menganalisis ringkasan
-angka bulanan). Frekuensi panggilan otomatis dibatasi jeda minimal 3
-menit per sesi, jadi biayanya tetap terkendali meski kamu aktif mencatat
-banyak transaksi. Mau lebih hemat lagi? Ganti ke `gemini-3.5-flash-lite`.
+angka bulanan). Biayanya terkendali lewat dua lapis: (1) **tidak ada
+panggilan otomatis sama sekali** — Rekomendasi AI & Ringkasan Bulanan baru
+terpanggil kalau kamu menekan tombolnya sendiri, dan hasilnya di-cache di
+akunmu supaya buka/reload dashboard tidak memakai token lagi; (2) Edge
+Function membatasi **per user per jam** lewat RPC `check_and_consume_rate_limit`
+(tabel `api_rate_limits`): Rekomendasi AI 20×, Ringkasan Bulanan 20×, Tanya AI
+40× (plus jeda minimal 8 detik antar pesan — tabel warisan `rate_limits`), dan
+saran kategori otomatis 60×. Mau lebih hemat lagi? Ganti ke `gemini-3.5-flash-lite`.
 Mau analisis lebih dalam? Ganti ke model "Pro" terbaru -- cek daftar
 model aktif di https://ai.google.dev/gemini-api/docs/models. Ganti
 nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
@@ -562,13 +633,14 @@ nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
 
 **Migrasi lanjutan — status per 25 Agustus 2026:**
 - ✅ **`sql/migrations/migration_reliability_hardening_2026-08.sql`** — **SUDAH diterapkan** ke database
-  production, dan `index.html` **sudah** memanggil RPC barunya
-  (`create_recurring_transaction` & `replace_month_budgets`). Transaksi Berulang sekarang
+  production, dan aplikasi **sudah** memanggil RPC barunya lewat service layer
+  (`src/services/supabase/recurring.js` → `create_recurring_transaction`,
+  `src/services/supabase/budgets.js` → `replace_month_budgets`). Transaksi Berulang sekarang
   anti-duplikat di level database, dan penyimpanan Budget sudah atomik (tidak ada lagi
   kondisi "budget sebulan kosong" kalau koneksi putus di tengah simpan).
 - ✅ **`sql/migrations/migration_transfer_currency_2026-08.sql`** — **SUDAH diterapkan** ke database
-  production, dan `index.html` **sudah** memanggil RPC barunya
-  (`create_transfer_transaction`). Transfer antar akun beda mata uang sekarang dicatat
+  production, dan aplikasi **sudah** memanggil RPC barunya lewat service layer
+  (`src/services/supabase/transfers.js` → `create_transfer_transaction`). Transfer antar akun beda mata uang sekarang dicatat
   sebagai satu operasi atomik, dengan kurs kedua sisi (sumber & tujuan) disimpan sebagai
   snapshot saat transaksi dibuat.
   **Catatan:** transaksi Transfer LAMA (sebelum fitur ini ada) tetap kompatibel -- kolom
@@ -591,10 +663,14 @@ nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
 4. Daftarkan URL Edge Function itu sebagai webhook di dashboard Fonnte
    (Device kamu → Webhook URL), dengan `?token=<WHATSAPP_WEBHOOK_SECRET>`
    di belakangnya.
-5. **PENTING, sering terlewat**: buka `index.html`, cari konstanta
-   `WHATSAPP_BOT_NUMBER` (di bagian "BOT WHATSAPP (Fonnte)"), lalu ganti
-   nilai placeholder `'628XXXXXXXXXX'` dengan nomor WhatsApp device Fonnte
-   kamu yang sebenarnya. Kalau langkah ini terlewat, halaman Pengaturan
-   akan otomatis menampilkan peringatan "Bot WhatsApp belum dikonfigurasi"
-   alih-alih meminta user mengirim kode ke nomor yang tidak ada.
+5. **PENTING, sering terlewat**: buka **`app.src.js`** (bukan `index.html`),
+   cari konstanta `WHATSAPP_BOT_NUMBER` (di bagian "BOT WHATSAPP (Fonnte)"),
+   lalu ganti nilai placeholder `'628XXXXXXXXXX'` dengan nomor WhatsApp
+   device Fonnte kamu yang sebenarnya. Setelah itu WAJIB jalankan
+   `npm run build:app` dan commit `app.src.js` + `app.js` bersamaan — yang
+   dijalankan browser adalah `app.js` (output build), jadi tanpa build ulang
+   perubahanmu tidak akan pernah sampai ke pengguna. Kalau langkah ini
+   terlewat, halaman Pengaturan akan otomatis menampilkan peringatan
+   "Bot WhatsApp belum dikonfigurasi" alih-alih meminta user mengirim kode ke
+   nomor yang tidak ada.
 

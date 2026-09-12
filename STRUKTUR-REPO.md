@@ -1,8 +1,8 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~385 commit · versi terbaru `v121`
-> Sekali lihat: **SPA statis (no build step untuk produksi) + Supabase backend + Edge Functions**.
-> Browser tidak butuh bundler — `index.html` memuat modul ES `src/**` langsung, lalu `app.js` (output build) untuk logika monolit.
+> Repo: `wahyudp76/myfinance` · branch `main` · ~413 commit · versi terbaru `v122`
+> Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
+> Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
 ---
 
@@ -20,16 +20,22 @@ Aplikasi ini adalah **single-page app (SPA) statis** yang di-deploy sebagai file
   build untuk menghasilkan file produksi. Hasil build **di-commit ke git** dan drift-nya
   dijaga oleh test CI (`git diff --exit-code`).
 
-### Tiga sumber kode → tiga keluaran build
+### Empat sumber kode → empat keluaran build (+ satu generator hash CSP)
 
-| Sumber (kamu edit)        | Build command                | Hasil (dijalankan browser)        |
-|---------------------------|------------------------------|-----------------------------------|
-| `app.src.js`              | `npm run build:app` (terser) | `app.js` (-49,7% ukuran)          |
-| `styles.src.css`          | `npm run build:styles`      | `styles.css` (clean-css)          |
-| `css/tailwind.src.css`    | `npm run build:css`         | `css/tailwind.css` (minified)     |
+| Sumber (kamu edit) | Build command | Hasil (dijalankan browser) | Guard drift |
+|---|---|---|---|
+| `app.src.js` | `npm run build:app` (terser) | `app.js` (−52,8% ukuran) | `tests/unit/app-minify.test.js` |
+| `boot.js` + 71 modul `src/**` | `npm run build:boot` (esbuild) | `boot.bundle.js` (`vendor/` tetap external) | `tests/unit/boot-bundle.test.js` |
+| `styles.src.css` | `npm run build:styles` (clean-css) | `styles.css` (−34,6%) | `tests/unit/styles-minify.test.js` |
+| `css/tailwind.src.css` + pemindaian kelas | `npm run build:css` (tailwindcss) | `css/tailwind.css` (~55KB minified) | `tests/unit/tailwind-content.test.js` |
+| blok `<script>` inline di `index.html` | `npm run build:csp` | 4 hash sha256 ditulis balik ke `index.html` **dan** `_headers` | `tests/unit/csp-hash.test.js` |
 
-> **Aturan emas:** edit `app.src.js` / `styles.src.css` / `css/tailwind.src.css`,
-> **JANGAN** edit `app.js` / `styles.css` / `css/tailwind.css` — itu output build.
+> **Aturan emas:** edit `app.src.js` / `boot.js` / `styles.src.css` /
+> `css/tailwind.src.css`, **JANGAN** edit `app.js` / `boot.bundle.js` /
+> `styles.css` / `css/tailwind.css` — itu output build.
+> **Urutan penting:** kalau kelas Tailwind barumu ada di `app.src.js`, jalankan
+> `build:app` DULU baru `build:css` — yang dipindai `tailwind.config.js` adalah
+> `app.js` hasil build, bukan `app.src.js`.
 
 ---
 
@@ -37,10 +43,15 @@ Aplikasi ini adalah **single-page app (SPA) statis** yang di-deploy sebagai file
 
 ```
 myfinance/
-├── index.html              # Markup + konfigurasi Supabase + modul ES + jembatan bootstrap
-├── app.src.js              # SUMBER logika "monolit" (editor di sini)
-├── app.js                  # OUTPUT build terser dari app.src.js (~223KB) — jangan diedit
-├── boot.js                 # Blok <script type="module"> wiring (diekstrak dari index.html, v98)
+├── index.html              # Markup 9 view + 19 modal (role="dialog"), meta CSP paling atas,
+│                           #   jembatan bootstrap, loader Chart.js, registrasi SW.
+│                           #   TANPA konfigurasi Supabase & TANPA atribut onclick= (v101-v102)
+├── app.src.js              # SUMBER logika "monolit" (editor di sini) — juga tempat konstanta
+│                           #   SUPABASE_URL / SUPABASE_ANON_KEY / WHATSAPP_BOT_NUMBER
+├── app.js                  # OUTPUT build terser dari app.src.js (~265KB) — jangan diedit
+├── boot.js                 # SUMBER wiring <script type="module"> (diekstrak dari index.html, v98)
+├── boot.bundle.js          # OUTPUT build esbuild: boot.js + 71 modul src/ (~154KB, v103) —
+│                           #   INI yang dimuat index.html; jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
 ├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v152)
@@ -48,21 +59,31 @@ myfinance/
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
 ├── tailwind.config.js      # Konfigurasi Tailwind (content scanning)
-├── eslint.config.js        # ESLint 9 flat-config (kebenaran, bukan gaya)
+├── eslint.config.js        # ESLint 10 flat-config (ketat soal kebenaran, diam soal gaya)
 ├── .gitleaks.toml          # Guard agar secret tidak ter-commit
 ├── .nvmrc                  # Jalur Node 22 LTS; engines minimal >=22.19.0
 ├── package.json            # Script lint/test/build + devDependencies; Node >=22.19.0
 │
-├── src/                        # ★ Modul JS produksi (ES module) — di-import oleh index.html
+├── src/                        # ★ Modul JS produksi (ES module) — di-import boot.js, lalu
+│                               #   di-bundel jadi boot.bundle.js (v103) yang dimuat index.html
 │   ├── auth/                   # Autentikasi Supabase
 │   │   ├── client.js           # initAuthClient / getAuthClient
 │   │   ├── session.js          # getSession, signIn, signUp, signOut
 │   │   ├── guards.js           # onAuthStateChange, requireUser
-│   │   ├── lifecycle.js        # createAuthLifecycle (auth state machine)
+│   │   ├── lifecycle.js        # createAuthLifecycle — ⚠️ TIDAK dipakai produksi (lihat bawah)
 │   │   └── index.js            # Barrel re-export
-│   ├── bootstrap/              # Boot & load pipeline
-│   │   ├── app.js              # createAppBootstrap (orchestrates start/stop, generation guard)
-│   │   └── loader.js           # createBootstrapLoader (de-dup in-flight load + generation counter)
+│   ├── bootstrap/              # ⚠️ Boot & load pipeline — BELUM ter-wire ke produksi
+│   │   ├── app.js              #   createAppBootstrap (start/stop + generation guard)
+│   │   └── loader.js           #   createBootstrapLoader (de-dup in-flight + generation counter)
+│   │                           #   KETIGANYA (bootstrap/app.js, bootstrap/loader.js,
+│   │                           #   auth/lifecycle.js) tidak di-import boot.js → di-tree-shake
+│   │                           #   HABIS dari boot.bundle.js, dan tidak punya satu pun unit test.
+│   │                           #   Jalur boot produksi yang SEBENARNYA = IIFE bootstrapAuth()
+│   │                           #   di app.src.js. lifecycle.js sengaja TIDAK dipakai: ia
+│   │                           #   memanggil onAuthenticated di SETIAP event yang punya session
+│   │                           #   (termasuk TOKEN_REFRESHED berkala) → showAppShell()+initApp()
+│   │                           #   → seluruh loadData() terulang tiap refresh token. Kontrak
+│   │                           #   yang belum dipenuhi: docs/production-loader-contract.md
 │   ├── domain/                 # ★ Logika murni (pure functions) — 38 file, teruji unit
 │   │   ├── transactions.js     # filter/cari, compute views, insertTransactionRow, dll
 │   │   ├── accounts.js         # total/grafik/agregasi akun
@@ -112,8 +133,10 @@ myfinance/
 │   │       ├── paging.js        # paginasi paralel (2 fase, MAX_PARALLEL_PAGES)
 │   │       ├── assets.js / budgets.js / recurring.js / settings.js / transfers.js
 │   │       ├── custom-icons.js  # ikon/logo & foto profil kustom
-│   │       └── edge.js          # suggestCategory, getExchangeRate, scanReceipt
-│   └── ui/                      # ★ Render/DRY pengganti fungsi render duplikat
+│   │       ├── platform-logos.js # listPlatformLogos (katalog global, v86)
+│   │       ├── edge.js          # suggestCategory, getExchangeRate, scanReceipt
+│   │       └── README.md        # kontrak lapisan service (tanpa service-role di sini)
+│   └── ui/                      # ★ Render/DRY pengganti fungsi render duplikat — 12 file
 │       ├── accounts.js / assets.js / budgets.js / calendar.js / categories.js
 │       ├── charts.js / goals-debts.js / insights.js / recurring.js / ai-recommendations.js  # insights & rekomendasi AI: kartu compact + modal detail (v94)
 │       ├── skeletons.js         # placeholder saat loading
@@ -175,7 +198,7 @@ myfinance/
 │       ├── rls_performance_fix.sql
 │       └── event_trigger_ensure_rls.sql
 │
-├── supabase/functions/     # Edge Functions (Deno)
+├── supabase/functions/     # 5 Edge Function (Deno) + folder helper _shared/
 │   ├── _shared/
 │   │   ├── bibit.js         # API reksadana Bibit (en/decrypt AES-256-CBC)
 │   │   ├── market-sync.js   # logika sinkronisasi harga pasar
@@ -186,14 +209,23 @@ myfinance/
 │   ├── scan-receipt/index.ts       # baca struk via Gemini vision
 │   └── whatsapp-webhook/index.ts   # bot WhatsApp (Fonnte)
 │
-├── scripts/                # Perkakas dev
+├── scripts/                # Perkakas dev: 4 build + 9 harness E2E + 3 folder alat
 │   ├── build-app.mjs       # terser app.src.js → app.js
+│   ├── build-boot.mjs      # esbuild boot.js + src/** → boot.bundle.js (v103)
 │   ├── build-styles.mjs    # clean-css styles.src.css → styles.css
-│   ├── subset-fontawesome.py
-│   ├── bench-save-latency.mjs
+│   ├── build-csp.mjs       # hash sha256 <script> inline → index.html + _headers (v104)
+│   ├── subset-fontawesome.py  # subset Font Awesome → webfonts/ (jebakan SAFELIST: AGENT-HANDOFF v51)
+│   ├── bench-save-latency.mjs # benchmark alur simpan transaksi (v52)
 │   ├── verify-hud.mjs      # E2E Playwright (70 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
-│   ├── verify-asset-logos.mjs # E2E Playwright logo platform aset (v86, 17 cek) — juga di e2e-harness.yml
-│   ├── lighthouse/run.mjs      # pagar performa + deteksi executable Chromium yang eksplisit
+│   ├── verify-ui-actions.mjs  # E2E aksi UI deklaratif data-action (39 cek, v101)
+│   ├── verify-applock-rpid.mjs # E2E RP ID WebAuthn, legacy & pindah domain (31 cek, v107)
+│   ├── verify-applock.mjs  # E2E kunci aplikasi + pengingat, stub settings STATEFUL (21 cek, v92)
+│   ├── verify-csp.mjs      # E2E Content-Security-Policy (17 cek, v109)
+│   ├── verify-asset-logos.mjs # E2E logo platform aset (17 cek, v86)
+│   ├── verify-applock-biometric.mjs # E2E biometrik multi-perangkat, virtual authenticator CDP (14 cek, v99)
+│   ├── verify-offline-cache.mjs # E2E cache data offline/PWA (13 cek, v100)
+│   ├── verify-ui-sweep.mjs # E2E sapu seluruh permukaan aksi (9 cek, v106)
+│   ├── lighthouse/run.mjs      # pagar performa (ambang: performance 55, a11y 85, best-practices 90)
 │   │   └── chrome-path.mjs     # validasi CHROME_PATH / Playwright tanpa path hardcode
 │   ├── schema-verify/      # v95/v96: uji sql/schema.sql di Postgres NYATA — run.mjs
 │   │                       #   (install dari nol + idempotensi + 10 cek RLS/RPC/grant).
@@ -201,19 +233,22 @@ myfinance/
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
-│   ├── unit/               # 50+ file uji murni (node --test) — :test:unit
-│   │   ├── sw-cache.snapshot        # snapshot hash aset SW
+│   ├── unit/               # 89 file *.test.js murni (node --test) — npm run test:unit
+│   │   ├── sw-cache.snapshot            # snapshot hash aset precache SW
+│   │   ├── sw-cache-hash-helper.mjs     # helper penghitung hash precache
+│   │   ├── update-sw-cache-snapshot.mjs # regen snapshot SETELAH bump CACHE_VERSION + build
 │   │   └── helpers/mock-supabase-client.js
-│   └── parity/             # banding legacy vs native (sebagian butuh secret live)
+│   └── parity/             # 6 file: banding legacy vs native (sebagian butuh secret live / opt-in)
 │
-├── docs/                   # Rencana migrasi, audit, kontrak
-│   ├── SESSION-HANDOFF.md / AGENT-HANDOFF.md  (root) — catatan antar-agen per versi
+├── docs/                   # Rencana migrasi, audit, kontrak — 13 dokumen
+│   ├── SESSION-HANDOFF.md  # snapshot handoff 2026-08-31 (AGENT-HANDOFF.md ada di root)
 │   ├── architecture-modernization-plan.md
 │   ├── supabase-native-migration-plan.md
-│   ├── current-data-flow-map.md
+│   ├── current-data-flow-map.md    # HISTORIS: masih menyebut CDN — tidak berlaku sejak v59
 │   ├── production-loader-contract.md
-│   ├── schema-contract-audit.md
+│   ├── schema-contract-audit.md    # HISTORIS: gap kolom yang disebut sudah ditutup schema.sql v95
 │   ├── financial-invariants.md
+│   ├── applock-webauthn-domain.md  # v107: kebijakan RP ID + panduan pindah domain
 │   ├── db-migration-status-2026-09-01.md
 │   ├── rls-grants-audit-2026-08-31.md
 │   ├── audit-bug-analysis-2026-09-02.md
@@ -221,29 +256,62 @@ myfinance/
 │   └── PILOT-MIGRASI-v71.md  (v91: dipindah dari root — dokumen historis pilot migrasi monolit→modul)
 │
 └── .github/
+    ├── dependabot.yml          # npm + github-actions bulanan (minor/patch digrup, major dipisah)
     └── workflows/
-        ├── parity.yml            # CI: lint + unit + parity + build drift guard (CSS + app)
-        │                         #     + schema-install (Postgres, v96)
-        └── dependabot-auto-merge.yml
+        ├── parity.yml              # workflow bernama "CI": unit + secret-scan + lint
+        │                           #   + build drift guard (CSS + app + bundel boot)
+        │                           #   + schema-install (Postgres, v96) + lighthouse
+        │                           #   + parity live (HANYA push, tidak pernah pull_request)
+        ├── e2e-harness.yml         # menjalankan kesembilan harness E2E di CI (hermetic, tanpa secret)
+        └── dependabot-auto-merge.yml  # merge otomatis PR Dependabot yang CI-nya hijau penuh
 ```
 
 ---
 
 ## 3. Alur Muat (Loader / Bootstrap)
 
-1. **`index.html`** berisi konfigurasi Supabase (URL + anon key) di komentar "KONEKSI SUPABASE".
-2. **`boot.js`** (`<script type="module" src>`) meng-import ratusan fungsi dari `src/**`
-   (auth → services/domain/ui) dan memaparkannya lewat `__myfinanceServices`. Module
-   dieksekusi *deferred* (setelah seluruh dokumen). Sampai v97 blok ini INLINE di
-   `index.html`; v98 memindahkannya byte-exact ke berkas terpisah karena SW memakai
-   network-first untuk dokumen (jadi 17 KB itu diunduh ulang tiap kunjungan online)
-   tapi stale-while-revalidate untuk aset — dokumen turun 33,8 → 29,8 KB gzip.
-3. Blok `<script>` **classic** di body (logika monolit dari `app.js`) dipakai karena ada
-   **200+ atribut `onclick=`** di markup — itu kontrak fungsi global yang wajib dipertahankan
-   namanya oleh terser (`mangle.toplevel=false`, `keep_fnames=true`).
-4. **Bootstrap** (`src/bootstrap/app.js`) mengorkestrasi: init auth → load data → init UI →
-   tampilkan app, dengan *generation counter* agar penanganan login/logout cepat tidak saling
-   menimpa. `loader.js` men-de-dup panggilan load yang sedang berjalan.
+1. **Konfigurasi Supabase** (URL + anon key) ada di **`app.src.js`** di bawah komentar
+   "KONEKSI SUPABASE" — BUKAN di `index.html` (ikut pindah saat blok monolit diekstrak di v54).
+   `index.html` hanya menyebut host project itu di meta CSP + `<link rel="preconnect">`.
+   Urutan di `<head>`: `<meta charset>` → **meta CSP** (v104: wajib paling atas, sebelum skrip
+   apa pun) → blok inline penentu tema (anti kedip) → preload/preconnect → stylesheet →
+   blok inline pembuat 2 Promise jembatan → `<script type="module" src="./boot.bundle.js">`.
+2. **`boot.bundle.js`** adalah bundel esbuild dari **`boot.js`** + 71 modul `src/**`
+   (auth → services/domain/ui). Ia memapar ratusan fungsi lewat `window.__myfinanceAuth` &
+   `window.__myfinanceServices`, lalu men-dispatch event `myfinance:auth-ready` /
+   `myfinance:services-ready`. Module dieksekusi *deferred* (setelah seluruh dokumen).
+   Riwayat: sampai v97 blok ini INLINE di `index.html`; v98 memindahkannya byte-exact ke
+   `boot.js` (dokumen turun 33,8 → 29,8 KB gzip, karena SW memakai network-first untuk dokumen
+   tapi stale-while-revalidate untuk aset); v103 mem-bundel-nya jadi SATU berkas (kunjungan
+   pertama turun dari 101 → 30 request — 71 modul ESM kecil-kecil itu biaya latensi, bukan byte).
+3. **`app.js`** adalah blok `<script>` **classic** di body (logika monolit). Ia menunggu kedua
+   Promise jembatan itu lewat `Promise.all` + timeout 8 detik per modul (pesan error menyebut
+   modul mana yang gagal), dengan jaring pengaman generik 12 detik → layar error + "Muat Ulang".
+   Classic script (bukan module) karena ±394 fungsinya harus global: itulah kontrak
+   **registry aksi `data-action=`** (169 aksi) + harness E2E, sehingga terser wajib
+   `mangle.toplevel=false` + `keep_fnames=true`.
+   Atribut **`onclick=` di markup sudah HABIS** (119 atribut dihapus di v101, sisanya di HTML
+   yang dihasilkan runtime dihapus di v102) — diganti `data-action` + `data-args` JSON dan satu
+   dispatcher delegasi di `document`. Itulah yang memungkinkan `'unsafe-inline'` dilepas dari
+   `script-src` (v104) dan `style-src` (v109).
+4. **Bootstrap produksi** = IIFE `bootstrapAuth()` di `app.src.js` — **bukan** `src/bootstrap/`.
+   Urutannya: `initSupabaseClient()` (menunggu 2 Promise jembatan, lalu mengadopsi 10 helper
+   domain kanonik) → `initStaticUIListeners()` → `initLoginForm()` → pasang listener
+   `onAuthStateChange` yang **sengaja hanya bereaksi ke event `SIGNED_OUT`** (titik terpusat
+   semua jalur logout: tombol manual, sesi kedaluwarsa, dicabut dari perangkat lain) →
+   `auth.getSession()` → ada sesi: `enterApp()` (gerbang Kunci Aplikasi v92 diperiksa DULU,
+   baru appShell + `loadData()`); tidak ada: `showLoginView()`.
+   Pengaman lomba (race) di jalur ini diimplementasikan **di monolit sendiri**, dan kontrak
+   `docs/production-loader-contract.md` memang terpenuhi — hanya bukan oleh `src/bootstrap/`:
+   `_loadDataSeq` (v69) memberi nomor urut tiap panggilan `loadData()` sehingga hanya
+   panggilan TERAKHIR yang boleh menimpa state (respons basi ditolak); `showLoginView()`
+   memanggil `resetAppState()` (reset memori + bump generasi) lalu `clearOfflineDataCache()`
+   (kirim pesan `MYFINANCE_CLEAR_DATA_CACHE` ke SW); `_pendingTxMutations` &
+   `_txFetchInFlight` dikosongkan saat logout (v119: pending milik user sebelumnya tidak
+   boleh ikut ke sesi berikutnya); dan `reconcileTxRowsWithPending()`
+   (`src/domain/transactions.js`) mendamaikan baris hasil fetch dengan mutasi tertunda.
+   `src/bootstrap/app.js` + `loader.js` adalah **modularisasi dari pola yang sama, belum
+   dipasang** (lihat catatan ⚠️ di tree §2).
 5. **`sw.js`** (service worker) meng-pre-cache app shell + aset, dan men-cache data GET
    `/rest/v1` di cache DATA terpisah (sengaja tidak ikut `CACHE_VERSION`). Ganti
    `CACHE_VERSION` lalu jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build.
@@ -253,20 +321,30 @@ myfinance/
 ## 4. Alur Data
 
 ```
-UI (index.html / src/ui/**, onclick= di markup)
+UI (index.html: 9 view + 19 modal · data-action= deklaratif → 1 dispatcher delegasi
+   │  di document → registry 169 aksi di app.src.js; src/ui/** merender HTML,
+   │  src/domain/sanitize.js meng-escape)
    │
    ├── domain/**: logika murni (hitung, filter, agregasi) — tidak tahu Supabase
    │
-   ├── services/**: kontrak data
-   │     └── services/supabase/*: adapter per entity (createClient dari vendor/)
-   │           └── supabase-js 2.113.0 (vendored) ──► Supabase REST/Realtime
+   ├── services/**: kontrak data (satu-satunya boundary database)
+   │     ├── user-id.js: getSession() dulu (hemat 1 RTT), fallback getUser()
+   │     ├── supabase/paging.js: fetch-all 2 fase (halaman 1 + count=exact, sisanya
+   │     │                       paralel maks 6 halaman, fallback berurutan)
+   │     └── supabase/*: adapter per entity (createClient dari vendor/)
+   │           └── supabase-js 2.113.0 (vendored) ──► Supabase REST/Realtime + RLS
+   │                 └── 3 RPC atomik: create_transfer_transaction,
+   │                     create_recurring_transaction, replace_month_budgets
    │
    └── services/supabase/edge.js ──► Edge Functions (supabase/functions/*, Deno)
-           ├── analyze-finance      ──► Gemini AI
-           ├── refresh-asset-price  ──► Bibit / CoinGecko / Yahoo
+           ├── analyze-finance      ──► Gemini AI (4 mode: insights / question /
+           │                            monthly_summary / suggest_category)
+           ├── refresh-asset-price  ──► Bibit / CoinGecko / Yahoo IDX
            ├── scan-receipt         ──► Gemini vision
-           ├── get-exchange-rate
-           └── whatsapp-webhook
+           └── get-exchange-rate    ──► Frankfurter (ECB)
+
+   whatsapp-webhook ◄── Fonnte (webhook server-ke-server, BUKAN dari browser):
+                        verifikasi kode → link nomor↔akun → parse pesan → tabel transactions
 ```
 
 **Aset & sumber harga:** kategori aset otomatis memilih sumber — Kripto→`coingecko`,
@@ -279,13 +357,34 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 
 ## 5. Keamanan & Kualitas
 
-- **RLS** aktif di semua tabel; tiap user hanya lihat/ubah datanya sendiri. Migrasi
-  `*_rls_hardening*`, `event_trigger_ensure_rls`, `pre_migration_checks` menjaga ini.
-- **CSP** di `_headers` dan meta `index.html` harus **selalu sinkron**; `'unsafe-eval'`
-  dan `style-src 'unsafe-inline'` sudah dibuang. Atribut style dikunci dengan
-  `style-src-attr 'none'`; satu hash SHA-256 untuk `<style>` kosong FullCalendar
-  mengizinkan CSSOM `insertRule()` tanpa membuka inline style umum. Domain yang diizinkan
-  kini hanya Supabase (project `uxfngmxghupdlwoeoxgh`).
+- **RLS** aktif di semua **11 tabel** (15 policy, bentuk `(select auth.uid())` = initplan,
+  dievaluasi sekali per query bukan sekali per baris); tiap user hanya lihat/ubah datanya
+  sendiri. Dijaga `sql/schema.sql` untuk instalasi baru, plus migrasi arsip
+  `*_rls_hardening*`, `event_trigger_ensure_rls`, dan `pre_migration_checks`.
+  Dua pengecualian yang disengaja: `api_rate_limits` **tanpa policy sama sekali** untuk
+  anon/authenticated (jalan masuk sah hanya RPC SECURITY DEFINER atau service_role — kalau
+  bisa dibaca, user tinggal DELETE barisnya untuk mereset limit), dan `whatsapp_links`
+  **tanpa policy INSERT** (baris baru hanya boleh dibuat Edge Function setelah kode
+  terverifikasi). CATATAN: `event_trigger_ensure_rls.sql` &
+  `migration_f1_rls_auto_enable_*.sql` butuh hak superuser dan **SENGAJA tidak dijalankan
+  otomatis** oleh `schema.sql` — lihat header file itu.
+- **CSP** di `_headers` dan meta `index.html` harus **selalu sinkron** — dijaga
+  `tests/unit/vendor-local.test.js` + `csp-hash.test.js`, dan keduanya ditulis ulang
+  bersamaan oleh `npm run build:csp`. `'unsafe-eval'`, `script-src 'unsafe-inline'`, dan
+  `style-src 'unsafe-inline'` semuanya sudah dibuang: `script-src` = `'self'` + **4 hash
+  SHA-256** (blok `<script>` inline di `index.html`), `style-src` = `'self'` + **1 hash
+  SHA-256** (untuk `<style>` kosong FullCalendar, supaya `insertRule()` via CSSOM tetap jalan
+  tanpa membuka inline style umum). Atribut style dikunci `style-src-attr 'none'` — nilai
+  visual dinamis dikirim sebagai `data-style-*`, divalidasi ketat (whitelist properti +
+  regex + maks 300 char), lalu dipasang lewat `CSSStyleDeclaration.setProperty()`
+  (`applyCspDynamicStyles()` + MutationObserver di `app.src.js`).
+  **Soal domain:** `script-src` & `connect-src` kini HANYA `'self'` + Supabase (project
+  `uxfngmxghupdlwoeoxgh`) karena semua pustaka sudah di-vendor (v59). `img-src` masih
+  mengizinkan **12 host** = Supabase + 11 domain logo platform investasi (bibit.id,
+  stockbit.com, images.bareksa.com, image-cdn.pluang.com, indodax.com, pintu.co.id,
+  ajaib.co.id, www.indopremier.com, www.banksinarmas.com, commons.wikimedia.org,
+  upload.wikimedia.org) — jalur fallback hotlink di luar katalog `platform_logos`/
+  `icons/platforms/` yang self-hosted.
 - **Hardening input tak tepercaya** (v60): sanitasi CSV formula injection, escape nama akun,
   validasi override ikon/gaya, fallback ikon netral.
 - `.gitleaks.toml` mencegah secret ter-commit. Tidak ada service-role key di kode browser.
@@ -307,14 +406,24 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
                                       # Postgres nyata + 10 cek RLS/RPC/grant
                                       # (butuh psql; lihat README di folder itu)
   ```
-- Build drift dijaga CI: `build:css` + `build:app` lalu `git diff --exit-code`.
+- Build drift dijaga CI (job **"Build drift guard (CSS + app + bundel boot)"** di
+  `parity.yml`): keempat build dijalankan ulang lalu `git diff --exit-code` per berkas —
+  `build:css` → `css/tailwind.css` + `styles.css`, `build:app` → `app.js`,
+  `build:boot` → `boot.bundle.js` (v103), `build:csp` → `index.html` (v104).
+  Dua yang terakhir penting karena unit test mengimpor SUMBER (`boot.js`, `src/**`), jadi
+  lupa rebuild akan lolos semua tes padahal yang tayang versi lama; dan blok skrip inline
+  yang berubah tanpa hash CSP diperbarui akan DITOLAK browser tanpa error apa pun.
 - Instalasi baru dijaga CI: job `Schema install check (Postgres)` menjalankan
   `sql/schema.sql` di container Postgres kosong tiap push/PR (v96) — hermetic,
   tanpa secrets. Ini pagar untuk kelas bug v95 ("schema.sql kelihatan lengkap
   tapi di database kosong menghasilkan 0 function").
-- Harness E2E juga berjalan otomatis di CI via workflow `E2E Harness`
-  (`.github/workflows/e2e-harness.yml`): push/PR ke main, jadwal mingguan, dan
-  manual — hermetic (stub Supabase, tanpa secrets). Selain dua harness di atas
+- Harness E2E juga berjalan otomatis di CI via workflow **`E2E Harness`**
+  (`.github/workflows/e2e-harness.yml`): push & pull_request ke `main`/`refactor/**`,
+  jadwal mingguan (Minggu 18:00 UTC = Senin 01:00 WIB, untuk menangkap pergeseran
+  environment runner/Chromium yang membuat harness pelan-pelan basi), dan
+  `workflow_dispatch` manual — semuanya hermetic (stub Supabase, tanpa secrets),
+  dengan `concurrency` cancel-in-progress. Kesembilan harness di daftar atas
+  dijalankan di sini. Selain `verify-hud` + `verify-asset-logos`,
   ada `scripts/verify-applock-rpid.mjs` (v107, 31 cek): kompatibilitas kredensial
   tanpa rp.id lama, RP eksplisit, daftar ulang lintas domain, respons gagal
   tetap terkunci; tiga origin disimulasikan dari checkout lokal. Lalu
@@ -330,7 +439,14 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 
 ## 6. Fitur Terkait Struktur (rangkum)
 
-- **PWA**: `manifest.json` + ikon → "Add to Home Screen"; splash `#151928`.
+- **PWA**: `manifest.json` (`lang: id`, `display: standalone`, `orientation: portrait-primary`)
+  + ikon 192/512 (purpose `any` **dan** `maskable`) → "Add to Home Screen".
+  Warna: `background_color` (splash) `#f8fafc`, `theme_color` `#151928`.
+  ⚠️ **Catatan inkonsistensi yang belum dibereskan:** `<meta name="theme-color">` di
+  `index.html` berisi `#05070f` (biru-gelap HUD), dan meta itulah yang dipakai browser
+  untuk warna UI saat app dibuka — jadi warnanya TIDAK sama dengan `theme_color` manifest
+  (`#151928`, dipakai saat install/splash). Keduanya sah, tapi kalau mau seragam,
+  samakan salah satu.
 - **Offline**: `sw.js` precache + banner offline.
 - **Back Tap / Quick Add** iPhone: URL `?quickadd=1` membuka modal Catat Transaksi.
 - **Pull-to-refresh**, tombol kembali ke atas, dark/light/system theme, command palette
@@ -359,20 +475,52 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
 
 ### Catatan praktis untuk mulai berkontribusi
 1. Fitur logika baru → tulis pure function di `src/domain/` + test di `tests/unit/`.
-2. Render UI baru → `src/ui/` (re-export ke `index.html` dengan alias `...UI`).
+2. Render UI baru → `src/ui/`, lalu **re-export di `boot.js`** dengan alias `...UI` dan
+   daftarkan di objek `window.__myfinanceServices` (itu satu-satunya jalur modul ES ke
+   blok classic `app.js`) → `npm run build:boot`.
 3. Akses data baru → `src/services/supabase/` + objek DB baru di `sql/schema.sql`
    (idempotent). Kalau menambah RPC: definisinya WAJIB ada di `schema.sql`, kalau tidak
    `tests/unit/sql-schema-completeness.test.js` akan merah — itu pagar supaya instalasi
    baru tidak pernah lagi "hidup tapi rusak".
-4. Ubah monolit → **edit `app.src.js`** → `npm run build:app`.
-5. Ubah styling → **edit `styles.src.css`** → `npm run build:styles`; ubah class Tailwind →
-   `css/tailwind.src.css` → `npm run build:css`.
-6. Setelah aset berubah → bump `CACHE_VERSION` di `sw.js` + regen snapshot.
-7. Kalau menambah CDN/domain → tambahan di CSP `_headers` **dan** meta `index.html`.
-8. **Angka di dokumen dijaga mesin (v97)**: `tests/unit/docs-consistency.test.js`
-   mencocokkan `CACHE_VERSION`, versi terbaru di header berkas ini vs entri terakhir
-   `AGENT-HANDOFF.md`, jumlah file `src/domain/`, jumlah tabel/RPC di `sql/schema.sql`,
-   jumlah cek tiap harness E2E, dan versi bundel `vendor/supabase-js-*` vs `package.json`.
-   Kalau test itu merah, dokumennya yang basi — bukan test-nya yang rewel. Kalau sebuah
-   kalimat ditulis ulang sampai pola jangkarnya hilang, test juga merah: perbarui
-   jangkarnya di test itu bersama kalimatnya.
+4. Aksi UI baru → daftarkan namanya di `uiActionRegistry()` (`app.src.js`) lalu pakai
+   `data-action="namaAksi"` (+ `data-args` JSON) di markup. **Jangan** menambah atribut
+   `onclick=`/`onchange=` — `index.html` sudah 0 atribut handler, dan itu syarat
+   `script-src` tanpa `'unsafe-inline'` (test: `ui-actions.test.js`, `index-inline-scripts.test.js`).
+5. Ubah monolit → **edit `app.src.js`** → `npm run build:app`.
+6. Ubah styling → **edit `styles.src.css`** → `npm run build:styles`. Ubah class Tailwind
+   di `index.html`/`app.src.js`/`boot.js`/`src/**` → `npm run build:css`
+   (`css/tailwind.src.css` sendiri cuma 3 directive `@tailwind`, jarang disentuh).
+   **Urutan kalau kelasnya ada di `app.src.js`:** `build:app` dulu, baru `build:css`.
+7. Setelah aset berubah → bump `CACHE_VERSION` di `sw.js` + jalankan
+   `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build.
+8. Kalau menambah CDN/domain → tambahkan di CSP `_headers` **dan** meta `index.html`
+   (jalankan `npm run build:csp` supaya keduanya ditulis ulang bersamaan).
+9. **Angka di dokumen dijaga mesin (v97, diperluas v122)**:
+   `tests/unit/docs-consistency.test.js` (16 test) mencocokkan `CACHE_VERSION`, versi
+   terbaru di header berkas ini vs entri terakhir `AGENT-HANDOFF.md`, jumlah file
+   `src/domain/` + `src/ui/` + total modul `src/`, jumlah tabel/RPC di
+   `sql/schema.sql`, jumlah cek tiap harness E2E, dan versi bundel `vendor/supabase-js-*`
+   vs `package.json`.
+   Perluasan v122 menagih klaim yang dulu cuma naratif dan terbukti bisa basi diam-diam —
+   di berkas ini, di `README.md`, **dan di blok "Peta cepat" `AGENT-HANDOFF.md`** (entri
+   `## vNN` di bawahnya tetap dikecualikan karena itu log historis):
+   lokasi `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `WHATSAPP_BOT_NUMBER` (wajib di
+   `app.src.js`, dilarang muncul di `index.html`), jumlah `role="dialog"` + jumlah view,
+   jumlah file `tests/unit/*.test.js`, jumlah **dan nama** Edge Function, major versi
+   ESLint, batas ukuran upload (8MB ikon/foto profil · 10MB foto struk), angka apa pun
+   yang menempel pada frasa "atribut `onclick=`" — yang sudah habis dihapus dari markup
+   sejak v101-v102 — dan status wiring `src/bootstrap/`
+   (dua arah — kalau suatu saat benar-benar ter-wire, dokumen yang masih menandainya
+   "⚠️ BELUM ter-wire ke produksi" ikut merah).
+   Satu test di sana bukan soal dokumen melainkan soal markup:
+   `markup: 0 handler inline, dan SEMUA data-action terdaftar di registry`. Ia menjaga
+   `index.html` tetap bebas `on*=` (CSP `script-src` tanpa `'unsafe-inline'` akan menolak
+   menjalankannya — fitur hilang tanpa error), dan memastikan setiap `data-action=`,
+   baik yang statis di markup maupun yang dihasilkan runtime lewat `uiActionAttrs()`,
+   punya entri di registry `__uiActionsCache` (`app.src.js`). Tanpa entri itu tombolnya
+   mati saat diklik, juga tanpa error.
+   Test terakhirnya meta: ia menghitung `test(` di dirinya sendiri dan menagih angka
+   "(16 test)" di awal butir ini — menambah guard baru berarti menaikkan angka itu juga.
+   Kalau test-test itu merah, dokumennya (atau markup-nya) yang basi — bukan test-nya
+   yang rewel. Kalau sebuah kalimat ditulis ulang sampai pola jangkarnya hilang, test
+   juga merah: perbarui jangkarnya di test itu bersama kalimatnya.
