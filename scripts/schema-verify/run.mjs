@@ -93,7 +93,12 @@ const counts = psql({
     " || '/' || (select count(*) from pg_policies where schemaname='public');",
 });
 const summary = (counts.stdout || "").split("\n").map((l) => l.trim()).find((l) => /^\d+\/\d+\/\d+$/.test(l));
-const EXPECTED = "11/4/15"; // tabel/function/policy
+// v124: angka function jadi 5 karena set_platform_logos_updated_at (fungsi
+// trigger pemelihara platform_logos.updated_at) akhirnya ikut didefinisikan
+// di schema.sql. Sebelumnya fungsi itu HANYA ada di produksi dan tidak
+// tercatat di berkas SQL mana pun di repo -- hasil audit drift 2026-09-13.
+// Yang dihitung pg_proc adalah SEMUA function, jadi 5; "RPC" tetap 4.
+const EXPECTED = "11/5/15"; // tabel/function/policy
 if (summary === EXPECTED) {
   console.log(`  OK    objek terpasang lengkap (tabel/function/policy = ${summary})`);
 } else {

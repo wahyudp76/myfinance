@@ -4,3 +4,6 @@ node_modules/
 legacy-rows.json
 supabase/.temp/
 __pycache__/
+
+# direktori kerja sementara drift-check.mjs (dihapus sendiri, tapi jaga-jaga)
+scripts/schema-verify/.tmp-drift/

@@ -103,30 +103,42 @@ create unique index if not exists transactions_recurring_idempotency_idx
     on public.transactions (user_id, recurring_id, recurring_due_date)
     where recurring_id is not null and recurring_due_date is not null;
 
+-- ---------------------------------------------------------------------------
+-- CHECK constraint transaksi multi-currency.
+--
+-- v124 (audit drift live-vs-repo 2026-09-13). Bagian ini dulu memasang TUJUH
+-- constraint, dan komentarnya menyatakan dua di antaranya "duplikat SEMANTIK
+-- ... KEDUANYA ada di database live". Audit membuktikan klaim itu SALAH.
+-- Produksi hanya menyimpan SATU constraint per aturan, memakai keluarga nama
+-- `transactions_*`:
+--
+--   transactions_jumlah_idr_nonnegative           jumlah_idr >= 0
+--   transactions_kurs_positive                    kurs > 0
+--   transactions_transfer_jumlah_tujuan_positive  transfer_jumlah_tujuan > 0
+--   transactions_transfer_kurs_tujuan_positive    transfer_kurs_tujuan > 0
+--   transfer_target_idr_nonnegative               transfer_jumlah_tujuan_idr >= 0
+--
+-- Empat nama berikut TIDAK PERNAH ada di produksi (diperiksa langsung lewat
+-- pg_constraint): transaction_currency_rate_positive,
+-- transaction_amount_idr_nonnegative, transfer_target_amount_positive,
+-- transfer_target_rate_positive.
+--
+-- Akibatnya instalasi baru dulu mendapat 11 constraint di transactions
+-- sementara produksi punya 9 -- termasuk DUA PASANG aturan identik yang
+-- dievaluasi dua kali pada setiap INSERT/UPDATE. Sekarang disamakan dengan
+-- produksi. Keempat nama yang tidak pernah ada di live tetap di-DROP (tanpa
+-- dipasang ulang) supaya database yang terlanjur dibangun dari schema.sql versi
+-- lama ikut bersih saat berkas ini dijalankan ulang.
+-- ---------------------------------------------------------------------------
 alter table public.transactions drop constraint if exists transaction_currency_rate_positive;
-alter table public.transactions add constraint transaction_currency_rate_positive
-  check (kurs is null or kurs > 0);
-
 alter table public.transactions drop constraint if exists transaction_amount_idr_nonnegative;
-alter table public.transactions add constraint transaction_amount_idr_nonnegative
-  check (jumlah_idr is null or jumlah_idr >= 0);
-
 alter table public.transactions drop constraint if exists transfer_target_amount_positive;
-alter table public.transactions add constraint transfer_target_amount_positive
-  check (transfer_jumlah_tujuan is null or transfer_jumlah_tujuan > 0);
-
 alter table public.transactions drop constraint if exists transfer_target_rate_positive;
-alter table public.transactions add constraint transfer_target_rate_positive
-  check (transfer_kurs_tujuan is null or transfer_kurs_tujuan > 0);
 
 alter table public.transactions drop constraint if exists transfer_target_idr_nonnegative;
 alter table public.transactions add constraint transfer_target_idr_nonnegative
   check (transfer_jumlah_tujuan_idr is null or transfer_jumlah_tujuan_idr >= 0);
 
--- Dua constraint berikut duplikat SEMANTIK dari transaction_amount_idr_nonnegative
--- & transaction_currency_rate_positive di atas, tapi namanya berbeda dan KEDUANYA
--- ada di database live (migration_reliability_hardening_2026-08 menambahkannya
--- lagi dengan nama sendiri). Disertakan supaya instalasi baru identik dgn live.
 alter table public.transactions
     drop constraint if exists transactions_jumlah_idr_nonnegative;
 alter table public.transactions
@@ -138,6 +150,18 @@ alter table public.transactions
 alter table public.transactions
     add constraint transactions_kurs_positive
     check (kurs is null or kurs > 0);
+
+alter table public.transactions
+    drop constraint if exists transactions_transfer_jumlah_tujuan_positive;
+alter table public.transactions
+    add constraint transactions_transfer_jumlah_tujuan_positive
+    check (transfer_jumlah_tujuan is null or transfer_jumlah_tujuan > 0);
+
+alter table public.transactions
+    drop constraint if exists transactions_transfer_kurs_tujuan_positive;
+alter table public.transactions
+    add constraint transactions_transfer_kurs_tujuan_positive
+    check (transfer_kurs_tujuan is null or transfer_kurs_tujuan > 0);
 
 alter table public.transactions enable row level security;
 drop policy if exists "Users can view own transactions"   on public.transactions;
@@ -409,21 +433,84 @@ create policy "Users manage own rate limit row" on public.rate_limits
 -- ----------------------------------------------------------------------------
 -- 8. PLATFORM_LOGOS — katalog logo platform investasi (data global, bukan
 --    per-user). Dibaca src/domain/platform-logos.js untuk kartu/detail Aset.
---    Definisi kanonik: sql/migrations/20260906_platform_logos.sql
+--    Riwayat: sql/migrations/20260906_platform_logos.sql (ARSIP -- lihat catatan
+--    drift di bawah sebelum membandingkan bentuk tabelnya).
+--
+--    ⚠️ BENTUK TABEL INI MENGIKUTI PRODUKSI, bukan keinginan (audit drift
+--    live-vs-repo 2026-09-13). Sampai audit itu, berkas ini menulis
+--    `id uuid primary key default gen_random_uuid()` padahal production memakai
+--    `id bigint GENERATED BY DEFAULT AS IDENTITY` + sequence
+--    `platform_logos_id_seq`.
+--
+--    AKARNYA: tabelnya sudah ada di database live SEBELUM migration-nya pernah
+--    dijalankan -- hampir pasti dibuat lewat Supabase Dashboard UI, yang
+--    otomatis memberi `id bigint generated by default as identity`. Karena
+--    migration (dan berkas ini) memakai `create table if not exists`, ia
+--    DIAM-DIAM JADI NO-OP dan tidak pernah membentuk ulang tabelnya;
+--    `alter table add column if not exists id uuid ...` juga no-op karena kolom
+--    `id` sudah ada. Tidak ada error, tidak ada peringatan -- migration
+--    melaporkan sukses. File migration-nya sendiri sudah mengakui hal ini
+--    ("tahan drift bentuk vs tabel live yang dibuat migrasi yang hilang tadi").
+--    Bukti tambahan: seluruh 12 baris live ber-created_at 2026-09-06.
+--
+--    PELAJARAN UMUM: `if not exists` membuat migration TAHAN DIJALANKAN ULANG,
+--    tapi TIDAK KOREKTIF. Tabel yang sudah ada mempertahankan bentuk lamanya
+--    selamanya.
+--
+--    DAMPAK RUNTIME: NIHIL. Aplikasi tidak pernah menyentuh kolom `id` --
+--    src/services/supabase/platform-logos.js hanya membaca platform_key,
+--    display_name, logo_url, source_url (identitas baris di seluruh alur adalah
+--    platform_key). Yang diperbaiki di sini adalah KEJUJURAN berkas ini: supaya
+--    instalasi baru menghasilkan replika produksi, bukan tabel yang berbeda.
+--    Arahnya sengaja "repo mengikuti live": memigrasikan id produksi ke uuid
+--    berarti menulis ulang tabel + membuang sequence, berisiko, dan manfaatnya
+--    nol karena tidak ada pemakai kolom itu.
 -- ----------------------------------------------------------------------------
 create table if not exists public.platform_logos (
-    id           uuid primary key default gen_random_uuid(),
-    platform_key text not null,
+    id           bigint generated by default as identity primary key,
+    platform_key text not null
+        constraint platform_logos_key_format check (platform_key ~ '^[a-z0-9][a-z0-9_-]*$'),
     display_name text not null,
     logo_url     text not null,
     source_url   text,
     is_active    boolean not null default true,
-    created_at   timestamptz not null default now(),
-    updated_at   timestamptz not null default now()
+    created_at   timestamptz not null default timezone('utc', now()),
+    updated_at   timestamptz not null default timezone('utc', now()),
+    -- Di produksi ini UNIQUE constraint (bukan unique index polos). Efek dan
+    -- namanya sama, dan `on conflict (platform_key)` di seed bawah tetap jalan.
+    constraint platform_logos_platform_key_key unique (platform_key)
 );
 
-create unique index if not exists platform_logos_platform_key_key
-    on public.platform_logos (platform_key);
+-- Melayani PERSIS query aplikasi: .eq('is_active', true).order('display_name').
+-- Index ini sudah ada di produksi tapi tidak pernah tercatat di repo, jadi
+-- instalasi baru dulu kalah dari produksi.
+create index if not exists platform_logos_active_idx
+    on public.platform_logos (is_active, display_name);
+
+-- updated_at dipelihara trigger. Function + trigger ini ADA di produksi namun
+-- TIDAK PERNAH ada di berkas SQL mana pun di repo (frasa
+-- set_platform_logos_updated_at tidak muncul di sql/ sama sekali sebelum v124).
+-- Akibatnya instalasi baru punya kolom updated_at yang tidak pernah diperbarui
+-- saat UPDATE. Body di produksi memakai CRLF (ciri objek buatan Dashboard);
+-- di sini ditulis LF normal -- pembanding drift menormalkan whitespace, jadi
+-- perbedaannya tidak dilaporkan sebagai drift.
+create or replace function public.set_platform_logos_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+-- `create trigger` tidak punya `if not exists`, jadi pakai pola drop-then-create
+-- yang sama dengan policy di berkas ini (tetap idempoten -- CI menjalankan
+-- berkas ini dua kali).
+drop trigger if exists platform_logos_set_updated_at on public.platform_logos;
+create trigger platform_logos_set_updated_at
+    before update on public.platform_logos
+    for each row execute function public.set_platform_logos_updated_at();
 
 alter table public.platform_logos enable row level security;
 

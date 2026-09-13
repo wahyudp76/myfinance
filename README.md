@@ -65,7 +65,7 @@ myfinance/
 ├── fonts/ webfonts/    # Plus Jakarta Sans (variable) + subset Font Awesome -- self-hosted
 ├── sql/
 │   ├── schema.sql              # SQL LENGKAP (satu kali Run cukup): 11 tabel +
-│   │                            # 4 RPC + RLS + seed katalog logo
+│   │                            # 4 RPC + 1 fungsi trigger + RLS + seed katalog logo
 │   └── migrations/*.sql         # ARSIP RIWAYAT migrasi (15 file) -- bukan untuk project baru
 ├── supabase/functions/          # 5 Edge Function (Deno) + folder helper _shared/
 │   ├── analyze-finance/         # Rekomendasi AI, Tanya AI, Ringkasan Bulanan, saran kategori (Gemini)
@@ -77,7 +77,7 @@ myfinance/
 ├── scripts/                     # Build (build-app/styles/boot/csp) · 9 harness E2E verify-* ·
 │                                #   lighthouse/ · schema-verify/ (Postgres nyata) · rls-audit/
 ├── tests/
-│   ├── unit/                     # 90 file test murni, tanpa network (npm run test:unit)
+│   ├── unit/                     # 91 file test murni, tanpa network (npm run test:unit)
 │   └── parity/                   # Banding legacy vs native (6 file), sebagian butuh secret live
 ├── docs/                          # Rencana migrasi, audit historis & kontrak loader (13 dokumen)
 ├── .github/workflows/             # CI: parity.yml ("CI") · e2e-harness.yml · dependabot-auto-merge.yml
@@ -114,7 +114,8 @@ Perintah `npm ci`, lint, build, Lighthouse, dan harness verifikasi menggunakan N
 2. Masuk ke menu **SQL Editor** → **New query**.
 3. Copy-paste **seluruh isi file `sql/schema.sql`** lalu klik **Run**.
    **Sekali Run ini sudah cukup** — sejak v95 file itu memuat SELURUH objek
-   yang dipakai produksi (11 tabel + 4 RPC + policy + seed katalog logo).
+   yang dipakai produksi (11 tabel + 4 RPC + 1 fungsi trigger + policy + seed
+   katalog logo).
    Isi `sql/migrations/` adalah ARSIP RIWAYAT; jangan dijalankan di project
    baru (dua di antaranya justru error di database kosong — penjelasannya ada
    di header `schema.sql`).

@@ -16,6 +16,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+// Parser SQL dipakai bersama dengan sql-schema-completeness.test.js supaya kedua
+// guard membaca sql/schema.sql dengan cara yang sama (lihat helpers/sql-parse.js).
+import { parseSqlFunctions } from "../../scripts/schema-verify/sql-parse.mjs";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel) => readFileSync(resolve(ROOT, rel), "utf8");
@@ -76,8 +79,47 @@ test("dokumen: jumlah file src/domain & src/ui cocok dengan isi folder", () => {
 test("dokumen: jumlah tabel & RPC cocok dengan sql/schema.sql", () => {
   const schema = read("sql/schema.sql");
   const tables = (schema.match(/^create table if not exists/gim) || []).length;
-  const rpcs = (schema.match(/^create or replace function/gim) || []).length;
+
+  // v124: "RPC" dan "function" bukan lagi hal yang sama. schema.sql kini
+  // memuat satu fungsi TRIGGER (set_platform_logos_updated_at) yang tidak
+  // bisa dipanggil lewat PostgREST dan bukan bagian dari "4 RPC" yang
+  // diklaim dokumen. Menghitung semua `create or replace function` akan
+  // membuat klaim itu salah, jadi fungsi trigger dipisahkan.
+  const fnDefs = parseSqlFunctions(schema);
+  const allFns = fnDefs.length;
+  const triggerFns = fnDefs.filter((f) => f.isTrigger).map((f) => f.name);
+  const rpcs = allFns - triggerFns.length;
   assert.ok(tables > 5 && rpcs > 0, "parser schema.sql rusak?");
+  assert.equal(
+    allFns,
+    (schema.match(/^create or replace function/gim) || []).length,
+    "parseSqlFunctions() menemukan jumlah function yang beda dari hitungan kasar "
+    + "`^create or replace function`. Artinya pemindai kurung-seimbangnya meleset "
+    + "-- perbaiki parser-nya, jangan tambahkan pengecualian hitungan."
+  );
+  assert.ok(
+    fnDefs.every((f) => f.returns),
+    "ada function yang tipe `returns`-nya tidak terbaca: "
+    + fnDefs.filter((f) => !f.returns).map((f) => f.name).join(", ")
+  );
+
+  // Penjaga hasil audit drift v124. Trigger pemelihara updated_at ini dulu
+  // HANYA ada di produksi. Kalau hilang lagi dari schema.sql, instalasi baru
+  // mendapat kolom updated_at yang tidak pernah diperbarui saat UPDATE --
+  // dan tidak ada test lain yang akan merah.
+  assert.deepEqual(
+    triggerFns,
+    ["set_platform_logos_updated_at"],
+    "daftar fungsi trigger di schema.sql berubah. Kalau penambahan ini "
+    + "disengaja, perbarui test ini beserta penjelasannya (audit drift "
+    + "live-vs-repo 2026-09-13)."
+  );
+  assert.equal(
+    (schema.match(/^create trigger /gim) || []).length,
+    triggerFns.length,
+    "jumlah `create trigger` != jumlah fungsi trigger -- ada trigger tanpa "
+    + "fungsinya, atau fungsi trigger yang tidak pernah dipakai."
+  );
 
   // Jangkar spesifik supaya kalimat lain yang kebetulan memuat angka + "tabel"
   // (mis. "menambah 1 tabel baru") tidak ikut tertangkap.

@@ -226,6 +226,15 @@ jobs:
           psql --version
       - name: Instalasi schema.sql dari nol + uji fungsional
         run: node scripts/schema-verify/run.mjs
+      # v124 (audit drift live-vs-repo 2026-09-13). run.mjs membuktikan
+      # schema.sql BISA dipasang; langkah ini membuktikan hasil pemasangannya
+      # masih SAMA dengan katalog yang di-commit di expected-catalog.json.
+      # Tanpa ini, mengubah tipe kolom atau menghapus constraint dari
+      # schema.sql lolos CI diam-diam. Hermetic: tidak butuh kredensial,
+      # tidak menyentuh produksi. Pembanding sisi produksi (--live-check)
+      # dijalankan manual oleh pemilik repo; lihat README di folder itu.
+      - name: Periksa drift katalog vs snapshot ter-commit
+        run: node scripts/schema-verify/drift-check.mjs --check
 
   lighthouse:
     name: Lighthouse (pagar performa)

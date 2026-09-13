@@ -1,0 +1,36 @@
+{
+  "_komentar": [
+    "Query inventaris katalog untuk pembanding drift live-vs-repo.",
+    "SATU sumber kebenaran: dibaca oleh drift-check.mjs (Node, untuk CI dan",
+    "untuk pembanding live) sehingga sisi referensi dan sisi produksi selalu",
+    "diperiksa dengan SQL yang benar-benar identik.",
+    "",
+    "Semua query READ-ONLY dan dibatasi ke schema 'public' -- yaitu objek yang",
+    "dikendalikan sql/schema.sql. Schema milik platform (auth, storage, graphql,",
+    "extensions, vault) sengaja tidak ikut: isinya di luar kendali repo.",
+    "",
+    "table_grants SENGAJA tidak ada di sini. Shim scripts/schema-verify/",
+    "supabase-shim.sql tidak meniru default-privilege level-project Supabase",
+    "(terdokumentasi di README-nya bagian 'Batasan'), jadi membandingkannya",
+    "hanya menghasilkan 31 baris selisih palsu. Yang menahan akses di produksi",
+    "adalah RLS, dan itu dibandingkan lewat kategori 'tables' + 'policies'."
+  ],
+
+  "tables": "select c.relname as tabel, c.relrowsecurity as rls_aktif, c.relforcerowsecurity as rls_dipaksa, c.relpersistence as persistensi, (select count(*) from pg_attribute a where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped) as jumlah_kolom from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' order by c.relname",
+
+  "columns": "select table_name as tabel, column_name as kolom, data_type, udt_name, is_nullable as boleh_null, column_default as default, character_maximum_length as maks_char, numeric_precision as presisi, numeric_scale as skala, is_identity, is_generated from information_schema.columns where table_schema = 'public' order by table_name, column_name",
+
+  "functions": "select p.proname as nama, pg_get_function_arguments(p.oid) as argumen, pg_get_function_result(p.oid) as hasil, l.lanname as bahasa, p.prosecdef as security_definer, coalesce(array_to_string(p.proconfig, ','), '') as setting, p.provolatile as volatile, p.prosrc as body from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang where n.nspname = 'public' order by p.proname",
+
+  "function_grants": "select p.proname as nama, has_function_privilege('anon', p.oid, 'EXECUTE') as anon, has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated, has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' order by p.proname",
+
+  "policies": "select tablename as tabel, policyname as policy, permissive, coalesce(array_to_string(roles, ','), '') as roles, cmd, coalesce(qual, '') as using_expr, coalesce(with_check, '') as with_check from pg_policies where schemaname = 'public' order by tablename, policyname",
+
+  "indexes": "select tablename as tabel, indexname as index, indexdef as definisi from pg_indexes where schemaname = 'public' order by tablename, indexname",
+
+  "constraints": "select conrelid::regclass::text as tabel, conname as nama, contype as jenis, pg_get_constraintdef(oid) as definisi from pg_constraint where connamespace = 'public'::regnamespace order by 1, 2",
+
+  "triggers": "select c.relname as tabel, t.tgname as trigger, t.tgenabled as aktif, pg_get_triggerdef(t.oid) as definisi from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and not t.tgisinternal order by c.relname, t.tgname",
+
+  "sequences_views": "select 'sequence' as jenis, sequencename as nama from pg_sequences where schemaname = 'public' union all select 'view', viewname from pg_views where schemaname = 'public' order by 1, 2"
+}
