@@ -84,6 +84,42 @@ regexes = ['''0123456789abcdef0123456789abcdef''']
 
 [[allowlists]]
 description = """
+False positive gitleaks di snapshot katalog -- BUKAN kredensial, dan sudah
+diperbaiki di akarnya. Yang dimaafkan HANYA dua nilai literal ini.
+
+KEJADIAN (v124, commit 8e9968d): job secret-scan merah dengan 20 temuan
+`generic-api-key`, semuanya di scripts/schema-verify/expected-catalog.json,
+semuanya di satu commit itu. Nilainya hanya dua: `definisi=PRIMARY` (11x) dan
+`definisi=FOREIGN` (9x).
+
+MEKANISMENYA: snapshot dulu menulis pasangan label sebagai `label=nilai` tanpa
+spasi. Nama constraint Postgres yang sah mengandung kata kunci aturan itu --
+`api_rate_limits`, `*_pkey`, `*_fkey` -- dan karena kelas karakter nilai
+gitleaks mengizinkan tanda "=", teks `definisi=PRIMARY` (16 karakter) ikut
+tertelan sebagai "secret". Nama constraint itu berasal dari sql/schema.sql dan
+memang harus ada; tidak ada yang rahasia di dalamnya.
+
+KENAPA ALLOWLIST INI TETAP DIPERLUKAN setelah formatnya diperbaiki: langkah
+"Pindai seluruh riwayat commit" menjalankan `gitleaks git .`, yang membaca
+setiap commit -- termasuk 8e9968d yang sudah terlanjur ter-push dengan format
+lama. Perbaikan di commit baru membuat working tree bersih, tetapi TIDAK bisa
+membersihkan blob di riwayat. Pilihannya hanya dua: allowlist ini, atau
+menulis ulang riwayat (force-push) -- yang kedua ditolak karena merusak dan
+tidak sebanding dengan dua false positive.
+
+KENAPA AMAN: regex-nya di-anchor penuh (`^...$`) ke dua literal itu, jadi yang
+dimaafkan adalah nilai persis `definisi=PRIMARY` / `definisi=FOREIGN`, bukan
+pola longgar yang bisa menelan kunci sungguhan. Sudah diuji negatif setelah
+allowlist ini dipasang: service_role JWT, anon-key-berbunyi-service_role,
+GitHub PAT (github_pat_ + 59 karakter), dan token sbp_ TETAP terdeteksi.
+
+CATATAN AGAR TIDAK TERULANG: drift-check.mjs sekarang menulis `label = nilai`
+(dengan spasi). Spasi itu sengaja -- lihat komentar di fungsi petakan().
+"""
+regexes = ['''^definisi=(?:PRIMARY|FOREIGN)$''']
+
+[[allowlists]]
+description = """
 Artefak build & dependensi -- bukan kode yang kita tulis. Memindainya hanya
 menghasilkan derau dari bundle terminifikasi. Di sini `paths` memang tepat:
 kita sungguh-sungguh ingin mengabaikan SELURUH isi file/direktori ini.

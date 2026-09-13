@@ -113,9 +113,21 @@ function petakan(category, rows) {
         kanon(r.setting), r.volatile, hashBody(r.body),
       ].join(" | ");
     } else {
+      // SPASI DI SEKITAR "=" INI DISENGAJA -- JANGAN DIRAPIHKAN.
+      // Tanpa spasi, aturan `generic-api-key` milik gitleaks menandai snapshot
+      // ini sebagai kebocoran rahasia. Mekanisme pastinya: nama constraint
+      // Postgres yang sah mengandung kata kunci "api"/"key" (api_rate_limits,
+      // *_pkey, *_fkey), lalu nilai yang menempel pada "=" ikut tertelan
+      // karena kelas karakter nilai gitleaks mengizinkan "=", sehingga
+      // "definisi=PRIMARY" (16 karakter) dianggap secret. Pernah terjadi
+      // sungguhan: 20 temuan palsu di commit v124 membuat job secret-scan
+      // merah. Dengan spasi, nilai yang tertangkap tinggal "PRIMARY" (7
+      // karakter) -- di bawah ambang 10 karakter aturan itu. Sudah diuji:
+      // service_role JWT, GitHub PAT, dan token sbp_ SUNGGUHAN tetap
+      // terdeteksi setelah perubahan ini (lihat .gitleaks.toml).
       isi = Object.keys(r).sort()
         .filter((k) => k !== "body")
-        .map((k) => `${k}=${kanon(r[k])}`)
+        .map((k) => `${k} = ${kanon(r[k])}`)
         .join(" | ");
     }
     if (out.has(id) && out.get(id) !== isi) {

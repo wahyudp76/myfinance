@@ -10,6 +10,7 @@
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; **5** Edge Functions — `analyze-finance`, `get-exchange-rate`, `refresh-asset-price`, `scan-receipt`, `whatsapp-webhook` — plus helper bersama di `supabase/functions/_shared/` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, **9** view — 7 di nav (`dashboard`/`transaksi`/`budget`/`laporan`/`aset`/`kalender`/`pengaturan`, dipindah lewat `data-action="switchView"`) + 2 sub-view drill-down (`akun-detail`, `kategori-detail`) — dan **19** modal ber-`role="dialog"` + `aria-modal="true"`, Ctrl/Cmd+K command palette.
 - App Lock RP ID: `docs/applock-webauthn-domain.md`; `node scripts/verify-applock-rpid.mjs` (31 cek, hermetic tiga origin + virtual authenticator). Domain lain perlu login/PIN lalu daftar ulang; tidak ada ROR.
+- Gerbang rahasia: job CI `Secret scanning (gitleaks)` menjalankan DUA pemindaian — `gitleaks dir .` (working tree) dan `gitleaks git .` (SELURUH riwayat commit) — dengan `.gitleaks.toml`. Konsekuensi yang gampang dilupakan: false positive yang sudah ter-push TIDAK bisa diperbaiki hanya dengan commit baru, karena blob lamanya tetap ada di riwayat. Pilihannya allowlist di `.gitleaks.toml` atau menulis ulang riwayat (ireversibel). Lihat v125 untuk contoh nyatanya.
 - Toolchain resmi: Node `>=22.19.0`; `.nvmrc` tetap `22` untuk jalur Node 22 LTS. Node 20 bukan dukungan resmi karena dependency Lighthouse/Puppeteer/Supabase memiliki engine Node 22.
 
 ## v41 — Reksadana: auto-update nilai dari Bibit (Edge Function `refresh-asset-price`)
@@ -2923,3 +2924,91 @@ Pemilik menjalankan perbaikannya lewat Supabase Management API (project `uxfngmx
 **KREDENSIAL:** token `sbp_` dan `service_role` key yang dipakai sesi ini pernah ditempel di chat — **keduanya harus dirotasi**. Tidak ada satu pun yang tersimpan di berkas repo, `.git/config`, credential helper, maupun riwayat git (diperiksa menyeluruh, 0 kemunculan).
 
 **STATUS:** di-commit & push sebagai v124.
+## v125 — job secret-scan merah akibat v124: 20 false positive gitleaks di snapshot katalog
+
+**Gejala.** Commit v124 (`8e9968d`) membuat job `Secret scanning (gitleaks)` gagal
+dengan `leaks found: 20`. SEMUA job lain hijau — termasuk langkah baru
+"Periksa drift katalog vs snapshot ter-commit", yang lolos pada percobaan pertama.
+Itu sekaligus membuktikan snapshot yang dibangkitkan lokal lewat psycopg2 identik
+dengan yang dicetak `psql` di CI, jadi jalurnya memang benar.
+
+**Akar masalah, persis.** 20 temuan itu semuanya aturan `generic-api-key`, semuanya
+di satu berkas (`scripts/schema-verify/expected-catalog.json`), semuanya di satu
+commit, dan hanya punya DUA nilai unik: `definisi=PRIMARY` (11×) dan
+`definisi=FOREIGN` (9×). Regex aturan itu di gitleaks 8.28, dikutip apa adanya dari
+`config/gitleaks.toml` tag `v8.28.0` (satu baris; panjang tapi inilah
+bentuk persisnya, karena detail kecilnya yang menentukan):
+
+    (?i)[\w.-]{0,50}?(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passw(?:or)?d|secret|token)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([\w.=-]{10,150}|[a-z0-9][a-z0-9+/]{11,}={0,3})(?:[\x60'"\s;]|\\[nr]|$)
+
+Tiga kebetulan bertumpuk:
+
+1. nama constraint Postgres yang sah mengandung kata kunci aturan itu —
+   `api_rate_limits_pkey`, `assets_user_id_fkey`, `budgets_pkey`, dst.
+   (`api` dan `key` dua-duanya kata kunci);
+2. `||` ada di daftar operator, dan snapshot memang memisahkan identitas dengan
+   isi memakai `id  ||  isi`;
+3. kelas karakter nilai `[\w.=-]` MENGIZINKAN tanda `=`, sehingga teks
+   `definisi=PRIMARY` (16 karakter) tertelan utuh sebagai "secret" dan melewati
+   ambang minimum 10 karakter.
+
+Yang "bocor" adalah label Indonesia bikinan fungsi `petakan()` sendiri. Sama sekali
+bukan kredensial — namanya berasal dari `sql/schema.sql` yang memang publik.
+
+**Perbaikan 1 — akar masalah.** `petakan()` kini menulis `label = nilai` (spasi di
+sekitar `=`). Dengan spasi, nilai yang bisa tertangkap tinggal `definisi`
+(8 karakter) — di bawah ambang 10 — sehingga aturannya tidak lagi menyala. Spasi
+ini WAJIB dipertahankan; alasannya ditulis sebagai komentar panjang di dalam
+fungsi itu supaya tidak ada yang "merapikan" lalu membuat CI merah lagi.
+Snapshot dibangkitkan ulang dari dump offline (tanpa perlu Postgres):
+`--compare audit-snap audit-live4` tetap "TIDAK ADA DRIFT" dan seluruh jumlah
+kategori tidak berubah (11/79/5/5/15/31/38/1/1).
+
+**Perbaikan 2 — allowlist untuk riwayat yang sudah ter-push.** Perbaikan 1 membuat
+working tree bersih, tetapi TIDAK bisa membersihkan blob di commit `8e9968d` yang
+sudah terlanjur ter-push, sedangkan langkah CI "Pindai seluruh riwayat commit"
+menjalankan `gitleaks git .` atas setiap commit. Jadi tanpa tindakan lanjutan,
+langkah 4 hijau sementara langkah 5 merah SELAMANYA. Pilihannya hanya dua:
+allowlist, atau menulis ulang riwayat. Rewrite ditolak — itu force-push
+(ireversibel, melanggar batas yang disepakati pemilik repo) dan tidak sebanding
+dengan dua false positive. Maka `.gitleaks.toml` mendapat satu blok allowlist yang
+di-anchor penuh ke dua literal itu saja: `^definisi=(?:PRIMARY|FOREIGN)$`.
+
+**Verifikasi (diuji, bukan diasumsikan).**
+
+- *Uji diferensial* — gitleaks dijalankan dengan config SEBELUM dan SESUDAH
+  allowlist atas 10 berkas uji. Selisihnya PERSIS dua berkas
+  (`definisi=PRIMARY`, `definisi=FOREIGN`); tidak ada satu pun temuan lain yang
+  ikut termaafkan.
+- *Bentuk rahasia sungguhan tetap terdeteksi*: service_role JWT (aturan `jwt`),
+  GitHub fine-grained PAT `github_pat_` + 82 karakter (`github-fine-grained-pat`),
+  token `sbp_` (`generic-api-key`), private key (`private-key`).
+- `gitleaks dir .` → no leaks. `gitleaks git .` atas klon riwayat penuh
+  (393 commit dipindai) → no leaks. Keduanya gitleaks 8.28.0 dengan config repo,
+  jadi sama persis dengan yang dijalankan CI.
+- Snapshot memang tidak pernah menyimpan badan fungsi mentah (di-`hashBody`),
+  jadi berkas itu secara struktural tidak bisa dipakai menyelundupkan rahasia.
+
+**Jebakan yang terlanjur dibayar — catat supaya tidak terulang.**
+
+- Aturan gitleaks menuntut bentuk yang SANGAT spesifik: `github_pat_` + TEPAT 82
+  karakter, AWS `AKIA` + TEPAT 16 karakter dari `[A-Z2-7]` dengan batas kata.
+  Uji kontrol yang panjangnya meleset satu karakter tidak terdeteksi, dan itu
+  mudah sekali disalahartikan sebagai "gate-nya rusak" padahal datanya yang salah.
+- `AKIAIOSFODNN7EXAMPLE` (contoh di dokumentasi AWS) sengaja di-allowlist
+  gitleaks — jangan dipakai sebagai bukti bahwa deteksi bekerja.
+- Repo ini TIDAK memakai prettier: tanpa konfigurasi, tanpa `.prettierignore`,
+  tanpa langkah CI, dan 233 berkas sudah non-conform sejak sebelum v124
+  (tersebar di tests/ src/ scripts/ docs/). `npm run lint` (ESLint) satu-satunya
+  gerbang gaya. `prettier --write` massal sengaja tidak dilakukan: diff-nya besar,
+  tak terkait, dan berisiko merusak guard byte-identity `schema.sql` vs migrasi.
+  Pesan commit v124 sempat mengklaim "prettier bersih" — itu salah dan sudah
+  dikoreksi lewat amend sebelum di-push.
+- Sebelum mengklaim sebuah gate hijau, jalankan gate itu. Klaim "prettier bersih"
+  dan dugaan "PAT 59 karakter" dua-duanya salah dan dua-duanya ketahuan hanya
+  karena diuji.
+
+**Status:** unit 963 test / 963 lulus / 0 gagal / 0 dilewati; ESLint bersih;
+keempat build byte-identik; tidak ada perubahan runtime/aset → `CACHE_VERSION`
+tetap v153. Yang berubah hanya `scripts/schema-verify/drift-check.mjs`,
+`scripts/schema-verify/expected-catalog.json`, `.gitleaks.toml`, dan dokumen.

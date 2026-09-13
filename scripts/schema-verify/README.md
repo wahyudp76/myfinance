@@ -110,6 +110,32 @@ Dan untuk guard kontraknya: menyelipkan `delete`/`update` ke
 `catalog-queries.json`, menempel token `sbp_` ke alat, atau membuat snapshot
 basi — semuanya membuat `tests/unit/drift-check-contract.test.js` merah.
 
+### Format snapshot dan gitleaks (v125) — jangan rapikan spasi ini
+
+`petakan()` menulis pasangan label sebagai `label = nilai`, DENGAN spasi di sekitar
+`=`. Itu bukan selera formatting. Tanpa spasi, aturan `generic-api-key` gitleaks
+menandai snapshot sebagai kebocoran rahasia: nama constraint Postgres yang sah
+mengandung kata kunci aturan (`api_rate_limits_pkey`, `*_pkey`, `*_fkey`),
+pemisah `||` dipakai snapshot dan juga dihitung sebagai operator oleh aturan itu,
+dan kelas karakter nilainya mengizinkan `=` sehingga `definisi=PRIMARY` (16
+karakter) tertelan utuh melewati ambang 10 karakter. Kejadian nyata di v124:
+20 temuan palsu, job secret-scan merah.
+
+Dengan spasi, nilai yang tertangkap tinggal `definisi` (8 karakter) → di bawah
+ambang → aturan tidak menyala. Kalau Anda mengubah format ini, jalankan dulu:
+
+```bash
+gitleaks dir . -c .gitleaks.toml --no-banner
+```
+
+Satu allowlist di `.gitleaks.toml` (`^definisi=(?:PRIMARY|FOREIGN)$`) tetap
+dipertahankan BUKAN untuk working tree, melainkan untuk riwayat: commit v124
+sudah ter-push dengan format lama, dan langkah CI "Pindai seluruh riwayat commit"
+membaca setiap commit. Allowlist itu diuji diferensial — selisih deteksi antara
+config dengan dan tanpa allowlist persis dua nilai tersebut, tidak lebih;
+service_role JWT, `github_pat_` + 82 karakter, token `sbp_`, dan private key
+semuanya tetap terdeteksi.
+
 ## Menjalankan lokal
 
 ```bash

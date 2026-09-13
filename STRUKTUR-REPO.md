@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~414 commit · versi terbaru `v124`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v125`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -396,7 +396,7 @@ Nilai baru = `round(harga_per_unit × jumlah_unit)`, riwayat di `value_history`
   `icons/platforms/` yang self-hosted.
 - **Hardening input tak tepercaya** (v60): sanitasi CSV formula injection, escape nama akun,
   validasi override ikon/gaya, fallback ikon netral.
-- `.gitleaks.toml` mencegah secret ter-commit. Tidak ada service-role key di kode browser.
+- `.gitleaks.toml` mencegah secret ter-commit — dipindai dua kali di CI: working tree DAN seluruh riwayat commit. Tidak ada service-role key di kode browser.
 - **Verifikasi wajib** sebelum merge:
   ```bash
   npm run lint          # ESLint (0 masalah)
