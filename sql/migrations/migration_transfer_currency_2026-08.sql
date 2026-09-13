@@ -66,8 +66,19 @@ create or replace function public.create_transfer_transaction(
     p_akun_tujuan text,
     p_mata_uang_sumber text,
     p_mata_uang_tujuan text,
-    p_kurs_sumber numeric,
-    p_kurs_tujuan numeric,
+    -- v123 (susulan): DEFAULT 1 ini DISESUAIKAN DENGAN DATABASE LIVE, bukan
+    -- karangan. Waktu perbaikan v123 diterapkan lewat Supabase Management API,
+    -- Postgres menolak: "cannot remove parameter defaults from existing function".
+    -- Ternyata function di produksi punya `p_kurs_sumber numeric DEFAULT 1` dan
+    -- `p_kurs_tujuan numeric DEFAULT 1` yang TIDAK PERNAH ada di berkas SQL mana
+    -- pun di repo (foundation, migration_transfer_currency, maupun schema.sql di
+    -- commit 4343d07/7054b37/405f7a1) -- bukti drift skema live-vs-repo, dan
+    -- alasan kedua kenapa transfer IDR-ke-IDR ternyata TIDAK rusak di produksi
+    -- walau schema.sql menolaknya: yang tayang bukan versi repo.
+    -- DEFAULT 1 dipertahankan karena selaras dengan "kurs NULL = IDR implisit"
+    -- dan membuat CREATE OR REPLACE legal (menambah default boleh, menghapus tidak).
+    p_kurs_sumber numeric default 1,
+    p_kurs_tujuan numeric default 1,
     p_keterangan text default null
 )
 returns public.transactions
