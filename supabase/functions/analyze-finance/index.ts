@@ -13,14 +13,14 @@
 //
 // v65 (2026-09-03): prompt & sanitasi diperbarui untuk presisi (setiap insight wajib
 // mengutip angka pasti dari ringkasan, maks 5 kartu, output disanitasi). Ringkasan yang
-// dikirim client juga lebih kaya (lihat src/domain/ai-summary.js). PERLU DEPLOY ULANG:
-//     supabase functions deploy analyze-finance
-// ada function LAIN
-// bernama "smooth-processor" yang deploy live juga masih aktif berisi versi LAMA fitur ini
-// (pakai Anthropic Claude, bukan Gemini, cuma 2 dari 4 mode) -- itu bukan file ini, tidak
-// dipanggil dari index.html sama sekali, dan disarankan dihapus manual
-// (`supabase functions delete smooth-processor`) krn masih aktif & bisa diakses publik langsung
-// walau sudah tidak dipakai.
+// dikirim client juga lebih kaya (lihat src/domain/ai-summary.js). SUDAH ter-deploy ke
+// live (function ACTIVE, diperbarui 2026-09-07).
+//
+// KOREKSI 2026-09-14: versi lama komentar ini menyebut ada function LAIN bernama
+// "smooth-processor" (versi lama fitur ini, pakai Anthropic Claude) yang masih aktif
+// dan bisa diakses publik. Setelah dicek langsung ke daftar Edge Function live
+// (`supabase functions list`), function itu TIDAK ADA -- hanya 5 function yang aktif,
+// semuanya verify_jwt=true. Jadi tidak ada tindakan hapus yang diperlukan.
 //
 // KENAPA INI HARUS LEWAT EDGE FUNCTION (bukan dipanggil langsung dari browser)?
 // API key Gemini HARUS dirahasiakan di server. Kalau dipanggil langsung dari kode

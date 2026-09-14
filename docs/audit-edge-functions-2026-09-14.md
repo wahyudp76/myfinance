@@ -331,6 +331,9 @@ helper `_shared`; guard kategori bisa diekstrak jadi helper murni di `_shared/`
 supaya ikut teruji unit).
 
 **Catatan operasional (bukan bagian F1-F7, sudah tercatat sebelumnya):**
-`supabase functions delete smooth-processor` (Edge Function lama berisi versi
-Claude yang masih live & bisa diakses publik) masih belum dieksekusi — lihat
-komentar `analyze-finance/index.ts:18-23` dan catatan v124.
+Catatan lama soal `smooth-processor` (Edge Function versi Claude yang konon
+masih live) SUDAH TERSELESAIKAN lewat klarifikasi, bukan penghapusan: saat
+dicek langsung 2026-09-14, function itu TIDAK ADA di daftar Edge Function live
+(hanya 5 yang aktif, semuanya verify_jwt=true). Komentar basi di
+`analyze-finance/index.ts` telah dikoreksi dan function-nya di-redeploy supaya
+live == repo (perilaku tidak berubah).

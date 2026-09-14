@@ -3062,9 +3062,7 @@ pola yang berulang: guard yang sudah ada di satu sisi tapi belum di kembarannya.
 **YANG PERLU DIJALANKAN (di luar repo, butuh token pemilik):** deploy ulang 3
 Edge Function — `scan-receipt` (F1/F2/F3), `whatsapp-webhook` (F4b/F5/F6),
 `get-exchange-rate` (F7). `whatsapp-webhook` hanya relevan bila bot WA memang
-diaktifkan. Sisa operasional lama yang masih tertunda: `supabase functions
-delete smooth-processor` (function lama berisi versi Claude, masih live &
-bisa diakses publik).
+diaktifkan. (Semua sudah terlaksana — lihat SUSULAN di bawah.)
 
 **VERIFIKASI (yang bisa dilakukan di lingkungan audit, Node 20):** `node --check`
 `app.src.js` & `app.js` valid; `npm run build:app` idempoten (hash identik 2×);
@@ -3081,3 +3079,13 @@ butuh Node 22 + server lokal) dan belum ter-deploy ke produksi — perilaku live
 tidak berubah sampai deploy ulang dilakukan. Tidak ada perubahan skema SQL
 (tidak ada tabel/RPC/kolom baru; F4b memakai `api_rate_limits` + RPC yang sudah
 ada), jadi `sql/schema.sql` tidak disentuh.
+
+**SUSULAN v126 (2026-09-14, setelah push & deploy):**
+- Ketiga Edge Function F1-F7 SUDAH ter-deploy ke live: `scan-receipt` → v18,
+  `whatsapp-webhook` → v19, `get-exchange-rate` → v18. Kelima function ACTIVE
+  dengan `verify_jwt=true` (dicek via Management API).
+- Koreksi: `smooth-processor` (function lama versi Claude yang selama ini
+  dicatat "masih live") ternyata TIDAK ADA di daftar function live — hanya 5
+  yang aktif. Klaim "masih live" di entri ini + komentar basi di
+  `supabase/functions/analyze-finance/index.ts` dikoreksi, lalu
+  `analyze-finance` di-redeploy supaya live == repo (perilaku tidak berubah).
