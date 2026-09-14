@@ -1926,7 +1926,15 @@ async function currentUserId() {
             try {
                 const user = await authModule.getCurrentUser().catch(() => null);
                 if (!user) { showErrorToast('Sesi login tidak ditemukan.'); return; }
-                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                // F4 (audit 2026-09-14): kode LINK adalah token keamanan -- siapa pun
+                // yang mengirim "LINK <kode>" yang benar menautkan WhatsApp-nya ke akun
+                // ini, lalu bisa mencatat transaksi atas nama akun ini lewat bot. Karena
+                // itu kodenya dibuat dari PRNG KRIPTOGRAFIS (crypto.getRandomValues),
+                // bukan Math.random() yang bisa diprediksi. Bias modulo (2^32 % 900000)
+                // dapat diabaikan utk kode 6 digit ber-umur 10 menit.
+                const codeBuffer = new Uint32Array(1);
+                crypto.getRandomValues(codeBuffer);
+                const code = String(100000 + (codeBuffer[0] % 900000));
                 const { error } = await supabaseClient.from('whatsapp_link_codes').insert({ user_id: user.id, code });
                 if (error) { showErrorToast('Gagal membuat kode. Coba lagi.'); return; }
 

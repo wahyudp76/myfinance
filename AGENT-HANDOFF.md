@@ -3012,3 +3012,72 @@ di-anchor penuh ke dua literal itu saja: `^definisi=(?:PRIMARY|FOREIGN)$`.
 keempat build byte-identik; tidak ada perubahan runtime/aset → `CACHE_VERSION`
 tetap v153. Yang berubah hanya `scripts/schema-verify/drift-check.mjs`,
 `scripts/schema-verify/expected-catalog.json`, `.gitleaks.toml`, dan dokumen.
+
+## v126 — Audit Edge Functions & batas client–server: 7 temuan inkonsistensi validasi, semuanya ditutup
+
+**KONTEKS:** audit lanjutan (2026-09-14) menyusul v123 (monolit + `src/**`) dan
+v124 (skema `sql/`). Cakupan yang belum pernah diaudit end-to-end: kelima Edge
+Function + `supabase/functions/_shared/` + sisi client yang memanggilnya
+(`src/services/supabase/edge.js`, `assets.js`, penanganan hasil di `app.src.js`).
+Hasil dibaca baris-per-baris dan dibandingkan **per pasangan kembar** (fitur sama
+di dua tempat) serta **per niat** (komentar/kontrak tertulis vs kode yang benar-
+benar dijalankan). Laporan lengkap: `docs/audit-edge-functions-2026-09-14.md`.
+Tidak ada satu pun celah keamanan — semua temuan kelas inkonsistensi/robustness,
+pola yang berulang: guard yang sudah ada di satu sisi tapi belum di kembarannya.
+
+**Temuan & perbaikan (semua diterapkan, F1-F7):**
+
+- **F1 [SEDANG]** `scan-receipt` mengembalikan `kategori` hasil AI TANPA validasi
+  keanggotaan. Kembarannya `analyze-finance:223` sudah punya guard
+  `categories.includes(...)`. Celahnya nyata: `submitForm` di `app.src.js` hanya
+  cek `if(!catVal)`, tidak cek keanggotaan di `categoryDict` → kategori "hantu"
+  bisa tersimpan permanen di `transactions`. **Fix:** guard identik dipasang di
+  `scan-receipt` (kategori AI hanya diterima bila anggota daftar `categories`
+  milik user).
+- **F2** normalisasi output AI di `scan-receipt`: `total` hanya angka positif &
+  finit; `tanggal` hanya `YYYY-MM-DD` yang benar-benar ada di kalender (helper
+  baru `isRealIsoDate` — regex saja tak cukup karena `new Date("2026-02-30")`
+  diam-diam roll-over ke 2 Maret).
+- **F3** `scan-receipt`: `categories.slice(0, 100)`, selaras `analyze-finance:199`.
+- **F4** kode LINK WhatsApp (token keamanan: pemegang kode menautkan nomor ke
+  akun korban) dulu dibuat dari `Math.random()` (PRNG bisa diprediksi) dan
+  perintah LINK tanpa rate-limit. **Fix dua sisi:** (a) client `app.src.js`
+  kini `crypto.getRandomValues` → `app.js` di-rebuild (`npm run build:app`,
+  diff 1 baris); (b) server `whatsapp-webhook` membatasi 5 percobaan LINK per
+  nomor per 10 menit via RPC `check_and_consume_rate_limit` dengan kunci uuid
+  deterministik dari nomor pengirim (`senderToUuid`, SHA-256 → uuid v4; ini
+  BUKAN uuid user sungguhan, hanya kunci pencacah di `api_rate_limits` — client
+  service-role membuat `auth.uid()` NULL di dalam RPC jadi cek kepemilikan
+  dilewati, persis yang dijelaskan `sql/schema.sql`).
+- **F5** `whatsapp-webhook`: hasil `upsert` `whatsapp_links` tidak dicek. Nomor
+  sudah tertaut akun lain → upsert gagal (unique `whatsapp_number`) diam-diam,
+  kode tetap dihapus, user tetap dapat "berhasil" palsu. **Fix:** cek
+  `upsertErr`; gagal ⇒ kode TIDAK dihapus + pesan jujur.
+- **F6** `whatsapp-webhook`: `keterangan` hasil Gemini tidak di-cast string
+  (objek/angka ⇒ INSERT ke kolom `text` gagal total). **Fix:**
+  `typeof === "string" ? ... : null`, selaras `kategori` yang sudah di-`String()`.
+- **F7** `get-exchange-rate`: `mata_uang` tanpa validasi format. **Fix:**
+  `^[A-Z]{3}$` sebelum diteruskan ke Frankfurter.
+
+**YANG PERLU DIJALANKAN (di luar repo, butuh token pemilik):** deploy ulang 3
+Edge Function — `scan-receipt` (F1/F2/F3), `whatsapp-webhook` (F4b/F5/F6),
+`get-exchange-rate` (F7). `whatsapp-webhook` hanya relevan bila bot WA memang
+diaktifkan. Sisa operasional lama yang masih tertunda: `supabase functions
+delete smooth-processor` (function lama berisi versi Claude, masih live &
+bisa diakses publik).
+
+**VERIFIKASI (yang bisa dilakukan di lingkungan audit, Node 20):** `node --check`
+`app.src.js` & `app.js` valid; `npm run build:app` idempoten (hash identik 2×);
+`tests/unit/app-minify.test.js` **3/3 PASS** (drift guard — rebuild `app.js`
+persis kontrak). `CACHE_VERSION` `myfinance-v153` → **`myfinance-v154`**
+(`app.js` adalah aset precache), snapshot SW diregenerasi
+(`fd07472666b1d0d9…`). `STRUKTUR-REPO.md` header & tree ikut disinkronkan oleh
+guard-nya sendiri. Lingkungan resmi Node ≥22.19.0: wajib `npm run lint &&
+npm test` sebelum merge (sandbox audit ini Node 20, jadi suite penuh tidak
+dijadikan gerbang di sini).
+
+**BATASAN JUJUR:** perubahan ini belum teruji E2E browser (harness Playwright
+butuh Node 22 + server lokal) dan belum ter-deploy ke produksi — perilaku live
+tidak berubah sampai deploy ulang dilakukan. Tidak ada perubahan skema SQL
+(tidak ada tabel/RPC/kolom baru; F4b memakai `api_rate_limits` + RPC yang sudah
+ada), jadi `sql/schema.sql` tidak disentuh.

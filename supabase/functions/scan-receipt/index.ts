@@ -53,6 +53,18 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// F2 (audit 2026-09-14): validasi tanggal kalender ISO (YYYY-MM-DD) yang
+// BENAR-BENAR ada. `new Date("2026-02-30")` diam-diam roll-over ke 2 Maret,
+// jadi cek regex saja tidak cukup -- bandingkan komponennya setelah di-bulatkan
+// ke UTC supaya tanggal mustahil (mis. 30 Februari) ditolak.
+function isRealIsoDate(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -99,7 +111,10 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const imageBase64: string | undefined = body?.image_base64;
     const mimeType: string = body?.mime_type || "image/jpeg";
-    const categories: string[] = Array.isArray(body?.categories) ? body.categories : [];
+    // F3 (audit 2026-09-14): batasi ukuran input ke Gemini, selaras dengan
+    // analyze-finance (`categories.slice(0, 100)`) -- bukan masalah keamanan
+    // (daftar ini milik user sendiri), murni konsistensi ukuran payload/prompt.
+    const categories: string[] = Array.isArray(body?.categories) ? body.categories.slice(0, 100) : [];
 
     if (!imageBase64 || typeof imageBase64 !== "string") {
       return jsonResponse({ error: "image_base64 wajib dikirim." }, 400);
@@ -165,11 +180,31 @@ Deno.serve(async (req: Request) => {
       }, 400);
     }
 
+    // Guard kategori persis seperti analyze-finance: JANGAN percaya buta pada AI.
+    // AI hanya boleh memilih dari daftar kategori Pengeluaran milik user yang
+    // dikirim client -- kalau "mengarang" nama kategori baru (atau daftarnya
+    // kosong), anggap saja tidak ada saran. Ini menutup celah "kategori hantu"
+    // yang dulu bisa tersimpan permanen di tabel transactions (submitForm di
+    // app.src.js hanya cek `if(!catVal)`, tidak cek keanggotaan di categoryDict).
+    const kategori = (parsed?.kategori && categories.includes(parsed.kategori)) ? parsed.kategori : null;
+
+    // F2 (audit 2026-09-14): normalisasi output AI di server -- total hanya
+    // angka positif & finit, tanggal hanya YYYY-MM-DD yang benar-benar ada di
+    // kalender. Client menahan sebagian, tapi guard di sini membuat kontrak
+    // output jujur & konsisten dgn helper _shared (pickYahooMarketPrice menolak
+    // payload aneh). Merchant dibiarkan string apa adanya (di-escape client).
+    const total = typeof parsed?.total === "number" && Number.isFinite(parsed.total) && parsed.total > 0
+      ? parsed.total
+      : null;
+    const tanggal = typeof parsed?.tanggal === "string" && isRealIsoDate(parsed.tanggal)
+      ? parsed.tanggal
+      : null;
+
     return jsonResponse({
       merchant: parsed?.merchant ?? null,
-      total: typeof parsed?.total === "number" ? parsed.total : null,
-      tanggal: parsed?.tanggal ?? null,
-      kategori: parsed?.kategori ?? null,
+      total,
+      tanggal,
+      kategori,
     });
   } catch (e) {
     return jsonResponse({ error: String(e instanceof Error ? e.message : e) }, 500);

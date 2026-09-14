@@ -88,6 +88,12 @@ Deno.serve(async (req: Request) => {
     if (!mataUang) {
       return jsonResponse({ error: "mata_uang wajib dikirim (mis. USD)." }, 400);
     }
+    // F7 (audit 2026-09-14): validasi format 3 huruf sebelum diteruskan ke
+    // Frankfurter -- menghemat satu round-trip untuk input sampah dan membuat
+    // pesan error lebih jujur (konsisten dgn normalizePhone di whatsapp-webhook).
+    if (!/^[A-Z]{3}$/.test(mataUang)) {
+      return jsonResponse({ error: "Kode mata uang harus 3 huruf (mis. USD, EUR, SGD)." }, 400);
+    }
     if (mataUang === "IDR") {
       return jsonResponse({ rate: 1, tanggal: new Date().toISOString().slice(0, 10) });
     }

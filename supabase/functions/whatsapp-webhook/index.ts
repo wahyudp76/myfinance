@@ -69,6 +69,20 @@ function normalizePhone(raw: string): string {
   return digits.startsWith('0') ? '62' + digits.slice(1) : digits;
 }
 
+// F4 (audit 2026-09-14): uuid deterministik dari nomor pengirim, dipakai sbg
+// key rate-limit perintah LINK (pengirim belum tertaut, jadi belum punya user
+// id). Diturunkan dari SHA-256 nomor (16 byte pertama digest, dibentuk jadi
+// uuid versi 4). Ini BUKAN uuid user sungguhan -- hanya kunci pencacah di
+// tabel api_rate_limits; kolisi SHA-256 mustahil praktis.
+async function senderToUuid(phone: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('wa-link:' + phone));
+  const bytes = new Uint8Array(digest).slice(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // versi 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant RFC 4122
+  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function formatRp(n: number): string {
   return new Intl.NumberFormat('id-ID').format(n);
 }
@@ -140,7 +154,7 @@ Pesan: "${text}"`;
     if (parsed.jenis !== 'Pengeluaran' && parsed.jenis !== 'Pemasukan') return null;
     const jumlah = Math.round(Number(parsed.jumlah));
     if (!jumlah || jumlah <= 0) return null;
-    return { jenis: parsed.jenis, jumlah, kategori: String(parsed.kategori), keterangan: parsed.keterangan || null };
+    return { jenis: parsed.jenis, jumlah, kategori: String(parsed.kategori), keterangan: typeof parsed.keterangan === "string" ? parsed.keterangan : null };
   } catch (e) {
     console.error('Gagal parse balasan Gemini:', e);
     return null;
@@ -178,6 +192,25 @@ Deno.serve(async (req: Request) => {
     const linkMatch = messageText.match(/^link\s+(\d{4,8})$/i);
     if (linkMatch) {
       const code = linkMatch[1];
+
+      // F4 (audit 2026-09-14): batasi percobaan LINK per nomor pengirim -- tutup
+      // brute-force 10^6 kombinasi kode dalam window 10 menit. Key rate-limit =
+      // uuid deterministik dari nomor (bukan user id, pengirim BELUM tertaut).
+      // Client service-role -> auth.uid() NULL di dalam RPC, jadi cek kepemilikan
+      // `auth.uid() <> p_user_id` dilewati (dijelaskan di sql/schema.sql). Fail-open
+      // kalau RPC-nya error, pola yang sama dgn rate-limit lain di file ini.
+      const attemptUserId = await senderToUuid(sender);
+      const { data: linkAllowed, error: linkRlErr } = await supabase.rpc('check_and_consume_rate_limit', {
+        p_user_id: attemptUserId,
+        p_action: 'whatsapp-link-attempt',
+        p_max_calls: 5,
+        p_window_minutes: 10,
+      });
+      if (!linkRlErr && linkAllowed === false) {
+        await sendReply(sender, 'Terlalu banyak percobaan kode LINK. Tunggu beberapa menit lalu coba lagi.');
+        return new Response('OK', { status: 200 });
+      }
+
       const { data: codeRow } = await supabase
         .from('whatsapp_link_codes')
         .select('user_id, expires_at')
@@ -189,9 +222,21 @@ Deno.serve(async (req: Request) => {
         return new Response('OK', { status: 200 });
       }
 
-      await supabase
+      // F5 (audit 2026-09-14): periksa hasil upsert. whatsapp_links punya
+      // unique(whatsapp_number) -- kalau nomor sender SUDAH tertaut ke akun
+      // lain, upsert gagal (unique violation) dan dulu error-nya diabaikan:
+      // kode tetap dihapus + user tetap mendapat konfirmasi "berhasil" palsu.
+      const { error: upsertErr } = await supabase
         .from('whatsapp_links')
         .upsert({ user_id: codeRow.user_id, whatsapp_number: sender, linked_at: new Date().toISOString() }, { onConflict: 'user_id' });
+
+      if (upsertErr) {
+        // JANGAN hapus kodenya -- user masih berhak memakai kode itu dari akun
+        // lain (atau setelah memutuskan nomor dari akun lama).
+        await sendReply(sender, 'Nomor WhatsApp ini sudah tertaut ke akun MyFinance lain. Putuskan dulu lewat akun itu (ketik UNLINK), atau gunakan nomor lain.');
+        return new Response('OK', { status: 200 });
+      }
+
       await supabase.from('whatsapp_link_codes').delete().eq('code', code);
 
       await sendReply(sender, '✅ Berhasil terhubung ke akun MyFinance kamu!\n\nSekarang langsung catat transaksi lewat chat ini, contoh: "keluar 25000 parkir".\nKetik BANTUAN buat panduan lengkap.');

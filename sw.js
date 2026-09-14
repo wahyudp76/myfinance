@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v153'; // v123: boot.bundle.js berubah -- roundMoney()
+const CACHE_VERSION = 'myfinance-v154'; // v126: app.js berubah -- kode LINK WhatsApp kini crypto.getRandomValues
 //   di src/domain/finance.js kini simetris untuk nilai negatif (half away from zero)
 //   dan menolak `decimals` non-integer; keduanya diperbaiki SEBELUM ada pemanggil
 //   runtime (Phase 4) yang mewarisinya. Aset lain byte-identik.
