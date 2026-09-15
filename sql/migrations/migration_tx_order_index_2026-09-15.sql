@@ -1,0 +1,76 @@
+-- ============================================================================
+-- MIGRASI: index yang cocok dengan ORDER BY list() transaksi (v127, 2026-09-15)
+-- ============================================================================
+-- LATAR (regresi diam-diam, ditemukan audit performa load & sync 2026-09-15):
+-- migration_composite_indexes_2026-09-02.sql membuat
+--     transactions_user_tanggal_id_idx (user_id, tanggal desc, id asc)
+-- dan pada saat itu urutan yang diminta aplikasi memang (tanggal desc, id asc).
+-- Belakangan src/services/transactions.js menyisipkan created_at di tengah
+-- (urutannya kini `tanggal desc, created_at desc, id asc` -- jam input
+-- pencatatan, supaya transaksi terbaru tampil paling atas dalam satu hari),
+-- TETAPI index-nya tidak ikut diperbarui. Akibatnya prefix index tidak lagi
+-- sama dengan urutan yang diminta: planner menambah node "Incremental Sort" di
+-- atas Index Scan pada SETIAP halaman tarikan transaksi -- dan tarikan penuh itu
+-- terjadi tiap buka app, tiap pull-to-refresh, dan tiap refresh pasca-CRUD.
+--
+-- ---------------------------------------------------------------------------
+-- BUKTI & SEBERAPA BESAR UNTUNGNYA (PostgreSQL 17.11, EXPLAIN ANALYZE, median 5
+-- run, query = PERSIS yang dikirim list() termasuk 15 kolom select).
+--
+-- Dataset UKURAN PRODUKSI: 515.000 baris total, 100 user, user yang diukur
+-- punya 20.000 transaksi (= 20 halaman @1000 baris per tarikan penuh).
+--
+--   SEBELUM (index lama saja):
+--     Incremental Sort (cost=15.77..20230.27)
+--       Sort Key: tanggal DESC, created_at DESC, id
+--       -> Index Scan using transactions_user_tanggal_id_idx
+--     halaman pertama (offset 0)     :  1,814 ms
+--     halaman ke-10   (offset 9000)  : 22,626 ms
+--     halaman ke-20   (offset 19000) : 26,981 ms
+--     TOTAL satu tarikan penuh       : 410,8 ms
+--
+--   SESUDAH (index di bawah ini):
+--     Index Scan using transactions_user_tanggal_createdat_id_idx
+--       (node Sort HILANG sepenuhnya)
+--     halaman pertama (offset 0)     :  1,053 ms   (1,7x lebih cepat)
+--     halaman ke-10   (offset 9000)  : 20,482 ms
+--     halaman ke-20   (offset 19000) : 26,775 ms
+--     TOTAL satu tarikan penuh       : 399,7 ms   (1,03x; hemat 11 ms)
+--
+-- JUJUR SOAL SKALANYA: pada ukuran produksi keuntungan totalnya KECIL (3%),
+-- karena biaya tarikan penuh didominasi pola LIMIT/OFFSET (tiap halaman
+-- menelusuri index dari awal lagi) dan fetch heap -- bukan sortirnya. Yang
+-- benar-benar membaik adalah halaman pertama (1,7x) dan hilangnya node Sort
+-- (memori + CPU sortir per halaman tidak lagi dipakai sama sekali).
+--
+-- CATATAN PENGUKURAN (penting supaya tidak mengulang kesalahan): pengukuran
+-- pertama migrasi ini memakai tabel 20.000 baris yang SEMUANYA milik satu user
+-- dan menghasilkan angka 2,7x. Angka itu TIDAK berlaku: pada tabel satu-user
+-- planner malah memilih transactions_tanggal_idx (backward) sehingga index baru
+-- tidak dipakai, dan pada tabel multi-user node Sort memang murah karena
+-- "Presorted Key: tanggal". Angka di atas adalah pengukuran ulang pada bentuk
+-- data yang mirip produksi. Jangan mengutip angka 2,7x.
+--
+-- Index lama SENGAJA TIDAK dihapus: masih dipakai pola query yang menyaring
+-- (user_id, tanggal) tanpa memedulikan created_at, dan menghapusnya keputusan
+-- terpisah yang tidak dibutuhkan perbaikan ini.
+--
+-- PENCEGAH BERULANG (ini bagian yang paling berharga dari perubahan ini):
+-- tests/unit/service-order-index-contract.test.js membandingkan urutan ORDER BY
+-- di ketiga service (transactions, assets, recurring_transactions) dengan index
+-- komposit di sql/schema.sql, jadi menyisipkan kolom urutan baru tanpa index
+-- yang cocok membuat CI merah -- persis cara regresi ini dulu lolos.
+--
+-- LEVER YANG LEBIH BESAR (belum dikerjakan, terukur): lihat
+-- docs/audit-perf-load-sync-2026-09-15.md -- keyset pagination (mengganti
+-- LIMIT/OFFSET) memangkas 399,7 ms -> ~25 ms, dan delta-sync memangkas payload
+-- 8,6 MB per tarikan penuh pada akun 20.000 transaksi.
+--
+-- CARA TERAPKAN: jalankan file ini di Supabase SQL Editor (proyek
+-- uxfngmxghupdlwoeoxgh) -- idempoten berkat `if not exists`. Pada tabel besar
+-- pertimbangkan `create index concurrently` (tidak bisa di dalam transaksi);
+-- pada ukuran sekarang pembangunan index selesai dalam hitungan detik.
+-- ============================================================================
+
+create index if not exists transactions_user_tanggal_createdat_id_idx
+    on public.transactions (user_id, tanggal desc, created_at desc, id asc);

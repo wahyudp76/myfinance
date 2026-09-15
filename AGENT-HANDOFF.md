@@ -3089,3 +3089,89 @@ ada), jadi `sql/schema.sql` tidak disentuh.
   yang aktif. Klaim "masih live" di entri ini + komentar basi di
   `supabase/functions/analyze-finance/index.ts` dikoreksi, lalu
   `analyze-finance` di-redeploy supaya live == repo (perilaku tidak berubah).
+
+## v127 (2026-09-15) — performa load & sync: diukur dulu, baru diubah
+
+**PERMINTAAN:** "lakukan improvement terhadap performance load and sync data".
+
+**YANG DITERAPKAN (3 hal, semuanya terukur):**
+1. **Index baru `transactions_user_tanggal_createdat_id_idx`** `(user_id, tanggal
+   desc, created_at desc, id asc)` di `sql/schema.sql` +
+   `sql/migrations/migration_tx_order_index_2026-09-15.sql`. Sebab: `list()` di
+   `src/services/transactions.js` mengurutkan `tanggal desc, created_at desc, id
+   asc`, tetapi index v59 hanya `(user_id, tanggal desc, id asc)` — `created_at`
+   disisipkan ke query sesudah index dibuat dan tidak ada yang menyadarinya, jadi
+   planner menambah `Incremental Sort` di tiap halaman tarikan. **BELUM
+   diterapkan ke produksi** — jalankan file migrasinya di SQL Editor (idempoten).
+2. **Guard CI `tests/unit/service-order-index-contract.test.js`** — membandingkan
+   urutan `ORDER BY` di 3 service (transactions/assets/recurring) dengan index
+   komposit di `sql/schema.sql`. Ini bagian yang paling berharga: regresi di atas
+   lolos bertahun-tahun karena TIDAK ADA error, hanya makin lambat. Sudah
+   dibuktikan bisa merah (index dihapus dari schema.sql → 1 test gagal dengan
+   pesan yang menyebut index yang tersedia; dipasang lagi → 6/6 lulus).
+3. **`animateRupiah`: `textContent` menggantikan `innerText`** (`app.src.js`,
+   `app.js` di-rebuild). Baca `innerText` memaksa *forced synchronous layout* di
+   tengah render dashboard. Semua elemen target diverifikasi berisi teks polos.
+   `CACHE_VERSION` `myfinance-v154` → **`myfinance-v155`**, snapshot SW
+   diregenerasi (`7657fec7d364e303…`).
+
+**ALAT BARU: `scripts/bench-load-sync.mjs`** — benchmark load & sync yang bisa
+diulang: aplikasi sungguhan di Chromium + Supabase stub (tanpa rahasia/kuota),
+SW dimatikan, CPU throttle 4×, viewport ponsel. Mengukur boot / satu `loadData()`
+/ `refreshTransactionsOnly()` / biaya fungsi render / jumlah request + byte.
+Mode `BENCH_PROFILE=1` (profil per fungsi) dan `BENCH_MICRO=1` (A/B terisolasi).
+SENGAJA tidak dipasang di CI (angka waktu bergantung mesin → flaky).
+Jebakan saat membuatnya: stub WAJIB mengirim `Access-Control-Expose-Headers:
+Content-Range`, tanpa itu `count` null dan `fetchAllRows` masuk fallback loop
+berurutan tanpa ujung; dan supabase-js 2.113 mengirim halaman lewat query param
+`offset`/`limit`, BUKAN header `Range`.
+
+**DUA OPTIMASI DIBATALKAN KARENA PENGUKURAN (jangan diulang tanpa bukti baru):**
+- Helper `sortTxRows` (lewati `.sort()` bila baris sudah terurut) — sudah sempat
+  dipasang di `src/domain/transactions.js` + 4 call site, lalu DIKEMBALIKAN
+  seluruhnya. A/B: 2.500 baris terurut 10,8 ms → 16,8 ms (lebih lambat);
+  20.000 baris terurut 171,7 → 176,3 ms. Sebab: TimSort V8 sudah mendeteksi run
+  terurut dalam O(n), jadi `.sort()` di array terurut memang sudah murah.
+- "Hapus `PUT settings` tiap sync" — tidak ada yang perlu dihapus: mata-mata pada
+  `persistSettings` menunjukkan **0 panggilan** per `loadData()`.
+- Koreksi klaim: profil sempat menunjukkan `animateRupiah` 86 ms/4 panggilan,
+  yang terbaca sebagai biaya `innerText`. A/B terisolasi: `innerText` 1,1 ms vs
+  `textContent` 0 ms. 86 ms itu *forced layout* dari DOM dashboard yang belum
+  di-layout, bukan biaya `innerText` — jadi perubahannya dipertahankan (mekanisme-
+  nya benar) tapi TIDAK diklaim sebagai penghematan 86 ms.
+
+**KOREKSI ANGKA PENTING:** pengukuran index pertama memakai tabel 20.000 baris
+milik SATU user dan menghasilkan **2,7×**. Angka itu SALAH dan jangan dikutip:
+pada tabel satu-user planner malah memilih `transactions_tanggal_idx` (backward)
+sehingga index baru tidak dipakai. Diukur ulang pada bentuk mirip produksi
+(515.000 baris, 100 user, user target 20.000 transaksi): halaman pertama
+1,81 → 1,05 ms, total tarikan penuh 410,8 → 399,7 ms (**1,03×**), node Sort
+hilang. Bentuk dataset menentukan kesimpulan — catat ini tiap kali mengukur query.
+
+**ANGKA LAIN YANG PERLU DIINGAT (semua di `docs/audit-perf-load-sync-2026-09-15.md`):**
+- Boot akun tipikal (300 transaksi): 1.523 ms sampai appShell, +162 ms sampai data
+  ter-commit. Artinya untuk mayoritas user bottleneck-nya BOBOT SHELL (parse
+  `app.js` 271 KB + `boot.bundle.js` 158 KB), bukan data.
+- Akun 2.500 transaksi: payload 1.078,5 KB per tarikan penuh (20.000 transaksi
+  ≈ 8,6 MB) — diunduh ulang tiap pull-to-refresh & tiap refresh pasca-CRUD.
+- Biaya render terbesar = parse HTML, bukan agregasi: menetapkan ulang `innerHTML`
+  tabel transaksi (151 baris = 284 KB HTML) 363,5 ms vs sortir 2.500 baris 21,1 ms.
+- Lever berikutnya (terukur, belum dikerjakan): keyset pagination 278 → 91 ms
+  (3,1×) untuk satu tarikan 20.000 baris; delta-sync untuk memangkas payload.
+
+**VERIFIKASI YANG DIJALANKAN (Node 22.23.2 + PostgreSQL 17.11 lokal):**
+`npm run lint` 0 masalah; `npm run test:unit` **969 tes** (967 lulus + 2 yang
+sempat merah karena dokumen belum disinkronkan, lalu hijau setelah
+`STRUKTUR-REPO.md`/`README.md` diperbarui); `npm run test:parity`; build drift
+check (`app.js`/`boot.bundle.js`/styles/css/csp) tanpa drift;
+`node scripts/schema-verify/run.mjs` → schema.sql pasang bersih + idempoten +
+12 cek fungsional LULUS; `drift-check.mjs --check` → katalog cocok setelah
+`expected-catalog.json` dibangkitkan ulang (index 31 → 32 entri, diff-nya cuma
+index baru + tanggal); EXPLAIN ANALYZE di Postgres nyata untuk angka di atas.
+
+**BATASAN JUJUR:** (1) migrasi index BELUM diterapkan ke database produksi —
+sampai itu dijalankan, planner live masih memakai rencana lama; (2) tidak ada
+perubahan perilaku aplikasi yang terlihat user selain animasi angka yang tidak
+lagi memaksa reflow; (3) harness benchmark memakai Supabase stub, jadi angka
+jaringannya tidak mencerminkan latensi produksi (pakai `BENCH_LATENCY_MS` untuk
+mensimulasikan).

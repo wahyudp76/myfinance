@@ -1564,14 +1564,22 @@ async function currentUserId() {
             // hitung naik/turun kalau mode Sembunyikan Saldo aktif -- lihat toggleNominalVisibility().
             if (maskable && nominalHidden) {
                 _rupiahAnimTokens.delete(el);
-                el.innerText = 'Rp ••••••';
+                el.textContent = 'Rp ••••••';
                 return;
             }
 
-            const prevDigits = (el.innerText || '').replace(/[^0-9-]/g, '');
+            // v127 (perf): textContent, BUKAN innerText. innerText "layout-aware":
+            // membacanya MEMAKSA browser menghitung ulang layout (forced reflow) dan
+            // penulisannya lebih mahal -- padahal semua elemen yang dianimasikan fungsi
+            // ini (dash-total/dash-in/dash-out/dash-total-aset, yearly-total-*,
+            // detail-account-*) berisi TEKS POLOS tanpa markup, jadi hasilnya identik.
+            // Terukur di harness scripts/bench-load-sync.mjs: 4 panggilan animateRupiah
+            // = 86 ms dari ~700 ms satu sinkronisasi penuh (CPU 4x throttle), dan fungsi
+            // ini terpanggil di setiap render dashboard/detail akun/laporan.
+            const prevDigits = (el.textContent || '').replace(/[^0-9-]/g, '');
             const startValue = prevDigits ? parseInt(prevDigits, 10) : 0;
             if (!isFinite(startValue) || startValue === targetValue) {
-                el.innerText = 'Rp ' + formatRp(targetValue);
+                el.textContent = 'Rp ' + formatRp(targetValue);
                 return;
             }
 
@@ -1581,11 +1589,11 @@ async function currentUserId() {
                 const progress = Math.min((now - startTime) / duration, 1);
                 const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
                 const current = Math.round(startValue + (targetValue - startValue) * eased);
-                el.innerText = 'Rp ' + formatRp(current);
+                el.textContent = 'Rp ' + formatRp(current);
                 if (progress < 1) {
                     _rupiahAnimTokens.set(el, requestAnimationFrame(tick));
                 } else {
-                    el.innerText = 'Rp ' + formatRp(targetValue);
+                    el.textContent = 'Rp ' + formatRp(targetValue);
                     _rupiahAnimTokens.delete(el);
                 }
             }

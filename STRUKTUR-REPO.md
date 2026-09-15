@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v126`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v127`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -54,7 +54,7 @@ myfinance/
 │                           #   INI yang dimuat index.html; jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v154)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v155)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -192,6 +192,9 @@ myfinance/
 │       ├── migration_asset_price_columns_2026-08.sql
 │       ├── migration_assets_tanggal_nav_2026-09.sql
 │       ├── migration_composite_indexes_2026-09-02.sql
+│       ├── migration_tx_order_index_2026-09-15.sql  # v127: index (user_id, tanggal desc,
+│       │                       #   created_at desc, id asc) — urutan list() tidak lagi
+│       │                       #   cocok dengan index v59; bukti EXPLAIN di header file
 │       ├── migration_f1_rls_auto_enable_2026-08-31.sql
 │       ├── migration_rate_limiting_2026-08.sql
 │       ├── migration_reliability_hardening_2026-08.sql
@@ -220,6 +223,8 @@ myfinance/
 │   ├── build-csp.mjs       # hash sha256 <script> inline → index.html + _headers (v104)
 │   ├── subset-fontawesome.py  # subset Font Awesome → webfonts/ (jebakan SAFELIST: AGENT-HANDOFF v51)
 │   ├── bench-save-latency.mjs # benchmark alur simpan transaksi (v52)
+│   ├── bench-load-sync.mjs # v127: benchmark LOAD & SYNC di Chromium + Supabase stub
+│   │                       #   (boot/sync/render/jaringan; BENCH_PROFILE, BENCH_MICRO)
 │   ├── verify-hud.mjs      # E2E Playwright (70 cek) — dijalankan CI: .github/workflows/e2e-harness.yml
 │   ├── verify-ui-actions.mjs  # E2E aksi UI deklaratif data-action (39 cek, v101)
 │   ├── verify-applock-rpid.mjs # E2E RP ID WebAuthn, legacy & pindah domain (31 cek, v107)
@@ -240,14 +245,14 @@ myfinance/
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
-│   ├── unit/               # 91 file *.test.js murni (node --test) — npm run test:unit
+│   ├── unit/               # 92 file *.test.js murni (node --test) — npm run test:unit
 │   │   ├── sw-cache.snapshot            # snapshot hash aset precache SW
 │   │   ├── sw-cache-hash-helper.mjs     # helper penghitung hash precache
 │   │   ├── update-sw-cache-snapshot.mjs # regen snapshot SETELAH bump CACHE_VERSION + build
 │   │   └── helpers/mock-supabase-client.js
 │   └── parity/             # 6 file: banding legacy vs native (sebagian butuh secret live / opt-in)
 │
-├── docs/                   # Rencana migrasi, audit, kontrak — 14 dokumen
+├── docs/                   # Rencana migrasi, audit, kontrak — 15 dokumen
 │   ├── SESSION-HANDOFF.md  # snapshot handoff 2026-08-31 (AGENT-HANDOFF.md ada di root)
 │   ├── architecture-modernization-plan.md
 │   ├── supabase-native-migration-plan.md
@@ -261,6 +266,9 @@ myfinance/
 │   ├── audit-bug-analysis-2026-09-02.md
 │   ├── audit-drift-live-vs-repo-2026-09-13.md  # v124: 12 temuan drift produksi vs
 │   │                       #   sql/schema.sql + cara auditnya (dapat diulang)
+│   ├── audit-perf-load-sync-2026-09-15.md  # v127: angka terukur load & sync,
+│   │                       #   2 optimasi yang DIBATALKAN karena pengukurannya berkata
+│   │                       #   lain, + roadmap (keyset paging, delta sync)
 │   ├── AUDIT_REPORT_2026-08.md
 │   └── PILOT-MIGRASI-v71.md  (v91: dipindah dari root — dokumen historis pilot migrasi monolit→modul)
 │

@@ -76,6 +76,16 @@ create index if not exists transactions_tanggal_idx  on public.transactions (tan
 -- v59 (2026-09-02): index komposit utk pola utama app (filter user_id + order
 -- tanggal DESC) -- lihat sql/migrations/migration_composite_indexes_2026-09-02.sql.
 create index if not exists transactions_user_tanggal_id_idx on public.transactions (user_id, tanggal desc, id asc);
+-- v127 (2026-09-15): list() di src/services/transactions.js mengurutkan
+-- `tanggal desc, created_at desc, id asc` (created_at disisipkan setelah index
+-- di atas dibuat), sehingga prefix index lama tidak lagi cocok dan planner
+-- menambah node "Incremental Sort" di setiap halaman tarikan transaksi.
+-- Index ini membuat urutan ter-cover penuh (Sort node hilang; terukur 2,7x
+-- lebih cepat utk tarikan 20.000 baris) -- bukti EXPLAIN & angka lengkap ada di
+-- sql/migrations/migration_tx_order_index_2026-09-15.sql. Kontrak "urutan ORDER
+-- BY service == prefix index" dijaga tests/unit/service-order-index-contract.test.js.
+create index if not exists transactions_user_tanggal_createdat_id_idx
+    on public.transactions (user_id, tanggal desc, created_at desc, id asc);
 
 -- Kolom multi-currency (foundation 2026-08 + migration_transfer_currency_2026-08).
 -- Satu baris Transfer menyimpan KEDUA kaki: sumber (jumlah/mata_uang/kurs/

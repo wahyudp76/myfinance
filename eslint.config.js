@@ -177,6 +177,10 @@ export default [
     // `window`, dst. memang ada meski file-nya sendiri file Node.
     files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "scripts/verify-offline-cache.mjs", "scripts/verify-ui-actions.mjs",
       "scripts/verify-csp.mjs", "scripts/verify-ui-sweep.mjs", "scripts/verify-applock-rpid.mjs",
+      // v127: harness benchmark load & sync -- sama seperti harness verify-*, ia
+      // memanggil fungsi global app dari dalam page.evaluate (loadData,
+      // filterTransactions, txServerCompare, dst) utk mengukur biayanya.
+      "scripts/bench-load-sync.mjs",
       "tests/parity/**/*.mjs", "scripts/rls-audit/*.mjs"],
     languageOptions: {
       globals: {
@@ -221,6 +225,14 @@ export default [
         // sementara "tmp-kripto" -- lihat scripts/verify-hud.mjs.
         globalAssets: "writable",
         globalData: "readonly",
+        // v127: dipakai scripts/bench-load-sync.mjs -- harness mengukur biaya
+        // fungsi-fungsi ini dari dalam halaman (profil per fungsi & A/B sortir).
+        refreshTransactionsOnly: "readonly",
+        filterTransactions: "readonly",
+        processDataForUI: "readonly",
+        renderRecentList: "readonly",
+        txServerCompare: "readonly",
+        animateRupiah: "readonly",
         _confirmYes: "readonly",
         applyDefaultViewOnce: "readonly",
         closeAssetDetailModal: "readonly",

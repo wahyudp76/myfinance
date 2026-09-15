@@ -77,7 +77,7 @@ myfinance/
 ├── scripts/                     # Build (build-app/styles/boot/csp) · 9 harness E2E verify-* ·
 │                                #   lighthouse/ · schema-verify/ (Postgres nyata) · rls-audit/
 ├── tests/
-│   ├── unit/                     # 91 file test murni, tanpa network (npm run test:unit)
+│   ├── unit/                     # 92 file test murni, tanpa network (npm run test:unit)
 │   └── parity/                   # Banding legacy vs native (6 file), sebagian butuh secret live
 ├── docs/                          # Rencana migrasi, audit historis & kontrak loader (13 dokumen)
 ├── .github/workflows/             # CI: parity.yml ("CI") · e2e-harness.yml · dependabot-auto-merge.yml
@@ -651,6 +651,16 @@ nilainya di `supabase/functions/analyze-finance/index.ts` (konstanta
   langsung/manual yang didukung penuh saat ini.
 - ✅ **`sql/migrations/migration_asset_price_columns_2026-08.sql`** — **SUDAH diterapkan**. Kolom
   refresh-harga-otomatis (`simbol`, `jumlah_unit`, `sumber_harga`) di tabel `assets`.
+- ⬜ **`sql/migrations/migration_tx_order_index_2026-09-15.sql`** (v127) — **BELUM diterapkan
+  ke produksi**; jalankan di SQL Editor (idempoten, satu `create index if not exists`).
+  Isinya index `(user_id, tanggal desc, created_at desc, id asc)` supaya cocok dengan
+  `ORDER BY` yang dikirim `src/services/transactions.js` — sejak `created_at` disisipkan ke
+  urutan itu, index v59 tidak lagi meng-cover-nya sehingga planner menambah node
+  `Incremental Sort` di tiap halaman tarikan transaksi. Angka EXPLAIN (Postgres 17, tabel
+  515.000 baris / 100 user): halaman pertama 1,81 → 1,05 ms, total satu tarikan penuh
+  410,8 → 399,7 ms, node Sort hilang. Penjaga agar tidak terulang:
+  `tests/unit/service-order-index-contract.test.js`. Detail di
+  `docs/audit-perf-load-sync-2026-09-15.md`.
 - ✅ **`sql/migrations/migration_rate_limiting_2026-08.sql`** — **SUDAH diterapkan**. Tabel
   `api_rate_limits` + RPC `check_and_consume_rate_limit()`, dipakai Edge Function
   `analyze-finance`, `scan-receipt`, `get-exchange-rate`, dan `refresh-asset-price` untuk

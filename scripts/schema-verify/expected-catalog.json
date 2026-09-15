@@ -1,7 +1,7 @@
 {
  "_meta": {
   "keterangan": "Snapshot katalog hasil memasang sql/schema.sql dari nol. Dibangkitkan oleh scripts/schema-verify/drift-check.mjs --snapshot. Nilainya sudah dinormalkan (lihat hashBody/petakan di alat itu), jadi membandingkan snapshot ini dengan dump baru tidak tergantung komentar, CRLF, atau spasi berlebih.",
-  "dibangkitkan": "2026-09-13",
+  "dibangkitkan": "2026-09-15",
   "kategori": [
    "tables",
    "columns",
@@ -172,6 +172,7 @@
   "transactions :: transactions_recurring_idempotency_idx  ||  definisi = CREATE UNIQUE INDEX transactions_recurring_idempotency_idx ON public.transactions USING btree (user_id, recurring_id, recurring_due_date) WHERE ((recurring_id IS NOT NULL) AND (recurring_due_date IS NOT NULL)) | index = transactions_recurring_idempotency_idx | tabel = transactions",
   "transactions :: transactions_tanggal_idx  ||  definisi = CREATE INDEX transactions_tanggal_idx ON public.transactions USING btree (tanggal) | index = transactions_tanggal_idx | tabel = transactions",
   "transactions :: transactions_user_id_idx  ||  definisi = CREATE INDEX transactions_user_id_idx ON public.transactions USING btree (user_id) | index = transactions_user_id_idx | tabel = transactions",
+  "transactions :: transactions_user_tanggal_createdat_id_idx  ||  definisi = CREATE INDEX transactions_user_tanggal_createdat_id_idx ON public.transactions USING btree (user_id, tanggal DESC, created_at DESC, id) | index = transactions_user_tanggal_createdat_id_idx | tabel = transactions",
   "transactions :: transactions_user_tanggal_id_idx  ||  definisi = CREATE INDEX transactions_user_tanggal_id_idx ON public.transactions USING btree (user_id, tanggal DESC, id) | index = transactions_user_tanggal_id_idx | tabel = transactions",
   "whatsapp_link_codes :: whatsapp_link_codes_code_key  ||  definisi = CREATE UNIQUE INDEX whatsapp_link_codes_code_key ON public.whatsapp_link_codes USING btree (code) | index = whatsapp_link_codes_code_key | tabel = whatsapp_link_codes",
   "whatsapp_link_codes :: whatsapp_link_codes_pkey  ||  definisi = CREATE UNIQUE INDEX whatsapp_link_codes_pkey ON public.whatsapp_link_codes USING btree (id) | index = whatsapp_link_codes_pkey | tabel = whatsapp_link_codes",
