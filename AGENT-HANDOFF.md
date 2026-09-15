@@ -3231,3 +3231,49 @@ jadi anggaran yang disimpan per SUB-KATEGORI tidak pernah memicu toast
 tapi tidak ada notifikasi saat mencatat transaksi. Sengaja TIDAK ikut diubah di
 commit ini karena menambah perilaku user-visible (toast baru) — perlu keputusan
 pemilik, bukan keputusan diam-diam.
+
+## v129 — keyset pagination DIBATALKAN berdasarkan pengukuran + koreksi komposisi biaya boot
+
+**TIDAK ADA PERUBAHAN KODE di versi ini.** Isinya dua pengukuran yang mengubah
+keputusan, semuanya tercatat di `docs/audit-perf-load-sync-2026-09-15.md`
+bagian 7 (baru). `CACHE_VERSION` tetap `myfinance-v156`.
+
+**1. Keyset pagination ditolak.** Rekomendasi audit ("3,1× lebih cepat, 278 → 91
+ms") tidak lolos A/B terkontrol. Lingkungan baru: PostgreSQL 17.10 + PostgREST
+12.2.3 lokal, 515.000 baris / 100 user (20.000 baris milik user target), akses
+lewat HTTP + JWT HS256 sehingga RLS aktif seperti produksi.
+
+- Lewat HTTP (5.000 baris / 50 halaman, median 5 run): offset berurutan 112,1 ms;
+  **offset paralel 6 (pola sekarang) 55,1 ms**; keyset berurutan **174,1 ms**
+  → keyset **0,32×**. Urutan baris identik & 0 duplikat, jadi murni performa:
+  keyset memaksa halaman diambil berurutan, sedangkan klien sekarang menarik 6
+  halaman sekaligus.
+- Lewat SQL per halaman (median 5 run, kedalaman 0–19.900): dengan index v127
+  keyset 0,78–0,91× (lebih lambat); **tanpa** index v127 keyset 1,57–16,38×
+  lebih cepat.
+- **Akar kekeliruan angka lama:** index covering
+  `(user_id, tanggal desc, created_at desc, id asc)` dari v127 sudah menyerap
+  seluruh keuntungan keyset. Perbandingan lama memasang index hanya di sisi
+  keyset, jadi yang terukur adalah manfaat index, bukan manfaat keyset.
+- Keputusan: `src/services/supabase/paging.js` tidak disentuh, tanpa migrasi.
+
+**2. Kesimpulan "bobot app shell" dikoreksi.** Boot memang CPU-bound (appShell
+1.734 ms pada CPU 4× vs 524 ms pada CPU 1×), **tapi bukan karena parse skrip**:
+trace CDP menunjukkan `EvaluateScript` `app.js` (265 KB) hanya **9,7 ms**.
+Profil CPU fase boot: `(program)` (parse HTML/CSS + layout/paint) **1.119 ms =
+45,8%**, Chart.js **~200 ms** (chart dashboard dirender SEBELUM shell tampil),
+`Ya`@boot.bundle.js 126,5 ms, `renderCategoryTree` 19,8 ms.
+
+Konsekuensi penting: **memecah `app.js` per view tidak akan banyak menolong**
+(yang dihemat sebagian dari ~10 ms). Tuas nyata: memangkas DOM/CSS awal
+(puluhan modal tersembunyi di `index.html`) dan menunda render chart sampai
+setelah shell tampil (~200 ms) — keduanya mengubah perilaku/UX, jadi menunggu
+keputusan pemilik.
+
+**Catatan lingkungan (penting untuk agen berikutnya):** sandbox ter-reset
+beberapa kali selama pengerjaan — `node_modules`, Node 22 di `/tmp/node22`,
+biner PostgREST di `/tmp/postgrest`, dan database `pgrest` semuanya HILANG dan
+harus dipasang ulang. Chromium Playwright butuh
+`apt-get install libnspr4 libnss3 …` setelah `npx playwright install chromium`.
+Skrip ukur bagian 7 sengaja tidak disimpan ke repo (sekali pakai); langkah
+mengulangnya ada di audit bagian 7.3.
