@@ -172,3 +172,90 @@ test("buildAiFinanceSummary: v113 tanpa setoran ke aset -> angka identik rumus l
   assert.equal(s.nilai_menabung_bulan_ini, 750_000);
   assert.equal(s.tingkat_menabung_persen, 37.5);
 });
+
+// ---------------------------------------------------------------------------
+// REGRESI v128 (laporan pengguna 2026-09-15): anggaran "Internet" & "Bensin"
+// disebut Gemini "belum ada pengeluaran" padahal transaksinya ada.
+//
+// Sebabnya: realisasi dibaca dari ctx.monthCatOutMap yang di-key oleh KATEGORI
+// INDUK (dashboard.js memakai categorizeExpenseParent), sedangkan anggaran boleh
+// disimpan per SUB-KATEGORI (tab Anggaran membaca cloudBudgets[sub.name]). Kunci
+// "Bensin"/"Internet" tidak pernah ada di peta induk -> terpakai 0.
+//
+// Test di bawah memakai bentuk data PERSIS kejadian itu: monthCatOutMap hanya
+// berisi nama induk, dan baris transaksinya memakai nama sub-kategori.
+// ---------------------------------------------------------------------------
+
+/** ctx seperti produksi: monthCatOutMap HANYA berisi kategori induk. */
+function ctxIndukSaja(overrides = {}) {
+  return baseCtx({
+    monthCatOutMap: { Transportasi: 450_000, "Tagihan & Biaya": 620_000 },
+    prevMonthCatOutMap: {},
+    ...overrides,
+  });
+}
+
+function txSubKategori() {
+  const t = (id, kategori, tanggal, jumlah) => ({
+    id, jenis: "Pengeluaran", kategori, tanggal, jumlah: String(jumlah), keterangan: kategori,
+  });
+  return [
+    t("b1", "Bensin", "2026-08-04", 150_000),   // sub dari Transportasi
+    t("b2", "Bensin", "2026-08-18", 120_000),   // sub dari Transportasi
+    t("oj", "Ojek", "2026-08-09", 180_000),     // sub lain dari Transportasi
+    t("i1", "Internet", "2026-08-06", 350_000), // sub dari Tagihan & Biaya
+    t("i2", "Internet", "2026-08-15", 270_000), // sub dari Tagihan & Biaya
+    t("l1", "Listrik", "2026-08-05", 450_000),
+    t("lama", "Bensin", "2026-07-28", 999_999), // bulan lalu: TIDAK boleh ikut
+  ];
+}
+
+test("v128: anggaran SUB-kategori (Bensin/Internet) membaca realisasi transaksinya, bukan 0", () => {
+  const s = buildAiFinanceSummary(ctxIndukSaja(), {
+    budgets: { Bensin: 300_000, Internet: 400_000 },
+    allTransactions: txSubKategori(), txIdrAmount, parseTgl,
+  });
+  const map = Object.fromEntries(s.status_anggaran_bulan_ini.map((b) => [b.kategori, b]));
+
+  assert.equal(map.Bensin.terpakai, 270_000, "Bensin = 150rb + 120rb (bulan berjalan saja)");
+  assert.equal(map.Bensin.persen_terpakai, 90);
+  assert.equal(map.Bensin.sisa, 30_000);
+
+  assert.equal(map.Internet.terpakai, 620_000, "Internet = 350rb + 270rb");
+  assert.equal(map.Internet.persen_terpakai, 155);
+  assert.equal(map.Internet.sisa, 0, "sisa tidak boleh negatif");
+});
+
+test("v128: anggaran INDUK tetap memakai agregat induk (semua sub + transaksi langsung)", () => {
+  const s = buildAiFinanceSummary(ctxIndukSaja(), {
+    budgets: { Transportasi: 500_000 },
+    allTransactions: txSubKategori(), txIdrAmount, parseTgl,
+  });
+  const satu = s.status_anggaran_bulan_ini.find((b) => b.kategori === "Transportasi");
+  // monthCatOutMap.Transportasi = 450rb (Bensin 270rb + Ojek 180rb) -- angka induk
+  // yang menang, bukan cuma salah satu sub-nya.
+  assert.equal(satu.terpakai, 450_000);
+  assert.equal(satu.persen_terpakai, 90);
+});
+
+test("v128: induk & sub boleh punya anggaran bersamaan tanpa saling menimpa", () => {
+  const s = buildAiFinanceSummary(ctxIndukSaja(), {
+    budgets: { Transportasi: 500_000, Bensin: 200_000, Ojek: 200_000 },
+    allTransactions: txSubKategori(), txIdrAmount, parseTgl,
+  });
+  const map = Object.fromEntries(s.status_anggaran_bulan_ini.map((b) => [b.kategori, b]));
+  assert.equal(map.Transportasi.terpakai, 450_000);
+  assert.equal(map.Bensin.terpakai, 270_000);
+  assert.equal(map.Ojek.terpakai, 180_000);
+});
+
+test("v128: anggaran tanpa transaksi sama sekali tetap 0 (bukan jadi ikut terisi)", () => {
+  const s = buildAiFinanceSummary(ctxIndukSaja(), {
+    budgets: { Bensin: 300_000, Hiburan: 500_000 },
+    allTransactions: txSubKategori(), txIdrAmount, parseTgl,
+  });
+  const hiburan = s.status_anggaran_bulan_ini.find((b) => b.kategori === "Hiburan");
+  assert.equal(hiburan.terpakai, 0);
+  assert.equal(hiburan.persen_terpakai, 0);
+  assert.equal(hiburan.sisa, 500_000);
+});

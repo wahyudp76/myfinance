@@ -3175,3 +3175,59 @@ perubahan perilaku aplikasi yang terlihat user selain animasi angka yang tidak
 lagi memaksa reflow; (3) harness benchmark memakai Supabase stub, jadi angka
 jaringannya tidak mencerminkan latensi produksi (pakai `BENCH_LATENCY_MS` untuk
 mensimulasikan).
+
+## v128 (2026-09-15) — BUG: anggaran sub-kategori terbaca "belum ada pengeluaran" oleh AI
+
+**LAPORAN PENGGUNA:** di kartu Rekomendasi AI (tab Dashboard), anggaran
+"Internet" dan "Bensin" disebut Gemini *belum ada pengeluaran*, padahal
+transaksi sub-kategori Bensin dan kategori Internet jelas ada.
+
+**AKAR MASALAH (bukan di prompt, bukan di Edge Function — di angka yang dikirim):**
+- `src/domain/dashboard.js:137` membangun `monthCatOutMap` dengan kunci
+  **KATEGORI INDUK**: `monthCatOutMap[categorizeExpenseParent(d.kategori)]`.
+- Anggaran boleh disimpan per **SUB-KATEGORI** — tab Anggaran sendiri membaca
+  `cloudBudgets[sub.name]` (`src/domain/budgets.js:106`) dan realisasinya dari
+  `aggregateActualByCategory()` yang di-key oleh kategori PERSIS seperti tercatat
+  di baris transaksi.
+- `src/domain/ai-summary.js` membaca realisasi HANYA dari
+  `ctx.monthCatOutMap[b.cat]`. Untuk kunci "Bensin"/"Internet" (nama sub) kunci
+  itu tidak pernah ada → `terpakai = 0` → `persen_terpakai = 0`, `sisa = penuh`
+  → Gemini menyimpulkan "belum ada pengeluaran". Angka yang salah, bukan
+  interpretasi model yang salah.
+
+**PERBAIKAN:** `buildAiFinanceSummary()` kini menghitung realisasi per kunci
+anggaran lewat dua lapis: (1) agregat induk dari `monthCatOutMap` bila kuncinya
+memang nama induk (sudah mencakup seluruh sub + transaksi langsung di induknya),
+(2) jatuh ke peta kategori PERSIS (`aggregateActualByCategory` dari
+`src/domain/budgets.js`) — peta yang SAMA dipakai tab Anggaran, jadi dashboard AI
+dan tab Anggaran kini tidak mungkin saling bertentangan. Tidak ada field baru &
+tidak ada nama field yang berubah, jadi **Edge Function `analyze-finance` TIDAK
+perlu di-deploy ulang** (ia hanya meneruskan angka ini ke prompt).
+Ketiga jalur AI ikut terperbaiki sekaligus karena semuanya lewat
+`buildFinanceSummaryForAI()`: Rekomendasi AI, Ringkasan Bulanan, dan Tanya AI.
+
+**CATATAN:** `boot.bundle.js` ikut berubah (ai-summary.js di-bundle ke sana) →
+`CACHE_VERSION` `myfinance-v155` → **`myfinance-v156`** + snapshot SW
+diregenerasi (`2f8f1b8e6c7c52d4…`). `app.js`/`app.src.js` TIDAK berubah.
+
+**VERIFIKASI:**
+- 4 unit test baru di `tests/unit/ai-summary.test.js` memakai bentuk data PERSIS
+  kejadian itu (monthCatOutMap hanya berisi nama induk; transaksi memakai nama
+  sub). Total **16/16 PASS**.
+- Guard dibuktikan bisa merah: dengan kode lama dikembalikan, 2 test baru gagal
+  (Bensin/Internet terpakai 0); dengan perbaikan, 16/16 lulus.
+- Verifikasi lewat **ARTEFAK BUILD**, bukan source: `boot.bundle.js` dimuat di
+  Node dengan `window` stub, `buildAiFinanceSummary()` dipanggil langsung →
+  `Bensin 270.000 (90%, sisa 30.000)`, `Internet 620.000 (155%, sisa 0)`,
+  `Transportasi 450.000 (90%)` — induk & sub boleh punya anggaran bersamaan
+  tanpa saling menimpa, dan transaksi bulan sebelumnya tidak ikut terhitung.
+- Build `boot.bundle.js` deterministik (hash identik pada rebuild kedua).
+
+**TEMUAN IKUTAN (BELUM DIPERBAKI, menunggu keputusan):** bug kelas yang sama ada
+di notifikasi ambang anggaran. `getCategoryBudgetStatus()` (app.src.js) memetakan
+kategori transaksi ke INDUK lalu mencari `currentMonthBudgetsCache[parentName]`,
+jadi anggaran yang disimpan per SUB-KATEGORI tidak pernah memicu toast
+"WASPADA 80%"/"TERLAMPAUI". Gejalanya: progress bar di tab Anggaran sudah merah,
+tapi tidak ada notifikasi saat mencatat transaksi. Sengaja TIDAK ikut diubah di
+commit ini karena menambah perilaku user-visible (toast baru) — perlu keputusan
+pemilik, bukan keputusan diam-diam.

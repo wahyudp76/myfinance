@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v127`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v128`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -54,7 +54,7 @@ myfinance/
 │                           #   INI yang dimuat index.html; jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v155)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v156)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)

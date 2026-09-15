@@ -42,7 +42,7 @@
 // ke docs/) -> satu-satunya file precache yang berubah byte-nya adalah
 // src/services/supabase/paging.js (komentar path referensi saja, nol perilaku),
 // tetap di-bump supaya cache user konsisten dgn isi repo.
-const CACHE_VERSION = 'myfinance-v155'; // v127: app.js berubah -- animateRupiah pakai textContent (hindari forced reflow)
+const CACHE_VERSION = 'myfinance-v156'; // v128: boot.bundle.js berubah -- realisasi anggaran AI ikut membaca sub-kategori
 //   di src/domain/finance.js kini simetris untuk nilai negatif (half away from zero)
 //   dan menolak `decimals` non-integer; keduanya diperbaiki SEBELUM ada pemanggil
 //   runtime (Phase 4) yang mewarisinya. Aset lain byte-identik.

@@ -20,6 +20,9 @@
  */
 
 import { savingsValueOfMonth } from "./insights.js";
+// v128: realisasi anggaran per kategori PERSIS seperti yang dicatat transaksi
+// (bukan per kategori induk) -- satu sumber kebenaran dengan tab Anggaran.
+import { aggregateActualByCategory } from "./budgets.js";
 
 const BULAN_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -71,11 +74,31 @@ export function buildAiFinanceSummary(ctx, {
   const projected = remainingDays > 0 ? avgDaily * daysInMonth : monthOut;
 
   // --- status anggaran: persen terpakai & sisa dihitung di sini (presisi) ---
+  //
+  // BUG FIX v128: realisasi anggaran dulu dibaca HANYA dari ctx.monthCatOutMap,
+  // padahal peta itu di--key oleh KATEGORI INDUK (src/domain/dashboard.js:
+  // `monthCatOutMap[categorizeExpenseParent(d.kategori)]`). Anggaran justru boleh
+  // disimpan per SUB-KATEGORI -- tab Anggaran sendiri membaca cloudBudgets[sub.name]
+  // (src/domain/budgets.js). Akibatnya anggaran bernama sub-kategori ("Bensin",
+  // "Internet", ...) selalu terbaca terpakai = 0, dan Gemini menyimpulkan "belum
+  // ada pengeluaran" walau transaksinya ada. Perbaikan: realisasi dicari dulu di
+  // agregat induk (sudah mencakup seluruh sub + transaksi langsung di induknya),
+  // lalu jatuh ke peta kategori PERSIS seperti yang tercatat di baris transaksi --
+  // peta yang sama dipakai tab Anggaran, jadi kedua layar kini selalu sepakat.
+  const actualByRawCategory = aggregateActualByCategory(allTransactions, {
+    year, month: month + 1, txIdrAmount, parseTgl,
+  });
+  /** Realisasi bulan berjalan utk satu kunci anggaran (induk ATAU sub-kategori). */
+  const realisasiAnggaran = (cat) => {
+    const perInduk = (ctx.monthCatOutMap || {})[cat];
+    if (perInduk != null) return Number(perInduk) || 0;
+    return Number(actualByRawCategory[cat]) || 0;
+  };
   const budgetEntries = Object.keys(budgets || {})
     .map((cat) => ({ cat, anggaran: Math.round(Number(budgets[cat]) || 0) }))
     .filter((b) => b.anggaran > 0)
     .map((b) => {
-      const terpakai = Math.round(Number((ctx.monthCatOutMap || {})[b.cat]) || 0);
+      const terpakai = Math.round(realisasiAnggaran(b.cat));
       return {
         kategori: b.cat,
         anggaran: b.anggaran,
