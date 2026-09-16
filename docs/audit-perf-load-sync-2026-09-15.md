@@ -342,6 +342,27 @@ Dua koreksi/kesimpulan:
    chart sampai setelah shell tampil (~200 ms). Keduanya menyentuh
    perilaku/UX, jadi menunggu keputusan produk.
 
+### 7.2b Koreksi lanjutan (v131): "appShell tampil" bukan momen terlihat
+
+Angka `boot → appShell tampil` di bagian 3 maupun 7.2 berasal dari
+`waitForSelector` di harness, yang hanya bisa melapor saat polling-nya sempat
+jalan. Karena main thread sedang sibuk (initApp → render → chart), laporannya
+tertinggal jauh dari momen pengguna benar-benar melihat shell. Probe rAF
+(dipasang lewat `addInitScript`, mencatat `performance.now()` pada frame pertama
+setelah `#appShell` kehilangan class `hidden`) memberi angka sebenarnya:
+
+| metrik | terukur |
+|---|---|
+| shell **terlihat** (frame pertama) | **461 / 558 / 620 ms** |
+| "terdeteksi harness" (angka lama) | 1.529 / 1.564 / 1.841 ms |
+
+Jadi klaim "~1,5 s dari 1,7 s boot adalah bobot shell" **tidak benar**: shell
+sudah terpaint ~0,5–0,6 s. Sisa ~1,4 s (sampai `data cloud ter-commit` 2.039 ms)
+adalah fetch + render dashboard, dan di dalamnya pembuatan chart ~476 ms.
+Konsekuensinya menunda render chart TIDAK membuat aplikasi "tampil lebih cepat"
+— shell sudah tampil — melainkan hanya membuat angka/teks dashboard muncul
+sebelum grafik. Harness kini mencetak kedua angka itu berdampingan (v131).
+
 ### 7.3 Cara mengulang pengukuran bagian 7
 
 ```bash

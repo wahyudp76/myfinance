@@ -205,6 +205,31 @@ async function main() {
   await context.route("**/auth/v1/**", async (route) => { await sleep(LATENCY); return route.fulfill(json(SESSION)); });
 
   const page = await context.newPage();
+  // v131: saksi "kapan shell BENAR-BENAR terlihat". `waitForSelector` di bawah
+  // hanya bisa melaporkan saat polling-nya sempat jalan -- padahal main thread
+  // sedang sibuk menjalankan initApp/render, jadi angkanya bisa tertinggal
+  // ~1 detik dari momen pengguna benar-benar melihat shell. Probe ini dipasang
+  // SEBELUM skrip halaman (addInitScript), mengamati class #appShell, lalu
+  // mencatat performance.now() pada frame pertama setelah 'hidden' dilepas
+  // (callback rAF berjalan tepat sebelum paint frame itu).
+  await page.addInitScript(() => {
+    window.__shellPaintMs = null;
+    const mo = new MutationObserver(() => {
+      const el = document.getElementById("appShell");
+      if (el && !el.classList.contains("hidden") && window.__shellPaintMs === null) {
+        requestAnimationFrame(() => {
+          if (window.__shellPaintMs === null) window.__shellPaintMs = performance.now();
+        });
+        mo.disconnect();
+      }
+    });
+    const mulai = () => {
+      const el = document.getElementById("appShell");
+      if (el) mo.observe(el, { attributes: true, attributeFilter: ["class"] });
+      else setTimeout(mulai, 5);
+    };
+    mulai();
+  });
   const cdp = await context.newCDPSession(page);
   if (CPU > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU });
   const errors = [];
@@ -215,6 +240,7 @@ async function main() {
   await page.goto(URL_, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#appShell:not(.hidden)", { timeout: 60000 });
   const tShell = Date.now() - tNav;
+  const tPaint = await page.evaluate(() => window.__shellPaintMs);
   await page.waitForFunction(() => typeof globalData !== "undefined" && Array.isArray(globalData) && globalData.length > 0, null, { timeout: 60000 });
   await page.waitForFunction(() => !document.body.dataset.syncLoading, null, { timeout: 60000 });
   const tData = Date.now() - tNav;
@@ -393,7 +419,7 @@ async function main() {
 
   const hasil = {
     rows: bootRows, latencyMs: LATENCY, cpuThrottle: CPU,
-    bootShellMs: tShell, bootDataMs: tData,
+    bootShellMs: tShell, bootPaintMs: tPaint, bootDataMs: tData,
     syncPenuhMs: median(syncSamples), crudSyncMs: median(crudSamples),
     render: { filterTransactionsMs: round(renderTx), processDataForUIMs: round(renderDash), renderRecentListMs: round(renderRecent), sortTxServerCompareMs: round(sortCost) },
     jaringanBoot: bootNet.perTabel,
@@ -407,7 +433,14 @@ async function main() {
   };
 
   console.log("\n=== HASIL ===");
-  console.log(`BOOT  appShell tampil      : ${hasil.bootShellMs} ms`);
+  // v131: dua angka boot DICETAK BERSAMA karena artinya beda. "shell terlihat"
+  // = frame pertama setelah #appShell ditampilkan (yang dilihat pengguna);
+  // "terdeteksi harness" = saat waitForSelector sempat polling (bisa tertinggal
+  // jauh bila main thread sibuk). Sebelum v131 hanya angka kedua yang dilaporkan
+  // dan dilabeli "appShell tampil", sehingga sempat terbaca sebagai "bobot shell
+  // ~1,5 s" padahal shell terpaint ~0,5 s (terukur 461/558 ms vs 1.529/1.564 ms).
+  console.log(`BOOT  shell terlihat (paint): ${hasil.bootPaintMs === null ? "n/a" : `${Math.round(hasil.bootPaintMs)} ms`}`);
+  console.log(`BOOT  terdeteksi harness   : ${hasil.bootShellMs} ms  (bukan momen terlihat -- lihat catatan v131)`);
   console.log(`BOOT  data cloud ter-commit: ${hasil.bootDataMs} ms  (${bootRows} transaksi)`);
   console.log(`SYNC  loadData() penuh     : ${hasil.syncPenuhMs} ms`);
   console.log(`CRUD  refreshTransactions  : ${hasil.crudSyncMs} ms`);

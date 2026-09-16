@@ -3323,3 +3323,38 @@ ada pemborosan — hanya labelnya yang salah.
 **VERIFIKASI:** harness dijalankan ulang (300 baris, REPEAT=2) dan angka kedua
 fase kini konsisten; lint 0, unit 973/973, parity 1/1. Tidak ada perubahan pada
 aset yang di-precache SW → `CACHE_VERSION` tetap `myfinance-v156`.
+
+## v131 — koreksi metrik boot: shell terpaint ~0,6 s, bukan ~1,5 s
+
+Melanjutkan v129/v130. Pemilik menyerahkan keputusan ke agen ("paling aman dan
+terbaik untuk webapp"). Sebelum mengubah apa pun, metriknya diuji dulu — dan
+ternyata metriknya yang salah.
+
+**Temuan.** `enterApp()` sudah memanggil `showAppShell()` SEBELUM `initApp()`,
+jadi shell bukan telat ditampilkan. Yang terjadi: `waitForSelector` di harness
+baru sempat polling setelah main thread bebas, sehingga "appShell tampil"
+tercatat ~1,5–1,8 s padahal shell sudah terpaint jauh sebelumnya. Probe rAF
+(addInitScript → MutationObserver pada class `#appShell` → `performance.now()`
+di frame pertama) mengukur:
+
+| | shell terlihat (paint) | terdeteksi harness |
+|---|---|---|
+| 300 transaksi, CPU 4×, SW mati | **461 / 558 / 620 ms** | 1.529 / 1.564 / 1.841 ms |
+
+**Perubahan di versi ini:** `scripts/bench-load-sync.mjs` mencetak KEDUA angka
+(`BOOT shell terlihat (paint)` dan `BOOT terdeteksi harness`) plus field baru
+`bootPaintMs` di `BENCH_JSON`. Tidak ada perubahan kode app; tidak ada aset
+precache SW yang berubah → `CACHE_VERSION` tetap `myfinance-v156`.
+
+**Keputusan yang diambil dari angka ini: menunda render chart TIDAK dikerjakan.**
+Alasannya berubah setelah koreksi: shell sudah tampil ~0,6 s, jadi menunda chart
+(~476 ms di dalam `processDataForUI` 624 ms) tidak membuat aplikasi terasa lebih
+cepat muncul — ia hanya membuat angka/teks dashboard mendahului grafik, sambil
+meninggalkan area grafik kosong sesaat. Trade-off UX tanpa keuntungan yang
+sepadan. Kalau nanti tetap ingin memangkas ~1,4 s antara shell dan dashboard
+lengkap, jalurnya adalah mengurangi BIAYA chart (mis. tanpa animasi pada render
+pertama), bukan menundanya — dan itu pun harus diukur dulu.
+
+**VERIFIKASI:** harness dijalankan ulang (300 transaksi, REPEAT=3) → `shell
+terlihat (paint) 620 ms`, `terdeteksi harness 1841 ms`, `data cloud ter-commit
+2039 ms`; lint 0, unit 973/973, parity 1/1.
