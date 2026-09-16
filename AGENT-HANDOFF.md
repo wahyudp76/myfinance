@@ -3277,3 +3277,49 @@ harus dipasang ulang. Chromium Playwright butuh
 `apt-get install libnspr4 libnss3 …` setelah `npx playwright install chromium`.
 Skrip ukur bagian 7 sengaja tidak disimpan ke repo (sekali pakai); langkah
 mengulangnya ada di audit bagian 7.3.
+
+## v130 — tiga kandidat optimasi app shell diuji, TIDAK ADA yang diloloskan; label jaringan harness diperbaiki
+
+Melanjutkan v129: pemilik meminta "yang paling aman DAN terbukti meningkatkan
+performa". Tiga kandidat diukur; tidak ada yang memenuhi kedua syarat itu, jadi
+tidak ada perubahan kode app.
+
+**1. Menunda `setupModalA11y()` (~137 ms) — DITOLAK: tidak bisa dibuktikan.**
+Profil CPU boot menaruh `setupModalA11y` 137 ms (dengan `modalAccessibleName`
+134 ms self-time di dalamnya). Dugaan awal: `innerText` pada 19 modal
+tersembunyi memaksa layout. **A/B terisolasi membantahnya**: menghitung
+accessible name 19 modal dengan `innerText` = **0,1 ms**, dengan `textContent`
+= **0,0 ms**, hasil identik (0 modal berbeda). Jadi 134 ms itu bukan biaya
+per-modal melainkan layout pertama dokumen yang kebetulan terpicu di sana.
+Efek end-to-end (~137 ms dari ~2,2 s = 6%) juga **berada di bawah noise harness**
+(dua run baseline berturut-turut: 2.149 ms dan 2.280 ms). Tidak terbukti →
+tidak dikerjakan.
+
+**2. Menunda render chart (~476 ms) — terbukti besar, tapi mengubah UX.**
+Pohon panggilan boot: `processDataForUI` **624 ms** total, di dalamnya Chart.js
+**476 ms**. Ini bukan kerja sia-sia: `processDataForUI` sudah punya guard
+`dashVisible` (v112/v114) yang melewatkan chart & DOM saat dashboard
+tersembunyi, jadi 476 ms itu memang dashboard yang SEDANG terlihat. Menundanya
+berarti shell tampil ~0,5 s lebih cepat tapi grafik menyusul — keputusan
+produk, bukan keputusan diam-diam. **Belum dikerjakan, menunggu keputusan.**
+
+**3. `(program)` 1.235 ms (45,8% boot)** = parse HTML/CSS + layout/paint.
+Memangkasnya berarti mengurangi DOM awal (puluhan modal tersembunyi di
+`index.html`) — refactor besar, belum disentuh.
+
+**Yang DIPERBAIKI di versi ini: akuntansi jaringan `scripts/bench-load-sync.mjs`.**
+Label "JARINGAN saat 1 sync penuh" ternyata menyesatkan: satu snapshot diambil
+SETELAH loop sync DAN loop CRUD, lalu selisihnya dilabeli sebagai satu sync.
+Angkanya (`transactions 6x 774,9 KB` pada REPEAT=3) sempat terbaca sebagai
+"satu `loadData()` menarik transactions 2x" — setelah URL tiap request dicetak,
+terbukti request kedua berasal dari `refreshTransactionsOnly()` di loop CRUD,
+dan variabel `fase` memang tidak pernah di-set ke `"crud"`. Sekarang snapshot
+dipisah: `jaringanSyncPenuh` (fase loadData) dan `jaringanCrud` (fase
+refreshTransactionsOnly), keduanya diberi label jumlah ulangan. Hasil sesudah
+perbaikan: SYNC `transactions 2x 258,3 KB` untuk 2 ulangan = **1 tarikan penuh
+per `loadData()`**; CRUD `transactions 2x` dan **0 request** tabel lain. Tidak
+ada pemborosan — hanya labelnya yang salah.
+
+**VERIFIKASI:** harness dijalankan ulang (300 baris, REPEAT=2) dan angka kedua
+fase kini konsisten; lint 0, unit 973/973, parity 1/1. Tidak ada perubahan pada
+aset yang di-precache SW → `CACHE_VERSION` tetap `myfinance-v156`.

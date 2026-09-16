@@ -252,6 +252,14 @@ async function main() {
     await awaitSyncDone();
     syncSamples.push(Date.now() - t0);
   }
+  // v130: snapshot jaringan DIPISAH per fase. Sebelumnya satu snapshot diambil
+  // SETELAH loop sync DAN loop CRUD, lalu selisihnya dilabeli "saat 1 sync
+  // penuh" -- padahal isinya gabungan keduanya dikalikan REPEAT. Angka itu
+  // sempat terbaca sebagai "satu loadData() menarik transactions 2x" (2 request
+  // identik pada REPEAT=1); setelah URL request-nya dicetak, terbukti yang satu
+  // lagi adalah refreshTransactionsOnly() dari loop CRUD. Bukan pemborosan --
+  // labelnya yang menyesatkan.
+  const netSesudahSync = JSON.parse(JSON.stringify(net));
   const crudSamples = [];
   for (let i = 0; i < REPEAT; i += 1) {
     const t0 = Date.now();
@@ -388,7 +396,10 @@ async function main() {
     bootShellMs: tShell, bootDataMs: tData,
     syncPenuhMs: median(syncSamples), crudSyncMs: median(crudSamples),
     render: { filterTransactionsMs: round(renderTx), processDataForUIMs: round(renderDash), renderRecentListMs: round(renderRecent), sortTxServerCompareMs: round(sortCost) },
-    jaringanBoot: bootNet.perTabel, jaringanSyncPenuh: diffNet(bootNet.perTabel, syncNet.perTabel),
+    jaringanBoot: bootNet.perTabel,
+    // v130: dua fase dipisah; keduanya TOTAL atas REPEAT ulangan (bukan per-ulangan).
+    jaringanSyncPenuh: diffNet(bootNet.perTabel, netSesudahSync.perTabel),
+    jaringanCrud: diffNet(netSesudahSync.perTabel, syncNet.perTabel),
     byteTxBoot: bootNet.perTabel.transactions?.bytes || 0,
     urutanRequestBoot: bootNet.urutanBoot,
     profil,
@@ -407,8 +418,10 @@ async function main() {
   console.log(`\nJARINGAN saat boot (request / byte):`);
   for (const [t, v] of Object.entries(hasil.jaringanBoot)) console.log(`  ${t.padEnd(24)} ${String(v.request).padStart(2)}x  ${(v.bytes / 1024).toFixed(1)} KB`);
   console.log(`  TOTAL payload transaksi  : ${(hasil.byteTxBoot / 1024).toFixed(1)} KB`);
-  console.log(`\nJARINGAN saat 1 sync penuh:`);
+  console.log(`\nJARINGAN fase SYNC (loadData x${REPEAT}, total semua ulangan):`);
   for (const [t, v] of Object.entries(hasil.jaringanSyncPenuh)) console.log(`  ${t.padEnd(24)} ${String(v.request).padStart(2)}x  ${(v.bytes / 1024).toFixed(1)} KB`);
+  console.log(`\nJARINGAN fase CRUD (refreshTransactionsOnly x${REPEAT}, total semua ulangan):`);
+  for (const [t, v] of Object.entries(hasil.jaringanCrud)) console.log(`  ${t.padEnd(24)} ${String(v.request).padStart(2)}x  ${(v.bytes / 1024).toFixed(1)} KB`);
   // Snapshot SEBELUM await penutup: `errors` diisi listener async, dan
   // require-atomic-updates menolak keputusan exit-code yang dibaca dari state
   // yang bisa berubah selama await.
