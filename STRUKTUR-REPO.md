@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v131`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v132`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -252,7 +252,7 @@ myfinance/
 │   │   └── helpers/mock-supabase-client.js
 │   └── parity/             # 6 file: banding legacy vs native (sebagian butuh secret live / opt-in)
 │
-├── docs/                   # Rencana migrasi, audit, kontrak — 15 dokumen
+├── docs/                   # Rencana migrasi, audit, kontrak — 17 dokumen
 │   ├── SESSION-HANDOFF.md  # snapshot handoff 2026-08-31 (AGENT-HANDOFF.md ada di root)
 │   ├── architecture-modernization-plan.md
 │   ├── supabase-native-migration-plan.md
@@ -267,8 +267,11 @@ myfinance/
 │   ├── audit-drift-live-vs-repo-2026-09-13.md  # v124: 12 temuan drift produksi vs
 │   │                       #   sql/schema.sql + cara auditnya (dapat diulang)
 │   ├── audit-perf-load-sync-2026-09-15.md  # v127: angka terukur load & sync,
-│   │                       #   2 optimasi yang DIBATALKAN karena pengukurannya berkata
-│   │                       #   lain, + roadmap (keyset paging, delta sync)
+│   │                       #   optimasi yang DIBATALKAN karena pengukurannya berkata
+│   │                       #   lain (v127 sortTxRows, v129 keyset paging), koreksi
+│   │                       #   komposisi biaya boot (v129/v131), + roadmap delta sync
+│   ├── audit-edge-functions-2026-09-14.md   # v125: audit Edge Functions (analyze-finance dll.)
+│   ├── maintenance-2026-09-17.md            # v132: maintenance rutin + cek stabilitas & performa
 │   ├── AUDIT_REPORT_2026-08.md
 │   └── PILOT-MIGRASI-v71.md  (v91: dipindah dari root — dokumen historis pilot migrasi monolit→modul)
 │

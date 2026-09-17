@@ -3358,3 +3358,39 @@ pertama), bukan menundanya — dan itu pun harus diukur dulu.
 **VERIFIKASI:** harness dijalankan ulang (300 transaksi, REPEAT=3) → `shell
 terlihat (paint) 620 ms`, `terdeteksi harness 1841 ms`, `data cloud ter-commit
 2039 ms`; lint 0, unit 973/973, parity 1/1.
+
+## v132 — maintenance rutin menyeluruh + cek stabilitas: semua hijau, tanpa perubahan kode
+
+Laporan lengkap: `docs/maintenance-2026-09-17.md`. Ringkasan untuk agen
+berikutnya — ini kondisi repo yang terverifikasi pada 2026-09-17, bukan kesan.
+
+**Pemeriksaan (semua lulus):** lint 0 masalah; unit **973/973** (0 skip);
+parity 1/1; rebuild 5 target build (`app/boot/styles/css/csp`) **tanpa perubahan
+byte**; `npm audit` **0 kerentanan** (prod & dev); `scripts/schema-verify/run.mjs`
+**SEMUA LULUS** (CEK 1–9 termasuk RLS & grant RPC); `drift-check --check`
+**IDENTIK** (5 grant fungsi, 15 policy, 32 index, 38 constraint, 1 trigger,
+1 sequence/view); scan rahasia bersih (hanya anon key publik + teks komentar);
+31 entri precache SW semuanya ada di disk; 17 referensi aset `index.html`
+semuanya ada; **0 pageerror** pada 300 / 2.500 / 20.000 transaksi.
+
+**Performa terukur (median, CPU 4×, SW mati):** shell terlihat 806 / 899 / 953 ms
+untuk 300 / 2.500 / 20.000 transaksi — **shell nyaris tidak terpengaruh ukuran
+data**. Yang membesar fase data: `loadData()` 681 ms → 1.036 ms → 3.314 ms, dan
+payload transaksi per tarikan penuh 129,1 KB → 1.078,5 KB → **8.645,4 KB**
+(angka 8,6 MB yang dulu perkiraan di audit kini terkonfirmasi alat ukur).
+
+**Catatan yang perlu diingat:**
+- `npm run test:legacy-read` TIDAK dijalankan: uji live ke produksi, butuh
+  `PARITY_TEST_EMAIL` + `PARITY_TEST_PASSWORD`.
+- "970/973 di Node 20" yang sempat terlihat adalah artefak `node_modules` yang
+  hilang saat sandbox ter-reset; setelah dipulihkan, Node 20 dan 22 sama-sama
+  973/973 exit 0.
+- Pembaruan dependensi tersedia tapi SENGAJA tidak dipasang: `@supabase/supabase-js`
+  2.113.0 → 2.116.0 (vendored & ter-pin di `vendor/` = proses re-vendoring, bukan
+  `npm update`), `tailwindcss` 3 → 4 (major/breaking), `esbuild`/`eslint`/`playwright`
+  patch (bisa mengubah byte bundel → wajib rebuild + cek determinisme + bump
+  `CACHE_VERSION`). `npm audit` bersih, jadi tidak ada desakan keamanan.
+
+**Perbaikan dokumen ikutan:** `STRUKTUR-REPO.md` menyebut "docs/ — 15 dokumen"
+padahal isinya sudah 16 (`audit-edge-functions-2026-09-14.md` tidak terdaftar).
+Diperbaiki jadi 17 sekaligus menambahkan entri laporan maintenance ini.
