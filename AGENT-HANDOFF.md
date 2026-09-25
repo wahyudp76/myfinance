@@ -3394,3 +3394,42 @@ payload transaksi per tarikan penuh 129,1 KB → 1.078,5 KB → **8.645,4 KB**
 **Perbaikan dokumen ikutan:** `STRUKTUR-REPO.md` menyebut "docs/ — 15 dokumen"
 padahal isinya sudah 16 (`audit-edge-functions-2026-09-14.md` tidak terdaftar).
 Diperbaiki jadi 17 sekaligus menambahkan entri laporan maintenance ini.
+
+## v133 — audit menyeluruh: 9 harness E2E hijau, dan satu inefisiensi terkuantifikasi (belum diperbaiki)
+
+Laporan: `docs/audit-menyeluruh-2026-09-17.md`. **Tidak ada perubahan kode app.**
+
+**Stabilitas.** Kesembilan harness E2E dijalankan lokal dan semuanya **exit 0**
+(70+17+21+14+31+13+39+17+9 = 231 cek): `verify-hud`, `verify-asset-logos`,
+`verify-applock`, `verify-applock-biometric`, `verify-applock-rpid`,
+`verify-offline-cache`, `verify-ui-actions`, `verify-csp`, `verify-ui-sweep`.
+**Catatan penting untuk agen berikutnya:** harness-harness ini BUTUH server
+statis di `:8123` (`python3 -m http.server 8123 --bind 127.0.0.1`) dan variabel
+URL masing-masing (`HUD_URL`, `APPLOCK_URL`, `OFFLINE_URL`, `UIACT_URL`,
+`CSP_URL`, `SWEEP_URL`). Tanpa itu semuanya gagal `ERR_CONNECTION_REFUSED` —
+di CI server dinyalakan di step terpisah, jadi kegagalan lokal seperti itu
+artefak lingkungan, bukan cacat kode.
+
+**Temuan (baru, terkuantifikasi).** `renderRecentList()` memulai dengan
+`let sortedData = [...data].sort(txServerCompare);` lalu hanya memakai
+`slice(...)` sepanjang `RECENT_TRANSACTIONS_PAGE_SIZE = 10`. Baris "SORT" di
+`scripts/bench-load-sync.mjs` mengukur pekerjaan yang persis sama, jadi
+porsinya terhitung: **302,3 ms dari 394,7 ms (77%) biaya renderRecentList pada
+20.000 transaksi adalah sortir 20.000 baris untuk menampilkan 10 baris** (di
+2.500 tx: 33,7 dari 55,1 ms = 61%; di 300 tx: 1,8 dari 35,8 ms = 5%). Fungsi ini
+dipanggil dari 4 tempat.
+
+**Sengaja TIDAK diperbaiki sekarang:** ini optimasi yang sudah pernah dicoba dan
+DIBATALKAN di v127 (helper `sortTxRows`: 10,8 ms `[...rows].sort()` vs 16,8 ms
+helper — pemeriksaan "sudah terurut?" sendiri O(n) dengan pembanding mahal,
+padahal TimSort sudah murah untuk data terurut). Mengulang tanpa pengukuran baru
+melanggar aturan repo. Dua jalur yang perlu diukur dulu: (1) seleksi top-N;
+(2) memakai invariant urutan dari service tanpa sortir — yang kedua BERISIKO
+karena `insertTransactionRow`/`reconcileTxRowsWithPending` bisa mematahkan
+invariant itu secara diam-diam.
+
+**Selebihnya sehat** (drift build nol, `npm audit` 0, skema CEK 1–9 lulus &
+katalog identik, rahasia bersih, 31 entri precache + 17 aset index.html lengkap,
+0 pageerror pada 300/2.500/20.000 tx). Prioritas rekomendasi ada di bagian 5
+laporan: delta sync (payload 8.645 KB) > top-N renderRecentList > murahkan chart
+> jangan pecah app.js.
