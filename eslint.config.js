@@ -177,6 +177,7 @@ export default [
     // `window`, dst. memang ada meski file-nya sendiri file Node.
     files: ["scripts/verify-hud.mjs", "scripts/verify-asset-logos.mjs", "scripts/verify-applock.mjs", "scripts/verify-applock-biometric.mjs", "scripts/verify-offline-cache.mjs", "scripts/verify-ui-actions.mjs",
       "scripts/verify-csp.mjs", "scripts/verify-ui-sweep.mjs", "scripts/verify-applock-rpid.mjs",
+      "scripts/verify-budget-notify.mjs",
       // v127: harness benchmark load & sync -- sama seperti harness verify-*, ia
       // memanggil fungsi global app dari dalam page.evaluate (loadData,
       // filterTransactions, txServerCompare, dst) utk mengukur biayanya.
@@ -231,6 +232,10 @@ export default [
         filterTransactions: "readonly",
         processDataForUI: "readonly",
         renderRecentList: "readonly",
+        // v139: dipakai scripts/verify-budget-notify.mjs (notifikasi ambang anggaran).
+        getCategoryBudgetStatus: "readonly",
+        applyLocalTxEcho: "readonly",
+        notifyIfBudgetThresholdCrossed: "readonly",
         txServerCompare: "readonly",
         animateRupiah: "readonly",
         _confirmYes: "readonly",

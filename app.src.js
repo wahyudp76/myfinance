@@ -4449,10 +4449,31 @@ async function currentUserId() {
             if (!lastInsightsCtx) return null;
             const style = getCategoryStyle(kategori, 'Pengeluaran');
             const parentName = style.parentName || kategori;
-            const budget = Number(currentMonthBudgetsCache[parentName]) || 0;
-            if (budget <= 0) return null; // kategori ini tidak ada budget-nya bulan ini
-            const spent = lastInsightsCtx.monthCatOutMap[parentName] || 0;
-            return { parentName, budget, spent, pct: spent / budget };
+            // v139 (bug fix): anggaran BOLEH dipasang pada sub-kategori -- tab Anggaran
+            // menulis kunci utk sub (data-category) maupun parent (data-parent). Dulu hanya
+            // parentName yang dicari, jadi anggaran level sub tak pernah terlihat di sini:
+            // before/after sama-sama null -> notifikasi ambang TIDAK PERNAH muncul.
+            // Logika pemilihannya di src/domain/budgets.js (resolveBudgetStatusForCategory,
+            // teruji unit); agregasi per nama kategori mentah memakai helper yang SAMA
+            // dengan tab Anggaran (aggregateActualByCategory) supaya angkanya tidak beda.
+            const adaBudgetSub = kategori !== parentName && (Number(currentMonthBudgetsCache[kategori]) || 0) > 0;
+            let actualByCategory = null;
+            if (adaBudgetSub) {
+                const [y, m] = currentMonthStr().split('-');
+                actualByCategory = servicesModule.aggregateActualByCategory(globalData, {
+                    year: y, month: m, txIdrAmount, parseTgl,
+                });
+            }
+            const st = servicesModule.resolveBudgetStatusForCategory({
+                kategori, parentName,
+                budgetsByCategory: currentMonthBudgetsCache,
+                spentByParent: lastInsightsCtx.monthCatOutMap,
+                actualByCategory,
+            });
+            if (!st) return null; // kategori ini tidak ada budget-nya bulan ini
+            // Bentuk kembalian DIPERTAHANKAN (parentName/budget/spent/pct) supaya pemanggil
+            // (notifyIfBudgetThresholdCrossed) tidak berubah sama sekali.
+            return { parentName: st.key, budget: st.budget, spent: st.spent, pct: st.pct };
         }
 
         function notifyIfBudgetThresholdCrossed(kategori, before) {

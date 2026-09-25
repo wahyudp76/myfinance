@@ -176,3 +176,50 @@ export function shiftMonthStr(ym, delta) {
   month = ((month % 12) + 12) % 12;
   return year + "-" + String(month + 1).padStart(2, "0");
 }
+
+/**
+ * Tentukan anggaran mana yang berlaku untuk sebuah kategori transaksi, lalu
+ * hitung pemakaiannya.
+ *
+ * KENAPA ADA (bug fix v139, direproduksi probe 2026-09-25):
+ * Tab Anggaran menulis `budgets.kategori` untuk SUB-kategori (input
+ * `data-category`) MAUPUN kategori utama (input `data-parent`). Tetapi
+ * `getCategoryBudgetStatus()` di app.src.js dulu hanya mencari
+ * `budgets[parentName]`, sehingga anggaran yang dipasang pada sub-kategori
+ * tidak pernah terlihat: statusnya `null` sebelum dan sesudah transaksi ->
+ * `detectBudgetThresholdCrossing(null, null)` -> null -> **notifikasi ambang
+ * tidak pernah muncul sama sekali**.
+ *
+ * Aturan: anggaran level SUB lebih spesifik, jadi ia yang menang bila ada.
+ * Sumber "sudah terpakai" berbeda per level dan memang harus begitu:
+ *  - sub    -> `actualByCategory` (agregasi per nama kategori mentah, dari
+ *              `aggregateActualByCategory`)
+ *  - parent -> `spentByParent` (monthCatOutMap, agregasi per kategori utama)
+ *
+ * @param {object} p
+ * @param {string} p.kategori nama kategori pada transaksi (bisa sub)
+ * @param {string} p.parentName kategori utama hasil resolusi
+ * @param {Record<string, number>} p.budgetsByCategory anggaran bulan berjalan
+ * @param {Record<string, number>} p.spentByParent pengeluaran per kategori utama
+ * @param {Record<string, number>|null} [p.actualByCategory] pengeluaran per nama
+ *   kategori mentah; boleh null bila tidak ada anggaran level sub
+ * @returns {{key: string, budget: number, spent: number, pct: number}|null}
+ */
+export function resolveBudgetStatusForCategory({ kategori, parentName, budgetsByCategory, spentByParent, actualByCategory }) {
+  const budgets = budgetsByCategory || {};
+  // Hanya dianggap "anggaran level sub" bila kategori transaksi memang berbeda
+  // dari kategori utamanya. Bila sama, itu anggaran kategori utama dan sumber
+  // realisasinya wajib `spentByParent` (agregasi per parent) -- kalau tidak,
+  // transaksi yang dicatat langsung pada kategori utama akan terbaca 0.
+  const budgetSub = kategori !== parentName ? (Number(budgets[kategori]) || 0) : 0;
+  if (budgetSub > 0) {
+    const spent = Number((actualByCategory || {})[kategori]) || 0;
+    return { key: kategori, budget: budgetSub, spent, pct: spent / budgetSub };
+  }
+  const budgetParent = Number(budgets[parentName]) || 0;
+  if (budgetParent > 0) {
+    const spent = Number((spentByParent || {})[parentName]) || 0;
+    return { key: parentName, budget: budgetParent, spent, pct: spent / budgetParent };
+  }
+  return null;
+}

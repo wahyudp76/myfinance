@@ -3641,3 +3641,61 @@ penuh SENGAJA — ia memang butuh seluruh daftar terurut untuk ditampilkan.
 `app.src.js` + `src/**` berubah → `app.js` & `boot.bundle.js` di-rebuild,
 `CACHE_VERSION` `myfinance-v157` → **`myfinance-v158`** + snapshot SW diregenerasi.
 Jumlah file test di STRUKTUR-REPO/README 93 → 94.
+
+## v139 — bug "notifikasi anggaran tidak pernah muncul": akar sebab + perbaikan
+
+**Gejala (dilaporkan pengguna):** melewati 80%/100% anggaran tetapi tidak ada
+toast sama sekali.
+
+**Cara menemukan (bukan menebak).** Dua dugaan awal saya terbantahkan oleh kode:
+(a) kunci kategori berbeda antara agregasi & notifikasi — salah, karena
+`categorizeParentFromLookup` = `resolveBaseCategoryStyle(...).parentName`
+(category-style.js:42-43) dan kategori tak dikenal sama-sama jatuh ke
+`"Lain-lain"`; (b) cache anggaran kosong saat menyimpan — salah, karena
+`currentMonthBudgetsCache` diisi di `app.src.js:4660` yang berada DI DALAM
+`loadData` (fungsi 4485, blok `syncFetch.then` 4537, fungsi berikutnya 4709).
+Karena membaca saja tidak cukup, bug-nya **direproduksi di browser sungguhan**
+dengan Supabase di-stub.
+
+**Akar sebab (terbukti).** Tab Anggaran menyimpan `budgets.kategori` untuk
+SUB-kategori (input `data-category`) maupun kategori utama (`data-parent`),
+tetapi `getCategoryBudgetStatus()` hanya mencari `budgets[parentName]`. Untuk
+anggaran level sub, status sebelum & sesudah transaksi sama-sama `null` →
+`detectBudgetThresholdCrossing(null, null)` → `null` → toast tidak pernah
+muncul. Hasil reproduksi:
+
+| skenario | sebelum | sesudah |
+|---|---|---|
+| anggaran di kategori utama (`Makanan & Minuman`), transaksi `Restoran` | toast MUNCUL | — |
+| anggaran di SUB (`Restoran`) | `before=null`, `after=null`, **tidak ada toast** | — |
+
+**Perbaikan.** Fungsi murni baru `resolveBudgetStatusForCategory()` di
+`src/domain/budgets.js`: anggaran level sub lebih spesifik dan menang bila ada;
+sumber "sudah terpakai" berbeda per level dan memang harus begitu (sub →
+`aggregateActualByCategory` per nama kategori mentah, parent → `monthCatOutMap`).
+`getCategoryBudgetStatus()` kini memanggilnya dan hanya menghitung agregasi per
+kategori mentah bila memang ada anggaran sub (hemat: tidak ada biaya tambahan
+pada jalur biasa). Bentuk kembalian (`parentName/budget/spent/pct`)
+dipertahankan, jadi `notifyIfBudgetThresholdCrossed` tidak berubah.
+
+**Uji.** 6 uji unit baru di `tests/unit/budgets-domain.test.js` (21 → 27).
+Satu uji langsung menangkap regresi yang saya buat sendiri: tanpa guard
+`kategori !== parentName`, transaksi yang dicatat PADA kategori utama terbaca
+`spent = 0` — diperbaiki sebelum commit.
+
+**Harness E2E baru `scripts/verify-budget-notify.mjs` (13 cek, ikut CI):**
+A anggaran kategori utama → toast 85% muncul; B anggaran sub → toast muncul
+(ini yang dulu mati); C tanpa anggaran → tidak ada toast; D 75% → 78% (ambang
+belum terseberangi) → tidak ada toast; plus 0 pageerror. **Kontrol negatif
+harness:** dengan bundle commit `3084232` (tanpa perbaikan) harness ini
+**5 CEK GAGAL** (B×4 dan D×1), dan lulus semua setelah perbaikan dipasang —
+jadi harness-nya benar-benar menggigit.
+
+**CATATAN PERILAKU (sengaja, bukan bug):** toast hanya muncul TEPAT saat ambang
+baru terseberangi, tidak berulang tiap menyimpan transaksi di kategori yang
+sudah lama over-budget. Bila pengguna mengharapkan pengingat berulang, itu
+perubahan produk tersendiri.
+
+**VERIFIKASI:** harness baru 13/13; lint 0; unit 1006/1006; parity 1/1;
+E2E 9 harness lama 231 PASS; `CACHE_VERSION` `myfinance-v158` → **v159** +
+snapshot SW diregenerasi.

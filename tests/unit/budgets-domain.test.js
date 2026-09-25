@@ -186,3 +186,78 @@ test("shiftMonthStr: geser bulan lintas tahun + input rusak", () => {
   assert.equal(shiftMonthStr("bukan-bulan", -1), null);
   assert.equal(shiftMonthStr(null, -1), null);
 });
+
+// ---------------------------------------------------------------------------
+// v139 (bug fix): anggaran boleh dipasang pada SUB-kategori. Sebelumnya
+// getCategoryBudgetStatus() di app.src.js hanya mencari budgets[parentName],
+// jadi anggaran level sub tidak pernah terlihat -> status null sebelum &
+// sesudah transaksi -> detectBudgetThresholdCrossing(null, null) = null ->
+// notifikasi ambang TIDAK PERNAH muncul (direproduksi probe browser).
+// ---------------------------------------------------------------------------
+import { resolveBudgetStatusForCategory } from "../../src/domain/budgets.js";
+
+test("v139: anggaran pada SUB-kategori dipakai, dengan realisasi per nama kategori mentah", () => {
+  const st = resolveBudgetStatusForCategory({
+    kategori: "Restoran",
+    parentName: "Makanan & Minuman",
+    budgetsByCategory: { Restoran: 1000000 },
+    spentByParent: { "Makanan & Minuman": 750000 },
+    actualByCategory: { Restoran: 750000, Camilan: 20000 },
+  });
+  assert.deepEqual(st, { key: "Restoran", budget: 1000000, spent: 750000, pct: 0.75 });
+});
+
+test("v139: anggaran pada KATEGORI UTAMA tetap memakai agregasi per parent (perilaku lama)", () => {
+  const st = resolveBudgetStatusForCategory({
+    kategori: "Restoran",
+    parentName: "Makanan & Minuman",
+    budgetsByCategory: { "Makanan & Minuman": 1000000 },
+    spentByParent: { "Makanan & Minuman": 850000 },
+    actualByCategory: null,
+  });
+  assert.deepEqual(st, { key: "Makanan & Minuman", budget: 1000000, spent: 850000, pct: 0.85 });
+});
+
+test("v139: anggaran sub LEBIH SPECIFIC -> menang bila keduanya ada", () => {
+  const st = resolveBudgetStatusForCategory({
+    kategori: "Restoran",
+    parentName: "Makanan & Minuman",
+    budgetsByCategory: { Restoran: 500000, "Makanan & Minuman": 2000000 },
+    spentByParent: { "Makanan & Minuman": 850000 },
+    actualByCategory: { Restoran: 400000 },
+  });
+  assert.equal(st.key, "Restoran");
+  assert.equal(st.budget, 500000);
+  assert.equal(st.spent, 400000);
+  assert.equal(st.pct, 0.8);
+});
+
+test("v139: tanpa anggaran sama sekali -> null (tidak ada notifikasi)", () => {
+  assert.equal(resolveBudgetStatusForCategory({
+    kategori: "Restoran", parentName: "Makanan & Minuman",
+    budgetsByCategory: {}, spentByParent: { "Makanan & Minuman": 850000 }, actualByCategory: null,
+  }), null);
+  assert.equal(resolveBudgetStatusForCategory({
+    kategori: "Restoran", parentName: "Makanan & Minuman",
+    budgetsByCategory: { Restoran: 0, "Makanan & Minuman": 0 }, spentByParent: {}, actualByCategory: {},
+  }), null);
+});
+
+test("v139: kategori yang memang kategori utama (kategori === parentName) tetap jalan", () => {
+  const st = resolveBudgetStatusForCategory({
+    kategori: "Makanan & Minuman", parentName: "Makanan & Minuman",
+    budgetsByCategory: { "Makanan & Minuman": 1000000 },
+    spentByParent: { "Makanan & Minuman": 300000 },
+    actualByCategory: null,
+  });
+  assert.deepEqual(st, { key: "Makanan & Minuman", budget: 1000000, spent: 300000, pct: 0.3 });
+});
+
+test("v139: bentuk masukan rusak tidak melempar (defensif)", () => {
+  const st = resolveBudgetStatusForCategory({
+    kategori: "Restoran", parentName: "Makanan & Minuman",
+    budgetsByCategory: { Restoran: 1000000 },
+    spentByParent: null, actualByCategory: null,
+  });
+  assert.deepEqual(st, { key: "Restoran", budget: 1000000, spent: 0, pct: 0 });
+});

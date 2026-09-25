@@ -50,7 +50,7 @@
         import { resolveCategoryAndSubNames, computeCategoryDetailMonthChart, aggregateSubCategoryShares } from './src/domain/categories.js';
         import { matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal, insertTransactionRow, replaceTransactionRow, reconcileTxRowsWithPending } from './src/domain/transactions.js';
         import { isChartNarrow, selectSparseLabelIndices, selectSparseLabelCells } from './src/domain/chart-labels.js';
-        import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr } from './src/domain/budgets.js';
+        import { aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr, resolveBudgetStatusForCategory } from './src/domain/budgets.js';
         import { renderRecurringSummary as renderRecurringSummaryUI, renderRecurringListModal as renderRecurringListModalUI } from './src/ui/recurring.js';
         import { renderHealthScore as renderHealthScoreUI, renderInsights as renderInsightsUI } from './src/ui/insights.js';
         // v94: Rekomendasi AI (Gemini) -- list vertikal + modal detail (domain normalisasi
@@ -157,7 +157,7 @@
             resolveCategoryAndSubNames, computeCategoryDetailMonthChart,
             matchesTransactionSearch, computeLast30DaysView, computeCustomMonthView, computeDateRangeView, isWithinAmountRange, computeDayNetTotal, insertTransactionRow, replaceTransactionRow, reconcileTxRowsWithPending,
             isChartNarrow, selectSparseLabelIndices, selectSparseLabelCells,
-            aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr,
+            aggregateActualByCategory, classifyBudgetUsage, summarizeBudgets, detectBudgetThresholdCrossing, shiftMonthStr, resolveBudgetStatusForCategory,
             // renderRecurringSummaryUI/renderRecurringListModalUI: BUKAN domain/service, ini fungsi
             // UI/render (src/ui/recurring.js, menyentuh DOM) -- ditumpangkan di bag yang sama dengan
             // alasan yang sama seperti fungsi2 di atas (satu-satunya jalur modul ES ke classic script).

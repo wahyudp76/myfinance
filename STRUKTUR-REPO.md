@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v138`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v139`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 72 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -54,7 +54,7 @@ myfinance/
 │                           #   INI yang dimuat index.html; jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v158)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v159)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -231,6 +231,7 @@ myfinance/
 │   ├── verify-ui-actions.mjs  # E2E aksi UI deklaratif data-action (39 cek, v101)
 │   ├── verify-applock-rpid.mjs # E2E RP ID WebAuthn, legacy & pindah domain (31 cek, v107)
 │   ├── verify-applock.mjs  # E2E kunci aplikasi + pengingat, stub settings STATEFUL (21 cek, v92)
+│   ├── verify-budget-notify.mjs # E2E notifikasi ambang anggaran, anggaran parent & SUB (13 cek, v139)
 │   ├── verify-csp.mjs      # E2E Content-Security-Policy (17 cek, v109)
 │   ├── verify-asset-logos.mjs # E2E logo platform aset (17 cek, v86)
 │   ├── verify-applock-biometric.mjs # E2E biometrik multi-perangkat, virtual authenticator CDP (14 cek, v99)

@@ -8,7 +8,8 @@
 # scripts/verify-offline-cache.mjs (13 cek cache data offline, v100), dan
 # scripts/verify-ui-actions.mjs (39 cek aksi UI deklaratif, v101),
 # scripts/verify-csp.mjs (17 cek Content-Security-Policy, v109), dan
-# scripts/verify-ui-sweep.mjs (9 cek sapu permukaan aksi, v106)
+# scripts/verify-ui-sweep.mjs (9 cek sapu permukaan aksi, v106), dan
+# scripts/verify-budget-notify.mjs (13 cek notifikasi ambang anggaran, v139)
 # di dalam CI.
 #
 # LATAR (v88, 2026-09-06): check "5 baris log transaksi" di verify-hud gagal
@@ -171,6 +172,17 @@ jobs:
         env:
           SWEEP_URL: http://127.0.0.1:8123/
         run: node scripts/verify-ui-sweep.mjs
+
+      # v139: notifikasi ambang anggaran. Bug "tidak pernah muncul" bertahan lama
+      # karena unit test hanya menutup detectBudgetThresholdCrossing (pembanding
+      # murni), sedangkan cacatnya di getCategoryBudgetStatus() yang tidak membaca
+      # anggaran level SUB-kategori. Hanya browser yang bisa membuktikan toast-nya
+      # benar-benar tampil -- termasuk dua kontrol negatif (tanpa anggaran, dan
+      # ambang belum terseberangi).
+      - name: verify-budget-notify (13 cek notifikasi ambang anggaran)
+        env:
+          BUDNOTIF_URL: http://127.0.0.1:8123/
+        run: node scripts/verify-budget-notify.mjs
 
       # Screenshot kedua harness (HUD_SHOTS default: /tmp/hud-shots dan
       # /tmp/asset-logo-shots) diunggah HANYA saat gagal -- buat debug
