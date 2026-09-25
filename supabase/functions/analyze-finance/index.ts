@@ -176,9 +176,14 @@ async function callGemini(promptText: string, mode: string) {
   }
 
   if (!resp.ok) {
+    // v137 (audit AI T4): teks mentah dari Gemini TIDAK lagi dikirim ke klien.
+    // Balasan error Gemini bisa memuat detail internal (nama model, kuota,
+    // identitas project) yang hanya berguna bagi pemegang log function.
+    // Detailnya dicatat di sini -- lihat Log Explorer Supabase.
     const errText = await resp.text();
+    console.error(`[analyze-finance] Gemini ${resp.status}: ${errText.slice(0, 500)}`);
     throw new Response(
-      JSON.stringify({ error: "Gagal memanggil Gemini API", detail: errText }),
+      JSON.stringify({ error: "Gagal memanggil Gemini API" }),
       {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -405,6 +410,13 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse({ insights });
   } catch (e) {
-    return jsonResponse({ error: String(e) }, 500);
+    // v137 (audit AI T4): `String(e)` bisa memuat potongan prompt, nama kolom,
+    // atau pesan internal Supabase. Dicatat di log function, ke klien cukup
+    // pesan umum -- status 500 tetap sama supaya penanganan klien tak berubah.
+    console.error("[analyze-finance] gagal tak terduga:", e);
+    return jsonResponse(
+      { error: "Terjadi kesalahan saat memproses permintaan AI. Coba lagi sebentar lagi." },
+      500,
+    );
   }
 });

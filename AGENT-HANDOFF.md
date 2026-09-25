@@ -3569,3 +3569,28 @@ STRUKTUR-REPO (sudah disamakan).
 (bukan `tools/`). Setelah sandbox di-reset, Playwright perlu dipasang ulang:
 `npx playwright install chromium` **dan** `npx playwright install-deps chromium`
 (kedua-duanya, karena `libnspr4.so` dll. hilang).
+
+## v137 — audit AI tahap 3: hentikan kebocoran pesan error ke klien (T4) + keputusan T8
+
+**T4 SELESAI.** Empat tempat mengirim detail internal ke peramban:
+- `analyze-finance`: `{ error: "Gagal memanggil Gemini API", detail: errText }`
+  (502) dan `{ error: String(e) }` (500).
+- `scan-receipt`: pola yang sama persis di dua tempat.
+
+Sekarang detailnya dicatat di **log function** (`console.error`, terlihat di
+Supabase Log Explorer) dan klien hanya menerima pesan umum berbahasa Indonesia.
+Status HTTP tidak diubah (502/500) supaya penanganan error di klien tetap sama.
+Catatan: balasan `Response` yang dilempar `callGemini` (504 timeout / 502
+jaringan dari v135) tetap lolos ke klien — keempat call site sudah punya
+`if (errResp instanceof Response) return errResp;` (diperiksa, bukan diasumsikan).
+
+**T8 DITERIMA SEBAGAI RISIKO (tidak diubah)** — alasan lengkap + cara
+menyempitkannya ada di bagian "Status tindak lanjut" pada
+`docs/audit-ai-2026-09-17.md`. Ringkas: aplikasi bisa berpindah domain, function
+sudah mewajibkan JWT sah, dan `corsHeaders` adalah konstanta tingkat modul yang
+dipakai ~6 titik balasan — risiko mematikan aplikasi lebih besar daripada
+keuntungannya.
+
+**VERIFIKASI:** sintaks kedua `index.ts` diverifikasi parser esbuild (OK);
+`grep "detail: errText"` = 0 di kedua file; lint 0; unit 993/993; parity 1/1.
+**WAJIB deploy ulang** `analyze-finance` + `scan-receipt` agar berlaku.

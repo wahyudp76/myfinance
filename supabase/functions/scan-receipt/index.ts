@@ -175,8 +175,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!resp.ok) {
+      // v137 (audit AI T4): detail mentah dari Gemini tidak dikirim ke klien --
+      // cukup dicatat di log function (Log Explorer Supabase).
       const errText = await resp.text();
-      return jsonResponse({ error: "Gagal memanggil Gemini API", detail: errText }, 502);
+      console.error(`[scan-receipt] Gemini ${resp.status}: ${errText.slice(0, 500)}`);
+      return jsonResponse({ error: "Gagal membaca struk. Coba foto ulang atau kompres dulu." }, 502);
     }
 
     const geminiData = await resp.json();
@@ -225,6 +228,9 @@ Deno.serve(async (req: Request) => {
       kategori,
     });
   } catch (e) {
-    return jsonResponse({ error: String(e instanceof Error ? e.message : e) }, 500);
+    // v137 (audit AI T4): pesan mentah bisa memuat detail internal; dicatat di
+    // log function saja, ke klien pesan umum (status 500 tidak berubah).
+    console.error("[scan-receipt] gagal tak terduga:", e);
+    return jsonResponse({ error: "Terjadi kesalahan saat memindai struk. Coba lagi." }, 500);
   }
 });
