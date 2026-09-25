@@ -1,8 +1,8 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v137`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v138`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
-> Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
+> Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 72 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
 ---
 
@@ -25,7 +25,7 @@ Aplikasi ini adalah **single-page app (SPA) statis** yang di-deploy sebagai file
 | Sumber (kamu edit) | Build command | Hasil (dijalankan browser) | Guard drift |
 |---|---|---|---|
 | `app.src.js` | `npm run build:app` (terser) | `app.js` (−52,8% ukuran) | `tests/unit/app-minify.test.js` |
-| `boot.js` + 71 modul `src/**` | `npm run build:boot` (esbuild) | `boot.bundle.js` (`vendor/` tetap external) | `tests/unit/boot-bundle.test.js` |
+| `boot.js` + 72 modul `src/**` | `npm run build:boot` (esbuild) | `boot.bundle.js` (`vendor/` tetap external) | `tests/unit/boot-bundle.test.js` |
 | `styles.src.css` | `npm run build:styles` (clean-css) | `styles.css` (−34,6%) | `tests/unit/styles-minify.test.js` |
 | `css/tailwind.src.css` + pemindaian kelas | `npm run build:css` (tailwindcss) | `css/tailwind.css` (~55KB minified) | `tests/unit/tailwind-content.test.js` |
 | blok `<script>` inline di `index.html` | `npm run build:csp` | 4 hash sha256 ditulis balik ke `index.html` **dan** `_headers` | `tests/unit/csp-hash.test.js` |
@@ -50,11 +50,11 @@ myfinance/
 │                           #   SUPABASE_URL / SUPABASE_ANON_KEY / WHATSAPP_BOT_NUMBER
 ├── app.js                  # OUTPUT build terser dari app.src.js (~265KB) — jangan diedit
 ├── boot.js                 # SUMBER wiring <script type="module"> (diekstrak dari index.html, v98)
-├── boot.bundle.js          # OUTPUT build esbuild: boot.js + 71 modul src/ (~154KB, v103) —
+├── boot.bundle.js          # OUTPUT build esbuild: boot.js + 72 modul src/ (~154KB, v103) —
 │                           #   INI yang dimuat index.html; jangan diedit
 ├── styles.src.css          # SUMBER gaya visual kustom
 ├── styles.css              # OUTPUT build (clean-css)
-├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v157)
+├── sw.js                   # Service Worker (offline, precache, CACHE_VERSION=v158)
 ├── manifest.json           # Web App Manifest (PWA / Add to Home Screen)
 ├── _headers                # Header keamanan (Netlify/Cloudflare Pages): CSP, X-Frame-Options, dll
 ├── robots.txt              # Larang crawler (app privat)
@@ -84,7 +84,7 @@ myfinance/
 │   │                           #   (termasuk TOKEN_REFRESHED berkala) → showAppShell()+initApp()
 │   │                           #   → seluruh loadData() terulang tiap refresh token. Kontrak
 │   │                           #   yang belum dipenuhi: docs/production-loader-contract.md
-│   ├── domain/                 # ★ Logika murni (pure functions) — 38 file, teruji unit
+│   ├── domain/                 # ★ Logika murni (pure functions) — 39 file, teruji unit
 │   │   ├── transactions.js     # filter/cari, compute views, insertTransactionRow, dll
 │   │   ├── accounts.js         # total/grafik/agregasi akun
 │   │   ├── budgets.js          # realisasi vs anggaran, deteksi ambang
@@ -247,7 +247,7 @@ myfinance/
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
-│   ├── unit/               # 93 file *.test.js murni (node --test) — npm run test:unit
+│   ├── unit/               # 94 file *.test.js murni (node --test) — npm run test:unit
 │   │   ├── sw-cache.snapshot            # snapshot hash aset precache SW
 │   │   ├── sw-cache-hash-helper.mjs     # helper penghitung hash precache
 │   │   ├── update-sw-cache-snapshot.mjs # regen snapshot SETELAH bump CACHE_VERSION + build
@@ -302,14 +302,14 @@ myfinance/
    Urutan di `<head>`: `<meta charset>` → **meta CSP** (v104: wajib paling atas, sebelum skrip
    apa pun) → blok inline penentu tema (anti kedip) → preload/preconnect → stylesheet →
    blok inline pembuat 2 Promise jembatan → `<script type="module" src="./boot.bundle.js">`.
-2. **`boot.bundle.js`** adalah bundel esbuild dari **`boot.js`** + 71 modul `src/**`
+2. **`boot.bundle.js`** adalah bundel esbuild dari **`boot.js`** + 72 modul `src/**`
    (auth → services/domain/ui). Ia memapar ratusan fungsi lewat `window.__myfinanceAuth` &
    `window.__myfinanceServices`, lalu men-dispatch event `myfinance:auth-ready` /
    `myfinance:services-ready`. Module dieksekusi *deferred* (setelah seluruh dokumen).
    Riwayat: sampai v97 blok ini INLINE di `index.html`; v98 memindahkannya byte-exact ke
    `boot.js` (dokumen turun 33,8 → 29,8 KB gzip, karena SW memakai network-first untuk dokumen
    tapi stale-while-revalidate untuk aset); v103 mem-bundel-nya jadi SATU berkas (kunjungan
-   pertama turun dari 101 → 30 request — 71 modul ESM kecil-kecil itu biaya latensi, bukan byte).
+   pertama turun dari 101 → 30 request — 72 modul ESM kecil-kecil itu biaya latensi, bukan byte).
 3. **`app.js`** adalah blok `<script>` **classic** di body (logika monolit). Ia menunggu kedua
    Promise jembatan itu lewat `Promise.all` + timeout 8 detik per modul (pesan error menyebut
    modul mana yang gagal), dengan jaring pengaman generik 12 detik → layar error + "Muat Ulang".

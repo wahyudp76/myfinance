@@ -43,6 +43,7 @@
         import * as chartsUi from './src/ui/charts.js';
         import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext } from './src/domain/insights.js';
         import { buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS } from './src/domain/ai-summary.js';
+        import { selectSortedWindow, selectKthInPlace } from './src/domain/tx-window.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
@@ -143,7 +144,7 @@
             computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount,
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext,
-            buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS,
+            buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS, selectSortedWindow, selectKthInPlace,
             computeGoalProgress, computeDebtProgress,
             // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
             // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.

@@ -5,7 +5,7 @@
 > Status: semua fitur di bawah SUDAH teruji unit + E2E browser + (untuk Edge Function) live di produksi.
 
 ## Peta cepat
-- App: SPA statis `index.html` yang memuat DUA berkas hasil build: `boot.bundle.js` (`<script type="module">`, bundel esbuild atas `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (`<script>` classic, logika monolit hasil terser dari `app.src.js`). Edit `app.src.js` / `src/**` — JANGAN `app.js` / `boot.bundle.js`. Perintah: `npm run build:app` (→ `app.js`), `npm run build:boot` (→ `boot.bundle.js`), `npm run build:css` (→ Tailwind), lalu service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build setiap kali aset berubah). Kedua output build di-commit, jadi deploy tetap "salin file statis".
+- App: SPA statis `index.html` yang memuat DUA berkas hasil build: `boot.bundle.js` (`<script type="module">`, bundel esbuild atas `boot.js` + 72 modul `src/**`, sejak v103) dan `app.js` (`<script>` classic, logika monolit hasil terser dari `app.src.js`). Edit `app.src.js` / `src/**` — JANGAN `app.js` / `boot.bundle.js`. Perintah: `npm run build:app` (→ `app.js`), `npm run build:boot` (→ `boot.bundle.js`), `npm run build:css` (→ Tailwind), lalu service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build setiap kali aset berubah). Kedua output build di-commit, jadi deploy tetap "salin file statis".
 - Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (70 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; **5** Edge Functions — `analyze-finance`, `get-exchange-rate`, `refresh-asset-price`, `scan-receipt`, `whatsapp-webhook` — plus helper bersama di `supabase/functions/_shared/` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, **9** view — 7 di nav (`dashboard`/`transaksi`/`budget`/`laporan`/`aset`/`kalender`/`pengaturan`, dipindah lewat `data-action="switchView"`) + 2 sub-view drill-down (`akun-detail`, `kategori-detail`) — dan **19** modal ber-`role="dialog"` + `aria-modal="true"`, Ctrl/Cmd+K command palette.
@@ -3594,3 +3594,50 @@ keuntungannya.
 **VERIFIKASI:** sintaks kedua `index.ts` diverifikasi parser esbuild (OK);
 `grep "detail: errText"` = 0 di kedua file; lint 0; unit 993/993; parity 1/1.
 **WAJIB deploy ulang** `analyze-finance` + `scan-receipt` agar berlaku.
+
+## v138 — `renderRecentList` tidak lagi mengurutkan seluruh transaksi (2,3x lebih cepat)
+
+**Masalah terukur.** `renderRecentList()` melakukan `[...data].sort(txServerCompare)`
+atas SELURUH transaksi hanya untuk menampilkan 10 baris (satu halaman), dan ia
+dipanggil di jalur panas: setiap simpan transaksi (`applyLocalTxEcho`) dan setiap
+pindah tab. Diukur dengan `scripts/bench-load-sync.mjs` (aplikasi sungguhan di
+Chromium, Supabase di-stub, CPU 4x throttle): sortir penuh = **234 ms dari total
+339 ms** `renderRecentList` pada 20.000 baris.
+
+**Perbaikan.** Modul murni baru `src/domain/tx-window.js`:
+- `selectKthInPlace(arr, compare, k)` — quickselect iteratif, partisi TIGA ARAH,
+  pivot median-of-three (penting: data nyata datang hampir terurut tanggal
+  menurun, kasus terburuk quickselect naif), insertion sort untuk rentang < 16.
+  Iteratif, jadi tak ada risiko stack overflow di ratusan ribu baris.
+- `selectSortedWindow(rows, compare, start, size)` — ganti
+  `[...rows].sort(compare).slice(start, start+size)`: quickselect O(n) lalu
+  sortir hanya prefiks sepanjang `start+size`. Tidak mengubah array masukan.
+
+**Kenapa hasilnya identik (bukan "kurang lebih").** `txServerCompare` adalah
+URUTAN TOTAL — pembanding terakhirnya `id` yang unik dari Postgres, jadi tidak
+ada dua baris yang dianggap setara dan jendela halaman bersifat tunggal.
+`tests/unit/tx-window.test.js` (7 uji) membuktikannya dengan uji acak
+deterministik terhadap `[...rows].sort(compare).slice(...)` pada 12 ukuran ×
+3 ukuran halaman × 5 posisi halaman × 4 seed, plus data sudah-terurut, semua
+tanggal kembar, dan batas-batas (kosong, start lewat ujung, size 0, start
+negatif, angka pecahan). **Kontrol negatif:** mencabut sortir prefiks → 2 uji
+merah; mencabut penyempitan rentang kiri quickselect → 3 uji merah.
+
+**A/B (median dari 3 run, `BENCH_REPEAT=5`, CPU 4x, SW dimatikan):**
+
+| `renderRecentList` | baseline (af6a428) | sesudah | selisih |
+|---|---|---|---|
+| 2.500 baris  | 33,3 ms  | **26,3 ms**  | −21% |
+| 20.000 baris | 286,2 ms | **123,3 ms** | **2,32x lebih cepat (−163 ms)** |
+
+Tidak ada tumpang tindih antar sampel: di kedua skala setiap sampel "sesudah"
+lebih kecil daripada setiap sampel baseline. Angka 31,1 → 39,2 ms pada
+pengukuran tunggal pertama (2.500 baris) adalah NOISE — baris `SORT
+txServerCompare` yang kodenya TIDAK diubah ikut bergerak 18,1 → 26,4 ms pada
+run yang sama; itulah sebabnya A/B diulang 3x dengan `BENCH_REPEAT=5`.
+
+**CATATAN:** `filterTransactions` (579 ms pada 20.000 baris) masih memakai sortir
+penuh SENGAJA — ia memang butuh seluruh daftar terurut untuk ditampilkan.
+`app.src.js` + `src/**` berubah → `app.js` & `boot.bundle.js` di-rebuild,
+`CACHE_VERSION` `myfinance-v157` → **`myfinance-v158`** + snapshot SW diregenerasi.
+Jumlah file test di STRUKTUR-REPO/README 93 → 94.

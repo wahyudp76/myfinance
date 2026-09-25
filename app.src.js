@@ -6624,11 +6624,19 @@ async function currentUserId() {
 
         function renderRecentList(data) {
             const container = document.getElementById('recent-transactions-list');
-            let sortedData = [...data].sort(txServerCompare);
-            const totalPages = Math.max(1, Math.ceil(sortedData.length / RECENT_TRANSACTIONS_PAGE_SIZE));
+            // v138 (perf): sebelumnya `[...data].sort(txServerCompare)` mengurutkan
+            // SELURUH transaksi hanya untuk menampilkan 10 baris. Terukur di Chromium
+            // sungguhan (scripts/bench-load-sync.mjs, CPU 4x, median): sortir penuh
+            // 234 ms dari total renderRecentList 339 ms pada 20.000 baris, dan fungsi
+            // ini jalan di jalur panas (tiap simpan transaksi + tiap pindah tab).
+            // Sekarang cukup quickselect O(n) + sortir prefiks halaman saja. Hasilnya
+            // IDENTIK karena txServerCompare urutan total (tiebreak `id` unik) --
+            // dibuktikan tests/unit/tx-window.test.js (uji acak vs sort penuh).
+            const rows = Array.isArray(data) ? data : [];
+            const totalPages = Math.max(1, Math.ceil(rows.length / RECENT_TRANSACTIONS_PAGE_SIZE));
             recentTransactionsPage = Math.min(Math.max(1, recentTransactionsPage), totalPages);
             const pageStart = (recentTransactionsPage - 1) * RECENT_TRANSACTIONS_PAGE_SIZE;
-            let recent = sortedData.slice(pageStart, pageStart + RECENT_TRANSACTIONS_PAGE_SIZE);
+            const recent = servicesModule.selectSortedWindow(rows, txServerCompare, pageStart, RECENT_TRANSACTIONS_PAGE_SIZE);
             if(recent.length === 0) { container.innerHTML = ''; return; }
             // HUD: bar nominal proporsional terhadap transaksi pada halaman aktif.
             const hudMaxAmt = Math.max(...recent.map(r => Math.abs(Number(r.jumlah) || 0)), 1);

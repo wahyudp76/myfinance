@@ -38,7 +38,7 @@ myfinance/
 │                       #   SUPABASE_URL / SUPABASE_ANON_KEY / WHATSAPP_BOT_NUMBER juga di sini
 ├── app.js              # OUTPUT BUILD app.src.js (terser, -52,8%) -- jangan diedit langsung
 ├── boot.js             # SUMBER MANUAL wiring <script type="module"> (diekstrak dari index.html, v98)
-├── boot.bundle.js      # OUTPUT BUILD boot.js + 71 modul src/ (esbuild, v103) -- INI yang dimuat index.html
+├── boot.bundle.js      # OUTPUT BUILD boot.js + 72 modul src/ (esbuild, v103) -- INI yang dimuat index.html
 ├── styles.src.css      # SUMBER MANUAL gaya visual kustom
 ├── styles.css          # OUTPUT BUILD (clean-css) -- dipisah dari index.html di Phase 7
 ├── css/
@@ -77,7 +77,7 @@ myfinance/
 ├── scripts/                     # Build (build-app/styles/boot/csp) · 9 harness E2E verify-* ·
 │                                #   lighthouse/ · schema-verify/ (Postgres nyata) · rls-audit/
 ├── tests/
-│   ├── unit/                     # 93 file test murni, tanpa network (npm run test:unit)
+│   ├── unit/                     # 94 file test murni, tanpa network (npm run test:unit)
 │   └── parity/                   # Banding legacy vs native (6 file), sebagian butuh secret live
 ├── docs/                          # Rencana migrasi, audit historis & kontrak loader (13 dokumen)
 ├── .github/workflows/             # CI: parity.yml ("CI") · e2e-harness.yml · dependabot-auto-merge.yml
