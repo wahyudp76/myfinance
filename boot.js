@@ -42,7 +42,7 @@
         import { applyAssetDeposit, applyAssetDepositEdit, findAssetByName, resolveAssetDepositTx, pruneAssetShadowAccounts, syncAccountsFromTransactions } from './src/domain/asset-flows.js';
         import * as chartsUi from './src/ui/charts.js';
         import { computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext } from './src/domain/insights.js';
-        import { buildAiFinanceSummary } from './src/domain/ai-summary.js';
+        import { buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS } from './src/domain/ai-summary.js';
         import { computeGoalProgress, computeDebtProgress } from './src/domain/goals-debts.js';
         import { computeYearlySummary, computeMonthlyBreakdown, computeCategoryTrend } from './src/domain/reports.js';
         import { computeCalendarMonthSummary, buildDailyCashflowMap, projectRecurringDueDates } from './src/domain/calendar.js';
@@ -143,7 +143,7 @@
             computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount,
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext,
-            buildAiFinanceSummary,
+            buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS,
             computeGoalProgress, computeDebtProgress,
             // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
             // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.

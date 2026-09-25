@@ -6315,7 +6315,11 @@ async function currentUserId() {
 
         function loadCachedAiInsight() {
             const cached = appSettings.ai_insight_cache;
-            if (!cached || !Array.isArray(cached.insights)) return null;
+            // v136 (audit AI T5): `timestamp` akhirnya DIPAKAI. Sebelumnya disimpan tapi
+            // tidak pernah dibaca, jadi rekomendasi basi bertahan tanpa batas (dan ikut
+            // tersinkron ke perangkat lain). Logika murninya di src/domain/ai-summary.js
+            // (isAiInsightCacheFresh) supaya bisa diuji di tests/unit/ai-summary.test.js.
+            if (!servicesModule.isAiInsightCacheFresh(cached)) return null;
             return cached;
         }
         function saveCachedAiInsight(insights) {

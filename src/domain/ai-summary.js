@@ -233,3 +233,33 @@ export function buildAiFinanceSummary(ctx, {
 
   return summary;
 }
+
+/** Umur maksimum cache rekomendasi AI sebelum dianggap basi (24 jam). */
+export const AI_INSIGHT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Apakah cache rekomendasi AI masih layak dipakai?
+ *
+ * KENAPA ADA (audit AI 2026-09-17, temuan T5): klien menyimpan
+ * `appSettings.ai_insight_cache = { insights, timestamp }` ke Supabase (ikut
+ * tersinkron ke semua perangkat), tetapi `timestamp`-nya TIDAK PERNAH dibaca --
+ * sehingga rekomendasi yang sudah tidak sesuai data bertahan tanpa batas sampai
+ * pengguna menekan tombol refresh. Fungsi ini membuat `timestamp` berguna.
+ *
+ * Sengaja ketat: tanpa `timestamp` (cache lama) atau timestamp di masa depan
+ * (jam perangkat sempat salah) dianggap tidak segar, supaya pengguna mendapat
+ * analisis yang sesuai data terbaru setelah satu kali tekan tombol.
+ *
+ * @param {{insights?: unknown[], timestamp?: number}|null|undefined} cached
+ * @param {number} [now] waktu sekarang (ms) -- bisa disuntik untuk uji
+ * @param {number} [ttlMs] umur maksimum
+ * @returns {boolean}
+ */
+export function isAiInsightCacheFresh(cached, now = Date.now(), ttlMs = AI_INSIGHT_CACHE_TTL_MS) {
+  if (!cached || typeof cached !== "object") return false;
+  if (!Array.isArray(cached.insights)) return false;
+  const ts = Number(cached.timestamp);
+  if (!Number.isFinite(ts) || ts <= 0) return false;
+  const umur = Number(now) - ts;
+  return umur >= 0 && umur <= ttlMs;
+}

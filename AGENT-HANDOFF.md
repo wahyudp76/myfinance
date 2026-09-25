@@ -3524,3 +3524,48 @@ jumlah file test di STRUKTUR-REPO & README 92 → 93 (dijaga docs-consistency).
 **CATATAN:** T7 dikerjakan lebih dulu dari urutan rekomendasi karena modul murni
 ini justru yang dipakai T1/T2/T3 — memisahkannya belakangan berarti menyentuh
 kode yang sama dua kali.
+
+## v136 — audit AI tahap 2: cache rekomendasi AI akhirnya punya kedaluwarsa (T5)
+
+**Temuan T5 diperbaiki.** `saveCachedAiInsight()` sudah lama menyimpan
+`{ insights, timestamp }` ke `appSettings.ai_insight_cache` (kolom `settings`,
+ikut tersinkron ke semua perangkat), tetapi `loadCachedAiInsight()` hanya
+memeriksa `Array.isArray(cached.insights)` — **`timestamp` tidak pernah dibaca**.
+Akibatnya rekomendasi yang sudah tidak sesuai data bertahan tanpa batas sampai
+pengguna menekan tombol ⟳, di perangkat mana pun.
+
+**Cara perbaikan (mengikuti pola repo: logika murni di modul, diuji):**
+- `src/domain/ai-summary.js`: tambah `AI_INSIGHT_CACHE_TTL_MS` (24 jam) dan
+  `isAiInsightCacheFresh(cached, now?, ttlMs?)`. Sengaja ketat: tanpa
+  `timestamp`, `timestamp` bukan angka, atau `timestamp` di masa depan (jam
+  perangkat sempat salah) dianggap TIDAK segar.
+- `boot.js`: kedua ekspor itu ikut dijembatani ke `servicesModule`.
+- `app.src.js`: `loadCachedAiInsight()` kini memanggil
+  `servicesModule.isAiInsightCacheFresh(cached)`.
+- `tests/unit/ai-summary.test.js`: +3 uji (16 → 19) — segar di dalam TTL, basi
+  lewat 1 ms dari TTL, dan berbagai bentuk cache rusak/tanpa timestamp/masa depan.
+
+**Efek ke pengguna:** kartu Rekomendasi AI yang umurnya lebih dari 24 jam tidak
+lagi disajikan sebagai hasil terkini; pengguna menekan ⟳ sekali untuk mendapat
+analisis yang sesuai data terbaru. Biaya API tidak bertambah kecuali pengguna
+memang menekan tombol.
+
+**CATATAN:** `app.src.js` + `src/**` berubah → `app.js` dan `boot.bundle.js`
+di-rebuild dalam commit yang sama (build deterministik, diverifikasi hash identik
+pada rebuild kedua). Karena keduanya aset precache SW: `CACHE_VERSION`
+`myfinance-v156` → **`myfinance-v157`**, snapshot SW diregenerasi
+(`955c12c5abfb2347…`), dan sebutan `CACHE_VERSION` di STRUKTUR-REPO/README
+disamakan (dijaga `docs-consistency.test.js`).
+
+**VERIFIKASI v136:** lint 0; unit **993/993** (990 + 3 uji TTL baru); parity 1/1;
+`build:app` + `build:boot` deterministik (hash identik pada rebuild kedua);
+E2E 5 harness **160 PASS / 0 gagal** (verify-hud 70, verify-offline-cache 13,
+verify-csp 17, verify-ui-actions 39, verify-applock 21) — jumlah cek sama
+persis dengan baseline, jadi perubahan klien tidak mengubah perilaku yang
+sudah teruji. `docs-consistency` ikut menuntut `CACHE_VERSION=v157` di
+STRUKTUR-REPO (sudah disamakan).
+
+**CATATAN LINGKUNGAN (bukan masalah repo):** harness E2E ada di `scripts/verify-*.mjs`
+(bukan `tools/`). Setelah sandbox di-reset, Playwright perlu dipasang ulang:
+`npx playwright install chromium` **dan** `npx playwright install-deps chromium`
+(kedua-duanya, karena `libnspr4.so` dll. hilang).

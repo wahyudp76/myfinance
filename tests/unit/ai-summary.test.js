@@ -6,7 +6,7 @@
 // transaksi (top-3 terbesar, transaksi kecil, akhir pekan) ikut terkirim.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildAiFinanceSummary } from "../../src/domain/ai-summary.js";
+import { buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS } from "../../src/domain/ai-summary.js";
 
 const NOW = new Date(2026, 7, 20); // 20 Agustus 2026 (31 hari)
 const parseTgl = (s) => new Date(`${s}T12:00:00`);
@@ -258,4 +258,35 @@ test("v128: anggaran tanpa transaksi sama sekali tetap 0 (bukan jadi ikut terisi
   assert.equal(hiburan.terpakai, 0);
   assert.equal(hiburan.persen_terpakai, 0);
   assert.equal(hiburan.sisa, 500_000);
+});
+
+// ---------------------------------------------------------------------------
+// v136 (audit AI 2026-09-17, temuan T5): cache rekomendasi AI punya kedaluwarsa.
+// Sebelumnya app.src.js menyimpan { insights, timestamp } tapi tidak pernah
+// membaca timestamp-nya, jadi rekomendasi basi bertahan tanpa batas dan ikut
+// tersinkron ke perangkat lain.
+// ---------------------------------------------------------------------------
+const SEKARANG = 1_800_000_000_000;
+const cacheUmur = (ms) => ({ insights: [{ title: "a", message: "b" }], timestamp: SEKARANG - ms });
+
+test("T5: cache dianggap segar dalam TTL dan basi setelahnya", () => {
+  assert.equal(AI_INSIGHT_CACHE_TTL_MS, 24 * 60 * 60 * 1000);
+  assert.equal(isAiInsightCacheFresh(cacheUmur(0), SEKARANG), true, "baru disimpan");
+  assert.equal(isAiInsightCacheFresh(cacheUmur(60_000), SEKARANG), true, "1 menit");
+  assert.equal(isAiInsightCacheFresh(cacheUmur(AI_INSIGHT_CACHE_TTL_MS), SEKARANG), true, "persis di batas TTL");
+  assert.equal(isAiInsightCacheFresh(cacheUmur(AI_INSIGHT_CACHE_TTL_MS + 1), SEKARANG), false, "lewat 1 ms dari TTL");
+  assert.equal(isAiInsightCacheFresh(cacheUmur(30 * 24 * 60 * 60 * 1000), SEKARANG), false, "sebulan lalu");
+});
+
+test("T5: cache tanpa timestamp / bentuk rusak dianggap tidak segar", () => {
+  assert.equal(isAiInsightCacheFresh({ insights: [{ title: "a" }] }, SEKARANG), false, "tanpa timestamp");
+  assert.equal(isAiInsightCacheFresh({ insights: [], timestamp: "bukan angka" }, SEKARANG), false);
+  assert.equal(isAiInsightCacheFresh({ insights: "bukan array", timestamp: SEKARANG }, SEKARANG), false);
+  assert.equal(isAiInsightCacheFresh(null, SEKARANG), false);
+  assert.equal(isAiInsightCacheFresh(undefined, SEKARANG), false);
+  assert.equal(isAiInsightCacheFresh("bukan objek", SEKARANG), false, "string bukan cache");
+});
+
+test("T5: timestamp di masa depan (jam perangkat salah) dianggap tidak segar", () => {
+  assert.equal(isAiInsightCacheFresh({ insights: [], timestamp: SEKARANG + 5_000 }, SEKARANG), false);
 });
