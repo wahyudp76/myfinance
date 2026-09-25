@@ -3433,3 +3433,42 @@ katalog identik, rahasia bersih, 31 entri precache + 17 aset index.html lengkap,
 0 pageerror pada 300/2.500/20.000 tx). Prioritas rekomendasi ada di bagian 5
 laporan: delta sync (payload 8.645 KB) > top-N renderRecentList > murahkan chart
 > jangan pecah app.js.
+
+## v134 — audit jalur AI: 8 temuan, yang teratas `question` tanpa batas panjang
+
+Laporan lengkap: `docs/audit-ai-2026-09-17.md`. **Tidak ada perubahan kode** —
+audit ini memetakan dan memprioritaskan; perbaikan menunggu keputusan pemilik
+(sebagian menyangkut privasi & wajib deploy ulang Edge Function).
+
+**Yang sehat:** API key Gemini hanya di server (`Deno.env.get`), tidak pernah ke
+browser; auth berlapis (401 tanpa `Authorization`, `supabase.auth.getUser()`);
+rate limit server-side per mode (suggest_category 60/jam, insights 20/jam,
+monthly_summary 20/jam, question 40/jam + jeda 8 detik); sanitasi output ketat
+(title ≤80, message ≤500, detail ≤4000, severity whitelist, maks 5 kartu);
+Gemini **tidak pernah** dipanggil otomatis (hanya tombol ⟳ manual) sehingga
+biaya terkendali.
+
+**Temuan (urut prioritas):**
+- **T1** `analyze-finance:299` menyisipkan `String(question).trim()` ke prompt
+  **tanpa batas panjang** (bandingkan `keterangan` yang dipotong 200 di baris 197).
+- **T2** tidak ada `generationConfig` sama sekali di kedua function AI (0
+  kemunculan `maxOutputTokens`/`temperature`/`responseMimeType`) → biaya keluaran
+  tak terpagar, mode JSON bergantung pembersihan ```json``` manual.
+- **T3** tidak ada `AbortController`/timeout pada fetch ke Gemini → bisa menggantung.
+- **T4** `detail: errText` (502) dan `String(e)` (500) meneruskan pesan internal ke klien.
+- **T5** cache klien menyimpan `timestamp` tapi `loadCachedAiInsight()` tidak
+  pernah membacanya → tidak ada kedaluwarsa, ikut tersinkron ke semua perangkat.
+- **T6** dua klaim dokumen salah: (a) komentar "terpanggil tiap dashboard dibuka
+  / jeda 3 menit" padahal klien hanya memanggil saat tombol ⟳; (b) komentar
+  "cuma mengirim angka agregat" padahal `src/domain/ai-summary.js:152-154` ikut
+  mengirim **nama akun** dan **`keterangan` (catatan bebas, 80 char)** untuk 3
+  transaksi terbesar → data pribadi ke penyedia AI pihak ketiga.
+- **T7** tidak ada uji yang mengeksekusi kode function; 34 uji AI semuanya sisi
+  klien dan lulus (ai-summary 16, ai-recommendations-domain 7,
+  ui-ai-recommendations 5, edge-service 6).
+- **T8** CORS `Access-Control-Allow-Origin: *` (risiko rendah karena JWT).
+
+**Catatan verifikasi:** `verify_jwt=true` untuk kelima function **belum saya
+verifikasi live** (butuh akses Supabase); sumbernya komentar kode 2026-09-14.
+Perbaikan apa pun di `supabase/functions/**` TIDAK berlaku sebelum
+`supabase functions deploy <nama>`.
