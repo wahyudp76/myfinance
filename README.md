@@ -77,7 +77,7 @@ myfinance/
 ├── scripts/                     # Build (build-app/styles/boot/csp) · 9 harness E2E verify-* ·
 │                                #   lighthouse/ · schema-verify/ (Postgres nyata) · rls-audit/
 ├── tests/
-│   ├── unit/                     # 92 file test murni, tanpa network (npm run test:unit)
+│   ├── unit/                     # 93 file test murni, tanpa network (npm run test:unit)
 │   └── parity/                   # Banding legacy vs native (6 file), sebagian butuh secret live
 ├── docs/                          # Rencana migrasi, audit historis & kontrak loader (13 dokumen)
 ├── .github/workflows/             # CI: parity.yml ("CI") · e2e-harness.yml · dependabot-auto-merge.yml
@@ -572,9 +572,22 @@ API key Gemini harus dirahasiakan di server. Kalau ditaruh di kode sisi
 browser (`app.src.js`/`app.js`, `index.html`), siapa pun yang buka DevTools
 bisa mencurinya dan memakainya atas nama akun Google AI-mu (kena
 tagihan/kuota kamu). Edge Function berjalan di server Supabase, menyimpan key
-itu lewat "secret" yang tidak pernah dikirim ke browser — browser cuma
-mengirim ringkasan angka agregat (bukan data mentah per transaksi) dan
-menerima balasan JSON-nya.
+itu lewat "secret" yang tidak pernah dikirim ke browser — browser mengirim
+ringkasan keuangan dan menerima balasan JSON-nya.
+
+**Data apa yang dikirim ke Gemini (penting untuk privasi).** Sebagian besar
+berupa angka agregat: pemasukan/pengeluaran bulan ini & bulan-bulan sebelumnya,
+saldo gabungan, anggaran + persen terpakai, rata-rata harian, proyeksi akhir
+bulan, riwayat enam bulan, dan nama kategori beserta nominalnya. **Ada dua
+pengecualian** (v134, audit AI): untuk 3 transaksi pengeluaran terbesar bulan
+ini, ikut terkirim **nama akun** dan **keterangan** (catatan bebas yang kamu
+tulis, dipotong 80 karakter) — lihat `transaksi_terbesar_bulan_ini` di
+`src/domain/ai-summary.js`. Selain itu: pertanyaan bebas yang kamu ketik di
+Tanya AI (dipotong 2.000 karakter di server) dan foto struk (±6 MB maks.) untuk
+fitur Baca Struk. Yang **tidak pernah** dikirim: API key, email, password, dan
+ID user. Kalau kamu menganggap catatan transaksi terlalu pribadi untuk dikirim
+ke penyedia AI, hapus field `keterangan`/`akun` dari `top3Tx` di
+`src/domain/ai-summary.js` (satu baris) lalu `npm run build:boot`.
 
 **Langkah setup (sekali saja):**
 

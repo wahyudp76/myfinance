@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v134`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v135`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 71 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -207,6 +207,8 @@ myfinance/
 │
 ├── supabase/functions/     # 5 Edge Function (Deno) + folder helper _shared/
 │   ├── _shared/
+│   │   ├── ai-output.js     # v135: logika murni AI (batas input, generationConfig,
+│   │   │                    #   sanitasi balasan) -- diuji tests/unit/ai-edge-output.test.js
 │   │   ├── bibit.js         # API reksadana Bibit (en/decrypt AES-256-CBC)
 │   │   ├── market-sync.js   # logika sinkronisasi harga pasar
 │   │   └── price-sources.js # CoinGecko + Yahoo (Stooq mati — jangan dipakai)
@@ -245,7 +247,7 @@ myfinance/
 │   └── rls-audit/          # probe audit RLS + grants behavioral (4 skrip + README)
 │
 ├── tests/                  # ★ Test (tanpa koneksi jaringan untuk unit)
-│   ├── unit/               # 92 file *.test.js murni (node --test) — npm run test:unit
+│   ├── unit/               # 93 file *.test.js murni (node --test) — npm run test:unit
 │   │   ├── sw-cache.snapshot            # snapshot hash aset precache SW
 │   │   ├── sw-cache-hash-helper.mjs     # helper penghitung hash precache
 │   │   ├── update-sw-cache-snapshot.mjs # regen snapshot SETELAH bump CACHE_VERSION + build

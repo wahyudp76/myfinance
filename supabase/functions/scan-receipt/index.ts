@@ -15,6 +15,9 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// v134 (audit AI T2/T3): konstanta & generationConfig dari modul bersama.
+import { GEMINI_VISION_TIMEOUT_MS, generationConfigFor } from "../_shared/ai-output.js";
+
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 // Sengaja pakai model yang sama dengan analyze-finance supaya konsisten -- lihat catatan di file
 // itu soal nama model ini (cek https://ai.google.dev/gemini-api/docs/models kalau ternyata sudah
@@ -140,21 +143,36 @@ Deno.serve(async (req: Request) => {
       `- "kategori": pilih SATU yang PALING cocok dari daftar kategori berikut, HARUS PERSIS SAMA PENULISANNYA (case-sensitive) dengan salah satu di daftar ini, JANGAN membuat nama kategori baru: [${categoryListText}]. Kalau tidak ada satupun yang cocok, atau daftar kategorinya kosong, isi null.\n` +
       `- Kalau ada bagian yang tidak yakin/tidak terbaca jelas, lebih baik null daripada menebak/mengarang.`;
 
-    const resp = await fetch(GEMINI_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: promptText },
-            { inline_data: { mime_type: mimeType, data: imageBase64 } },
-          ],
-        }],
-      }),
-    });
+    // v134 (audit AI T2/T3): generationConfig (balasan wajib JSON + pagu token) dan
+    // batas waktu. Sebelumnya fetch ini tanpa generationConfig dan tanpa timeout,
+    // padahal mode vision paling lambat (gambar bisa ~6 MB base64).
+    let resp: Response;
+    try {
+      resp = await fetch(GEMINI_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: promptText },
+              { inline_data: { mime_type: mimeType, data: imageBase64 } },
+            ],
+          }],
+          generationConfig: generationConfigFor("scan_receipt"),
+        }),
+        signal: AbortSignal.timeout(GEMINI_VISION_TIMEOUT_MS),
+      });
+    } catch (err) {
+      const timeout = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+      return jsonResponse({
+        error: timeout
+          ? "Gemini API tidak menjawab dalam batas waktu. Coba foto ulang."
+          : "Gagal menghubungi Gemini API.",
+      }, timeout ? 504 : 502);
+    }
 
     if (!resp.ok) {
       const errText = await resp.text();

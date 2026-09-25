@@ -3472,3 +3472,55 @@ biaya terkendali.
 verifikasi live** (butuh akses Supabase); sumbernya komentar kode 2026-09-14.
 Perbaikan apa pun di `supabase/functions/**` TIDAK berlaku sebelum
 `supabase functions deploy <nama>`.
+
+## v135 — audit AI tahap 1: perkuat `analyze-finance` & `scan-receipt` (T1, T2, T3, T6, T7)
+
+Menindaklanjuti `docs/audit-ai-2026-09-17.md` (v134). **WAJIB DEPLOY ULANG**
+`analyze-finance` dan `scan-receipt` supaya perubahan ini berlaku di produksi
+(`supabase functions deploy analyze-finance` / `... scan-receipt`) — tanpa itu
+function live masih memakai kode lama.
+
+**Baru: `supabase/functions/_shared/ai-output.js`** — logika murni (tanpa Deno/
+fetch/Supabase) yang sebelumnya tertulis inline di dalam handler: `clampText`,
+`generationConfigFor`, `sanitizeInsights`, `sanitizeCategory`, plus konstanta
+`MAX_QUESTION_LENGTH` (2000), `GEMINI_TIMEOUT_MS` (30.000),
+`GEMINI_VISION_TIMEOUT_MS` (60.000). Pola .js sama dengan `_shared/bibit.js`,
+jadi Deno bisa mengimpor dan **Node bisa mengujinya** — inilah penutup temuan T7.
+Isinya pemindahan apa adanya, bukan penulisan ulang.
+
+**T1 — pertanyaan dibatasi.** `String(question).trim()` yang dulu masuk prompt
+apa adanya kini lewat `clampText(question, MAX_QUESTION_LENGTH)` (2.000 karakter).
+
+**T2 — `generationConfig` untuk semua mode.** `callGemini(promptText, mode)` kini
+mengirim `generationConfigFor(mode)`: `insights` {temp 0.3, 2048 token, JSON},
+`suggest_category` {temp 0, 128 token, JSON}, `scan_receipt` {temp 0, 512 token,
+JSON}, `monthly_summary` {temp 0.4, 1024}, `question` {temp 0.3, 1024}. Biaya
+keluaran kini terpagar dan mode JSON tidak lagi bergantung pada pembersihan
+```json``` semata.
+
+**T3 — batas waktu.** `AbortSignal.timeout(...)` di kedua function (30 s teks,
+60 s vision). Timeout dibalas **504** dengan pesan umum; kegagalan jaringan 502.
+
+**T6 — tiga klaim dokumen salah sudah dikoreksi** (bukan kodenya yang diubah):
+(a) komentar "terpanggil tiap dashboard dibuka / jeda 3 menit" → kenyataannya
+hanya tombol ⟳ manual; (b) komentar "cuma mengirim angka agregat" → kini
+disebutkan terang-terangan bahwa nama akun + `keterangan` (80 char) untuk 3
+transaksi terbesar ikut terkirim; (c) komentar di dalam handler yang mengklaim
+"tidak membocorkan keterangan". README §11 kini punya daftar eksplisit "Data apa
+yang dikirim ke Gemini" + cara mematikan field itu bila dianggap terlalu pribadi.
+**Keputusan yang diambil:** field `keterangan`/`akun` TETAP dikirim (menghapusnya
+menurunkan kualitas saran dan mengubah perilaku); yang diperbaiki adalah
+kejujuran dokumentasinya.
+
+**T7 — 17 uji baru** di `tests/unit/ai-edge-output.test.js` (unit naik 973 → 990).
+**Kontrol negatif dibuktikan**: saat batas `clampText`, `responseMimeType`,
+pemotongan 80/500/4000, batas 5 kartu, dan guard "kategori karangan AI" dicabut
+satu per satu, 7 uji menjadi merah; setelah dipulihkan 990/990 hijau.
+
+**VERIFIKASI:** sintaks kedua `index.ts` diperiksa parser esbuild (OK); modul
+murni diimpor Node (OK); lint 0; unit 990/990; parity 1/1. Ikutan diperbarui:
+jumlah file test di STRUKTUR-REPO & README 92 → 93 (dijaga docs-consistency).
+
+**CATATAN:** T7 dikerjakan lebih dulu dari urutan rekomendasi karena modul murni
+ini justru yang dipakai T1/T2/T3 — memisahkannya belakangan berarti menyentuh
+kode yang sama dua kali.
