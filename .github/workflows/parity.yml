@@ -371,3 +371,52 @@ jobs:
         env:
           RUN_LIVE_ISOLATION_PARITY: "true"
         run: node tests/parity/live-isolation-parity.mjs
+
+  # v140 (audit data 2026-10-21): bukti NYATA bahwa angka yang dihitung web sama
+  # dengan angka yang dikatakan database. Sebelumnya satu-satunya pembanding
+  # adalah tests/parity/transactions-live.test.js yang process.exit(0) alias
+  # SKIP tanpa SUPABASE_URL/SUPABASE_ANON_KEY -- jadi job parity bisa hijau
+  # terus tanpa pernah membandingkan apa pun. Job ini hermetik (postgres
+  # container, tanpa secrets, tidak menyentuh produksi) dan membandingkan:
+  # isolasi RLS, normalisasi baris, konversi valuta asing, totalIn/totalOut,
+  # monthIn/monthOut/monthTxCount, pengeluaran per kategori, ringkasan per
+  # bulan, saldo per akun (dalam mata uang akun, BUKAN jumlah_idr), serta
+  # ketahanan terhadap baris cacat (angka sebagai teks, tanggal kosong).
+  data-parity:
+    name: Data parity (Postgres vs web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Pastikan psql tersedia
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+      - name: Angka web vs SQL (skema + RLS asli, 20 cek)
+        run: node scripts/verify-data-parity.mjs

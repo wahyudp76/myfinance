@@ -1,6 +1,6 @@
 # MyFinance — Peta Lengkap Struktur Repo
 
-> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v139`
+> Repo: `wahyudp76/myfinance` · branch `main` · ~417 commit · versi terbaru `v140`
 > Sekali lihat: **SPA statis (tanpa server & tanpa bundler saat runtime) + Supabase backend + Edge Functions**.
 > Browser memuat DUA berkas hasil build saja: `boot.bundle.js` (bundel ESM `boot.js` + 72 modul `src/**`, sejak v103) dan `app.js` (logika monolit). Keduanya di-commit, jadi deploy tetap cuma "salin file statis".
 
@@ -232,6 +232,7 @@ myfinance/
 │   ├── verify-applock-rpid.mjs # E2E RP ID WebAuthn, legacy & pindah domain (31 cek, v107)
 │   ├── verify-applock.mjs  # E2E kunci aplikasi + pengingat, stub settings STATEFUL (21 cek, v92)
 │   ├── verify-budget-notify.mjs # E2E notifikasi ambang anggaran, anggaran parent & SUB (13 cek, v139)
+│   ├── verify-data-parity.mjs   # kebenaran angka web vs SQL (Postgres+RLS asli), 20 cek (v140)
 │   ├── verify-csp.mjs      # E2E Content-Security-Policy (17 cek, v109)
 │   ├── verify-asset-logos.mjs # E2E logo platform aset (17 cek, v86)
 │   ├── verify-applock-biometric.mjs # E2E biometrik multi-perangkat, virtual authenticator CDP (14 cek, v99)
@@ -277,6 +278,7 @@ myfinance/
 │   ├── maintenance-2026-09-17.md            # v132: maintenance rutin + cek stabilitas & performa
 │   ├── audit-ai-2026-09-17.md               # v134: audit jalur AI (Edge Function analyze-finance
 │   │                       #   & scan-receipt, payload, rate limit, cache, privasi, uji)
+│   ├── audit-data-2026-10-21.md              # v140: audit kebenaran data web vs SQL + stabilitas
 │   ├── audit-menyeluruh-2026-09-17.md       # v133: 9 harness E2E hijau + temuan inefisiensi
 │   │                       #   renderRecentList (sortir 20.000 baris utk 10 baris tampil)
 │   ├── AUDIT_REPORT_2026-08.md

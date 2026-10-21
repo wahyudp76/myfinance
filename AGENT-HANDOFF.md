@@ -3699,3 +3699,42 @@ perubahan produk tersendiri.
 **VERIFIKASI:** harness baru 13/13; lint 0; unit 1006/1006; parity 1/1;
 E2E 9 harness lama 231 PASS; `CACHE_VERSION` `myfinance-v158` → **v159** +
 snapshot SW diregenerasi.
+
+## v140 — audit data & stabilitas: bukti NYATA angka web = kata database
+
+Laporan lengkap: **`docs/audit-data-2026-10-21.md`**.
+
+**Temuan struktural paling penting:** `tests/parity/transactions-live.test.js`
+melakukan `process.exit(0)` bila `SUPABASE_URL`/`SUPABASE_ANON_KEY` tidak ada,
+jadi `npm run test:parity` mencetak `# pass 1` tanpa membandingkan apa pun.
+Job CI `parity` bisa hijau terus sebagai "hijau yang tidak berarti".
+
+**Penutup:** harness hermetik baru **`scripts/verify-data-parity.mjs` (20 cek)** —
+PostgreSQL 17 + `scripts/schema-verify/supabase-shim.sql` + `sql/schema.sql`
+asli + grant default ala Supabase + **RLS aktif** (`role=authenticated` + GUC
+`request.uid`). Membandingkan: isolasi antar user, normalisasi baris lewat
+`mapTransactionRow()`, konversi valuta asing, `totalIn/totalOut`,
+`monthIn/monthOut/monthTxCount`, pengeluaran per kategori, ringkasan per bulan,
+saldo per akun, pengecualian transfer, dan ketahanan baris cacat. **20/20 LULUS.**
+Kontrol negatif: mutasi `dashboard.js` (saldo memakai `amtIdr`) → **2 CEK GAGAL**.
+Harness dipasang sebagai job CI baru **`data-parity`** di
+`.github/workflows/parity.yml` (postgres container, tanpa secrets).
+
+**Dua kontrak yang diluruskan harness ini** (bukan bug produk, tapi mudah
+"diperbaiki" secara keliru):
+1. Saldo akun memakai **`jumlah`** (mata uang akun itu sendiri), bukan
+   `jumlah_idr` — dugaan awal saya menghasilkan selisih Rp 3.733.208,25;
+   `src/domain/dashboard.js` menegaskan itu desain ("amt = NATIVE ... HANYA utk
+   saldo per-akun").
+2. `monthlyMap` berkunci **label bulan Indonesia** (`"Okt 2026"`), bukan `YYYY-MM`.
+
+**VERIFIKASI (semua dijalankan 2026-10-21):** lint 0; unit **1006/1006**;
+`schema-verify` semua lulus (11 tabel/5 fungsi/15 policy, idempoten, 12 cek
+fungsional termasuk isolasi RLS & rate limit); `verify-data-parity` **20/20**;
+E2E 10 harness **244 PASS / 0 gagal**; 0 pageerror. Perf (1 run, CPU 4x):
+`renderRecentList` 30,4/159,7 ms (2.500/20.000), `filterTransactions`
+415,1/**875,2** ms — kini biaya render terbesar.
+
+**TIDAK BISA DIJALANKAN DI SINI (jujur):** parity terhadap database produksi dan
+`drift-check` mode produksi — keduanya butuh kredensial Supabase yang tidak ada
+di lingkungan ini.
