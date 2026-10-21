@@ -373,7 +373,14 @@ async function main() {
       const acak = (a) => { const b = a.slice(); for (let i = b.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1));[b[i], b[j]] = [b[j], b[i]]; } return b; };
       const cmp = txServerCompare;
       const lama = (rows) => [...rows].sort(cmp);
-      const baru = (rows) => window.__myfinanceServices.sortTxRows(rows, cmp);
+      // v141: pembanding lama memanggil parseTgl() 2x per perbandingan (tiap
+      // panggilan = split string + lookup Map + alokasi objek Date) dan
+      // txCreatedAtMs() = Date.parse tanpa memo. Versi baru menghitung kunci
+      // numerik SEKALI per baris (src/domain/tx-sort.js). CATATAN: rujukan lama
+      // di baris ini menunjuk servicesModule.sortTxRows -- sisa percobaan v127
+      // yang sudah dihapus, jadi BENCH_MICRO=1 selalu crash sebelum v141.
+      const svc = window.__myfinanceServices;
+      const baru = (rows) => svc.sortTxRowsDesc(rows, { tanggalMs: svc.parseTglMs, createdAtMs: txCreatedAtMs });
 
       const hasilSort = {};
       for (const n of [2500, 20000]) {
@@ -407,7 +414,23 @@ async function main() {
       const jalankan = (fn) => { ELS.forEach((el, i) => fn(el, 1000000 + i * 12345 + Math.floor(Math.random() * 1000))); };
       const animInnerTextMs = ukur(() => jalankan(replikaInnerText), 15);
       const animTextContentMs = ukur(() => jalankan((el, v) => animateRupiah(el, v, true)), 15);
-      return { sort: hasilSort, animInnerTextMs, animTextContentMs, elemenAnimasi: ELS.length };
+      // (c) v141: PEMECAHAN FASE filterTransactions pada keadaan filter default
+      // (last30). Penting karena dugaan "sortir = biayanya" ternyata salah:
+      // dengan filter 30 hari, yang disortir hanya subset (~n/24 dari 730 hari),
+      // sehingga biaya sesungguhnya ada di lintasan O(n) yang lain.
+      const svc2 = window.__myfinanceServices;
+      const faseFilter = {
+        totalMs: ukur(() => filterTransactions(), 5),
+        salinArrayMs: ukur(() => { const d = [...globalData]; return d.length; }, 5),
+        filter30HariMs: ukur(() => svc2.computeLast30DaysView(globalData, { now: new Date(), parseTgl, txIdrAmount }), 5),
+        sortirSubsetMs: ukur(() => {
+          const { filtered } = svc2.computeLast30DaysView(globalData, { now: new Date(), parseTgl, txIdrAmount });
+          return [...filtered].sort(txServerCompare).length;
+        }, 5),
+        barisSubset: svc2.computeLast30DaysView(globalData, { now: new Date(), parseTgl, txIdrAmount }).filtered.length,
+        barisTotal: globalData.length,
+      };
+      return { sort: hasilSort, animInnerTextMs, animTextContentMs, elemenAnimasi: ELS.length, faseFilter };
     });
     console.log("\n=== MICRO A/B (median 7-15 pengulangan) ===");
     for (const [n, v] of Object.entries(micro.sort)) {
@@ -415,6 +438,13 @@ async function main() {
       console.log(`  SORT ${n} baris  input dikocok : lama ${String(v.lamaDikocokMs).padStart(6)} ms -> baru ${String(v.baruDikocokMs).padStart(6)} ms  | hasil identik: ${v.identikDikocok}`);
     }
     console.log(`  animateRupiah 4 elemen       : innerText ${micro.animInnerTextMs} ms -> textContent ${micro.animTextContentMs} ms`);
+    if (micro.faseFilter) {
+      const f = micro.faseFilter;
+      console.log(`  FASE filterTransactions (filter default last30): total ${f.totalMs} ms`);
+      console.log(`    salin [...globalData] (${f.barisTotal} baris) : ${f.salinArrayMs} ms`);
+      console.log(`    computeLast30DaysView (O(n))        : ${f.filter30HariMs} ms`);
+      console.log(`    sortir subset (${f.barisSubset} baris)          : ${f.sortirSubsetMs} ms`);
+    }
   }
 
   const hasil = {

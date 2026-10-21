@@ -82,6 +82,8 @@
         // src/domain/format.js). dateCtx() disediakan lewat jalur servicesModule agar
         // blok classic (monolit) mengadopsinya tanpa menghapus definisi global lama.
         import { dateCtx } from './src/domain/dates.js';
+        import { parseTglMs } from './src/domain/dates.js';
+        import { sortTxRowsDesc, selectWindowDesc } from './src/domain/tx-sort.js';
         // PILOT MIGRASI (v73): resolusi gaya/parent kategori murni (dari lookups)
         // di src/domain/category-style.js -- monolit men-delegasi dgn memasukkan
         // categoryDict/subCategoryLookup miliknya (lihat __catstyle).
@@ -144,7 +146,7 @@
             computeAccountChartSeries, resolveAccountCategoryDateRange, aggregateAccountExpenseByCategory, computeAccountGroupNet, isTransactionForAccount,
             summarizeAssets, computeNetWorth,
             computeFinancialHealthScore, computeFinancialInsights, buildInsightsContext,
-            buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS, selectSortedWindow, selectKthInPlace,
+            buildAiFinanceSummary, isAiInsightCacheFresh, AI_INSIGHT_CACHE_TTL_MS, selectSortedWindow, selectKthInPlace, sortTxRowsDesc, selectWindowDesc, parseTglMs,
             computeGoalProgress, computeDebtProgress,
             // Tema warna (src/domain/theme.js): domain murni juga -- dipakai blok script
             // classic lewat servicesModule, pola yang sama dgn fungsi domain di atas.

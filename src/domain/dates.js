@@ -39,7 +39,23 @@ const _TGL_MEMO_MAX = 1024;
 
 /** Ubah string "YYYY-MM-DD" (atau ISO dengan T) -> Date lokal tengah malam. Null/empty -> invalid. */
 export function parseTgl(tanggalStr) {
-  if (!tanggalStr) return new Date(NaN);
+  return new Date(parseTglMs(tanggalStr));
+}
+
+/**
+ * Versi TIMESTAMP dari parseTgl -- tanpa alokasi objek `Date`.
+ *
+ * KENAPA ADA (v141): pembanding urutan transaksi memanggil parseTgl 2x per
+ * perbandingan; pada 20.000 baris itu ~600 ribu objek Date yang dibuat hanya
+ * untuk segera diambil nilai angkanya lalu dibuang. Memo di bawah sudah
+ * menyimpan timestamp, jadi fungsi ini mengembalikannya apa adanya.
+ * `parseTgl` sekarang delegasi ke sini, jadi keduanya TIDAK mungkin melenceng.
+ *
+ * @param {string|null|undefined} tanggalStr
+ * @returns {number} timestamp ms, atau NaN bila kosong/tidak sah
+ */
+export function parseTglMs(tanggalStr) {
+  if (!tanggalStr) return NaN;
   const key = String(tanggalStr).split("T")[0];
   let ts = _tglMemo.get(key);
   if (ts === undefined) {
@@ -47,7 +63,7 @@ export function parseTgl(tanggalStr) {
     if (_tglMemo.size >= _TGL_MEMO_MAX) _tglMemo.clear(); // jaga ukuran tetap kecil; dataset realistis ~ribuan tanggal unik
     _tglMemo.set(key, ts);
   }
-  return new Date(ts);
+  return ts;
 }
 
 /** Ubah Date -> "YYYY-MM-DD" pakai komponen lokal (aman zona waktu; BUKAN toISOString/UTC). */

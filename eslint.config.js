@@ -237,6 +237,8 @@ export default [
         applyLocalTxEcho: "readonly",
         notifyIfBudgetThresholdCrossed: "readonly",
         txServerCompare: "readonly",
+        txCreatedAtMs: "readonly", // v141: dipakai A/B mikro bench-load-sync
+        parseTgl: "readonly",        // v141: dipakai pemecahan fase bench-load-sync
         animateRupiah: "readonly",
         _confirmYes: "readonly",
         applyDefaultViewOnce: "readonly",

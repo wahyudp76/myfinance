@@ -6657,7 +6657,16 @@ async function currentUserId() {
             const totalPages = Math.max(1, Math.ceil(rows.length / RECENT_TRANSACTIONS_PAGE_SIZE));
             recentTransactionsPage = Math.min(Math.max(1, recentTransactionsPage), totalPages);
             const pageStart = (recentTransactionsPage - 1) * RECENT_TRANSACTIONS_PAGE_SIZE;
-            const recent = servicesModule.selectSortedWindow(rows, txServerCompare, pageStart, RECENT_TRANSACTIONS_PAGE_SIZE);
+            // v141 (perf): seleksi jendela berbasis KUNCI numerik. Ini satu-satunya
+            // jalur yang menyentuh SELURUH baris tiap render (filterTransactions hanya
+            // menyortir subset hasil filter waktu). txServerCompare memanggil parseTgl 2x
+            // per perbandingan (split string + Map + alokasi Date) dan Date.parse tanpa
+            // memo; selectWindowDesc menghitung kunci sekali per baris. Urutan identik
+            // (tests/unit/tx-sort.test.js membandingkannya dengan selectSortedWindow).
+            const recent = servicesModule.selectWindowDesc(rows, {
+                tanggalMs: servicesModule.parseTglMs,
+                createdAtMs: txCreatedAtMs,
+            }, pageStart, RECENT_TRANSACTIONS_PAGE_SIZE);
             if(recent.length === 0) { container.innerHTML = ''; return; }
             // HUD: bar nominal proporsional terhadap transaksi pada halaman aktif.
             const hudMaxAmt = Math.max(...recent.map(r => Math.abs(Number(r.jumlah) || 0)), 1);

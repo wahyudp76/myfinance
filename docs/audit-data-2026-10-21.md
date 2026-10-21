@@ -123,7 +123,9 @@ seluruh daftar terurut untuk ditampilkan, jadi tidak bisa diperlakukan seperti
    membuktikan data NYATA Anda sehat. **[belum diverifikasi]**
 2. **Rotasi token**: GitHub PAT dan token Supabase `sbp_` pernah tertempel di
    chat. Ini satu-satunya temuan berisiko nyata yang belum ditutup.
-3. **`filterTransactions`** (875 ms @ 20.000 baris) — ukur dulu dengan A/B 3×
-   sebelum mengubah apa pun.
+3. **`filterTransactions`** (875 ms @ 20.000 baris) — **sudah diselidiki di v141**:
+   ternyata 77% biayanya pembangunan DOM, bukan sortir (filter waktu default
+   hanya menyortir subset 30 hari). Kandidat optimasi berikutnya adalah DOM,
+   bukan data. `renderRecentList` sudah dipercepat −22% di v141.
 4. **Migrasi `migration_tx_order_index_2026-09-15.sql`** belum ke produksi
    **[belum diverifikasi]**.

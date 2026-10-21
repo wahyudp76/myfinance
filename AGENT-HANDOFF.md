@@ -5,7 +5,7 @@
 > Status: semua fitur di bawah SUDAH teruji unit + E2E browser + (untuk Edge Function) live di produksi.
 
 ## Peta cepat
-- App: SPA statis `index.html` yang memuat DUA berkas hasil build: `boot.bundle.js` (`<script type="module">`, bundel esbuild atas `boot.js` + 72 modul `src/**`, sejak v103) dan `app.js` (`<script>` classic, logika monolit hasil terser dari `app.src.js`). Edit `app.src.js` / `src/**` — JANGAN `app.js` / `boot.bundle.js`. Perintah: `npm run build:app` (→ `app.js`), `npm run build:boot` (→ `boot.bundle.js`), `npm run build:css` (→ Tailwind), lalu service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build setiap kali aset berubah). Kedua output build di-commit, jadi deploy tetap "salin file statis".
+- App: SPA statis `index.html` yang memuat DUA berkas hasil build: `boot.bundle.js` (`<script type="module">`, bundel esbuild atas `boot.js` + 73 modul `src/**`, sejak v103) dan `app.js` (`<script>` classic, logika monolit hasil terser dari `app.src.js`). Edit `app.src.js` / `src/**` — JANGAN `app.js` / `boot.bundle.js`. Perintah: `npm run build:app` (→ `app.js`), `npm run build:boot` (→ `boot.bundle.js`), `npm run build:css` (→ Tailwind), lalu service worker `sw.js` (bump `CACHE_VERSION` + jalankan `node tests/unit/update-sw-cache-snapshot.mjs` SETELAH build setiap kali aset berubah). Kedua output build di-commit, jadi deploy tetap "salin file statis".
 - Verifikasi wajib: `npm run lint` (ESLint, sejak v45 -- job CI tersendiri) + `npm test` (kini lint+unit+parity) + `node scripts/verify-hud.mjs` (70 cek E2E Playwright terhadap `http://localhost:8123`, server via `npx http-server . -p 8123 -c-1`).
 - Backend Supabase: project `uxfngmxghupdlwoeoxgh`; **5** Edge Functions — `analyze-finance`, `get-exchange-rate`, `refresh-asset-price`, `scan-receipt`, `whatsapp-webhook` — plus helper bersama di `supabase/functions/_shared/` (deploy via CLI `~/tools/supabase/supabase functions deploy <nama> --project-ref uxfngmxghupdlwoeoxgh`, butuh token akses Supabase; JWT diverifikasi default).
 - Kontrak UI: tooltip gelap #000, palet colorblind-safe, **9** view — 7 di nav (`dashboard`/`transaksi`/`budget`/`laporan`/`aset`/`kalender`/`pengaturan`, dipindah lewat `data-action="switchView"`) + 2 sub-view drill-down (`akun-detail`, `kategori-detail`) — dan **19** modal ber-`role="dialog"` + `aria-modal="true"`, Ctrl/Cmd+K command palette.
@@ -3738,3 +3738,69 @@ E2E 10 harness **244 PASS / 0 gagal**; 0 pageerror. Perf (1 run, CPU 4x):
 **TIDAK BISA DIJALANKAN DI SINI (jujur):** parity terhadap database produksi dan
 `drift-check` mode produksi — keduanya butuh kredensial Supabase yang tidak ada
 di lingkungan ini.
+
+## v141 — sortir berbasis kunci: `renderRecentList` −22%, dan satu hasil NEGATIF yang jujur
+
+**Awalnya kandidat: `filterTransactions` (620–875 ms pada 20.000 baris).** Saya
+buat pembanding berbasis kunci (`txServerCompare` memanggil `parseTgl()` 2× per
+perbandingan — tiap panggilan membayar `split("T")`, lookup Map, dan **alokasi
+objek `Date`**; `txCreatedAtMs()` memanggil `Date.parse()` tanpa memo). A/B mikro
+di dalam halaman (CPU 4×, median 7 run, urutan diverifikasi identik):
+
+| sortir | lama | baru |
+|---|---|---|
+| 2.500 terurut / dikocok | 15,5 / 54 ms | **0,8 / 7 ms** |
+| 20.000 terurut / dikocok | 239,9 / 702,9 ms | **34,6 / 87,2 ms** |
+
+**Tetapi end-to-end `filterTransactions` TIDAK membaik** (5 run tiap sisi,
+median 621,5 → 656,2 ms; baris `SORT` sebagai penanda kecepatan mesin identik
+290 vs 294 ms). Penyebabnya ketemu setelah bench diberi **pemecahan fase**:
+select `txTimeFilterType` hanya punya `last30` (default) / `custom` / `range` —
+tidak ada "semua" — jadi yang disortir hanyalah **subset 30 hari (822 dari
+20.000 baris)**.
+
+| fase `filterTransactions` @20k (filter default) | biaya |
+|---|---|
+| total | 219,5 ms |
+| `[...globalData]` (20.000 baris) | 0,3 ms |
+| `computeLast30DaysView` (O(n)) | 36,1 ms |
+| sortir subset (822 baris) | ~11 ms |
+| **pembangunan DOM (sisa)** | **~170 ms (77%)** |
+
+**Keputusan: perubahan `filterTransactions` DIBATALKAN** (tidak terbukti lebih
+cepat; mandat repo ini hanya menerima perubahan yang terbukti dengan angka).
+Catatan pengukuran: angka "sortir subset 47,1 ms" pada percobaan pertama salah —
+blok ukurnya ikut memuat `computeLast30DaysView`; setelah dikoreksi ≈ 11 ms.
+
+**Yang DIPAKAI: `renderRecentList`** — satu-satunya jalur yang menyentuh
+SELURUH baris tiap render. A/B 3 run per skala, `BENCH_REPEAT=5`, CPU 4×:
+
+| `renderRecentList` | baseline `30a2acd` | sesudah | selisih |
+|---|---|---|---|
+| 2.500 baris | 41,3 ms | **31,5 ms** | −24% |
+| 20.000 baris | 147,4 ms | **115,4 ms** | −22% |
+
+Tidak ada tumpang tindih antar sampel di kedua skala.
+
+**Isi perubahan**
+- `src/domain/dates.js`: `parseTglMs()` (timestamp tanpa alokasi `Date`);
+  `parseTgl()` sekarang delegasi ke sana, jadi keduanya tak mungkin melenceng.
+- `src/domain/tx-sort.js` (baru): `sortTxRowsDesc()` (sortir penuh berbasis
+  kunci, typed array) dan `selectWindowDesc()` (seleksi jendela berbasis kunci,
+  memakai `selectKthInPlace` dari `tx-window.js`). `sortTxRowsDesc` saat ini
+  TIDAK dipakai jalur panas — ia tetap dipertahankan karena teruji, jadi sisi
+  "baru" pada A/B mikro bench, dan siap dipakai bila suatu saat ada sortir penuh.
+- `app.src.js`: `renderRecentList` memakai `selectWindowDesc`.
+- `scripts/bench-load-sync.mjs`: **memperbaiki bug latent** — A/B mikro memanggil
+  `servicesModule.sortTxRows` (sisa percobaan v127 yang sudah dihapus) sehingga
+  `BENCH_MICRO=1` selalu crash; kini memakai `sortTxRowsDesc` + ditambah
+  pemecahan fase `filterTransactions`.
+- `tests/unit/tx-sort.test.js` (9 uji): kesetaraan dengan `[...rows].sort(txServerCompare)`
+  secara acak deterministik, tanggal kembar, `created_at` hilang, tanggal tidak
+  sah, id angka/null, masukan tidak berubah, `parseTglMs` ≡ `parseTgl`, dan
+  kesetaraan `selectWindowDesc` vs `selectSortedWindow`. Kontrol negatif:
+  mencabut tiebreak id → 1 uji merah.
+
+**VERIFIKASI:** lint 0; unit **1015/1015**; build deterministik;
+`CACHE_VERSION` `myfinance-v159` → **v160** + snapshot SW diregenerasi; jumlah
+file domain 39→40, test 94→95, modul src 72→73 di dokumen.
